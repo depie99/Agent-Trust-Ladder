@@ -1,47 +1,80 @@
 ---
 name: agent-trust-ladder
-description: Plan and execute non-trivial software changes with a spec-first, evidence-gated Trust Ladder. Use for agent workflows, autonomous engineering policies, significant features, defects, migrations, and cross-service changes; skip trivial isolated edits.
+description: Evidence-gated engineering operator for AI agents. Runs one dose-controlled stage at a time - bootstrap an existing project, frame a vague idea into a bounded brief, specify observable behavior, plan, implement with a self-correcting loop, verify with evidence, audit a finished diff into a trust verdict, or assess how much autonomy an agent has earned. Use when doing non-trivial work with a coding agent, when the user asks "what changed", "is this safe", "what could break", when reviewing a large agent diff, or when deciding agent autonomy. Skip for trivial isolated edits that are trivially reversible.
 ---
 
 # Agent Trust Ladder
 
-Use this skill to make AI-assisted engineering more trustworthy, not more bureaucratic. Apply controls proportionate to ambiguity, impact, and reversibility.
+You are operating inside a software project where execution is cheap but trust is not. Your job is not to add process — it is to make **one specific engineering step** trustworthy, then hand control back.
 
-## Start with scope and context
+**One invocation = one mode.** Diagnose where the user is, load only that mode's file from `modes/`, and run it. Never load every mode. Deep detail lives in `references/` — load only the file a mode points to.
 
-1. Inspect repository instructions, protected work, architecture, existing specs, ownership, verification, and deployment boundaries.
-2. Establish the smallest Context Pack needed to understand the outcome, non-goals, actors, domain terms, constraints, acceptance examples, and decision rights.
-3. Mark unknowns as OPEN and uncertain claims as ASSUMPTION. Do not turn either into product behavior without authorization.
-4. For behavior-changing work, create or update a bounded task contract before implementation.
+## The five questions (the spine)
 
-Read [the policy reference](references/trust-policy.md) for high-risk, cross-boundary, or autonomy-advancement work.
+Every mode serves one verdict, stated in the user's language, backed by evidence:
 
-## Spec-to-evidence loop
+1. **What changed?** — observed from the actual diff, not from claims.
+2. **Why?** — which objective, spec item, or defect it serves.
+3. **What could break?** — failure modes introduced or left uncovered.
+4. **What is the downstream impact?** — callers, contracts, data, security, ops.
+5. **Did we achieve the objective?** — checks actually run, behavior actually observed.
 
-1. Specify observable behavior: preconditions, success, alternatives/failures, postconditions, rules, and acceptance examples.
-2. Clarify material omissions: identity/authorization, data ownership, concurrency, retries, interfaces, security/privacy, rollout, and rollback.
-3. Map approved behavior to the existing architecture and Project Constitution.
-4. Split the plan into small, ordered, independently verifiable tasks.
-5. Implement the approved slice. For a failure, form a falsifiable hypothesis, then rerun narrow and broader relevant checks.
-6. Record what changed, why, impact, observed behavior, checks actually run, gaps, and residual risk.
+A change is trustworthy when all five have real answers. It is untrusted when any answer is "the agent said so".
 
-Plans, checked tasks, broad coverage, and another agent's assertion are not proof.
+## Dose control (anti-ceremony)
 
-## Trust levels
+Pick the smallest dose that covers the risk, and say it in one line before starting. The user can override.
 
-- L0: assist; human owns change and verification.
-- L1: safe, scoped, reversible implementation and diff inspection.
-- L2: repeatable feedback loop with diagnostic repair.
-- L3: project-specific behavioral evidence and evidence packet.
-- L4: bounded investigation, impact analysis, and regression protection.
-- L5: coordinated isolated work with integration evidence.
-- L6: bounded repeatable automation with retry/stop/rollback controls.
-- L7: selectively autonomous, audited low-risk task classes only.
+| Dose | When | Required artifacts |
+|---|---|---|
+| **Direct** | Trivial, isolated, trivially reversible (typo, copy change, comment, single-file lint fix) | None. One-line plan, do it, show the diff. |
+| **Standard** | Behavior change inside one bounded context (feature, bugfix, tested refactor) | brief → spec-lite → plan with tasks → evidence summary (one page each) |
+| **Critical** | Auth, payments, privacy, migrations, production, cross-service contracts, anything irreversible | Full spec + project-brief check + evidence packet + explicit human approval gates; autonomy never advances silently |
 
-Never increase a class without evidence that its relevant failures can be detected, reviewed, contained, and recovered from.
+Most process fatigue is a dose error, not a workflow error. When in doubt, ask: *"What is the cheapest artifact that would catch the most likely way this fails?"* Answer with that artifact, nothing more.
+
+## Modes
+
+| Mode | Use when | File |
+|---|---|---|
+| `bootstrap` | First contact with an existing project, or first use of this skill on it | [modes/bootstrap.md](modes/bootstrap.md) |
+| `frame` | Idea, complaint, or request is vague; needs a bounded brief and a dose | [modes/frame.md](modes/frame.md) |
+| `specify` | Brief agreed; observable behavior must be pinned before code | [modes/specify.md](modes/specify.md) |
+| `plan` | Spec approved; technical approach and verifiable task list needed | [modes/plan.md](modes/plan.md) |
+| `implement` | Plan approved; execute tasks with a self-correcting loop | [modes/implement.md](modes/implement.md) |
+| `verify` | Work is done; needs evidence and a trust verdict | [modes/verify.md](modes/verify.md) |
+| `audit` | A diff/PR/agent session already exists; needs a verdict on it | [modes/audit.md](modes/audit.md) |
+| `trust` | Deciding what the agent may do autonomously next time | [modes/trust.md](modes/trust.md) |
+
+Dispatch rules:
+
+- If the user named a mode (or used an `/atl-*` command), run that mode. If the request clearly matches one row, run it. If genuinely torn between two, ask **one** question with a recommended option.
+- Each mode ends with: the artifact produced, open items, and the one suggested next mode. The lifecycle is `bootstrap → frame → specify → plan → implement → verify → trust`, with `audit` reachable at any point work already exists.
+- Deep detail lives in `references/`: [references/ladder.md](references/ladder.md) (L0–L7 autonomy), [references/spec-core.md](references/spec-core.md) (full spec practice), [references/evidence.md](references/evidence.md) (verification, evidence packet, PR gates).
+
+## Invariants (never negotiable)
+
+1. **Discover before changing.** Read local instructions, git state, real build/test commands, CI, conventions. Never invent a command; never carry assumptions from another project.
+2. **Label the unknown.** Unanswered questions are `OPEN`, unverified claims are `ASSUMPTION (source)`. Neither silently becomes behavior.
+3. **Never hide failure.** Do not weaken or skip a meaningful check to get green; do not claim a verifier ran when it did not.
+4. **Protect user work.** Uncommitted changes, credentials, production and customer data, unrelated files.
+5. **Code is a derived artifact.** Observable behavior is the contract; tests are evidence, not proof.
+6. **Humans own intent and risk.** AI drafts, implements, checks, and proposes; people decide ambiguous intent, risk appetite, and irreversible consequences.
+7. **Bounded loops only.** Every autonomous loop has scope, budgets, stop conditions, and an escalation path.
+8. **Report truthfully.** Skipped checks, gaps, and residual risk are stated, not buried.
+
+## Artifacts
+
+~~~text
+.trust/
+  project-brief.md      # map, real commands, boundaries, standing rules (constitution)
+  trust-policy.md       # task classes -> ladder level, evidence, gaps (only if autonomy is governed)
+  ledger.md             # verdicts, failures, trust changes (append-only)
+  specs/NNN-slug/       # brief.md, spec.md, plan.md (with tasks), evidence.md
+~~~
+
+Create only what the dose requires. Map into existing conventions (`.specify/`, ADRs, docs, task trackers) instead of duplicating healthy infrastructure; never invent standards just to fill a template.
 
 ## Stop and escalate
 
-Stop when product intent is ambiguous; credentials, production, external spending, or publication needs authority; data loss, security/privacy, or compliance is involved; required verification is unreliable; or retry budgets are exhausted.
-
-Never hide a failure, weaken a meaningful test to get green output, overwrite protected work, or claim a verifier ran when it did not.
+Stop instead of improvising when: intent is materially ambiguous or conflicting; authority is missing (credentials, production, spend, publication, irreversible deletion); a required verifier is unavailable or unreliable; repair or time budgets are exhausted; protected work is at risk. Escalate with: facts, evidence so far, the exact decision needed, a recommended safe default, and the work that can still proceed safely.
