@@ -13,6 +13,7 @@ Read only the references needed for the request:
 - [writing-guide.md](references/writing-guide.md) when drafting or editing prose;
 - [maintenance-workflow.md](references/maintenance-workflow.md) when docs must track a code/config/API/operational change or a batch of past changes;
 - [verification.md](references/verification.md) when validating examples, links, generated output, retrievability, or freshness;
+- [diagram-workflow.md](references/diagram-workflow.md) when a change is easier to explain as architecture, sequence, lifecycle, ownership, or dependency structure;
 - [research-basis.md](references/research-basis.md) when explaining why these conventions were selected.
 
 ## Modes

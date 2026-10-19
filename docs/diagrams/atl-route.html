@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ATL route — contract to evidence</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f8fafc;--fg:#172033;--muted:#5b6475;--line:#64748b;--neutral:#e2e8f0;--input:#bfdbfe;--process:#c7d2fe;--storage:#99f6e4;--external:#fde68a;--risk:#fecaca}
+    @media(prefers-color-scheme:dark){:root{--bg:#0f172a;--fg:#e5e7eb;--muted:#a3adbd;--line:#94a3b8;--neutral:#334155;--input:#1d4ed8;--process:#4338ca;--storage:#0f766e;--external:#92400e;--risk:#991b1b}}
+    body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 ui-sans-serif,system-ui,sans-serif}main{max-width:980px;margin:32px auto;padding:0 20px}svg{width:100%;height:auto;display:block}.title{font-size:20px;font-weight:650;fill:var(--fg)}.label{font-size:14px;font-weight:600;fill:var(--fg)}.small{font-size:12px;fill:var(--muted)}.node{stroke:var(--line);stroke-width:1}.neutral{fill:var(--neutral)}.input{fill:var(--input)}.process{fill:var(--process)}.storage{fill:var(--storage)}.external{fill:var(--external)}.risk{fill:var(--risk)}.edge{stroke:var(--line);stroke-width:1.5;fill:none}.zone{fill:none;stroke:var(--line);stroke-width:1;stroke-dasharray:6 5;opacity:.8}
+  </style>
+</head>
+<body><main>
+  <svg viewBox="0 0 940 480" role="img" aria-labelledby="title desc">
+    <title id="title">ATL route from request to evidence</title><desc id="desc">A five-stage route with a contract ledger and final trust verdict.</desc>
+    <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8z" fill="var(--line)"/></marker></defs>
+    <text x="24" y="34" class="title">ATL · contract-to-runtime evidence route</text>
+    <text x="24" y="57" class="small">A diagram explains structure; matching observations prove behavior.</text>
+    <rect x="20" y="82" width="900" height="175" rx="12" class="zone"/>
+    <text x="36" y="106" class="small">WORKFLOW ROUTE</text>
+    <path d="M174 170h32m148 0h32m148 0h32m148 0h32" class="edge" marker-end="url(#arrow)"/>
+    <g transform="translate(42 132)"><rect width="132" height="76" rx="9" class="input node"/><text x="16" y="28" class="label">1 · Frame</text><text x="16" y="51" class="small">bound the ask</text></g>
+    <g transform="translate(206 132)"><rect width="132" height="76" rx="9" class="process node"/><text x="16" y="28" class="label">2 · Specify</text><text x="16" y="51" class="small">name behavior</text></g>
+    <g transform="translate(370 132)"><rect width="132" height="76" rx="9" class="process node"/><text x="16" y="28" class="label">3 · Plan</text><text x="16" y="51" class="small">map impact</text></g>
+    <g transform="translate(534 132)"><rect width="132" height="76" rx="9" class="storage node"/><text x="16" y="28" class="label">4 · Implement</text><text x="16" y="51" class="small">bounded change</text></g>
+    <g transform="translate(698 132)"><rect width="132" height="76" rx="9" class="external node"/><text x="16" y="28" class="label">5 · Verify</text><text x="16" y="51" class="small">show the proof</text></g>
+    <rect x="20" y="286" width="560" height="150" rx="12" class="zone"/><text x="36" y="310" class="small">CONTRACT LEDGER · DIRECT OBSERVATIONS</text>
+    <path d="M82 340h420" class="edge" marker-end="url(#arrow)"/><circle cx="82" cy="340" r="9" class="storage"/><circle cx="222" cy="340" r="9" class="storage"/><circle cx="362" cy="340" r="9" class="risk"/><circle cx="502" cy="340" r="9" class="risk"/>
+    <text x="55" y="375" class="small">bundle</text><text x="188" y="375" class="small">artifact</text><text x="330" y="375" class="small">consumer?</text><text x="470" y="375" class="small">runtime?</text>
+    <text x="36" y="413" class="small">green = observed · amber = inferred / unknown</text>
+    <g transform="translate(620 286)"><rect width="300" height="150" rx="12" class="risk node"/><text x="20" y="31" class="label">Trust verdict</text><text x="20" y="65" class="label">Conditionally valid</text><text x="20" y="94" class="small">When the consumer or callback</text><text x="20" y="113" class="small">cannot be directly observed.</text></g>
+  </svg>
+</main></body></html>

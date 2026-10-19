@@ -1,6 +1,6 @@
 # Agent Trust Ladder
 
-A spec-first, evidence-gated **operator** for AI coding agents — packaged as one smart control plane, one lifecycle router, and nine independently invocable workflow skills.
+A spec-first, evidence-gated **operator** for AI coding agents — packaged as one smart control plane, one lifecycle router, and eleven independently invocable workflow skills.
 
 It answers the question every team now has: agents execute faster than humans can verify. So every stage of work here produces **evidence**, and autonomy is earned per task class — never assumed.
 
@@ -74,6 +74,10 @@ Or copy every folder under `skills/` into your agent's skills directory (`.claud
 **Optional slash commands** (Claude Code): copy `commands/*.md` into `.claude/commands/` for direct `/atl-*` access.
 
 Full install guide — per-agent paths, team installs, updates, troubleshooting: **[USAGE.md](USAGE.md)**
+
+### Documentation site prototype
+
+The first static UI for the ATL documentation experience lives in **[docs/index.html](docs/index.html)**. It includes the route map, skill library, evidence ledger, and a bounded workflow for using the Diagram Maker & Visualizer. The standalone diagram is at **[docs/diagrams/atl-route.html](docs/diagrams/atl-route.html)**.
 
 ## Quick start
 
