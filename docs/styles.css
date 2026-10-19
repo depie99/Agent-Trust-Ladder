@@ -3,3 +3,10 @@ body.light{--ink:#15151c;--muted:#5b5d6a;--faint:#888b98;--bg:#f4f3f7;--panel:#f
 @media(max-width:900px){.app-shell{display:block}.sidebar{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:18px;display:block}.brand{padding:0 0 16px}.sidebar-caption,.sidebar-footer,.muted-nav{display:none}.nav-list{display:flex;overflow:auto;margin:0;gap:2px}.nav-item{white-space:nowrap}.topbar{padding:0 18px}.content-wrap{padding:48px 18px 20px}.workflow-card,.split-section{grid-template-columns:1fr}.flow-diagram{min-height:230px}.diagram-callout{grid-template-columns:100px 1fr}.diagram-art svg{width:100px}.diagram-badge{display:none}}
 @media(max-width:560px){.top-actions .version-button,.icon-button{display:none}.search-button{width:auto}.hero{padding-bottom:48px}h1{font-size:58px}.stats-grid{grid-template-columns:1fr;gap:18px}.stat-card small{margin-left:auto}.hero-actions{flex-wrap:wrap}.section-heading{align-items:start;gap:15px;flex-direction:column}.skill-grid{grid-template-columns:1fr}.flow-diagram{padding:24px 5px}.flow-node{width:58px}.flow-node small{font-size:8px}.flow-node strong{font-size:10px}.flow-node b{width:32px;height:32px}.diagram-callout{grid-template-columns:1fr;padding:22px}.diagram-art{display:none}.quickstart{display:block}.prompt-box{min-width:0;margin-top:20px;font-size:10px}footer{display:block;line-height:2.2}footer span,footer a{display:block}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+
+/* Keep the desktop sidebar in the grid. A fixed grid item is removed from
+   layout, which leaves the main column in the 250px sidebar track. */
+@media(min-width:901px){
+  .sidebar{position:sticky;grid-column:1;grid-row:1;top:0}
+  main{grid-column:2;grid-row:1;min-width:0}
+}
