@@ -123,6 +123,7 @@ Use the specialist's exact public skill name when available. Read its `SKILL.md`
 - Native ATL skills contribute project bootstrap, bounded framing, observable specification, impact-aware planning, bounded implementation, evidence packets, audits, and earned-autonomy decisions.
 - `atl-adr` contributes decision-significance triage, durable architecture records, supersession links, and fitness-function evidence.
 - `atl-tech-docs` contributes documentation-impact triage, content modeling, source-of-truth alignment, docs-as-code validation, and freshness evidence.
+- `atl-diagrams` contributes visual contract modeling, accessible diagram artifacts, format selection, and picture-versus-proof checks. Pair it with `atl-tech-docs` when the diagram is published as documentation.
 
 Do not vendor or paraphrase an external workflow as if it ran. Attribution remains attached to the routed skill and its produced artifact.
 

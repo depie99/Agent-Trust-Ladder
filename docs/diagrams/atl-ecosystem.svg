@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+  <title id="title">ATL engineering ecosystem</title>
+  <desc id="desc">A layered view from a raw developer request through ATL routing, specialist skills, evidence verification, and a trust verdict with feedback to the next task.</desc>
+  <defs><style>
+    text{font-family:system-ui,sans-serif;fill:#eef0f7}.title{font-size:24px;font-weight:700}.label{font-size:15px;font-weight:650}.small{font-size:12px;fill:#a5a8ba}.zone{fill:#11121a;stroke:#383a4b;stroke-width:1;stroke-dasharray:6 5}.edge{stroke:#7771b8;stroke-width:2;fill:none}.edge-mint{stroke:#51c7a8;stroke-width:2;fill:none}.node{stroke-width:1}.input{fill:#272346;stroke:#9b8cff}.route{fill:#1f2540;stroke:#7f9bff}.specialist{fill:#172d2c;stroke:#5fe0c2}.evidence{fill:#302817;stroke:#f4c67e}.verdict{fill:#271e35;stroke:#fa8f83}.muted{fill:#74788a}
+  </style><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 9 4.5 0 9z" fill="#7771b8"/></marker><marker id="arrow-mint" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 9 4.5 0 9z" fill="#51c7a8"/></marker></defs>
+  <text x="32" y="42" class="title">ATL · one front door, many trustworthy routes</text>
+  <text x="32" y="66" class="small">The picture maps responsibility; the evidence packet proves what actually happened.</text>
+  <rect x="24" y="92" width="1072" height="105" rx="14" class="zone"/><text x="42" y="118" class="small">REQUEST</text>
+  <path d="M170 147h72" class="edge" marker-end="url(#arrow)"/>
+  <g transform="translate(46 130)"><rect width="124" height="48" rx="10" class="node input"/><text x="18" y="30" class="label">Raw prompt</text></g>
+  <g transform="translate(242 130)"><rect width="210" height="48" rx="10" class="node route"/><text x="18" y="30" class="label">ATL · infer the smallest route</text></g>
+  <path d="M452 147h55" class="edge" marker-end="url(#arrow)"/>
+  <g transform="translate(507 130)"><rect width="250" height="48" rx="10" class="node route"/><text x="18" y="30" class="label">Frame → specify → plan → implement</text></g>
+  <path d="M757 147h56" class="edge" marker-end="url(#arrow)"/>
+  <g transform="translate(813 130)"><rect width="248" height="48" rx="10" class="node route"/><text x="18" y="30" class="label">Verify → review → honest verdict</text></g>
+
+  <rect x="24" y="222" width="1072" height="174" rx="14" class="zone"/><text x="42" y="248" class="small">SPECIALISTS · USE ONLY WHEN THEY CATCH A NAMED RISK</text>
+  <path d="M184 293h45m195 0h45m195 0h45m195 0h45" class="edge-mint" marker-end="url(#arrow-mint)"/>
+  <g transform="translate(46 270)"><rect width="138" height="70" rx="10" class="node specialist"/><text x="15" y="29" class="label">ATL docs</text><text x="15" y="51" class="small">source + freshness</text></g>
+  <g transform="translate(229 270)"><rect width="195" height="70" rx="10" class="node specialist"/><text x="15" y="29" class="label">ATL diagrams</text><text x="15" y="51" class="small">visual contract + artifact</text></g>
+  <g transform="translate(469 270)"><rect width="195" height="70" rx="10" class="node specialist"/><text x="15" y="29" class="label">ATL UI review</text><text x="15" y="51" class="small">real surface + states</text></g>
+  <g transform="translate(709 270)"><rect width="195" height="70" rx="10" class="node specialist"/><text x="15" y="29" class="label">ATL ADR</text><text x="15" y="51" class="small">decision + consequences</text></g>
+  <g transform="translate(949 270)"><rect width="115" height="70" rx="10" class="node specialist"/><text x="15" y="29" class="label">Trust</text><text x="15" y="51" class="small">autonomy</text></g>
+  <text x="42" y="373" class="small">Specialists return artifacts to ATL; they do not widen authority or replace the final gate.</text>
+
+  <rect x="24" y="420" width="690" height="160" rx="14" class="zone"/><text x="42" y="446" class="small">EVIDENCE PACKET</text>
+  <path d="M100 490h510" class="edge" marker-end="url(#arrow)"/>
+  <circle cx="100" cy="490" r="13" class="evidence"/><circle cx="270" cy="490" r="13" class="evidence"/><circle cx="440" cy="490" r="13" class="evidence"/><circle cx="610" cy="490" r="13" class="verdict"/>
+  <text x="69" y="530" class="small">local</text><text x="229" y="530" class="small">CI/build</text><text x="394" y="530" class="small">consumer</text><text x="548" y="530" class="small">runtime</text>
+  <text x="42" y="560" class="small">Each level is named; missing deployment or external proof stays unknown.</text>
+
+  <g transform="translate(758 420)"><rect width="338" height="160" rx="14" class="node verdict"/><text x="22" y="34" class="label">Trust verdict</text><text x="22" y="69" class="label">Complete · conditional · unknown</text><text x="22" y="102" class="small">The next safe action is explicit.</text><text x="22" y="124" class="small">New evidence feeds the next prompt.</text></g>
+</svg>

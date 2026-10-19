@@ -37,6 +37,7 @@ If the route changes, replace the stale detail rather than accumulating every ca
 | User asks what autonomy is earned or whether the agent may do more | Trust | `atl-trust` | task-class evidence and policy decision |
 | A durable architecture or system-design choice needs its “why” recorded | Architecture decision | `atl-adr` | ADR or explicit no-ADR rationale, with owner, status, consequences, and verifier |
 | New or stale technical docs, or a code/config/API change with reader impact | Documentation | `atl-tech-docs` | doc contract, content type, source alignment, checks, and freshness verdict |
+| User asks for a diagram, architecture view, flow, lifecycle, dependency map, or visual change explanation | Documentation or matching engineering route | `atl-diagrams` plus `atl-tech-docs` when published as documentation | diagram contract, source/rendered artifact, accessibility checks, and observed-versus-inferred boundaries |
 | Configuration/build/package/deployment/external service boundary | relevant route | contract-to-runtime evidence gate | contract ledger and level-specific evidence |
 
 When multiple rows match, use this precedence: safety/authority gate → existing-work audit/review → missing intent/specification → missing repository plan → implementation → verification/delivery. A boundary gate is additive and never replaces the primary playbook.
