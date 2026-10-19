@@ -77,7 +77,7 @@ Full install guide — per-agent paths, team installs, updates, troubleshooting:
 
 ### Documentation site prototype
 
-The first static UI for the ATL documentation experience lives in **[docs/index.html](docs/index.html)**. It includes the route map, skill library, evidence ledger, and a bounded workflow for using the Diagram Maker & Visualizer. The standalone diagram is at **[docs/diagrams/atl-route.html](docs/diagrams/atl-route.html)**.
+The live documentation site is **[depie99.github.io/Agent-Trust-Ladder](https://depie99.github.io/Agent-Trust-Ladder/)**. Its source UI is **[docs/index.html](docs/index.html)**, and the diagram is available as both **[HTML](docs/diagrams/atl-route.html)** and directly previewable **[SVG](docs/diagrams/atl-route.svg)**. Updates to `main` deploy through GitHub Pages Actions.
 
 ## Quick start
 
