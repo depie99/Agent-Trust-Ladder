@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Diagrams"
+  short_description: "Create evidence-aligned technical diagrams"
+  default_prompt: "Use $atl-diagrams to create or review the smallest clear technical diagram for this change."

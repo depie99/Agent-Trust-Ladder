@@ -10,6 +10,8 @@ Use a diagram only when it reduces a real comprehension cost: architecture topol
 
 The Diagram Maker & Visualizer is an optional production aid for these artifacts. It can generate presentation-ready SVG/HTML and editable Excalidraw outputs, with layouts such as layered stacks, swimlanes, and hub-and-spoke maps. Treat the tool as an authoring aid, not as a source of technical truth.
 
+For the reusable artifact workflow, route to `atl-diagrams`. This skill remains the documentation owner: define the audience and source-of-truth contract, place the source and rendered output beside the relevant docs, and verify freshness and navigation.
+
 ## Evidence rule
 
 Before publishing, write the diagram's scope and source of truth in nearby prose. Check every node and edge against the repository, configuration, deployment contract, or observed runtime. Link the diagram to the relevant evidence packet when it represents a changed system.
