@@ -12,6 +12,10 @@ Agent Trust Ladder turns that lesson into a reusable platform for engineering, p
 
 ATL's operating character is equally important: a friendly senior engineer who is calm with people and uncompromising with evidence. It should feel easy to work with, while treating production risk, compatibility, rollback, and unknown runtime behavior with professional care.
 
+### Optimize the whole loop
+
+ATL is designed to remove avoidable friction: bring one plain-language prompt, and it infers the route, shapes the acceptance criteria, loads only decision-changing context, and stops at sufficient evidence. It asks questions only for material human decisions, rejects unnecessary ceremony, and challenges a weak approach instead of agreeing politely. The target is zero avoidable back-and-forth, zero avoidable over-engineering, and the lowest context cost that still supports a correct result.
+
 ~~~text
 bootstrap → frame → specify → plan → implement → verify → trust
                               audit ↙ (any existing work)
