@@ -4,6 +4,12 @@ A spec-first, evidence-gated **operator** for AI coding agents — packaged as o
 
 It answers the question every team now has: agents execute faster than humans can verify. So every stage of work here produces **evidence**, and autonomy is earned per task class — never assumed.
 
+## Why this repository exists
+
+ATL grew from one practical question: if an agent can produce thousands of pull requests, what makes the work trustworthy when a human cannot read every line? The Matt Pocock and Lauren Tan conversation about shipping roughly 2,000 PRs made the lesson concrete: throughput depends on verification infrastructure, runtime observation, reusable rules, and feedback that becomes part of the codebase. [Listen to the conversation](https://zeno.fm/podcast/kua-guo-chuan-men-er-ji-hua/episodes/755-lauren-matt-pocock-ru-he-ba-2000-gepr-shang-dao-sheng-chan-huan-jing/).
+
+Agent Trust Ladder turns that lesson into a reusable platform for engineering, prompting, vibe coding, code review, delivery, and technical documentation. It routes each request to the smallest safe workflow, makes the agent show its evidence, and expands autonomy only for task classes that have earned it. The target is not a PR count; it is a Michelin-level engineering kitchen where every change has a recipe, a quality gate, and a result people can inspect.
+
 ~~~text
 bootstrap → frame → specify → plan → implement → verify → trust
                               audit ↙ (any existing work)

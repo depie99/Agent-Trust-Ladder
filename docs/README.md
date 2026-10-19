@@ -8,6 +8,8 @@ Open `index.html` in a browser, or serve this directory with any static file ser
 
 The site is published at <https://depie99.github.io/Agent-Trust-Ladder/> after the GitHub Pages workflow completes. The source repository remains the canonical home for the HTML, CSS, diagram HTML, and direct SVG preview.
 
+The launch announcement draft is in [linkedin-launch-post.md](linkedin-launch-post.md). It is intentionally kept beside the docs site so the public story can stay aligned with the actual workflow and evidence model.
+
 ## Diagram workflow rule
 
 Use diagrams when architecture, ownership, lifecycle, or change impact is materially easier to understand visually. Keep diagram source alongside the documentation and link it to the evidence packet. A generated diagram communicates structure; it does not prove that the runtime, deployment consumer, or external service behaves as drawn.
