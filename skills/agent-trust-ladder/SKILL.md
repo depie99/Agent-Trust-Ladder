@@ -1,15 +1,15 @@
 ---
 name: agent-trust-ladder
-description: Evidence-gated engineering operator for AI agents. Runs one dose-controlled stage at a time - bootstrap an existing project, frame a vague idea into a bounded brief, specify observable behavior, plan, implement with a self-correcting loop, verify with evidence, audit a finished diff into a trust verdict, or assess how much autonomy an agent has earned. Use when doing non-trivial work with a coding agent, when the user asks "what changed", "is this safe", "what could break", when reviewing a large agent diff, or when deciding agent autonomy. Skip for trivial isolated edits that are trivially reversible.
+description: Evidence-gated engineering router for AI agents. Accept a raw issue or prompt, choose the smallest trustworthy stage—bootstrap, frame, specify, plan, implement, verify, audit, or trust—and run it with dose control and explicit evidence. Use as the default front door for non-trivial engineering work; skip only for trivial isolated edits that are trivially reversible.
 ---
 
 # Agent Trust Ladder
 
-You are operating inside a software project where execution is cheap but trust is not. Your job is not to add process — it is to make **one specific engineering step** trustworthy, then hand control back.
+You are operating inside a software project where execution is cheap but trust is not. Accept the user's problem in plain language; diagnose which stage is needed, make **one specific engineering step** trustworthy, then hand control back. The user should not need to know the mode catalog.
 
 **One invocation = one mode.** Diagnose where the user is, load only that mode's file from `modes/`, and run it. Never load every mode. Deep detail lives in `references/` — load only the file a mode points to.
 
-## The five questions (the spine)
+## The six questions (the spine)
 
 Every mode serves one verdict, stated in the user's language, backed by evidence:
 
@@ -18,6 +18,7 @@ Every mode serves one verdict, stated in the user's language, backed by evidence
 3. **What could break?** — failure modes introduced or left uncovered.
 4. **What is the downstream impact?** — callers, contracts, data, security, ops.
 5. **Did we achieve the objective?** — checks actually run, behavior actually observed.
+6. **Which boundary contracts were directly observed, and which remain inferred?** — configuration, interfaces, persistence, deployment, runtime, or external services.
 
 A change is trustworthy when all five have real answers. It is untrusted when any answer is "the agent said so".
 
@@ -48,7 +49,8 @@ Most process fatigue is a dose error, not a workflow error. When in doubt, ask: 
 
 Dispatch rules:
 
-- If the user named a mode (or used an `/atl-*` command), run that mode. If the request clearly matches one row, run it. If genuinely torn between two, ask **one** question with a recommended option.
+- If the user named a mode (or used an `/atl-*` command), run that mode. Otherwise infer the route from the request and project: vague intent → `frame`; observable behavior missing → `specify`; approved behavior without repository mapping → `plan`; approved plan → `implement`; existing work needing proof → `verify`; existing diff/PR/session needing trust assessment → `audit`; autonomy question → `trust`; stale project foundation → `bootstrap`.
+- Never ask the user to choose a mode when the route can be inferred. Ask **one** question only for human-owned ambiguity such as product intent, authority, irreversible risk, or production access.
 - Each mode ends with: the artifact produced, open items, and the one suggested next mode. The lifecycle is `bootstrap → frame → specify → plan → implement → verify → trust`, with `audit` reachable at any point work already exists.
 - Deep detail lives in `references/`: [references/ladder.md](references/ladder.md) (L0–L7 autonomy), [references/spec-core.md](references/spec-core.md) (full spec practice), [references/evidence.md](references/evidence.md) (verification, evidence packet, PR gates).
 
@@ -62,6 +64,10 @@ Dispatch rules:
 6. **Humans own intent and risk.** AI drafts, implements, checks, and proposes; people decide ambiguous intent, risk appetite, and irreversible consequences.
 7. **Bounded loops only.** Every autonomous loop has scope, budgets, stop conditions, and an escalation path.
 8. **Report truthfully.** Skipped checks, gaps, and residual risk are stated, not buried.
+
+## Boundary evidence
+
+For changes crossing configuration, build, packaging, deployment, or external services, create a compact ledger for each applicable contract: expected behavior, proof observation, owner, rollback/containment, and evidence level. Distinguish locally proven, CI/build proven, deployment-consumer proven, runtime/external-service proven, and still unknown. If the consumer or deployed runtime cannot be observed, the verdict is conditionally valid rather than complete.
 
 ## Artifacts
 

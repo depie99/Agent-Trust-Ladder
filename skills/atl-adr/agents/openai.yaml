@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL ADR"
+  short_description: "Record durable architecture decisions with evidence"
+  default_prompt: "Use $atl-adr to decide whether this needs an ADR and write or review it."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL"
+  short_description: "Choose and run the smallest trustworthy engineering workflow"
+  default_prompt: "Use $atl to assess this project and route my request through the skills it actually needs."

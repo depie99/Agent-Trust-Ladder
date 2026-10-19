@@ -21,10 +21,10 @@ If those five have real, checkable answers, you can trust the change. If any ans
 ## 2. Install
 
 ~~~bash
-npx skills add depie99/Agent-Trust-Ladder --skill agent-trust-ladder
+npx skills add depie99/Agent-Trust-Ladder --all
 ~~~
 
-or copy `skills/agent-trust-ladder/` into your agent's skills folder (`.claude/skills/`, `.agents/skills/`, `.codex/skills/`, …).
+or copy every folder under `skills/` into your agent's skills folder (`.claude/skills/`, `.agents/skills/`, `.codex/skills/`, …). Codex users invoke individual workflows as `$atl-frame`, `$atl-specify`, `$atl-audit`, and so on; `$agent-trust-ladder` remains the router.
 
 Optional but recommended — slash commands (Claude Code and compatible agents):
 
@@ -34,13 +34,51 @@ cp commands/*.md .claude/commands/
 
 That gives you `/atl`, `/atl-bootstrap`, `/atl-frame`, `/atl-specify`, `/atl-plan`, `/atl-implement`, `/atl-verify`, `/atl-audit`, `/atl-trust`.
 
-No commands? Plain language works too — the skill's trigger description routes phrases like *"audit this diff"*, *"frame this idea"*, *"can the agent do this alone?"* to the right mode.
+These slash commands are Claude Code adapters. Codex discovers the independent `$atl-*` skills from their own `SKILL.md` metadata. Plain language works too.
 
 > Per-agent install paths (Codex, Cursor, Copilot, Gemini, …), team/submodule installs, updates, and troubleshooting: **[USAGE.md](USAGE.md)**
 
 ---
 
 ## 3. Dose control — the anti-ceremony rule
+
+If you do not know which workflow applies, start with `$atl <request>`. It assesses the current project, selects one primary playbook, and composes only the available ATL, PStack, or Matt Pocock specialist skills needed for distinct failure modes. It shows the route and gates before material work; unavailable optional skills use an explicit native fallback.
+
+### The zero-choice workflow
+
+Your input can be as short as a symptom, issue, or desired outcome. You do not need to name a skill. ATL reads the request together with the repository state and chooses the furthest safe route:
+
+~~~text
+raw prompt
+  → frame when the intent is vague
+  → specify when behavior or acceptance is missing
+  → plan when repository impact is not mapped
+  → implement when the plan and authority are ready
+  → verify when a change exists
+  → review/audit or delivery when the question concerns existing work or release
+~~~
+
+This is adaptive, not a mandatory ceremony. A one-file, low-risk, reversible edit can use Direct dose. A payment, auth, migration, production, cross-service, or deployment-boundary change gets Standard or Critical handling and cannot close on a local green check alone.
+
+### How ATL decides what you need
+
+| Signal in your request or project | Route | What must come back before continuing |
+|---|---|---|
+| “Users are losing…”, “it is broken…”, or an idea with unclear meaning | `frame` / `specify` | bounded outcome, unknowns, acceptance examples, rollback |
+| The behavior is agreed but the codebase impact is unknown | `plan` | callers, contracts, task list, and verifier per task |
+| A plan already exists and implementation is authorized | `implement` | diff plus observed verify/repair results |
+| “Is this done?”, “does it work?”, or a built artifact | `verify` | commands that ran, results, skipped checks, and verdict |
+| A PR, diff, merge, or agent run already exists | `audit` / review | scope, intent fidelity, risk, evidence gaps, and verdict |
+| A real page or interaction needs critique or repair | `ui-review` | rendered-surface findings and re-observation of repairs |
+| Build, config, package, deploy, auth, or external service is involved | relevant playbook + contract gate | contract ledger, artifact-consumer proof, runtime proof or an explicit conditional verdict |
+
+The user remains the owner of product intent, irreversible actions, production access, and risk acceptance. ATL asks a question only when that human decision cannot be safely inferred. It does not ask you to choose between skills merely because several skills could technically apply.
+
+### What “best possible result” means
+
+ATL optimizes for a trustworthy outcome, not the largest process. It keeps concerns separate, tests competing explanations, preserves compatibility when contracts change, re-observes the original failure, and reports unknowns instead of smoothing them over. “Committed”, “merged”, “typechecked”, and “built” are useful evidence levels; none is automatically proof of runtime behavior.
+
+For deployment-boundary work, the final report separates `locally proven`, `CI/build proven`, `deployment-consumer proven`, `runtime/external-service proven`, and `still unknown`. If the artifact consumer or deployed callback cannot be observed, the result is **conditionally valid**, not complete.
 
 The #1 complaint about spec-driven workflows is ceremony: a typo fix forced through the same pipeline as a payments migration. This skill's answer is **dose control**, chosen per change and stated in one line:
 
@@ -54,7 +92,7 @@ You can always override ("make this Critical", "keep it Direct"). When the skill
 
 ---
 
-## 4. The eight modes, with scenarios
+## 4. The workflow skills, with scenarios
 
 ### `bootstrap` — first contact with a project
 > *You just cloned the company monorepo and want the agent to help. What are the real rules?*
@@ -85,6 +123,18 @@ Runs the **smallest credible verification set** covering the changed risks, then
 
 Read-only. Classifies every file (behavior/tests/config/deps/unrelated), surfaces scope leaks and orphans, reconstructs intent, inspects the diff's own tests for **circularity** (asserting what the code does instead of what it should do), analyzes downstream impact, and ends with: `trustworthy | conditionally trustworthy | not trustworthy` + required follow-ups. Honest about coverage: reading a diff is not running it.
 
+### `ui-review` — inspect and repair the interface people actually use
+> *"This page feels wrong. Test it against the product standards and fix the real problems."*
+
+Runs the implemented surface at representative viewports and states, then evaluates product intent, visual hierarchy, interaction truth, responsive behavior, accessibility, runtime quality, and design-system consistency as separate axes. Findings carry evidence, user impact, severity, and an exact recheck. Authorized repairs repeat the same observed condition; a build or screenshot alone cannot close an interaction defect.
+
+### `adr` — preserve the why behind durable architecture choices
+> *"We have three viable approaches. Which one should we choose, and how do we keep the reasoning from disappearing?"*
+
+First decides whether an ADR is warranted; tiny isolated changes and temporary experiments do not get process tax. When it is warranted, it inspects the repository's existing `adr/`, `adrs/`, or `decisions/` convention, records one decision with context, alternatives, consequences, owner, date, status, and a verifier/fitness function, then links superseding decisions instead of silently rewriting history. An ADR informs implementation but never proves runtime behavior by itself.
+
+Use `$atl-adr` directly, or simply describe the architecture choice to `$atl` and let it route there.
+
 ### `trust` — the autonomy ladder
 Decides what the agent may do alone next time, **per task class** (docs, refactors, features, migrations, auth/payments, production ops advance independently on L0–L7). The nine-question advancement gate must pass on recorded evidence; weak, stale, or unrepresentative evidence means no advance. Regressions trigger downgrade. Every change is explicit, in `.trust/trust-policy.md` + the ledger.
 
@@ -93,10 +143,10 @@ Decides what the agent may do alone next time, **per task class** (docs, refacto
 ## 5. Two paths through the skill
 
 **Beginner path** (solo dev, new project):
-1. `/atl-bootstrap` — learn your own project honestly (you'll be surprised what's uncaptured)
-2. `/atl-frame` + `/atl-specify` on your next feature — feel the difference when the agent stops guessing
-3. `/atl-verify` before calling anything done
-4. Add `/atl-audit` whenever an agent run is bigger than a screenful of diff
+1. `$atl-bootstrap` — learn your own project honestly (you'll be surprised what's uncaptured)
+2. `$atl-frame` + `$atl-specify` on your next feature — feel the difference when the agent stops guessing
+3. `$atl-verify` before calling anything done
+4. Add `$atl-audit` whenever an agent run is bigger than a screenful of diff
 5. Ignore `trust` until you're comfortable — the conservative defaults already protect you
 
 **Advanced path** (team, brownfield, agents running semi-autonomously):

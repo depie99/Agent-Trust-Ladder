@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Specify"
+  short_description: "Define observable software behavior and acceptance examples before implementation. Use when intent i"
+  default_prompt: "Use $atl-specify for this request."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Plan"
+  short_description: "Map an approved software specification onto the real codebase as an impact-aware, independently veri"
+  default_prompt: "Use $atl-plan for this request."

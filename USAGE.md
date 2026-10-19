@@ -58,7 +58,11 @@ git submodule add https://github.com/depie99/Agent-Trust-Ladder .vendor/Agent-Tr
 
 Everyone on the team gets the same skill version until you update the submodule. Combine with CI to detect drift.
 
-### Slash commands (optional but recommended — Claude Code and compatible agents)
+### Direct mode invocation
+
+Codex discovers the independent skills under `skills/atl-*/`. Invoke one with `$atl-specify`, `$atl-audit`, and so on. `/atl-*` is not a Codex skill syntax.
+
+### Slash commands (optional — Claude Code and compatible agents)
 
 The skill works with plain language on its own. Slash commands give you direct entry points:
 
@@ -72,9 +76,9 @@ You now have: `/atl`, `/atl-bootstrap`, `/atl-frame`, `/atl-specify`, `/atl-plan
 ### Verify the install
 
 1. Start a new session in your agent.
-2. Type `/` — if you installed commands, the `/atl*` entries should appear.
-3. Otherwise just ask: *"which skills do you have?"* — `agent-trust-ladder` should be listed.
-4. Smoke test: **`/atl-bootstrap`** (or *"bootstrap this project with the trust ladder"*) on any repo. It should produce `.trust/project-brief.md` and change nothing else.
+2. In Codex, confirm `agent-trust-ladder` and the installed `atl-*` skills, including `atl-ui-review`, are listed. Slash commands are not expected.
+3. In Claude Code, type `/` if you installed the optional command adapters; the `/atl*` entries should appear.
+4. Smoke test: invoke **`$atl-bootstrap`** in Codex (or `/atl-bootstrap` in Claude Code). It should produce `.trust/project-brief.md` and change nothing else.
 
 ---
 
@@ -83,31 +87,33 @@ You now have: `/atl`, `/atl-bootstrap`, `/atl-frame`, `/atl-specify`, `/atl-plan
 ### The 30-second version
 
 ~~~text
-You:  /atl-bootstrap                     # first time on a project
-You:  /atl-frame users lose their filters on refresh
+You:  $atl-bootstrap                     # first time on a project
+You:  $atl-frame users lose their filters on refresh
 AI:   [asks ≤5 questions with recommended defaults, writes .trust/specs/001-.../brief.md]
 You:  yes / yes / change this one thing
-You:  /atl-specify                       # observable behavior + acceptance examples
-You:  /atl-plan                          # impact, pre-mortem, tasks with verifier commands
-You:  /atl-implement                     # self-correcting loop
-You:  /atl-verify                        # evidence + 5-question Trust Verdict
+You:  $atl-specify                       # observable behavior + acceptance examples
+You:  $atl-plan                          # impact, pre-mortem, tasks with verifier commands
+You:  $atl-implement                     # self-correcting loop
+You:  $atl-verify                        # evidence + 5-question Trust Verdict
+You:  $atl-ui-review checkout page       # inspect/fix the real rendered UI
 ~~~
 
-You never have to run the whole chain — jump in anywhere (`/atl-audit` a foreign PR, `/atl-trust` after a good week, or just say *"keep it Direct"* and the skill skips ceremony for small edits).
+You never have to run the whole chain — jump in anywhere (`$atl-audit` a foreign PR, `$atl-trust` after a good week, or just say *"keep it Direct"* and the skill skips ceremony for small edits).
 
 ### Entry points
 
-| I want to… | Command | Or say |
+| I want to… | Codex skill | Or say |
 |---|---|---|
-| Understand an existing project before agent work | `/atl-bootstrap` | "bootstrap this project" |
-| Turn a vague idea into bounded work | `/atl-frame <idea>` | "frame this idea" |
-| Pin behavior before code | `/atl-specify <what>` | "specify this first" |
-| Get a plan with verifiable tasks | `/atl-plan` | "plan this properly" |
-| Build it with self-correction | `/atl-implement` | "implement the plan" |
-| Prove it's done | `/atl-verify` | "verify with evidence" |
-| Review an existing diff/PR/agent run | `/atl-audit <PR>` | "audit this diff" |
-| Decide agent autonomy | `/atl-trust` | "can the agent do this alone now?" |
-| Let the skill diagnose | `/atl` | just describe your situation |
+| Understand an existing project before agent work | `$atl-bootstrap` | "bootstrap this project" |
+| Turn a vague idea into bounded work | `$atl-frame <idea>` | "frame this idea" |
+| Pin behavior before code | `$atl-specify <what>` | "specify this first" |
+| Get a plan with verifiable tasks | `$atl-plan` | "plan this properly" |
+| Build it with self-correction | `$atl-implement` | "implement the plan" |
+| Prove it's done | `$atl-verify` | "verify with evidence" |
+| Review an existing diff/PR/agent run | `$atl-audit <PR>` | "audit this diff" |
+| Inspect and repair an implemented page/UI | `$atl-ui-review <surface>` | "review this UI against its requirements and fix it" |
+| Decide agent autonomy | `$atl-trust` | "can the agent do this alone now?" |
+| Let the skill diagnose | `$agent-trust-ladder` | just describe your situation |
 
 ### Where artifacts land
 
@@ -145,10 +151,10 @@ Skill files are versioned in the repo (see `SKILL.md` header / release tags), an
 
 | Symptom | Fix |
 |---|---|
-| `/atl*` commands don't appear | Commands only work where you copied them; check `.claude/commands/` (project) or `~/.claude/commands/` (global), then start a **new session** |
+| `/atl*` commands don't appear | Expected in Codex: use `$atl-*`. In Claude Code, check `.claude/commands/` (project) or `~/.claude/commands/` (global), then start a **new session** |
 | Skill doesn't trigger from plain language | Use the explicit form: *"use the agent-trust-ladder skill to audit this diff"* — or install the slash commands |
 | Agent runs the whole pipeline for a tiny fix | Say **"Direct dose"** or *"skip the ladder for this one"* — dose control is user-overridable by design |
-| Agent invented a build/test command | This violates the skill's invariants — report it as a bug with the transcript; meanwhile point it at `.trust/project-brief.md` (run `/atl-bootstrap` first) |
+| Agent invented a build/test command | This violates the skill's invariants — report it as a bug with the transcript; meanwhile point it at `.trust/project-brief.md` (invoke `$atl-bootstrap` in Codex) |
 | Two process skills conflict | This skill yields to repository instructions and your constitution; if another skill fights its hard lines (no green-washing, no silent autonomy), that other skill wins on style but the hard lines hold |
 | `.trust/` feels noisy in diffs | Keep committing it (it's cheap markdown), or move it via the brief if your convention differs — the skill follows the brief |
 

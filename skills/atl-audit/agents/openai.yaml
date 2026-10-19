@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Audit"
+  short_description: "Audit an existing diff, pull request, or agent session and report whether it is trustworthy, conditi"
+  default_prompt: "Use $atl-audit for this request."

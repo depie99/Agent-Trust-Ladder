@@ -1,6 +1,6 @@
 # Agent Trust Ladder
 
-A spec-first, evidence-gated **operator** for AI coding agents — installable as a single skill, usable at any point in any project.
+A spec-first, evidence-gated **operator** for AI coding agents — packaged as one smart control plane, one lifecycle router, and nine independently invocable workflow skills.
 
 It answers the question every team now has: agents execute faster than humans can verify. So every stage of work here produces **evidence**, and autonomy is earned per task class — never assumed.
 
@@ -13,7 +13,7 @@ bootstrap → frame → specify → plan → implement → verify → trust
 
 | | Spec Kit | Discipline skills (grill / TDD style) | **Agent Trust Ladder** |
 |---|---|---|---|
-| Entry point | Full pipeline from `/specify` | One discipline at a time | **8 entry points — jump in wherever you are** |
+| Entry point | Full pipeline from `/specify` | One discipline at a time | **9 workflow entry points — jump in wherever you are** |
 | Small tasks | Heavy ceremony | Fine | **Dose control: Direct / Standard / Critical** |
 | Existing projects | Painful retrofit | Not its concern | **`bootstrap` maps real rules, invents nothing** |
 | Reviewing a big agent diff | Not covered | Generic review | **`audit` → five-question trust verdict** |
@@ -22,13 +22,50 @@ bootstrap → frame → specify → plan → implement → verify → trust
 
 The spine is the **Trust Verdict** — five questions with evidence attached: *What changed? Why? What could break? Downstream impact? Objective achieved?*
 
-## Install
+## One smart entry point
 
-~~~bash
-npx skills add depie99/Agent-Trust-Ladder --skill agent-trust-ladder
+Use `$atl <request>` when you do not want to choose skills yourself. ATL inspects the project and request, selects one proportionate playbook, and composes only the available specialist skills the work needs. It can route native ATL stages plus optional PStack and Matt Pocock skills without letting either bypass scope, approval, evidence, or autonomy gates.
+
+~~~text
+$atl fix the intermittent checkout timeout and prove the real cause
 ~~~
 
-Or copy `skills/agent-trust-ladder/` into your agent's skills directory (`.claude/skills/`, `.agents/skills/`, `.codex/skills/`, …).
+Before material work it shows a compact Workflow Manifest: outcome, observed project need, playbook, dose/risk, selected skill route, gates, and stop condition. Missing optional skills are explicit and fall back to native ATL behavior; ATL never pretends a dependency ran.
+
+### You only need to bring the problem
+
+Do not spend time deciding whether you need a frame, spec, plan, implementation loop, verification pass, code review, UI review, or audit. Describe the problem in plain language and ATL chooses the route from the evidence it finds:
+
+| What you give ATL | What it selects |
+|---|---|
+| A vague idea or incomplete issue | Frame/specify first, so the agent does not invent the behavior |
+| A bounded behavior with no code plan | Specify, then plan the real repository impact |
+| An approved plan | Implement with bounded repair and re-verification |
+| A finished change or artifact | Verify with checks that actually run |
+| A diff, PR, merged change, or overnight agent session | Audit/review the existing work instead of treating it as greenfield |
+| A rendered page or interaction problem | UI review against real states, viewports, and inputs |
+| Production, auth, packaging, deployment, or external-service work | Contract ledger plus consumer/runtime evidence |
+| A tiny isolated copy or style edit | Direct dose and proportionate checks; no ceremony tax |
+
+ATL can chain stages when each stage returns the artifact required by the next gate. It stops when intent, authority, rollback, or evidence is genuinely unresolved and tells you exactly what decision or observation is missing.
+
+~~~text
+$atl the selected store changes in the UI but comes back after refresh
+~~~
+
+This is enough to start. ATL should discover whether it is a UI-only issue or a cross-layer persistence bug, trace the contract from producer payload to user-visible result, preserve legacy callers where relevant, and verify the original failure—not merely run a typecheck.
+
+## Install
+
+For Codex, install the repository as a plugin so the full skill set is discoverable. The plugin manifest is `.codex-plugin/plugin.json` and exposes `skills/`.
+
+With a generic Agent Skills installer, install all skills rather than only the router:
+
+~~~bash
+npx skills add depie99/Agent-Trust-Ladder --all
+~~~
+
+Or copy every folder under `skills/` into your agent's skills directory (`.claude/skills/`, `.agents/skills/`, `.codex/skills/`, …).
 
 **Optional slash commands** (Claude Code): copy `commands/*.md` into `.claude/commands/` for direct `/atl-*` access.
 
@@ -37,48 +74,58 @@ Full install guide — per-agent paths, team installs, updates, troubleshooting:
 ## Quick start
 
 ~~~text
-# First time on an existing project
-/atl-bootstrap
+# First time on an existing project (Codex / Agent Skills)
+$atl-bootstrap
 
 # A vague idea
-/atl-frame users keep losing their filter settings
+$atl-frame users keep losing their filter settings
 
 # Before writing code for something risky
-/atl-specify export invoices as CSV
+$atl-specify export invoices as CSV
 
 # "The agent ran all night — is this PR safe?"
-/atl-audit PR #482
+$atl-audit PR #482
+
+# Review and repair an implemented page from the real rendered states
+$atl-ui-review checkout page
 
 # "Can the agent work alone on docs now?"
-/atl-trust docs_and_examples
+$atl-trust docs_and_examples
 ~~~
 
-No commands installed? Just ask in plain language: *"audit this diff"*, *"frame this idea"*, *"verify this is actually done"* — the skill's description routes it to the right mode.
+`/atl-*` commands are optional Claude Code adapters; they are not how Codex discovers skills. In Codex invoke `$atl-specify`, `$atl-audit`, etc., or select the skill in the composer. Plain language still supports automatic routing.
 
 ## Modes
 
-| Command | Mode | Purpose |
+| Skill | Mode | Purpose |
 |---|---|---|
-| `/atl` | router | Diagnoses your situation, runs the right stage |
-| `/atl-bootstrap` | bootstrap | Map an existing project's real rules; starting trust policy; pilot proposal |
-| `/atl-frame` | frame | Vague idea → bounded brief, one round of questions with defaults, dose set |
-| `/atl-specify` | specify | Observable behavior + acceptance examples; human intent gate |
-| `/atl-plan` | plan | Impact analysis, pre-mortem, tasks each with its verifier command |
-| `/atl-implement` | implement | Self-correcting loop, repair budgets, hard lines against green-washing |
-| `/atl-verify` | verify | Evidence + the five-question Trust Verdict |
-| `/atl-audit` | audit | Read-only verdict on an existing diff/PR/session |
-| `/atl-trust` | trust | L0–L7 advancement gate per task class |
+| `$atl` | smart control plane | Assesses the project and composes the smallest trustworthy workflow |
+| `$agent-trust-ladder` | router | Diagnoses your situation, runs the right stage |
+| `$atl-bootstrap` | bootstrap | Map an existing project's real rules; starting trust policy; pilot proposal |
+| `$atl-frame` | frame | Vague idea → bounded brief, one round of questions with defaults, dose set |
+| `$atl-specify` | specify | Observable behavior + acceptance examples; human intent gate |
+| `$atl-plan` | plan | Impact analysis, pre-mortem, tasks each with its verifier command |
+| `$atl-implement` | implement | Self-correcting loop, repair budgets, hard lines against green-washing |
+| `$atl-verify` | verify | Evidence + the five-question Trust Verdict |
+| `$atl-audit` | audit | Read-only verdict on an existing diff/PR/session |
+| `$atl-ui-review` | UI review and repair | Runtime inspection across visual, interaction, responsive, accessibility, and state quality |
+| `$atl-adr` | architecture decision record | Decide whether a durable architecture decision needs a record; capture alternatives, consequences, lifecycle, and fitness evidence |
+| `$atl-trust` | trust | L0–L7 advancement gate per task class |
 
 ## Structure
 
 ~~~text
+skills/atl/           # smart project assessment, playbooks, and cross-skill routing
 skills/agent-trust-ladder/
   SKILL.md            # router: doses, modes, invariants (~1 screen)
-  modes/              # the 8 entry points, each self-contained
+  modes/              # the 8 canonical lifecycle modes, each self-contained
   references/         # deep detail, loaded on demand
     ladder.md         #   autonomy levels + advancement gate
     spec-core.md      #   full spec practice (Critical dose)
     evidence.md       #   verification layers, packet, PR gates
+skills/atl-*/         # independent, directly invocable workflow skills
+scripts/build_mode_skills.py # rebuild wrappers from canonical mode sources
+.codex-plugin/plugin.json    # Codex multi-skill package
 commands/             # optional /atl-* slash commands
 GUIDE.md              # full walkthrough with scenarios
 USAGE.md              # install, update, troubleshooting (per agent)
@@ -94,6 +141,8 @@ Artifacts land in `.trust/` of the target project: `project-brief.md`, `trust-po
 - **Autonomy is per task class.** Docs and payments advance on independent ladders, on independent evidence.
 - **Never hide failure.** Skipped checks are reported, not buried; tests are never weakened for green.
 - **Humans own intent and risk.** AI drafts, implements, checks, and proposes.
+- **Bring the issue, not the workflow.** ATL is the front door; you do not need to know which specialist should run.
+- **Quality is evidence-shaped.** A polished patch is not complete until the changed behavior, downstream contracts, and relevant runtime surface are observed.
 
 ## License
 
