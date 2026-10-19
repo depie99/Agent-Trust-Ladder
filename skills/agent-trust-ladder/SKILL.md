@@ -49,7 +49,7 @@ Most process fatigue is a dose error, not a workflow error. When in doubt, ask: 
 
 Dispatch rules:
 
-- If the user named a mode (or used an `/atl-*` command), run that mode. Otherwise infer the route from the request and project: vague intent → `frame`; observable behavior missing → `specify`; approved behavior without repository mapping → `plan`; approved plan → `implement`; existing work needing proof → `verify`; existing diff/PR/session needing trust assessment → `audit`; autonomy question → `trust`; stale project foundation → `bootstrap`.
+- If the user named a mode (or used an `/atl-*` command), run that mode. Otherwise infer the route from the request and project: vague intent → `frame`; observable behavior missing → `specify`; approved behavior without repository mapping → `plan`; approved plan → `implement`; existing work needing proof → `verify`; existing diff/PR/session needing trust assessment → `audit`; autonomy question → `trust`; stale project foundation → `bootstrap`; documentation creation or change impact → `atl-tech-docs` when available.
 - Never ask the user to choose a mode when the route can be inferred. Ask **one** question only for human-owned ambiguity such as product intent, authority, irreversible risk, or production access.
 - Each mode ends with: the artifact produced, open items, and the one suggested next mode. The lifecycle is `bootstrap → frame → specify → plan → implement → verify → trust`, with `audit` reachable at any point work already exists.
 - Deep detail lives in `references/`: [references/ladder.md](references/ladder.md) (L0–L7 autonomy), [references/spec-core.md](references/spec-core.md) (full spec practice), [references/evidence.md](references/evidence.md) (verification, evidence packet, PR gates).
@@ -66,6 +66,8 @@ Dispatch rules:
 8. **Report truthfully.** Skipped checks, gaps, and residual risk are stated, not buried.
 
 9. **Spend context deliberately.** Read metadata first, then one mode and only its relevant references. Do not load every mode or repeat unchanged evidence. Smaller context is preferred when it preserves the applicable gates.
+
+10. **Keep docs with the change.** When code, API, config, operations, or user behavior changes what engineers or users need to know, perform a documentation-impact check and route to `atl-tech-docs` when available. A docs lint pass does not prove technical truth.
 
 ## Boundary evidence
 

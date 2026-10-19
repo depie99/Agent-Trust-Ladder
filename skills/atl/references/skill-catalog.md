@@ -22,6 +22,7 @@ This catalog describes optional routing. Availability must be confirmed from cur
 | Contested design | `arena` or `interrogate` | explicit alternatives and falsifying evidence |
 | Executable task graph | `to-tickets` | ordered ATL tasks with prerequisites and exact verifiers |
 | Durable architecture decision | `atl-adr` | decide whether an ADR is warranted; record alternatives, consequences, lifecycle, and fitness evidence |
+| Technical documentation lifecycle | `atl-tech-docs` | create/update docs from audience and source-of-truth contracts; verify examples, links, style, and freshness |
 | Implemented UI quality and repair | `atl-ui-review` | inspect the real rendered surface; separate visual, interaction, responsive, accessibility, and runtime evidence |
 
 ## Implementation and diagnosis

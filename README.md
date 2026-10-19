@@ -114,6 +114,7 @@ $atl-trust docs_and_examples
 | `$atl-audit` | audit | Read-only verdict on an existing diff/PR/session |
 | `$atl-ui-review` | UI review and repair | Runtime inspection across visual, interaction, responsive, accessibility, and state quality |
 | `$atl-adr` | architecture decision record | Decide whether a durable architecture decision needs a record; capture alternatives, consequences, lifecycle, and fitness evidence |
+| `$atl-tech-docs` | technical documentation | Create or update docs from audience and source-of-truth contracts; verify examples, links, style, and freshness |
 | `$atl-trust` | trust | L0–L7 advancement gate per task class |
 
 ## Structure

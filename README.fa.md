@@ -80,6 +80,7 @@ npx skills add depie99/Agent-Trust-Ladder --all
 | `$atl-verify` | اجرای کوچک‌ترین مجموعهٔ راستی‌آزمایی معتبر + حکم اعتماد ۵ سؤالی |
 | `$atl-audit` | «ایجنت ۵۰۰ فایل را عوض کرد — امن است؟»؛ verdict فقط-خواندنی روی دیف/PR موجود |
 | `$atl-adr` | ثبت تصمیم معماری: آیا ADR لازم است؟ ثبت گزینه‌ها، پیامدها، lifecycle و fitness evidence |
+| `$atl-tech-docs` | ساخت و به‌روزرسانی مستندات فنی از روی audience، source of truth، مثال‌ها، لینک‌ها و freshness |
 | `$atl-trust` | نردبان L0–L7: چه کارهایی ایجنت بتواند خودش انجام دهد؟ با گیتِ ۹ سؤالی |
 
 ## از کجا شروع کنم؟

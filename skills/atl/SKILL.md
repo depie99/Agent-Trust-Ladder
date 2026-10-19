@@ -30,7 +30,7 @@ Context: <minimal | focused | expanded> / <what was loaded and why>
 
 For reversible discovery and read-only work, continue after showing the manifest. Stop for a human answer only when intent, authority, irreversible impact, or a required trust gate is genuinely unresolved.
 
-Use [references/routing.md](references/routing.md) to classify prompt readiness and select the route. Treat the user's wording as input, not as a skill-selection instruction: infer whether the request needs framing, specification, planning, implementation, verification, review, audit, delivery, architecture decision recording, or a narrower specialist. If the request is too vague to produce a useful or safe result, route to framing or specification first and state the missing decision in the manifest.
+Use [references/routing.md](references/routing.md) to classify prompt readiness and select the route. Treat the user's wording as input, not as a skill-selection instruction: infer whether the request needs framing, specification, planning, implementation, verification, review, audit, delivery, architecture decision recording, technical documentation, or a narrower specialist. If the request is too vague to produce a useful or safe result, route to framing or specification first and state the missing decision in the manifest.
 
 Do not ask the user to pick an ATL skill when the route can be inferred. Ask only for a decision that belongs to the user, such as ambiguous product intent, authority to make an irreversible change, risk acceptance, or a required external credential/access boundary.
 
@@ -104,6 +104,7 @@ Use the specialist's exact public skill name when available. Read its `SKILL.md`
 - Matt Pocock skills contribute grilling, domain language, spec and ticket shaping, TDD, task-graph implementation, two-axis code review, and long-horizon decision mapping.
 - Native ATL skills contribute project bootstrap, bounded framing, observable specification, impact-aware planning, bounded implementation, evidence packets, audits, and earned-autonomy decisions.
 - `atl-adr` contributes decision-significance triage, durable architecture records, supersession links, and fitness-function evidence.
+- `atl-tech-docs` contributes documentation-impact triage, content modeling, source-of-truth alignment, docs-as-code validation, and freshness evidence.
 
 Do not vendor or paraphrase an external workflow as if it ran. Attribution remains attached to the routed skill and its produced artifact.
 

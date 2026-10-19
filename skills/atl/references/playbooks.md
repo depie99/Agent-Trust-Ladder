@@ -16,7 +16,7 @@ Define metric/load/environment → baseline → locate bottleneck → one falsif
 
 ## Feature
 
-Bound outcome → domain/behavior spec → impact plan → vertical slices with feedback → acceptance observation → evidence packet.
+Bound outcome → domain/behavior spec → impact plan → documentation-impact check → vertical slices with feedback → acceptance observation → evidence packet. Route docs work to `$atl-tech-docs` when available.
 
 ## Refactor
 
@@ -40,7 +40,7 @@ Pin audience, task, design authority, supported surfaces, and repair authority �
 
 ## Delivery
 
-Confirm approved intent → verify contiguous change set → inspect CI and operational gates → confirm rollback/containment → human approval for merge/deploy/publish → record outcome.
+Confirm approved intent → verify contiguous change set → inspect documentation impact → inspect CI and operational gates → confirm rollback/containment → human approval for merge/deploy/publish → record outcome.
 
 ## Skill or workflow authoring
 

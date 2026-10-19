@@ -147,6 +147,15 @@ First decides whether an ADR is warranted; tiny isolated changes and temporary e
 
 Use `$atl-adr` directly, or simply describe the architecture choice to `$atl` and let it route there.
 
+### `tech-docs` — keep documentation aligned with the system
+> *"The API changed. Which docs are affected, and can a new engineer actually follow them?"*
+
+`$atl-tech-docs` treats docs as part of the implementation lifecycle. It discovers the audience, goal, scope, content type, local conventions, source of truth, affected pages, examples, navigation, generated boundaries, and release/version impact. It then creates or updates the smallest canonical set of pages and verifies technical claims separately from prose quality.
+
+The workflow uses Diátaxis-style needs—tutorial, how-to, reference, and explanation—plus quickstarts, troubleshooting, and release/migration notes where the project needs them. It can use project-configured Markdown linting, Vale-style prose rules, link checks, docs builds, schema/example checks, and runtime observations. It never invents a docs command, and it reports unavailable checks explicitly.
+
+Use it directly for a new guide or stale docs, or let `$atl` route there when an implementation changes an API, configuration, workflow, deployment, operations, or user-visible behavior.
+
 ### `trust` — the autonomy ladder
 Decides what the agent may do alone next time, **per task class** (docs, refactors, features, migrations, auth/payments, production ops advance independently on L0–L7). The nine-question advancement gate must pass on recorded evidence; weak, stale, or unrepresentative evidence means no advance. Regressions trigger downgrade. Every change is explicit, in `.trust/trust-policy.md` + the ledger.
 
