@@ -23,6 +23,23 @@ Use when a change will affect a user journey, public API, configuration, schema,
 - Re-observe the documented task or command on the real supported surface when feasible.
 - Report the documentation verdict separately from the code verdict.
 
+## Sync anchor
+
+Record the docs sync point so the next update diffs from a real boundary instead of guessing. After checks pass, store — in the repository's preferred format and location, or a minimal file such as `docs/sync.yml` when none exists — the doc set covered, the primary audience, and the revision (commit, tag, or release) the docs were verified against.
+
+On a sync request covering a batch of changes:
+
+1. Diff code, configuration, API, and operational surface from the anchor revision to the requested one.
+2. Triage each change: `doc edit`, `no doc impact`, or `OPEN` with a reason. Do not silently drop a change.
+3. Update affected doc families in order — entry point, task pages, reference, release notes — one family per proposal when the diff is large, so the owner reviews reviewable chunks.
+4. Run the checks, then move the anchor forward to the verified revision.
+
+If no anchor exists, establish one at the revision verified during this change and say so in the evidence packet.
+
+## Generated references
+
+Generate API references from the schema or spec (OpenAPI or equivalent) rather than hand-maintaining them; review the generated diff and hand-write only the surrounding prose. Edit the generator or source and regenerate; never patch generated output by hand unless the repository explicitly owns it that way.
+
 ## Freshness signals
 
-Treat a page as suspect when it contains stale version numbers, commands that no longer exist, deprecated names, broken links, screenshots of changed UI, examples using removed fields, or instructions that conflict with current runtime behavior. Do not rewrite broad areas without evidence; make the smallest correction and record remaining drift.
+Treat a page as suspect when it contains stale version numbers, commands that no longer exist, deprecated names, broken links, screenshots of changed UI, examples using removed fields, or instructions that conflict with current runtime behavior. Do not rewrite broad areas without evidence; make the smallest correction and record remaining drift. Prefer deleting outdated content over caveating it — a hedge that says "this may be stale" is itself stale content.

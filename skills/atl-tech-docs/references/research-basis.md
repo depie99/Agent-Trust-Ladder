@@ -12,5 +12,8 @@ This workflow is synthesized from authoritative documentation guidance, not copi
 - [AWS DevOps guidance on documentation lifecycle](https://docs.aws.amazon.com/wellarchitected/latest/devops-guidance/dl.eac.5-integrate-technical-and-operational-documentation-into-the-development-lifecycle.html) — version docs with code, automate generation/checks, and keep docs living with the system.
 - [Vale](https://docs.vale.sh/) — markup-aware, configurable prose linting that can run locally and in CI.
 - [markdownlint rules](https://github.com/markdownlint/markdownlint/blob/main/docs/RULES.md) and [lychee](https://github.com/lycheeverse/lychee) — structural Markdown and link validation options.
+- [scaffold-docs-skill (dbreunig)](https://github.com/dbreunig/scaffold-docs-skill) — staged authoring with owner checkpoints, a recorded sync anchor of audience and last-documented revision, reader-intent-first information architecture, and primary-audience primacy.
+- [Technical documentation skill (srstomp)](https://mcpmarket.com/tools/skills/technical-documentation-1) — README and ADR content models, documentation-as-code CI checks, and generating API references from schema instead of hand-maintaining them.
+- [technical-docs-writing (h4x3rotab)](https://gist.github.com/h4x3rotab/5a08422abad6093359da2c696a97a265) — AI retrievability as a review axis, banned rhetoric patterns, warning specificity, and a scored authoring rubric.
 
 These sources inform the workflow's principles; local project conventions and the actual implementation remain authoritative.
