@@ -49,6 +49,10 @@ Do not spend time deciding whether you need a frame, spec, plan, implementation 
 
 ATL can chain stages when each stage returns the artifact required by the next gate. It stops when intent, authority, rollback, or evidence is genuinely unresolved and tells you exactly what decision or observation is missing.
 
+### Trust without token waste
+
+ATL treats context efficiency as part of engineering quality. It reads metadata first, loads only the selected route and relevant references, and scales context with risk: **minimal** for Direct, **focused** for Standard, and **expanded** only for Critical or unresolved boundary risk. It does not trade away a required safety or verification gate; it removes unrelated reads, duplicate explanations, speculative scans, and tests that cannot change the verdict.
+
 ~~~text
 $atl the selected store changes in the UI but comes back after refresh
 ~~~
@@ -143,6 +147,7 @@ Artifacts land in `.trust/` of the target project: `project-brief.md`, `trust-po
 - **Humans own intent and risk.** AI drafts, implements, checks, and proposes.
 - **Bring the issue, not the workflow.** ATL is the front door; you do not need to know which specialist should run.
 - **Quality is evidence-shaped.** A polished patch is not complete until the changed behavior, downstream contracts, and relevant runtime surface are observed.
+- **Context is a budget.** Load the smallest body of information that can change the route or verdict, then stop when the risk-matched evidence is sufficient.
 
 ## License
 

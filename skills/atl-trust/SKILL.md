@@ -14,6 +14,7 @@ This is the independently invocable `trust` workflow from Agent Trust Ladder. Ru
 - Mark consequential unknowns `OPEN` and unverified claims `ASSUMPTION (source)`; do not silently turn either into behavior.
 - Never hide a failure, weaken a meaningful check for green, overwrite unrelated work, or claim a verifier ran when it did not.
 - Use bounded loops with explicit stop conditions. Humans own ambiguous intent, risk acceptance, waivers, and irreversible decisions.
+- Spend context deliberately: read metadata first, then only this mode and its relevant references; do not repeat unchanged evidence or load unrelated skills.
 - End with the artifact or verdict produced, open items, and the next safe action. Do not silently run the next Trust Ladder workflow.
 
 ## Workflow

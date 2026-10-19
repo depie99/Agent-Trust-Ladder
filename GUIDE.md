@@ -60,6 +60,18 @@ raw prompt
 
 This is adaptive, not a mandatory ceremony. A one-file, low-risk, reversible edit can use Direct dose. A payment, auth, migration, production, cross-service, or deployment-boundary change gets Standard or Critical handling and cannot close on a local green check alone.
 
+### Token-efficient by design
+
+ATL uses progressive disclosure rather than loading the whole framework into every request:
+
+| Context budget | ATL loads | Typical use |
+|---|---|---|
+| **Minimal** | local instructions, target files, one route row, proportionate verifier | isolated copy/style/lint change |
+| **Focused** | minimal context plus the primary playbook, selected specialist, and affected callers/contracts/tests | normal feature or bug fix |
+| **Expanded** | focused context plus rollback, CI, deployment/runtime, and independent review evidence around the actual risk | auth, production, migration, external service, or unresolved boundary |
+
+It deliberately does not read every skill, every reference, or the whole repository. If a skipped source could change the verdict, ATL labels it `OPEN`; otherwise it stays unloaded. The goal is fewer tokens with the same gates, not fewer gates.
+
 ### How ATL decides what you need
 
 | Signal in your request or project | Route | What must come back before continuing |

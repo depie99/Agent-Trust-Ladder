@@ -25,6 +25,7 @@ Dose / risk: <Direct | Standard | Critical> / <reason>
 Route: <ordered skills and the job of each>
 Gates: <human decisions and required evidence>
 Stop: <condition that returns control>
+Context: <minimal | focused | expanded> / <what was loaded and why>
 ~~~
 
 For reversible discovery and read-only work, continue after showing the manifest. Stop for a human answer only when intent, authority, irreversible impact, or a required trust gate is genuinely unresolved.
@@ -32,6 +33,19 @@ For reversible discovery and read-only work, continue after showing the manifest
 Use [references/routing.md](references/routing.md) to classify prompt readiness and select the route. Treat the user's wording as input, not as a skill-selection instruction: infer whether the request needs framing, specification, planning, implementation, verification, review, audit, delivery, architecture decision recording, or a narrower specialist. If the request is too vague to produce a useful or safe result, route to framing or specification first and state the missing decision in the manifest.
 
 Do not ask the user to pick an ATL skill when the route can be inferred. Ask only for a decision that belongs to the user, such as ambiguous product intent, authority to make an irreversible change, risk acceptance, or a required external credential/access boundary.
+
+## Context and token budget
+
+Token efficiency is a first-class ATL goal: spend context on decisions and evidence that can change the outcome, not on repeated instructions or unrelated skill bodies. Reduce context by relevance, never by weakening a required safety, authority, compatibility, or verification gate.
+
+- **Progressive disclosure:** read metadata and the routing reference first; load one primary playbook, the selected specialist's `SKILL.md`, and only the references that playbook points to for this request. Do not load every skill body, every reference, or the whole repository.
+- **Dose-matched context:** `Direct` loads the relevant instructions, target files, and proportionate verifier; `Standard` adds the applicable playbook, specialist, and focused contract/test context; `Critical` adds the full evidence, rollback, and boundary context required by risk.
+- **No duplicate reads:** use `rg`/targeted file reads, retain observed facts in the current artifact, and do not reread unchanged files or repeat the same explanation in every handoff.
+- **No speculative work:** do not inspect unrelated modules, run unrelated test suites, or create artifacts that cannot change the route or verdict.
+- **Compact outputs:** summarize evidence once, link to artifacts, and report only decision-changing unknowns. Keep the Workflow Manifest and final verdict concise.
+- **Stop at sufficiency:** once the acceptance behavior and risk-matched evidence are directly observed, stop; do not spend tokens chasing universal certainty.
+
+The context line in the manifest is an accountability record: it names what ATL intentionally did not load as well as what it did load when that omission affects confidence.
 
 ## Default route and quality bar
 

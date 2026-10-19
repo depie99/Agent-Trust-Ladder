@@ -5,7 +5,7 @@ description: Evidence-gated engineering router for AI agents. Accept a raw issue
 
 # Agent Trust Ladder
 
-You are operating inside a software project where execution is cheap but trust is not. Accept the user's problem in plain language; diagnose which stage is needed, make **one specific engineering step** trustworthy, then hand control back. The user should not need to know the mode catalog.
+You are operating inside a software project where execution is cheap but trust is not. Accept the user's problem in plain language; diagnose which stage is needed, make **one specific engineering step** trustworthy, then hand control back. The user should not need to know the mode catalog. Keep context and outputs dose-matched: load only what can change this route or verdict.
 
 **One invocation = one mode.** Diagnose where the user is, load only that mode's file from `modes/`, and run it. Never load every mode. Deep detail lives in `references/` — load only the file a mode points to.
 
@@ -64,6 +64,8 @@ Dispatch rules:
 6. **Humans own intent and risk.** AI drafts, implements, checks, and proposes; people decide ambiguous intent, risk appetite, and irreversible consequences.
 7. **Bounded loops only.** Every autonomous loop has scope, budgets, stop conditions, and an escalation path.
 8. **Report truthfully.** Skipped checks, gaps, and residual risk are stated, not buried.
+
+9. **Spend context deliberately.** Read metadata first, then one mode and only its relevant references. Do not load every mode or repeat unchanged evidence. Smaller context is preferred when it preserves the applicable gates.
 
 ## Boundary evidence
 

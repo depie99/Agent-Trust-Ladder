@@ -9,6 +9,17 @@ This reference defines how ATL chooses a route when the user provides only a raw
 3. Classify prompt readiness and risk. Do not let a confident sentence substitute for acceptance behavior, rollback, or runtime evidence.
 4. Select exactly one primary playbook. Add specialist skills only for a named gap that the playbook does not cover.
 5. Run only as far as the next gate permits. Carry the returned artifact forward; never infer completion from a tool or specialist's completion claim.
+6. Set a context budget before loading detail: `minimal` for Direct, `focused` for Standard, and `expanded` only for Critical or unresolved boundary risk.
+
+## Context loading policy
+
+| Budget | Load | Do not load by default |
+|---|---|---|
+| `minimal` | local instructions, target files, selected verifier, one relevant route row | full skill catalog, unrelated references, broad repository scans |
+| `focused` | minimal set plus primary playbook, selected specialist, callers/contracts/tests named by the impact | every mode, every project document, unrelated test suites |
+| `expanded` | focused set plus rollback, external boundary, runtime, CI, and independent review evidence required by risk | still exclude unrelated domains and duplicate copies |
+
+If the route changes, replace the stale detail rather than accumulating every candidate route. If a skipped source could materially change the verdict, record it as `OPEN`; otherwise do not load it merely for completeness.
 
 ## Route by strongest signal
 
@@ -32,6 +43,8 @@ When multiple rows match, use this precedence: safety/authority gate → existin
 ## Direct versus staged handling
 
 Use `Direct` only when the request is specific, isolated, reversible, low-risk, and has an obvious verifier. Use `Standard` when one or more of framing, specification, planning, implementation, or verification is needed. Use `Critical` for production, auth, privacy, payments, migrations, destructive operations, external services, or unclear rollback.
+
+Token budget follows dose: Direct uses minimal context, Standard focused context, and Critical expanded context only around the actual risk boundary. A large prompt or large repository does not by itself justify loading everything.
 
 For a simple local-only UI copy or style edit with a named file, clear desired text/style, no contract boundary, and an available check, do not impose the deployment gate or a full architecture workflow. Still inspect local instructions, make the smallest change, and run the proportionate check.
 
