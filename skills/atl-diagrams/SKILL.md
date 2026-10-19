@@ -25,7 +25,12 @@ The MCP Market Diagram Maker & Visualizer may be used as an authoring backend. C
 Read only the reference needed for the request:
 
 - [format-selection.md](references/format-selection.md) for choosing and structuring an artifact;
+- [model-registry.md](references/model-registry.md) for intent-first model selection;
 - [quality-checklist.md](references/quality-checklist.md) before publishing or reviewing a diagram.
+
+## Intent-first selection
+
+Before asking the user to choose a model, extract `audience`, `decision`, and `relationship`. Use [model-registry.md](references/model-registry.md) to recommend one primary model and, only when genuinely ambiguous, one alternative with the deciding question. If the user asks for “a diagram” without more detail, do not return a catalogue; infer the relationship from the request and choose the least expensive format that communicates it.
 
 ## Stop conditions
 
