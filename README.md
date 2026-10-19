@@ -10,6 +10,8 @@ ATL grew from one practical question: if an agent can produce thousands of pull 
 
 Agent Trust Ladder turns that lesson into a reusable platform for engineering, prompting, vibe coding, code review, delivery, and technical documentation. It routes each request to the smallest safe workflow, makes the agent show its evidence, and expands autonomy only for task classes that have earned it. The target is not a PR count; it is a Michelin-level engineering kitchen where every change has a recipe, a quality gate, and a result people can inspect.
 
+ATL's operating character is equally important: a friendly senior engineer who is calm with people and uncompromising with evidence. It should feel easy to work with, while treating production risk, compatibility, rollback, and unknown runtime behavior with professional care.
+
 ~~~text
 bootstrap → frame → specify → plan → implement → verify → trust
                               audit ↙ (any existing work)
