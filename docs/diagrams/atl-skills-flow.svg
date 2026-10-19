@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 700" role="img" aria-labelledby="title desc">
+  <title id="title">ATL skills and workflow map</title>
+  <desc id="desc">A left-to-right map showing a raw request entering the ATL front door, moving through the core engineering ladder, optionally using specialist skills, and returning an evidence packet, trust verdict, and autonomy decision.</desc>
+  <defs><style>
+    text{font-family:system-ui,sans-serif;fill:#eef0f7}.title{font-size:24px;font-weight:700}.label{font-size:15px;font-weight:650}.small{font-size:12px;fill:#a5a8ba}.micro{font-size:11px;fill:#818598}.zone{fill:#11121a;stroke:#383a4b;stroke-width:1;stroke-dasharray:6 5}.edge{stroke:#7771b8;stroke-width:2;fill:none}.edge-mint{stroke:#51c7a8;stroke-width:2;fill:none}.edge-amber{stroke:#d5a858;stroke-width:2;fill:none;stroke-dasharray:5 4}.node{stroke-width:1}.input{fill:#272346;stroke:#9b8cff}.core{fill:#1f2540;stroke:#7f9bff}.proof{fill:#172d2c;stroke:#5fe0c2}.special{fill:#302817;stroke:#f4c67e}.output{fill:#271e35;stroke:#fa8f83}.chip{fill:#1a1b25;stroke:#444657;stroke-width:1}.chiptext{font-size:11px;fill:#c3c6d3}
+  </style><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 9 4.5 0 9z" fill="#7771b8"/></marker><marker id="arrow-mint" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 9 4.5 0 9z" fill="#51c7a8"/></marker><marker id="arrow-amber" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 9 4.5 0 9z" fill="#d5a858"/></marker></defs>
+  <text x="34" y="42" class="title">ATL · the skills work as one evidence-gated system</text>
+  <text x="34" y="66" class="small">Start with the outcome. ATL chooses the smallest route; specialists join only when they catch a named risk.</text>
+
+  <rect x="24" y="92" width="1132" height="104" rx="14" class="zone"/><text x="42" y="118" class="small">ONE FRONT DOOR</text>
+  <g transform="translate(48 135)"><rect width="145" height="44" rx="10" class="node input"/><text x="20" y="28" class="label">Raw request</text></g>
+  <path d="M193 157h52" class="edge" marker-end="url(#arrow)"/>
+  <g transform="translate(245 125)"><rect width="250" height="64" rx="10" class="node core"/><text x="20" y="28" class="label">atl · route + dose</text><text x="20" y="49" class="small">infer role, risk, and next gate</text></g>
+  <path d="M495 157h55" class="edge" marker-end="url(#arrow)"/>
+  <g transform="translate(550 125)"><rect width="250" height="64" rx="10" class="node core"/><text x="20" y="28" class="label">agent-trust-ladder</text><text x="20" y="49" class="small">canonical lifecycle control plane</text></g>
+  <path d="M800 157h55" class="edge" marker-end="url(#arrow)"/>
+  <g transform="translate(855 135)"><rect width="250" height="44" rx="10" class="node output"/><text x="20" y="28" class="label">Workflow manifest</text></g>
+
+  <rect x="24" y="222" width="1132" height="172" rx="14" class="zone"/><text x="42" y="248" class="small">CORE LADDER · THE DEFAULT PATH</text>
+  <path d="M165 297h30m175 0h30m175 0h30m175 0h30" class="edge" marker-end="url(#arrow)"/>
+  <g transform="translate(48 270)"><rect width="147" height="65" rx="10" class="node core"/><text x="17" y="27" class="label">atl-bootstrap</text><text x="17" y="48" class="small">project truth</text></g>
+  <g transform="translate(225 270)"><rect width="145" height="65" rx="10" class="node core"/><text x="17" y="27" class="label">atl-frame</text><text x="17" y="48" class="small">bound brief</text></g>
+  <g transform="translate(400 270)"><rect width="145" height="65" rx="10" class="node core"/><text x="17" y="27" class="label">atl-specify</text><text x="17" y="48" class="small">observable behavior</text></g>
+  <g transform="translate(575 270)"><rect width="145" height="65" rx="10" class="node core"/><text x="17" y="27" class="label">atl-plan</text><text x="17" y="48" class="small">impact map</text></g>
+  <g transform="translate(750 270)"><rect width="145" height="65" rx="10" class="node core"/><text x="17" y="27" class="label">atl-implement</text><text x="17" y="48" class="small">bounded change</text></g>
+  <g transform="translate(925 270)"><rect width="165" height="65" rx="10" class="node proof"/><text x="17" y="27" class="label">atl-verify</text><text x="17" y="48" class="small">checks + verdict</text></g>
+  <text x="48" y="374" class="small">Skip only when the request is genuinely isolated, already specified, reversible, and has an obvious verifier.</text>
+
+  <rect x="24" y="430" width="770" height="226" rx="14" class="zone"/><text x="42" y="456" class="small">CONDITIONAL SPECIALISTS · BRANCH FROM THE RISK</text>
+  <path d="M100 505h630" class="edge-amber" marker-end="url(#arrow-amber)"/>
+  <g transform="translate(48 480)"><rect width="142" height="58" rx="9" class="node special"/><text x="15" y="25" class="label">atl-tech-docs</text><text x="15" y="44" class="small">docs sync + proof</text></g>
+  <g transform="translate(208 480)"><rect width="142" height="58" rx="9" class="node special"/><text x="15" y="25" class="label">atl-diagrams</text><text x="15" y="44" class="small">visual contract</text></g>
+  <g transform="translate(368 480)"><rect width="142" height="58" rx="9" class="node special"/><text x="15" y="25" class="label">atl-ui-review</text><text x="15" y="44" class="small">real surface</text></g>
+  <g transform="translate(528 480)"><rect width="142" height="58" rx="9" class="node special"/><text x="15" y="25" class="label">atl-adr</text><text x="15" y="44" class="small">durable decision</text></g>
+  <g transform="translate(688 480)"><rect width="82" height="58" rx="9" class="node special"/><text x="15" y="25" class="label">atl-trust</text><text x="15" y="44" class="micro">autonomy</text></g>
+  <text x="48" y="579" class="small">Specialists return an artifact to ATL. They never replace the primary route or weaken evidence.</text>
+  <text x="48" y="604" class="micro">Use a diagram only when it lowers comprehension cost; keep the source beside the docs.</text>
+
+  <g transform="translate(822 430)"><rect width="334" height="226" rx="14" class="node output"/><text x="22" y="34" class="label">Proof and delivery</text><text x="22" y="67" class="label">atl-audit</text><text x="116" y="67" class="small">existing work / PR</text><text x="22" y="96" class="label">Evidence packet</text><text x="22" y="125" class="small">what changed · why · risk · impact</text><text x="22" y="154" class="label">Trust verdict</text><text x="22" y="183" class="small">complete · conditional · unknown</text><text x="22" y="208" class="small">next safe action is explicit</text></g>
+  <path d="M925 335v72" class="edge-mint" marker-end="url(#arrow-mint)"/><path d="M770 509h52" class="edge-amber" marker-end="url(#arrow-amber)"/>
+</svg>
