@@ -10,3 +10,14 @@ body.light{--ink:#15151c;--muted:#5b5d6a;--faint:#888b98;--bg:#f4f3f7;--panel:#f
   .sidebar{position:sticky;grid-column:1;grid-row:1;top:0}
   main{grid-column:2;grid-row:1;min-width:0}
 }
+
+/* Use an explicit flex shell so the content column cannot collapse to the
+   sidebar track in hosted browsers or cached older layouts. */
+.app-shell{display:flex;align-items:stretch}
+.sidebar{flex:0 0 250px}
+main{flex:1 1 auto;min-width:0}
+@media(max-width:900px){
+  .app-shell{display:block}
+  .sidebar{flex:initial}
+  main{width:100%}
+}
