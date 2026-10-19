@@ -10,6 +10,7 @@ Treat documentation as part of the product and the change surface, not as cleanu
 Read only the references needed for the request:
 
 - [content-model.md](references/content-model.md) when choosing a document type or information architecture;
+- [type-chooser.md](references/type-chooser.md) when the user does not know whether they need business, product, technical, operational, tutorial, reference, or explanation content;
 - [writing-guide.md](references/writing-guide.md) when drafting or editing prose;
 - [maintenance-workflow.md](references/maintenance-workflow.md) when docs must track a code/config/API/operational change or a batch of past changes;
 - [verification.md](references/verification.md) when validating examples, links, generated output, retrievability, or freshness;
