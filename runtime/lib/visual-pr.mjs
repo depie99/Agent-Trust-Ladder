@@ -16,8 +16,67 @@ function slug(value) {
 }
 
 function outline(files) {
-  if (!files.length) return "- No changed files detected.";
-  return files.map((file) => `- \`${file}\``).join("\n");
+  if (!files.length) return "| Area | Files |\n| --- | --- |\n| None detected | — |";
+  const groups = new Map();
+  for (const file of files.filter((entry) => !entry.startsWith(".humanlayer/tasks/"))) {
+    const area = file.startsWith("runtime/") ? "Runtime" : file.startsWith("skills/") ? "Skills" : file.startsWith("docs/") ? "Docs" : file.startsWith("config/") ? "Configuration" : "Project surface";
+    if (!groups.has(area)) groups.set(area, []);
+    groups.get(area).push(file);
+  }
+  return ["| Area | Files |", "| --- | --- |", ...[...groups.entries()].map(([area, entries]) => `| ${area} | ${entries.map((entry) => `\`${entry}\``).join(", ")} |`)].join("\n");
+}
+
+function architectureView(files) {
+  if (files.some((file) => file.includes("memory.mjs"))) {
+    return [
+      "flowchart LR",
+      "  U[ATL request] --> R[atl-manager]",
+      "  R --> T[triage]",
+      "  T --> Q[Mem0 recall]",
+      "  R --> S[Show Me]",
+      "  R --> P[Visual PR]",
+      "  B[Beacon verifies done] --> W[Mem0 add outcome]",
+      "  W -. optional .-> G[(Graph store)]",
+      "  R --> A[(state.json + feed.jsonl)]",
+      "  Q -. advisory .-> T",
+    ].join("\n");
+  }
+  return "flowchart LR\n  U[ATL request] --> R[route] --> W[work] --> V[verify] --> A[(state + feed)]";
+}
+
+function capabilitySummary(files) {
+  const has = (fragment) => files.some((file) => file.includes(fragment));
+  const items = [];
+  if (has("atl-content-quality")) {
+    items.push("**Content quality team** — adds a bounded intake, rubric, readability/SEO checks, and a delivery handoff for content changes.");
+  }
+  if (has("atl-team") || has("atl-manager.mjs")) {
+    items.push("**Team routing** — makes role selection, triage, independent review, and evidence-gated completion visible through the manager workflow.");
+  }
+  if (has("show-me.mjs")) {
+    items.push("**Show Me** — emits a structural handoff with capability map, architecture, control flow, and evidence snapshot for human review.");
+  }
+  if (has("visual-pr.mjs")) {
+    items.push("**Visual PR** — generates this description from the inspected diff, including a grouped file map, architecture diagram, and task-state boundary.");
+  }
+  if (has("memory.mjs")) {
+    items.push("**Optional graph memory** — recalls advisory context during triage and records verified outcomes after completion; Mem0 is opt-in and never authoritative.");
+  }
+  return items.length ? items.map((item) => `- ${item}`).join("\n") : "- No capability summary was inferred from the inspected files.";
+}
+
+function stateView(files) {
+  if (!files.some((file) => file.includes("memory.mjs"))) return "stateDiagram-v2\n  [*] --> work\n  work --> verify\n  verify --> done";
+  return [
+    "stateDiagram-v2",
+    "  [*] --> in_progress",
+    "  in_progress --> in_review",
+    "  in_review --> verifying",
+    "  verifying --> done",
+    "  done --> memory_written: optional Mem0 write",
+    "  memory_written --> [*]",
+    "  note right of memory_written: advisory context only",
+  ].join("\n");
 }
 
 export function buildVisualPrDescription(root, { title = null, taskId = null } = {}) {
@@ -38,20 +97,26 @@ export function buildVisualPrDescription(root, { title = null, taskId = null } =
     "",
     "## Change outline",
     "",
+    "### What this PR adds",
+    "",
+    capabilitySummary(files),
+    "",
     "### Changed responsibilities",
     "",
-    "```text",
+    "```markdown",
     outline(files),
     "```",
     "",
-    "### Control flow",
+    "### Architecture view",
     "",
-    "```text",
-    "ATL route",
-    "  specialist work → local evidence → Show Me outline → independent review → verification",
+    "```mermaid",
+    architectureView(files),
+    "```",
     "",
-    "Optional memory",
-    "  verified outcome → Mem0 graph provider (when configured) → advisory recall",
+    "### Task-state boundary",
+    "",
+    "```mermaid",
+    stateView(files),
     "```",
     "",
     "### Show Me artifact",
