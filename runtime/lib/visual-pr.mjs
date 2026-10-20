@@ -18,7 +18,7 @@ function slug(value) {
 function outline(files) {
   if (!files.length) return "| Area | Files |\n| --- | --- |\n| None detected | — |";
   const groups = new Map();
-  for (const file of files.filter((entry) => !entry.startsWith(".humanlayer/tasks/"))) {
+  for (const file of files.filter((entry) => !entry.startsWith(".atl/tasks/"))) {
     const area = file.startsWith("runtime/") ? "Runtime" : file.startsWith("skills/") ? "Skills" : file.startsWith("docs/") ? "Docs" : file.startsWith("config/") ? "Configuration" : "Project surface";
     if (!groups.has(area)) groups.set(area, []);
     groups.get(area).push(file);
@@ -137,7 +137,7 @@ export function buildVisualPrDescription(root, { title = null, taskId = null } =
 
 export function saveVisualPrDescription(root, { title = null, taskId = null, slug: requestedSlug = null } = {}) {
   const branch = git(root, ["branch", "--show-current"]) || "change";
-  const dir = path.join(root, ".humanlayer", "tasks", `pr-${slug(requestedSlug || branch)}`);
+  const dir = path.join(root, ".atl", "tasks", `pr-${slug(requestedSlug || branch)}`);
   const file = path.join(dir, "description.md");
   const showMeFile = path.join(dir, "show-me.md");
   fs.mkdirSync(dir, { recursive: true });
