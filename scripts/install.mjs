@@ -73,14 +73,17 @@ if (noPath) {
   pathNote = `PATH untouched (--no-path). Add ${home} to your PATH to use: atl`;
 } else if (isWin) {
   try {
+    // The directory travels as an env var: single-quoted PowerShell strings do
+    // not interpolate $home, and nested quoting must not leak into the value.
     execFileSync(
       "powershell",
       ["-NoProfile", "-Command",
+        `$d=$env:ATL_PATH_DIR; ` +
         `$p=[Environment]::GetEnvironmentVariable('Path','User'); ` +
-        `if('$home'.Length -gt 0 -and (';'+$p+';') -notlike '*;$home;*'){` +
-        `[Environment]::SetEnvironmentVariable('Path', ($p.TrimEnd(';') + ';$home'), 'User'); 'ADDED'}` +
+        `if($d.Length -gt 0 -and $p -notlike '*'+$d+'*'){` +
+        `[Environment]::SetEnvironmentVariable('Path', ($p.TrimEnd(';') + ';' + $d), 'User'); 'ADDED'}` +
         `else{'PRESENT'}`],
-      { stdio: "pipe" }
+      { stdio: "pipe", env: { ...process.env, ATL_PATH_DIR: home } }
     );
     pathNote = `Added ${home} to your user PATH. Open a NEW terminal, then: atl`;
   } catch {
