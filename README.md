@@ -36,6 +36,23 @@ The spine is the **Trust Verdict** — five questions with evidence attached: *W
 
 ## One smart entry point
 
+### Install the ATL package
+
+Install the control plane globally from GitHub Packages, or run it once with `npx`:
+
+```powershell
+npm install -g @depie99/atl --registry=https://npm.pkg.github.com
+atl init
+```
+
+For a one-off project bootstrap:
+
+```powershell
+npx --yes @depie99/atl init
+```
+
+`atl init` creates only the project adapter (`.atl/project.json`), manager state, inbox, briefs, workspace root, and local routing config. Skills and runtime stay in the installed package; generated visual handoffs belong under ignored `.atl/tasks/`.
+
 Use `$atl <request>` when you do not want to choose skills yourself. ATL inspects the project and request, selects one proportionate playbook, and composes only the available specialist skills the work needs. It can route native ATL stages plus optional PStack and Matt Pocock skills without letting either bypass scope, approval, evidence, or autonomy gates.
 
 ~~~text
@@ -43,6 +60,12 @@ $atl fix the intermittent checkout timeout and prove the real cause
 ~~~
 
 Before material work it shows a compact Workflow Manifest: outcome, observed project need, playbook, dose/risk, selected skill route, gates, and stop condition. Missing optional skills are explicit and fall back to native ATL behavior; ATL never pretends a dependency ran.
+
+### Skill-aware team routing
+
+The manager now reads `config/skill-routing.json` during intake and triage. Pip records the best local specialist match—such as `atl-content-quality`, `atl-tech-docs`, `atl-diagrams`, `atl-ui-review`, or `atl-implement`—and proposes Rowan as the implementation owner. Mira still assigns workers, Sage reviews independently, and Beacon verifies the result.
+
+Inspect a task route with `node runtime\\atl-manager.mjs route T-001`. The repository also ships as an npm package with the `atl` CLI and the `./team` capability export; package metadata is a distribution boundary, not a replacement for the runtime trust gates.
 
 ### You only need to bring the problem
 

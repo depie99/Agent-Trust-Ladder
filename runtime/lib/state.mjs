@@ -43,6 +43,7 @@ export function paths(root) {
     workspaces: path.join(root, ".trust", "manager", "workspaces"),
     config: path.join(root, "config", "manager.json"),
     routing: path.join(root, "config", "model-routing.json"),
+    skillRouting: path.join(root, "config", "skill-routing.json"),
   };
 }
 
@@ -103,6 +104,9 @@ export function createTask(state, fields) {
     priority: fields.priority || "normal",      // low | normal | high | urgent
     risk: fields.risk || "normal",              // normal | risky
     labels: fields.labels || [],
+    selected_skills: fields.selected_skills || [],
+    proposed_worker: fields.proposed_worker || null,
+    skill_route: fields.skill_route || null,
     review_required: fields.risk === "risky",
     assigned_worker: null,                      // pip | rowan | sage | beacon
     workspace: null,

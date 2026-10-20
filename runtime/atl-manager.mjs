@@ -26,6 +26,7 @@ import { post as feedPost, renderFeed, renderRoster } from "./lib/feed.mjs";
 import { buildShowMe, saveShowMe } from "./lib/show-me.mjs";
 import { saveVisualPrDescription } from "./lib/visual-pr.mjs";
 import { memoryStatus, safeRecall, safeRemember } from "./lib/memory.mjs";
+import { bundledRoot, formatRoute, isSkillAvailable, routeTask } from "./lib/skill-router.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
@@ -107,6 +108,7 @@ Manager view
   memory remember "fact"        store an explicitly supplied advisory memory
   show-me [task-id] [--save]     render a structural handoff outline
   visual-pr [--title "..."]      write a reviewer-ready PR description
+  route <task-id>                inspect and persist the selected specialist skills
   role <mira|pip|rowan|sage|beacon>   print the role contract a session must adopt
   validate                      sanity-check config + state
 `.trim();
@@ -132,6 +134,20 @@ function loadConfig() {
     throw new StateError(`Missing ${P.config}. Run: node runtime\\atl-manager.mjs init`);
   }
   return JSON.parse(fs.readFileSync(P.config, "utf8"));
+}
+
+function applySkillRoute(task) {
+  const route = routeTask(ROOT, {
+    title: task.title,
+    objective: [task.objective, task.objective_hint].filter(Boolean).join(" "),
+    labels: task.labels,
+    source: task.source,
+  });
+  task.selected_skills = route.selected_skills;
+  task.proposed_worker = route.proposed_worker;
+  task.skill_route = route;
+  task.decision_log.push({ at: new Date().toISOString(), route: route.source, skills: route.selected_skills });
+  return route;
 }
 
 // Narration: after any successful mutation, the acting bot speaks in the feed.
@@ -270,10 +286,23 @@ async function main() {
         fs.mkdirSync(path.dirname(P.routing), { recursive: true });
         fs.copyFileSync(defaults, P.routing);
       }
+      const skillRouting = P.skillRouting;
+      if (!fs.existsSync(skillRouting)) {
+        fs.mkdirSync(path.dirname(skillRouting), { recursive: true });
+        fs.copyFileSync(path.join(bundledRoot(), "config", "skill-routing.json"), skillRouting);
+      }
+      const projectMeta = path.join(ROOT, ".atl", "project.json");
+      if (!fs.existsSync(projectMeta)) {
+        fs.mkdirSync(path.dirname(projectMeta), { recursive: true });
+        const bundlePackage = path.join(bundledRoot(), "package.json");
+        const bundleVersion = fs.existsSync(bundlePackage) ? JSON.parse(fs.readFileSync(bundlePackage, "utf8")).version : "unknown";
+        fs.writeFileSync(projectMeta, JSON.stringify({ package: "@depie99/atl", version: bundleVersion, initialized_at: new Date().toISOString() }, null, 2) + "\n");
+      }
       if (!fs.existsSync(P.state)) {
         saveState(ROOT, emptyState());
       }
       console.log(`Ready.\n  state:     ${P.state}\n  config:    ${P.config}\n  routing:   ${P.routing}\n  inbox:     ${P.inbox}  (drop markdown bullet files here)\n  workspaces:${P.workspaces}`);
+      console.log(`  skill route:${P.skillRouting}\n  project:   ${projectMeta}`);
       console.log(`\nNext: add a task file to the inbox, then: atl intake   (or: node runtime\\atl-manager.mjs intake)`);
       return;
     }
@@ -300,12 +329,14 @@ async function main() {
           if (cand.completion_checks.length) t.completion_checks = cand.completion_checks; // pre-filled; Pip still owns triage
           const routine = matchRoutine(cfg.routines, cand);
           if (routine) applyRoutine(t, routine);
+          const route = applySkillRoute(t);
           logEvent(state, { task: t.id, actor: "runner", event: "intake", detail: `${b.source}: ${cand.title}` });
           const ref = cand.source.url || cand.title;
           say("pip", `grabbing ${ref} — "${cand.title}". pulling ${b.source} + thread, then queuing triage.`, { task: t.id });
           if (routine?.then?.assign_to) {
             say("mira", `${t.id} pre-routed to ${routine.then.assign_to} by routine "${routine.name}". kicks when triage lands.`, { task: t.id });
           }
+          say("pip", `${t.id} skill route: ${route.selected_skills.join(", ") || "unresolved"} (${route.status}).`, { task: t.id });
           added++;
           console.log(`  + ${t.id} [new] (${b.source})${routine ? ` [routine: ${routine.name}]` : ""} ${cand.title}`);
         }
@@ -316,11 +347,15 @@ async function main() {
     }
 
     case "triage": {
-      const { task } = need(pos[0]);
+      const { state, task } = need(pos[0]);
       const routing = JSON.parse(fs.readFileSync(P.routing, "utf8"));
+      const route = applySkillRoute(task);
+      saveState(ROOT, state);
       console.log(renderRole("pip", routing));
       console.log("\n--- Task packet ---\n");
       console.log(renderTask(task));
+      console.log("\n--- Specialist route ---\n");
+      console.log(formatRoute(route));
       if (task.objective_hint) console.log(`  (hint from source: ${task.objective_hint.slice(0, 300)})`);
       const recalled = await safeRecall(ROOT, `${task.title} ${task.objective_hint || ""}`, { agentId: "pip", runId: task.id, limit: 3 });
       if (recalled.results.length) {
@@ -334,6 +369,14 @@ async function main() {
       console.log(`  --check "<observable check 1>" --check "<observable check 2>" \\`);
       console.log(`  --priority ${task.priority} --risk normal --note "triage rationale"`);
       console.log(`node runtime\\atl-manager.mjs move ${task.id} triaged --actor pip`);
+      return;
+    }
+
+    case "route": {
+      const { state, task } = need(pos[0]);
+      const route = applySkillRoute(task);
+      saveState(ROOT, state);
+      console.log(formatRoute(route));
       return;
     }
 
@@ -611,8 +654,16 @@ async function main() {
 
     case "validate": {
       const cfg = loadConfig();
+      const skillRouting = fs.existsSync(P.skillRouting)
+        ? JSON.parse(fs.readFileSync(P.skillRouting, "utf8"))
+        : { routes: [], fallback: null };
       const state = loadState(ROOT);
       const problems = [];
+      for (const route of [...(skillRouting.routes || []), ...(skillRouting.fallback ? [skillRouting.fallback] : [])]) {
+        if (route.skill && !isSkillAvailable(ROOT, route.skill)) {
+          problems.push(`skill route ${route.skill}: missing skills/${route.skill}/SKILL.md`);
+        }
+      }
       const known = new Set(Object.keys(state.tasks));
       for (const t of Object.values(state.tasks)) {
         if (!STATUSES.includes(t.status)) problems.push(`${t.id}: bad status ${t.status}`);

@@ -31,6 +31,10 @@ if (Number(process.versions.node.split(".")[0]) < 18) {
 // 1. copy the runtime
 fs.rmSync(path.join(home, "runtime"), { recursive: true, force: true });
 fs.cpSync(path.join(repo, "runtime"), path.join(home, "runtime"), { recursive: true });
+fs.rmSync(path.join(home, "skills"), { recursive: true, force: true });
+fs.cpSync(path.join(repo, "skills"), path.join(home, "skills"), { recursive: true });
+fs.mkdirSync(path.join(home, "config"), { recursive: true });
+fs.copyFileSync(path.join(repo, "config", "skill-routing.json"), path.join(home, "config", "skill-routing.json"));
 
 // 2. write the `atl` shim (absolute path baked in)
 fs.mkdirSync(home, { recursive: true });
@@ -96,6 +100,7 @@ if (noPath) {
 console.log(`Installed the ATL digital team.
   CLI:     ${path.join(home, isWin ? "atl.cmd" : "atl")}
   runtime: ${path.join(home, "runtime")}
+  skills:  ${path.join(home, "skills")}
   prompts: ${path.join(home, "runtime", "prompts")}  (paste-ready role prompts for any agent CLI)
 ${packs.length ? "\nSlash commands wired:\n  " + packs.join("\n  ") + "\n" : ""}
 ${pathNote}
