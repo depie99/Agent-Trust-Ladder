@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "inbox_dir": ".trust/manager/inbox",
+  "briefs_dir": ".trust/manager/briefs",
+  "budgets": {
+    "max_attempts": 3,
+    "stale_after_hours": 24,
+    "max_active_tasks": 5
+  },
+  "routines": [
+    {
+      "name": "perf-regressions",
+      "when": { "keyword": "timeout" },
+      "then": { "priority": "urgent", "risk": "risky" }
+    },
+    {
+      "name": "readme-doc-fixes",
+      "when": { "source": "file", "keyword": "README" },
+      "then": { "priority": "low", "assign_to": "rowan" }
+    }
+  ],
+  "intake": {
+    "file": {
+      "enabled": true
+    },
+    "github": {
+      "enabled": true,
+      "repos": [
+        "shahryarjb/temp_mishka_cms"
+      ],
+      "note": "set enabled=true; unauthenticated works for public repos, or run: gh auth login / set GITHUB_TOKEN"
+    },
+    "azure": {
+      "enabled": false,
+      "org_url": "https://devops.soitco.net:32678/Solico-Group",
+      "project": "Middleware-and-Portals",
+      "team": "Middleware-and-Portals Team",
+      "iteration_path": "Middleware-and-Portals\\Sprint 73",
+      "token_env": "AZDO_PAT",
+      "tls_allow_untrusted": true,
+      "note": "set enabled=true and provide AZDO_PAT (Work Items: Read). tls_allow_untrusted is ON for the self-hosted server certificate; turn it off if you install a trusted cert."
+    }
+  },
+  "workspaces": {
+    "root": ".trust/manager/workspaces",
+    "repos": {
+      "shahryarjb/temp_mishka_cms": {
+        "path": ""
+      }
+    },
+    "note": "put a local clone path in repos.<owner/name>.path to get cheap git worktrees instead of fresh clones"
+  }
+}
