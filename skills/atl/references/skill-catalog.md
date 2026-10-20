@@ -23,6 +23,7 @@ This catalog describes optional routing. Availability must be confirmed from cur
 | Executable task graph | `to-tickets` | ordered ATL tasks with prerequisites and exact verifiers |
 | Durable architecture decision | `atl-adr` | decide whether an ADR is warranted; record alternatives, consequences, lifecycle, and fitness evidence |
 | Technical documentation lifecycle | `atl-tech-docs` | create/update docs from audience and source-of-truth contracts; verify examples, links, style, and freshness |
+| Website content and SEO quality | `atl-content-quality` | audit search/content signals or write bounded factual site copy with evidence, priorities, and explicit unknowns |
 | Architecture, flow, lifecycle, ownership, or impact visual | `atl-diagrams` | model relationships, create an accessible SVG/HTML/Excalidraw artifact, and separate visual communication from behavioral proof |
 | Implemented UI quality and repair | `atl-ui-review` | inspect the real rendered surface; separate visual, interaction, responsive, accessibility, and runtime evidence |
 
