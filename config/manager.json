@@ -19,6 +19,21 @@
       "then": { "priority": "low", "assign_to": "rowan" }
     }
   ],
+  "memory": {
+    "provider": "none",
+    "project_id": "",
+    "mem0": {
+      "enable_graph": true,
+      "graph_store": {
+        "provider": "neo4j",
+        "config": {
+          "url": "$NEO4J_URL",
+          "username": "$NEO4J_USERNAME",
+          "password": "$NEO4J_PASSWORD"
+        }
+      }
+    }
+  },
   "intake": {
     "file": {
       "enabled": true
