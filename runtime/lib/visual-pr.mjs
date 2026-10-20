@@ -23,7 +23,14 @@ function outline(files) {
     if (!groups.has(area)) groups.set(area, []);
     groups.get(area).push(file);
   }
-  return ["| Area | Files |", "| --- | --- |", ...[...groups.entries()].map(([area, entries]) => `| ${area} | ${entries.map((entry) => `\`${entry}\``).join(", ")} |`)].join("\n");
+  const compact = [...groups.entries()].map(([area, entries]) => {
+    const ordered = [...entries].sort((a, b) => a.length - b.length || a.localeCompare(b));
+    const visible = ordered.slice(0, 3).map((entry) => `\`${entry}\``);
+    const hidden = ordered.length - visible.length;
+    if (hidden > 0) visible.push(`+${hidden} supporting`);
+    return `| ${area} | ${entries.length} | ${visible.join(", ")} |`;
+  });
+  return ["| Area | Count | Key files |", "| --- | ---: | --- |", ...compact, "", `_${files.length} changed files collapsed into responsibility groups; key files are shown first._`].join("\n");
 }
 
 function architectureView(files) {

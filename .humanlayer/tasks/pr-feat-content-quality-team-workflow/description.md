@@ -22,13 +22,15 @@ ATL adds a bounded content-quality and team-handoff workflow so reviewers can se
 ### Changed responsibilities
 
 ```markdown
-| Area | Files |
-| --- | --- |
-| Project surface | `README.md` |
-| Configuration | `config/manager.json`, `config/model-routing.json` |
-| Docs | `docs/skills.html`, `docs/team-playbook.md`, `docs/team.html` |
-| Runtime | `runtime/README.md`, `runtime/atl-manager.mjs`, `runtime/lib/memory.mjs`, `runtime/lib/roles.mjs`, `runtime/lib/show-me.mjs`, `runtime/lib/visual-pr.mjs`, `runtime/prompts/beacon.md`, `runtime/prompts/rowan.md` |
-| Skills | `skills/atl-content-quality/SKILL.md`, `skills/atl-content-quality/agents/openai.yaml`, `skills/atl-content-quality/references/checklist.md`, `skills/atl-content-quality/references/copy-quality.md`, `skills/atl-team/SKILL.md`, `skills/atl/SKILL.md`, `skills/atl/references/routing.md`, `skills/atl/references/skill-catalog.md` |
+| Area | Count | Key files |
+| --- | ---: | --- |
+| Project surface | 1 | `README.md` |
+| Configuration | 2 | `config/manager.json`, `config/model-routing.json` |
+| Docs | 3 | `docs/team.html`, `docs/skills.html`, `docs/team-playbook.md` |
+| Runtime | 8 | `runtime/README.md`, `runtime/lib/roles.mjs`, `runtime/lib/memory.mjs`, +5 supporting |
+| Skills | 8 | `skills/atl/SKILL.md`, `skills/atl-team/SKILL.md`, `skills/atl/references/routing.md`, +5 supporting |
+
+_25 changed files collapsed into responsibility groups; key files are shown first._
 ```
 
 ### Architecture view

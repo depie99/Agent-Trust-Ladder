@@ -87,37 +87,34 @@ ATL request
 
 ```text
 ## feat/content-quality-team-workflow...origin/feat/content-quality-team-workflow
- M .humanlayer/tasks/pr-feat-content-quality-team-workflow/description.md
- M .humanlayer/tasks/pr-feat-content-quality-team-workflow/show-me.md
- M runtime/lib/show-me.mjs
  M runtime/lib/visual-pr.mjs
 
-.../tasks/pr-content-quality-team/description.md   |  69 ++++++++++++
- .../description.md                                 |  58 +++++++++++
- .../show-me.md                                     |  96 +++++++++++++++++
+.../tasks/pr-content-quality-team/description.md   |  69 +++++++++
+ .../description.md                                 |  66 +++++++++
+ .../show-me.md                                     | 123 ++++++++++++++++
  README.md                                          |   1 +
- config/manager.json                                |  15 +++
+ config/manager.json                                |  15 ++
  config/model-routing.json                          |   5 +
  docs/skills.html                                   |   1 +
  docs/team-playbook.md                              |   7 +-
  docs/team.html                                     |   2 +-
  runtime/README.md                                  |   2 +
- runtime/atl-manager.mjs                            |  77 +++++++++++++-
- runtime/lib/memory.mjs                             | 114 ++++++++++++++++++++
- runtime/lib/roles.mjs                              |  14 ++-
- runtime/lib/show-me.mjs                            | 116 +++++++++++++++++++++
- runtime/lib/visual-pr.mjs                          |  75 +++++++++++++
+ runtime/atl-manager.mjs                            |  77 +++++++++-
+ runtime/lib/memory.mjs                             | 114 +++++++++++++++
+ runtime/lib/roles.mjs                              |  14 +-
+ runtime/lib/show-me.mjs                            | 159 +++++++++++++++++++++
+ runtime/lib/visual-pr.mjs                          | 140 ++++++++++++++++++
  runtime/prompts/beacon.md                          |   3 +-
  runtime/prompts/rowan.md                           |   4 +-
- skills/atl-content-quality/SKILL.md                |  87 ++++++++++++++++
+ skills/atl-content-quality/SKILL.md                |  87 +++++++++++
  skills/atl-content-quality/agents/openai.yaml      |   4 +
- skills/atl-content-quality/references/checklist.md |  34 ++++++
+ skills/atl-content-quality/references/checklist.md |  34 +++++
  .../atl-content-quality/references/copy-quality.md |  11 ++
  skills/atl-team/SKILL.md                           |   9 +-
  skills/atl/SKILL.md                                |   1 +
  skills/atl/references/routing.md                   |   1 +
  skills/atl/references/skill-catalog.md             |   1 +
- 25 files changed, 799 insertions(+), 8 deletions(-)
+ 25 files changed, 942 insertions(+), 8 deletions(-)
 ```
 
 Generated from inspected repository output. This outline is a communication aid, not proof of behavior.
