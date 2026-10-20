@@ -92,3 +92,32 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.key === 'Escape' && dialog?.open) dialog.close();
 });
+
+// Code cards: copy button on every .code-card
+document.querySelectorAll('.copy-code').forEach((button) => {
+  button.addEventListener('click', () => {
+    const code = button.closest('.code-card')?.querySelector('pre')?.textContent ?? '';
+    copyText(code.replace(/\n+$/, ''), button);
+  });
+});
+
+// On-this-page rail: highlight the section currently in view
+const tocLinks = [...document.querySelectorAll('.doc-toc a[href^="#"]')];
+if (tocLinks.length && 'IntersectionObserver' in window) {
+  const tocMap = new Map(tocLinks.map((a) => [a.getAttribute('href').slice(1), a]));
+  const spy = new IntersectionObserver((entries) => {
+    const visible = entries.filter((entry) => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!visible) return;
+    tocLinks.forEach((a) => {
+      const active = a === tocMap.get(visible.target.id);
+      a.classList.toggle('active', active);
+      if (active) a.setAttribute('aria-current', 'location');
+      else a.removeAttribute('aria-current');
+    });
+  }, { rootMargin: '-15% 0px -70% 0px', threshold: [0.05, 0.25, 0.6] });
+  tocMap.forEach((_, id) => {
+    const el = document.getElementById(id);
+    if (el) spy.observe(el);
+  });
+}

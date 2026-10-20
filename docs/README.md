@@ -8,6 +8,10 @@ Open `index.html` in a browser, or serve this directory with any static file ser
 
 The site is published at <https://depie99.github.io/Agent-Trust-Ladder/> after the GitHub Pages workflow completes. The source repository remains the canonical home for the HTML, CSS, diagram HTML, and direct SVG preview.
 
+The public site also documents ATL's model-routing loop: route by capability, require a plan, give the worker real tools, review with an independent model or context, verify the result, and log what worked. The vendor-neutral policy source is [`../config/model-routing.json`](../config/model-routing.json).
+
+It also documents **manager mode**: the human stays at the portfolio level while named digital colleagues own bounded missions, report status and evidence, and leave a concise morning brief after unattended work.
+
 The launch announcement draft is in [linkedin-launch-post.md](linkedin-launch-post.md). It is intentionally kept beside the docs site so the public story can stay aligned with the actual workflow and evidence model.
 
 ## Diagram workflow rule

@@ -24,7 +24,7 @@ It also covers the work around the code: architecture decisions, technical docum
 
 The goal is a Michelin-level engineering kitchen: every change has a recipe, a quality gate, and a result people can inspect.
 
-The personality matters too: ATL should feel like a friendly senior engineer—easy to talk to, careful with risk, and honest whenever evidence is missing.
+The personality matters too: ATL should feel like a sharp engineering colleague—easy to think out loud with, willing to challenge weak ideas, careful with risk, and honest whenever evidence is missing.
 
 Try it, read the docs, and tell us where it breaks:
 
