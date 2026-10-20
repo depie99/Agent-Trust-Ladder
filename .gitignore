@@ -4,3 +4,7 @@
 .trust/manager/state.json.tmp
 .trust/manager/feed.jsonl
 .trust/manager/briefs/
+
+# Generated review handoffs are local artifacts, not repository source.
+.atl/tasks/
+.humanlayer/
