@@ -82,6 +82,28 @@ You now have: `/atl`, `/atl-bootstrap`, `/atl-frame`, `/atl-specify`, `/atl-plan
 
 ---
 
+## 2b. Install the digital team runtime (optional)
+
+The skills are the methodology. The repo also ships the **runtime** that runs the named bot team — Mira (coordinator), Pip (triage), Rowan (builder), Sage (reviewer), Beacon (verifier/night watch) — as a persistent state machine in any project, drivable from any terminal or AI agent CLI (ZCode, Claude Code, Codex CLI, Grok CLI, Cursor, ...):
+
+~~~bash
+git clone https://github.com/depie99/Agent-Trust-Ladder.git
+cd Agent-Trust-Ladder
+scripts\install-atl.cmd        # Windows    (macOS/Linux: ./scripts/install-atl.sh)
+~~~
+
+Requires Node 18+. The installer copies the runtime to `~/.atl`, adds an **`atl`** command to your user PATH (`--no-path` to skip), and ships paste-ready role prompts. Then, in **any project**:
+
+~~~bash
+cd your-project
+atl init                 # scaffolds config + .trust/manager in THIS project
+# drop tasks into .trust/manager/inbox/*.md (or wire GitHub issues / Azure Boards in config/manager.json)
+atl intake               # new tasks appear, narrated by the bots
+atl feed --roster        # watch the team work
+~~~
+
+To put an agent behind a bot, open a session in the project and paste the matching prompt from `~/.atl/runtime/prompts/` — the runner enforces the role contract no matter which agent is behind it. The installer auto-detects Codex CLI and Claude Code and installs the prompts as native slash commands (`/atl-mira`, `/atl-pip`, `/atl-rowan`, `/atl-sage`, `/atl-beacon`); the ATL *skills* install into Codex via `npx skills add depie99/Agent-Trust-Ladder -a codex` (Option A above). Update: re-run the installer. Uninstall: delete `~/.atl`, the wired prompt files (`~/.codex/prompts/atl-*.md`, `~/.claude/commands/atl-*.md`), and remove `~/.atl` from PATH. Full guide: [runtime/README.md](runtime/README.md).
+
 ## 3. Use
 
 ### The 30-second version
