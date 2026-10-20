@@ -10,7 +10,7 @@ ATL grew from one practical question: if an agent can produce thousands of pull 
 
 Agent Trust Ladder turns that lesson into a reusable platform for engineering, prompting, vibe coding, code review, delivery, and technical documentation. It routes each request to the smallest safe workflow, makes the agent show its evidence, and expands autonomy only for task classes that have earned it. The target is not a PR count; it is a Michelin-level engineering kitchen where every change has a recipe, a quality gate, and a result people can inspect.
 
-ATL's operating character is equally important: a friendly senior engineer who is calm with people and uncompromising with evidence. It should feel easy to work with, while treating production risk, compatibility, rollback, and unknown runtime behavior with professional care.
+ATL's operating character is equally important: a sharp engineering colleague who is easy to think out loud with and uncompromising with evidence. It should feel natural to work with, challenge weak assumptions when needed, and treat production risk, compatibility, rollback, and unknown runtime behavior with professional care.
 
 ### Optimize the whole loop
 
@@ -132,6 +132,31 @@ $atl-trust docs_and_examples
 | `$atl-adr` | architecture decision record | Decide whether a durable architecture decision needs a record; capture alternatives, consequences, lifecycle, and fitness evidence |
 | `$atl-tech-docs` | technical documentation | Create or update docs from audience and source-of-truth contracts; verify examples, links, style, and freshness |
 | `$atl-trust` | trust | L0–L7 advancement gate per task class |
+| `$atl-formal-verification` | formal verification authoring | Create a project-local proof/model skill, executable suite, mutation check, and honest scope |
+| `$atl-team` | team orchestration | Coordinate bounded parallel agents through ownership, contracts, integration, and evidence |
+
+### Model routing
+
+ATL routes work by capability rather than defaulting to one model:
+
+| Work | Role | First output |
+|---|---|---|
+| Implementation, refactors, debugging | `code` | plan, files, checks |
+| Architecture, tradeoffs, hard judgment | `judgment` | decision, alternatives, risks |
+| Reading, comparison, synthesis | `analysis` | findings and open questions |
+| Brainstorming and exploration | `ideas` | candidate approaches |
+
+The default team loop is `route → plan → implement → independent review → fix/iterate → verify → log`. The first model must restate the goal, propose an approach, list files and changes, identify risks, and wait for the applicable gate before implementation. A different model or independent context reviews the work; model confidence is never treated as evidence.
+
+> **The operating principle:** pick the right model, give it real tools, make it show its plan, have another model challenge the result, and keep the lesson.
+
+Configure exact accessible models in [`config/model-routing.json`](config/model-routing.json), validate it with `python scripts/validate_model_routing.py`, and keep run memory in [`.trust/agent-runs/`](.trust/agent-runs/).
+
+### Manager mode
+
+You are the manager of the digital team. ATL gives each colleague a bounded mission, role, status, checkpoint, and evidence trail while you stay at the portfolio level: priorities, decisions, blockers, risks, and outcomes. For unattended work, use `$atl-team` with an explicit `Complete when`, allowed/forbidden actions, workspace, checks, wake condition, stop rule, and morning brief. Time alone is never a finish condition.
+
+The default roster is **Mira** (coordinator), **Pip** (triage), **Rowan** (builder), **Sage** (reviewer), and **Beacon** (verifier/night watch). They are friendly names over strict role contracts, not pretend personalities or hidden capabilities.
 
 ## Structure
 

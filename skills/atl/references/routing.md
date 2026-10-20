@@ -35,6 +35,10 @@ If the route changes, replace the stale detail rather than accumulating every ca
 | Implemented UI needs critique or repair on the real surface | UI review and repair | `atl-ui-review` | observed surface findings and re-observed repairs |
 | First contact, stale project context, or major architecture change | Bootstrap | `atl-bootstrap` | honest project brief and conservative trust policy |
 | User asks what autonomy is earned or whether the agent may do more | Trust | `atl-trust` | task-class evidence and policy decision |
+| User asks to prove an invariant, state machine, concurrency property, or bounded code property | Investigation or Feature | `atl-formal-verification` plus `atl-verify` | project-local verification skill, executable suite, mutation evidence, and scope limits |
+| User asks for a team of agents, parallel work, or sustained orchestration | Large or multi-session program | `atl-team` | team brief, ownership map, contract gates, integration evidence, and stop conditions |
+| User asks agents to work while away, overnight, persistently, or until a finish condition | Large or multi-session program | `atl-team` | explicit finish condition, isolated workspace, bounded loop, stop/escalation rule, and manager-ready brief |
+| User asks to choose models, route work by capability, or add a second-model review | Large or multi-session program | `atl-team` | model policy, first-model plan, independent review, and run log |
 | A durable architecture or system-design choice needs its “why” recorded | Architecture decision | `atl-adr` | ADR or explicit no-ADR rationale, with owner, status, consequences, and verifier |
 | New or stale technical docs, or a code/config/API change with reader impact | Documentation | `atl-tech-docs` | doc contract, content type, source alignment, checks, and freshness verdict |
 | User asks for a diagram, architecture view, flow, lifecycle, dependency map, or visual change explanation | Documentation or matching engineering route | `atl-diagrams` plus `atl-tech-docs` when published as documentation | diagram contract, source/rendered artifact, accessibility checks, and observed-versus-inferred boundaries |

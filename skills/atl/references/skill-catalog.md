@@ -35,6 +35,8 @@ This catalog describes optional routing. Availability must be confirmed from cur
 | Hard bug | `diagnosing-bugs` or PStack bug-fix playbook | reproduce → minimize → hypothesis → instrument → repair → regression check |
 | Measured performance issue | PStack perf/hillclimb playbook plus `benchmark-checklist` | baseline, hypothesis, controlled measurement, accepted/rejected result log |
 | Large coordinated program | PStack `orchestrate`/`swarm` only when available and authorized | split into independent bounded tasks; no pretend parallelism |
+| Formal invariant, state-machine, concurrency, or bounded code property | `atl-formal-verification` | write a bounded executable model, mutation check, and explicit scope ledger |
+| Multi-agent team or long-running coordinated work | `atl-team` | explicit ownership map, non-overlapping write sets, integration gate, and bounded retries |
 
 ## Verification and delivery
 
