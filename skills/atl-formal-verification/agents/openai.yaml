@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Formal Verification"
+  short_description: "Create a bounded, executable proof contract for a high-value invariant"
+  default_prompt: "Use $atl-formal-verification to create or maintain a project-local formal verification skill."
