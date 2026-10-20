@@ -118,6 +118,8 @@ adopts before acting. Summary:
 - **Sage** — reviews the diff + evidence independently. Never implements.
 - **Beacon** — verifies finish conditions, watches timers and stale work, preserves memory. Never builds.
 
+**Show the work.** Handoffs and close-outs speak `show-me` (humanlayer/skills): diff-shaped change views, shallow file trees, component or call trees — the smallest view that shows what changed, written from real inspection of the rendered output, never from the builder's description. PR preparation (only when a task contract allows it) follows `visual-pr`, with manager approval before anything is published. Both skills install via `npx skills add humanlayer/skills --skill show-me visual-pr`; without them, follow the same conventions from the prompts.
+
 ## Intake sources
 
 **Local bullet files (default, works offline).** Markdown files in
