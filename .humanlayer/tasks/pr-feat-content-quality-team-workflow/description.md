@@ -11,44 +11,52 @@ ATL adds a bounded content-quality and team-handoff workflow so reviewers can se
 
 ## Change outline
 
+### What this PR adds
+
+- **Content quality team** — adds a bounded intake, rubric, readability/SEO checks, and a delivery handoff for content changes.
+- **Team routing** — makes role selection, triage, independent review, and evidence-gated completion visible through the manager workflow.
+- **Show Me** — emits a structural handoff with capability map, architecture, control flow, and evidence snapshot for human review.
+- **Visual PR** — generates this description from the inspected diff, including a grouped file map, architecture diagram, and task-state boundary.
+- **Optional graph memory** — recalls advisory context during triage and records verified outcomes after completion; Mem0 is opt-in and never authoritative.
+
 ### Changed responsibilities
 
-```text
-- `.humanlayer/tasks/pr-content-quality-team/description.md`
-- `.humanlayer/tasks/pr-feat-content-quality-team-workflow/description.md`
-- `.humanlayer/tasks/pr-feat-content-quality-team-workflow/show-me.md`
-- `README.md`
-- `config/manager.json`
-- `config/model-routing.json`
-- `docs/skills.html`
-- `docs/team-playbook.md`
-- `docs/team.html`
-- `runtime/README.md`
-- `runtime/atl-manager.mjs`
-- `runtime/lib/memory.mjs`
-- `runtime/lib/roles.mjs`
-- `runtime/lib/show-me.mjs`
-- `runtime/lib/visual-pr.mjs`
-- `runtime/prompts/beacon.md`
-- `runtime/prompts/rowan.md`
-- `skills/atl-content-quality/SKILL.md`
-- `skills/atl-content-quality/agents/openai.yaml`
-- `skills/atl-content-quality/references/checklist.md`
-- `skills/atl-content-quality/references/copy-quality.md`
-- `skills/atl-team/SKILL.md`
-- `skills/atl/SKILL.md`
-- `skills/atl/references/routing.md`
-- `skills/atl/references/skill-catalog.md`
+```markdown
+| Area | Files |
+| --- | --- |
+| Project surface | `README.md` |
+| Configuration | `config/manager.json`, `config/model-routing.json` |
+| Docs | `docs/skills.html`, `docs/team-playbook.md`, `docs/team.html` |
+| Runtime | `runtime/README.md`, `runtime/atl-manager.mjs`, `runtime/lib/memory.mjs`, `runtime/lib/roles.mjs`, `runtime/lib/show-me.mjs`, `runtime/lib/visual-pr.mjs`, `runtime/prompts/beacon.md`, `runtime/prompts/rowan.md` |
+| Skills | `skills/atl-content-quality/SKILL.md`, `skills/atl-content-quality/agents/openai.yaml`, `skills/atl-content-quality/references/checklist.md`, `skills/atl-content-quality/references/copy-quality.md`, `skills/atl-team/SKILL.md`, `skills/atl/SKILL.md`, `skills/atl/references/routing.md`, `skills/atl/references/skill-catalog.md` |
 ```
 
-### Control flow
+### Architecture view
 
-```text
-ATL route
-  specialist work → local evidence → Show Me outline → independent review → verification
+```mermaid
+flowchart LR
+  U[ATL request] --> R[atl-manager]
+  R --> T[triage]
+  T --> Q[Mem0 recall]
+  R --> S[Show Me]
+  R --> P[Visual PR]
+  B[Beacon verifies done] --> W[Mem0 add outcome]
+  W -. optional .-> G[(Graph store)]
+  R --> A[(state.json + feed.jsonl)]
+  Q -. advisory .-> T
+```
 
-Optional memory
-  verified outcome → Mem0 graph provider (when configured) → advisory recall
+### Task-state boundary
+
+```mermaid
+stateDiagram-v2
+  [*] --> in_progress
+  in_progress --> in_review
+  in_review --> verifying
+  verifying --> done
+  done --> memory_written: optional Mem0 write
+  memory_written --> [*]
+  note right of memory_written: advisory context only
 ```
 
 ### Show Me artifact

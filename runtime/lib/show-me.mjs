@@ -52,6 +52,39 @@ function tree(files) {
   return out.join("\n");
 }
 
+function capabilityMap(files) {
+  const has = (needle) => files.some((file) => file.includes(needle));
+  const rows = [];
+  if (has("atl-content-quality")) rows.push(["Content quality", "skills/atl-content-quality", "SEO audits, factual copy, and explicit unknowns"]);
+  if (has("atl-manager.mjs") || has("atl-team")) rows.push(["Team routing", "runtime/atl-manager.mjs + skills/atl-team", "Pip → Rowan → Sage → Beacon ownership and evidence gates"]);
+  if (has("show-me.mjs")) rows.push(["Show Me", "runtime/lib/show-me.mjs", "Structural handoff with file tree, flow, and repository snapshot"]);
+  if (has("visual-pr.mjs")) rows.push(["Visual PR", "runtime/lib/visual-pr.mjs", "Reviewer-ready PR body with visual architecture views"]);
+  if (has("memory.mjs")) rows.push(["Graph memory", "runtime/lib/memory.mjs", "Optional Mem0 recall and verified-outcome writes"]);
+  return rows;
+}
+
+function architectureDiagram(files) {
+  const graph = files.some((file) => file.includes("memory.mjs"))
+    ? [
+      "flowchart LR",
+      "  U[ATL request] --> R[atl-manager]",
+      "  R --> T[triage]",
+      "  T --> Q[Mem0 recall]",
+      "  R --> S[Show Me artifact]",
+      "  R --> P[Visual PR body]",
+      "  B[Beacon verifies done] --> W[Mem0 add verified outcome]",
+      "  W -. optional .-> G[(Graph store)]",
+      "  R --> A[(state.json + feed.jsonl)]",
+      "  Q -. advisory only .-> T",
+    ]
+    : [
+      "flowchart LR",
+      "  U[ATL request] --> R[route] --> W[bounded work] --> V[verify]",
+      "  V --> A[(state + feed)]",
+    ];
+  return graph.join("\n");
+}
+
 function taskContext(root, taskId) {
   if (!taskId) return "No task id supplied.";
   try {
@@ -78,6 +111,16 @@ export function buildShowMe(root, { taskId = null } = {}) {
     "",
     "```text",
     tree(files),
+    "```",
+    "",
+    "## Capability map",
+    "",
+    ...capabilityMap(files).map(([name, owner, behavior]) => `- **${name}** — \`${owner}\`: ${behavior}`),
+    "",
+    "## Architecture",
+    "",
+    "```mermaid",
+    architectureDiagram(files),
     "```",
     "",
     "## Control flow",

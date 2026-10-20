@@ -50,6 +50,29 @@ Task: No task id supplied.
         └── SKILL.md
 ```
 
+## Capability map
+
+- **Content quality** — `skills/atl-content-quality`: SEO audits, factual copy, and explicit unknowns
+- **Team routing** — `runtime/atl-manager.mjs + skills/atl-team`: Pip → Rowan → Sage → Beacon ownership and evidence gates
+- **Show Me** — `runtime/lib/show-me.mjs`: Structural handoff with file tree, flow, and repository snapshot
+- **Visual PR** — `runtime/lib/visual-pr.mjs`: Reviewer-ready PR body with visual architecture views
+- **Graph memory** — `runtime/lib/memory.mjs`: Optional Mem0 recall and verified-outcome writes
+
+## Architecture
+
+```mermaid
+flowchart LR
+  U[ATL request] --> R[atl-manager]
+  R --> T[triage]
+  T --> Q[Mem0 recall]
+  R --> S[Show Me artifact]
+  R --> P[Visual PR body]
+  B[Beacon verifies done] --> W[Mem0 add verified outcome]
+  W -. optional .-> G[(Graph store)]
+  R --> A[(state.json + feed.jsonl)]
+  Q -. advisory only .-> T
+```
+
 ## Control flow
 
 ```text
@@ -64,10 +87,14 @@ ATL request
 
 ```text
 ## feat/content-quality-team-workflow...origin/feat/content-quality-team-workflow
+ M .humanlayer/tasks/pr-feat-content-quality-team-workflow/description.md
+ M .humanlayer/tasks/pr-feat-content-quality-team-workflow/show-me.md
+ M runtime/lib/show-me.mjs
+ M runtime/lib/visual-pr.mjs
 
 .../tasks/pr-content-quality-team/description.md   |  69 ++++++++++++
- .../description.md                                 |  53 ++++++++++
- .../show-me.md                                     |  89 ++++++++++++++++
+ .../description.md                                 |  58 +++++++++++
+ .../show-me.md                                     |  96 +++++++++++++++++
  README.md                                          |   1 +
  config/manager.json                                |  15 +++
  config/model-routing.json                          |   5 +
@@ -90,7 +117,7 @@ ATL request
  skills/atl/SKILL.md                                |   1 +
  skills/atl/references/routing.md                   |   1 +
  skills/atl/references/skill-catalog.md             |   1 +
- 25 files changed, 787 insertions(+), 8 deletions(-)
+ 25 files changed, 799 insertions(+), 8 deletions(-)
 ```
 
 Generated from inspected repository output. This outline is a communication aid, not proof of behavior.
