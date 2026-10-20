@@ -222,3 +222,24 @@ all night — it needs to resume truthfully whenever it wakes.
 
 Delete `.trust/manager/state.json` (and workspaces if you want) and run
 `init` again. Briefs and run records are history; keep or delete freely.
+# Dynamic skill routing
+
+## Package and project bootstrap
+
+The supported distribution is `@depie99/atl`. Install it globally or invoke it with `npx`, then run `atl init` inside the target project. The package owns the runtime, prompts, and skills; `init` creates the project's `.atl/project.json`, `.trust/manager/` state, configuration, inbox, briefs, and workspace directories without copying skills into the project.
+
+```powershell
+npm install -g @depie99/atl --registry=https://npm.pkg.github.com
+cd your-project
+atl init
+```
+
+The manager reads `config/skill-routing.json` during intake and triage. Pip scores the task title, objective, labels, and source against the local skill registry, records the selected skill(s) on the task, and proposes a worker. The route is advisory: Mira still assigns the worker, Sage still reviews, and Beacon still verifies.
+
+Inspect a route with:
+
+```powershell
+node runtime\atl-manager.mjs route T-001
+```
+
+Missing skills are reported as skipped. If no specialist matches, the configured `atl-implement` fallback is selected when available.
