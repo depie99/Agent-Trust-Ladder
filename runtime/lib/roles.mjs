@@ -19,6 +19,10 @@ export const SPECIALIST_SLOTS = {
     verification: "beacon",
     modelSlot: "content",
   },
+  "tech-docs": { intake: "pip", implementation: "rowan", review: "sage", verification: "beacon", modelSlot: "content" },
+  diagrams: { intake: "pip", implementation: "rowan", review: "sage", verification: "beacon", modelSlot: "judgment" },
+  "ui-review": { intake: "pip", implementation: "rowan", review: "sage", verification: "beacon", modelSlot: "judgment" },
+  implementation: { intake: "pip", implementation: "rowan", review: "sage", verification: "beacon", modelSlot: "code" },
 };
 
 export const CONTRACTS = {
