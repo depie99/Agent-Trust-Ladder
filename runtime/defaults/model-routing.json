@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "default_review_required": true,
+  "team": {
+    "manager": {
+      "name": "Mira",
+      "role": "coordinator / chief of staff",
+      "purpose": "keep the portfolio moving, route work, collect evidence, and brief the human manager"
+    },
+    "roster": [
+      {
+        "name": "Pip",
+        "role": "intake and triage",
+        "purpose": "turn incoming reports into bounded, routed tasks"
+      },
+      {
+        "name": "Rowan",
+        "role": "builder",
+        "purpose": "implement, refactor, debug, and run focused checks"
+      },
+      {
+        "name": "Sage",
+        "role": "reviewer",
+        "purpose": "challenge intent, risks, simplicity, and evidence independently"
+      },
+      {
+        "name": "Beacon",
+        "role": "verifier / night watch",
+        "purpose": "revisit finish checks, preserve run memory, and surface blockers"
+      }
+    ]
+  },
+  "roles": {
+    "code": {
+      "purpose": "implementation, refactoring, debugging, fast execution",
+      "model": "configure-me",
+      "tools": ["repo", "shell", "tests"]
+    },
+    "judgment": {
+      "purpose": "hard problems, architecture, tradeoffs, decisions",
+      "model": "configure-me",
+      "tools": ["repo", "diagrams", "reasoning"]
+    },
+    "analysis": {
+      "purpose": "reading, comparison, synthesis, structured reasoning",
+      "model": "configure-me",
+      "tools": ["repo", "web", "documents"]
+    },
+    "ideas": {
+      "purpose": "brainstorming, exploration, alternative approaches",
+      "model": "configure-me",
+      "tools": ["repo", "notes"]
+    }
+  },
+  "review": {
+    "model": "configure-me",
+    "must_differ_from_worker": true,
+    "focus": ["intent", "failure_modes", "security", "simplicity", "evidence"]
+  },
+  "orchestration": {
+    "default_topology": "single_worker_then_review",
+    "max_parallel_workers": 3,
+    "parallel_only_for_disjoint_write_sets": true,
+    "max_repair_cycles": 2,
+    "review_required": true
+  }
+}

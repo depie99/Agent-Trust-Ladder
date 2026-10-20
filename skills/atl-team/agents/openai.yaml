@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Team"
+  short_description: "Coordinate bounded agents through contracts and evidence"
+  default_prompt: "Use $atl-team to plan and coordinate bounded multi-agent engineering work."
