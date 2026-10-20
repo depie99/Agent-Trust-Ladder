@@ -15,6 +15,8 @@ ATL adds a bounded content-quality and team-handoff workflow so reviewers can se
 
 ```text
 - `.humanlayer/tasks/pr-content-quality-team/description.md`
+- `.humanlayer/tasks/pr-feat-content-quality-team-workflow/description.md`
+- `.humanlayer/tasks/pr-feat-content-quality-team-workflow/show-me.md`
 - `README.md`
 - `config/manager.json`
 - `config/model-routing.json`
@@ -23,7 +25,10 @@ ATL adds a bounded content-quality and team-handoff workflow so reviewers can se
 - `docs/team.html`
 - `runtime/README.md`
 - `runtime/atl-manager.mjs`
+- `runtime/lib/memory.mjs`
 - `runtime/lib/roles.mjs`
+- `runtime/lib/show-me.mjs`
+- `runtime/lib/visual-pr.mjs`
 - `runtime/prompts/beacon.md`
 - `runtime/prompts/rowan.md`
 - `skills/atl-content-quality/SKILL.md`
@@ -50,4 +55,4 @@ Optional memory
 
 The generated structural handoff is saved beside this description as `show-me.md`; it is a review aid, not behavioral proof.
 
-Title: Add ATL memory and visual handoffs
+Title: feat(atl): add visual handoffs and optional graph memory
