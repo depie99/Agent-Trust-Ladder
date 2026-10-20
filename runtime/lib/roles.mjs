@@ -11,6 +11,16 @@ export const ROLE_SLOT = {
   beacon: "analysis",
 };
 
+export const SPECIALIST_SLOTS = {
+  "content-quality": {
+    intake: "pip",
+    implementation: "rowan",
+    review: "sage",
+    verification: "beacon",
+    modelSlot: "content",
+  },
+};
+
 export const CONTRACTS = {
   mira: {
     display: "Mira — coordinator / chief of staff",
@@ -68,7 +78,7 @@ export const CONTRACTS = {
       "retry the same failing approach a third time without a new hypothesis",
       "push, merge, or open PRs unless the task contract explicitly allows it",
     ],
-    handoff: "returns changed files, evidence, open questions, contract effects",
+    handoff: "returns changed files, evidence, open questions, contract effects — plus a show-me-style change outline (diff views, file/component/call trees) for multi-file or UI-visible work",
   },
   sage: {
     display: "Sage — reviewer",
@@ -103,7 +113,7 @@ export const CONTRACTS = {
       "marking done from intention instead of observed results",
       "extending budgets or overriding blockers",
     ],
-    handoff: "done verdict with check-by-check evidence, or an honest blocker list",
+    handoff: "done verdict with check-by-check evidence and a show-me-style what-changed summary from real inspection, or an honest blocker list",
   },
 };
 

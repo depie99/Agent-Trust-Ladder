@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Content Quality"
+  short_description: "Evidence-based SEO and site copy review"
+  default_prompt: "Use $atl-content-quality to audit or improve website content, SEO, metadata, or factual site copy."

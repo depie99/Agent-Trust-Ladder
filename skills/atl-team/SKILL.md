@@ -64,6 +64,13 @@ These are capabilities, not claims about a vendor. Record the exact model and ve
 
 `route → plan → implement → independent review → fix/iterate → verify → log`
 
+For content and SEO work, keep ownership explicit: Pip records the audience, business goal,
+queries, pages, evidence access, and acceptance checks; Rowan changes only the approved content
+surface and records the fact ledger; Sage reviews intent, unsupported claims, search-risk, and
+scope independently; Beacon rechecks rendered copy, links, metadata, and the agreed baseline.
+Do not ask a content task to certify schema, rankings, or traffic without the matching runtime or
+Search Console evidence.
+
 The first model must restate the goal, propose an approach, list files/changes, call out risks and unknowns, and wait for the applicable gate before implementation. A reviewer receives the diff and evidence, not merely the implementer's conclusion.
 
 ## Team contract
@@ -111,4 +118,4 @@ Retry only with new evidence or a materially different hypothesis. A worker that
 
 ## Handoff
 
-Return the team brief, task graph, ownership map, worker evidence, integration result, unresolved items, and final route state. Use `atl-verify` for the evidence packet and `atl-trust` for any autonomy decision.
+Return the team brief, task graph, ownership map, worker evidence, integration result, unresolved items, and final route state. Worker handoffs and verifier close-outs show the change visually — `show-me`-style diff views, file/component/call trees — written from inspected output, not from the producer's summary. Pull requests, when the contract allows them, are prepared with the `visual-pr` conventions and published only after the human gate. Use `atl-verify` for the evidence packet and `atl-trust` for any autonomy decision.
