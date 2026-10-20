@@ -1,0 +1,36 @@
+name: Publish ATL package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20.x
+          registry-url: https://npm.pkg.github.com
+          scope: '@depie99'
+
+      - name: Verify package
+        run: |
+          node --check runtime/atl-manager.mjs
+          node --check runtime/lib/skill-router.mjs
+          python scripts/validate_model_routing.py
+          npm pack --dry-run
+
+      - name: Publish to GitHub Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

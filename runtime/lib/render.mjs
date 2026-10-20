@@ -130,6 +130,7 @@ export function renderTask(task) {
   L.push(`  source: ${t.source.type}${t.source.url ? ` ${t.source.url}` : ""}`);
   L.push(`  priority: ${t.priority}   risk: ${t.risk}   review_required: ${!!t.review_required}`);
   L.push(`  worker: ${t.assigned_worker || "-"}   attempts: ${t.attempt_count}   workspace: ${t.workspace || "-"}`);
+  if (t.selected_skills?.length) L.push(`  selected skills: ${t.selected_skills.join(", ")}   proposed worker: ${t.proposed_worker || "-"}`);
   if (t.objective) L.push(`  objective: ${t.objective}`);
   if (t.completion_checks.length) {
     L.push("  completion checks:");
