@@ -23,6 +23,9 @@ import { IntakeError, runIntake } from "./lib/intake.mjs";
 import { WorkspaceError, ensureWorkspace } from "./lib/workspace.mjs";
 import { renderBrief, renderTask, wakeActions, saveBrief, activeTasks } from "./lib/render.mjs";
 import { post as feedPost, renderFeed, renderRoster } from "./lib/feed.mjs";
+import { buildShowMe, saveShowMe } from "./lib/show-me.mjs";
+import { saveVisualPrDescription } from "./lib/visual-pr.mjs";
+import { memoryStatus, safeRecall, safeRemember } from "./lib/memory.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
@@ -48,7 +51,7 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n")) continue;
+  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -99,6 +102,11 @@ Manager view
   show [task-id]                portfolio or one task
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
+  memory status                 show the optional Mem0 graph-memory provider state
+  memory recall "query"         retrieve advisory project memory
+  memory remember "fact"        store an explicitly supplied advisory memory
+  show-me [task-id] [--save]     render a structural handoff outline
+  visual-pr [--title "..."]      write a reviewer-ready PR description
   role <mira|pip|rowan|sage|beacon>   print the role contract a session must adopt
   validate                      sanity-check config + state
 `.trim();
@@ -192,6 +200,21 @@ function defaultConfig() {
     briefs_dir: ".trust/manager/briefs",
     budgets: { max_attempts: 3, stale_after_hours: 24, max_active_tasks: 5 },
     routines: [],
+    memory: {
+      provider: "none",
+      project_id: "",
+      mem0: {
+        enable_graph: true,
+        graph_store: {
+          provider: "neo4j",
+          config: {
+            url: "$NEO4J_URL",
+            username: "$NEO4J_USERNAME",
+            password: "$NEO4J_PASSWORD",
+          },
+        },
+      },
+    },
     intake: {
       file: { enabled: true },
       github: {
@@ -299,6 +322,12 @@ async function main() {
       console.log("\n--- Task packet ---\n");
       console.log(renderTask(task));
       if (task.objective_hint) console.log(`  (hint from source: ${task.objective_hint.slice(0, 300)})`);
+      const recalled = await safeRecall(ROOT, `${task.title} ${task.objective_hint || ""}`, { agentId: "pip", runId: task.id, limit: 3 });
+      if (recalled.results.length) {
+        console.log("\n--- Advisory memory context ---\n");
+        for (const hit of recalled.results) console.log(`- ${hit.memory || hit}`);
+        if (recalled.relations?.length) console.log(`  related graph facts: ${recalled.relations.length}`);
+      }
       console.log("\n--- Pip fills it in like this ---\n");
       console.log(`node runtime\\atl-manager.mjs update ${task.id} --actor pip \\`);
       console.log(`  --set objective="<one bounded sentence>" \\`);
@@ -391,6 +420,14 @@ async function main() {
         narrateMove(task, "triaged", "assigned", "mira", `routine ${task.auto_route}`);
       }
       saveState(ROOT, state);
+      if (to === "done") {
+        const checks = task.completion_checks.map((check) => {
+          const evidence = task.evidence.find((entry) => entry.kind === "check" && entry.check === check && entry.result === "pass");
+          return `${check}: ${evidence ? "passed" : "unverified"}`;
+        }).join("; ");
+        const memory = await safeRemember(ROOT, `Verified ATL outcome for ${task.id}: ${task.title}. Objective: ${task.objective || "not recorded"}. Checks: ${checks}.`, { agentId: "beacon", runId: task.id });
+        if (memory.error) say("beacon", `memory advisory unavailable for ${task.id}: ${memory.error}`, { task: task.id });
+      }
       console.log(renderTask(task));
       return;
     }
@@ -520,6 +557,44 @@ async function main() {
         const then = Object.entries(r.then || {}).map(([k, v]) => `${k}=${v}`).join(" · ");
         console.log(`  ${r.name}\n    when ${when}\n    then ${then || "(triage only)"}`);
       }
+      return;
+    }
+
+    case "memory": {
+      const subcommand = pos[0] || "status";
+      if (subcommand === "status") {
+        console.log(JSON.stringify(await memoryStatus(ROOT), null, 2));
+        return;
+      }
+      const query = pos.slice(1).join(" ").trim();
+      if (!query) throw new StateError(`memory ${subcommand} needs a quoted value`);
+      if (subcommand === "recall") {
+        const result = await safeRecall(ROOT, query, { agentId: actorOf() });
+        if (result.error) throw new StateError(result.error);
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      if (subcommand === "remember") {
+        const result = await safeRemember(ROOT, query, { agentId: actorOf() });
+        if (result.error) throw new StateError(result.error);
+        console.log(JSON.stringify({ stored: result.stored, provider: result.provider }, null, 2));
+        return;
+      }
+      throw new StateError(`Unknown memory command "${subcommand}". Use status, recall, or remember.`);
+    }
+
+    case "show-me": {
+      const content = buildShowMe(ROOT, { taskId: pos[0] || null });
+      if (flags.save) console.log(`Saved: ${saveShowMe(ROOT, content, { taskId: pos[0] || null })}`);
+      console.log(content);
+      return;
+    }
+
+    case "visual-pr":
+    case "pr-description": {
+      const file = saveVisualPrDescription(ROOT, { title: flags.title || null, taskId: flags.task || null, slug: pos[0] || null });
+      console.log(`Saved: ${file}`);
+      console.log(fs.readFileSync(file, "utf8"));
       return;
     }
 
