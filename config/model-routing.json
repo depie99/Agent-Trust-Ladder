@@ -46,6 +46,11 @@
       "model": "configure-me",
       "tools": ["repo", "web", "documents"]
     },
+    "content": {
+      "purpose": "SEO and content evidence, metadata, search intent, factual copy",
+      "model": "configure-me",
+      "tools": ["repo", "web", "documents", "browser"]
+    },
     "ideas": {
       "purpose": "brainstorming, exploration, alternative approaches",
       "model": "configure-me",

@@ -2,7 +2,7 @@
 
 ATL supports a team of agents when the work has real seams. Start with a team brief, assign one owner per write set, and integrate through contracts rather than shared context.
 
-Use [`model-routing.json`](../config/model-routing.json) to separate implementation, judgment, analysis, and ideation roles. The policy is deliberately vendor-neutral: configure exact accessible models and retain a reviewer that differs from the worker when possible.
+Use [`model-routing.json`](../config/model-routing.json) to separate implementation, judgment, analysis, content-quality, and ideation roles. The policy is deliberately vendor-neutral: configure exact accessible models and retain a reviewer that differs from the worker when possible.
 
 The minimum handoff for every worker is:
 
@@ -13,6 +13,11 @@ Contract effects:
 Open questions:
 Rollback / containment:
 ```
+
+For SEO and site-copy work, add the fact ledger, target audience, search or business goal,
+baseline, review window, and any unavailable browser/Search Console evidence. Pip owns the input
+contract, Rowan owns the approved content surface, Sage independently reviews claims and intent,
+and Beacon rechecks the rendered result and agreed measurements.
 
 Install `.githooks/pre-commit` once per checkout:
 
