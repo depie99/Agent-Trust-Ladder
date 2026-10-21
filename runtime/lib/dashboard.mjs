@@ -18,6 +18,7 @@ import { unblockTask } from "./recovery.mjs";
 import { addResourceToTask } from "./resources.mjs";
 import { intakeFromFiles, intakeFromAzure, intakeFromGitHub } from "./intake.mjs";
 import { discoverProvider, providerForRole, providerNames, providerProfile, providerSpec } from "./providers.mjs";
+import { loadUserProviders, maskKey, PROVIDER_TEMPLATES, removeProvider, saveUserProviders, templateById, upsertProvider } from "./userProviders.mjs";
 
 export const STATUS_ORDER = [
   "new", "triaged", "assigned", "in_progress", "in_review", "verifying", "done",
@@ -369,6 +370,7 @@ export function createDashboardSnapshot(root) {
     queue,
     providers,
     providerProfile: providerProfileValue,
+    userProviders: providerProfileValue.userProviders || {},
     updatedAt: state.updated_at,
     lastEvent: state.log.at(-1) || null,
   };
@@ -460,7 +462,7 @@ function renderPortfolio(snapshot, selected, width, plain) {
   return lines;
 }
 
-function renderTaskDetail(snapshot, selected, width, plain) {
+function renderTaskDetail(snapshot, selected, width, plain, scroll = 0, maxRows = null) {
   const task = snapshot.tasks[selected];
   if (!task) return [paint("Select a task to inspect its contract.", "muted", plain)];
   const inner = Math.max(14, width - 4);
@@ -513,7 +515,14 @@ function renderTaskDetail(snapshot, selected, width, plain) {
     lines.push("", paint("LATEST NOTES", "faint", plain));
     for (const note of notes) lines.push(...wrap(`${note.actor}: ${note.detail}`, inner));
   }
-  return lines;
+  // Windowed view for the center panel: the full detail is longer than the
+  // panel, so a scroll offset turns it into a page plus a position hint.
+  if (!maxRows || lines.length <= maxRows) return lines;
+  const maxOffset = Math.max(0, lines.length - (maxRows - 1));
+  const offset = Math.min(Math.max(0, Number(scroll) || 0), maxOffset);
+  const page = lines.slice(offset, offset + maxRows - 1);
+  const hint = [offset > 0 ? "↑ back" : "", offset < maxOffset ? "↓ more" : ""].filter(Boolean).join(" · ") || "full";
+  return [...page, paint(`DETAIL ${offset + 1}-${offset + page.length} / ${lines.length} · ${hint}`, "faint", plain)];
 }
 
 function renderFeedPanel(snapshot, width, plain, scroll = 0, maxLines = 8) {
@@ -564,6 +573,33 @@ function renderTeam(snapshot, plain) {
   ];
 }
 
+// Column geometry of the three-pane wide layout (joinPanels places panels
+// with a 1-space gap). Shared by the renderer and the mouse-wheel handler so
+// hover routing never drifts from what is on screen.
+function dashboardPanelLayout(safeWidth) {
+  const leftWidth = Math.floor(safeWidth * 0.27);
+  const rightWidth = Math.floor(safeWidth * 0.29);
+  const centerWidth = Math.max(20, safeWidth - leftWidth - rightWidth - 2);
+  return { leftWidth, centerWidth, rightWidth };
+}
+
+export function panelFromColumn(safeWidth, column) {
+  const { leftWidth, centerWidth } = dashboardPanelLayout(safeWidth);
+  if (column < leftWidth) return "portfolio";
+  if (column < leftWidth + 1 + centerWidth) return "task";
+  return "feed";
+}
+
+// Rows the renderer spends above the panels (header, divider, summary,
+// pipeline, action bar, blank). Shared so input handlers can clamp scroll
+// offsets with the same panel height the next paint will use.
+function dashboardRemainingRows(snapshot, safeWidth, safeHeight) {
+  const before = 4 + renderSummary(snapshot, false).length + renderPipeline(snapshot, safeWidth, false).length;
+  return Math.max(8, safeHeight - before - 2);
+}
+
+export { dashboardPanelLayout, dashboardRemainingRows, renderTaskDetail };
+
 export function renderDashboard(snapshot, {
   width = 120,
   height = 34,
@@ -572,6 +608,8 @@ export function renderDashboard(snapshot, {
   spinner = 0,
   selected = 0,
   feedScroll = 0,
+  panelFocus = "portfolio",
+  taskScroll = 0,
   interactive = true,
   syncedAt = null,
 } = {}) {
@@ -585,28 +623,27 @@ export function renderDashboard(snapshot, {
     interactive ? renderActionBar(snapshot, selected, safeWidth, plain) : "",
     "",
   ];
-  const remaining = Math.max(8, safeHeight - lines.length - 2);
+  const remaining = dashboardRemainingRows(snapshot, safeWidth, safeHeight);
   if (safeWidth >= 105) {
-    const leftWidth = Math.floor(safeWidth * 0.27);
-    const rightWidth = Math.floor(safeWidth * 0.29);
-    const centerWidth = safeWidth - leftWidth - rightWidth - 2;
+    const { leftWidth, centerWidth, rightWidth } = dashboardPanelLayout(safeWidth);
     const panelHeight = Math.max(7, remaining);
+    const mark = (name) => interactive && panelFocus === name ? "▸ " : "";
     const panels = [
-      panel(interactive ? `PORTFOLIO · FOCUS ${snapshot.tasks.length ? Math.min(selected + 1, snapshot.tasks.length) : 0}/${snapshot.tasks.length}` : "PORTFOLIO", renderPortfolio(snapshot, selected, leftWidth, plain), leftWidth, panelHeight, { accent: "coral", plain }),
-      panel("SELECTED TASK", renderTaskDetail(snapshot, selected, centerWidth, plain), centerWidth, panelHeight, { accent: "violet", plain }),
-      panel("LIVE FEED", renderFeedPanel(snapshot, rightWidth, plain, feedScroll, panelHeight - 2), rightWidth, panelHeight, { accent: "mint", plain }),
+      panel(`${mark("portfolio")}PORTFOLIO · FOCUS ${snapshot.tasks.length ? Math.min(selected + 1, snapshot.tasks.length) : 0}/${snapshot.tasks.length}`, renderPortfolio(snapshot, selected, leftWidth, plain), leftWidth, panelHeight, { accent: "coral", plain }),
+      panel(`${mark("task")}SELECTED TASK`, renderTaskDetail(snapshot, selected, centerWidth, plain, taskScroll, panelHeight - 2), centerWidth, panelHeight, { accent: "violet", plain }),
+      panel(`${mark("feed")}LIVE FEED`, renderFeedPanel(snapshot, rightWidth, plain, feedScroll, panelHeight - 2), rightWidth, panelHeight, { accent: "mint", plain }),
     ];
     lines.push(...joinPanels(panels));
   } else {
     const panelHeight = Math.max(6, Math.floor(remaining / 2));
     lines.push(...panel(interactive ? `PORTFOLIO · FOCUS ${snapshot.tasks.length ? Math.min(selected + 1, snapshot.tasks.length) : 0}/${snapshot.tasks.length}` : "PORTFOLIO", renderPortfolio(snapshot, selected, safeWidth, plain), safeWidth, panelHeight, { accent: "coral", plain }));
-    lines.push(...panel("SELECTED TASK", renderTaskDetail(snapshot, selected, safeWidth, plain), safeWidth, panelHeight, { accent: "violet", plain }));
+    lines.push(...panel("SELECTED TASK", renderTaskDetail(snapshot, selected, safeWidth, plain, taskScroll, panelHeight - 2), safeWidth, panelHeight, { accent: "violet", plain }));
   }
   const footerChoices = interactive
     ? [
-        "↑↓/jk/Tab move · Enter open · c create · e edit · a resources · x queue · l run · Q queue · L logs · u unblock · s sessions · f feed · ? help · q quit",
-        "↑↓/jk move · Enter open · c create · e edit · x queue · l run · Q queue · L logs · r refresh · ? help · q quit",
-        "↑↓ move · x queue · l run · L logs · ? help · q quit",
+        "Tab pane · ↑↓/jk pane · Enter open · c create · x queue · l run · u unblock · s sess · f feed · ? help · q quit",
+        "Tab pane · ↑↓ scroll pane · Enter open · c create · x queue · l run · ? help · q quit",
+        "Tab pane · ↑↓ scroll · ? help · q quit",
       ]
     : ["SNAPSHOT · read-only · run `atl ui` for keyboard navigation"];
   const footer = footerChoices.find((choice) => widthOf(choice) <= safeWidth - 2) || footerChoices[footerChoices.length - 1];
@@ -655,7 +692,10 @@ function renderHelp(width, height, plain) {
   const body = [
     paint("A calm view of the work — and the room where it starts.", "ink", plain),
     "",
-    `${paint("↑↓ / j k", "coral", plain)}  move through tasks`,
+    `${paint("↑↓ / j k", "coral", plain)}  act on the focused pane (move tasks, scroll task detail or feed)`,
+    `${paint("Tab", "coral", plain)}        choose the focused pane: portfolio → task detail → live feed`,
+    `${paint("wheel", "coral", plain)}      scrolls the pane under the mouse and focuses it`,
+    `${paint("PgUp/PgDn", "coral", plain)}  bigger jumps · Home/End: top/last (pane-aware)`,
     `${paint("Enter / o", "coral", plain)}  read the task source file`,
     `${paint("c", "coral", plain)}        create: choose outcome + surface, write freely, preview packet, create candidate`,
     `${paint("i", "coral", plain)}        import: read-only candidates from inbox / GitHub / Azure`,
@@ -720,6 +760,25 @@ function configSafe(root) {
   }
 }
 
+function writeManagerConfig(root, config) {
+  const file = paths(root).config;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const temp = `${file}.tmp-${process.pid}`;
+  fs.writeFileSync(temp, JSON.stringify(config, null, 2) + "\n");
+  try {
+    fs.renameSync(temp, file);
+  } catch {
+    // Windows cannot rename onto an existing file; copy keeps the write whole.
+    fs.copyFileSync(temp, file);
+    fs.rmSync(temp, { force: true });
+  }
+}
+
+const PROVIDER_WORKER_OPTIONS = [
+  { key: "c", label: "claude — run it through the Claude Code CLI", note: "Anthropic-compatible endpoints (Z.ai GLM, bigmodel.cn, any /api/anthropic)." },
+  { key: "x", label: "codex — run it through the Codex CLI", note: "OpenAI-compatible endpoints (Z.ai coding API, any /v4 chat endpoint)." },
+];
+
 export function scanSessions(root) {
   const base = path.join(root, ".trust", "manager", "overnight");
   const out = [];
@@ -748,9 +807,9 @@ export function scanSessions(root) {
   return out;
 }
 
-function newEditor({ kind, taskId = null, title, hint, text = "", multiline = false, onSubmit }) {
+function newEditor({ kind, taskId = null, title, hint, text = "", multiline = false, mask = false, onSubmit }) {
   const initial = String(text || "").split("\n");
-  return { kind, taskId, title, hint, multiline, lines: initial.length ? initial : [""], row: Math.max(0, initial.length - 1), col: initial.at(-1)?.length || 0, onSubmit };
+  return { kind, taskId, title, hint, multiline, mask, lines: initial.length ? initial : [""], row: Math.max(0, initial.length - 1), col: initial.at(-1)?.length || 0, onSubmit };
 }
 
 function editorText(editor) {
@@ -760,12 +819,14 @@ function editorText(editor) {
 function renderEditorScreen(ui, width, height, plain) {
   const e = ui.editor;
   const inner = Math.max(16, width - 4);
+  const display = (line) => (e.mask ? "•".repeat(line.length) : line);
   const lines = [
     paint(e.title, "violet", plain),
     ...wrap(e.hint || "", inner),
     "",
     ...e.lines.map((line, index) => {
-      const shown = index === e.row ? `${line.slice(0, e.col)}${paint("▌", "coral", plain)}${line.slice(e.col)}` : line;
+      const shownLine = display(line);
+      const shown = index === e.row ? `${shownLine.slice(0, e.col)}${paint("▌", "coral", plain)}${shownLine.slice(e.col)}` : shownLine;
       return ` ${shown}`;
     }),
     "",
@@ -899,9 +960,9 @@ export function renderReviewScreen(snapshot, ui, width, height, plain) {
     `${paint(task.id, "ink", plain)}  ${statusLine(task.status, plain)}  ${queued ? paint("⌁ queued", "mint", plain) : paint("not queued", "muted", plain)}`,
     ...wrap(task.title, inner),
     "",
-    task.objective
+    ...(task.objective
       ? wrap(`${paint("OBJECTIVE", "violet", plain)} ${task.objective}`, inner)
-      : wrap(`${paint("proposed objective", "amber", plain)} (not yet set) ${task.objective_hint || "—"}`, inner),
+      : wrap(`${paint("proposed objective", "amber", plain)} (not yet set) ${task.objective_hint || "—"}`, inner)),
     "",
     paint(`CHECKS · ${task.completion_checks.length}  (n add · d+digit remove)`, "faint", plain),
     ...(task.completion_checks.length
@@ -1034,21 +1095,71 @@ export function renderRunScreen(ui, width, height, plain) {
   return panel("RUN QUEUE", lines, width, height, { accent: ui.running ? "amber" : "mint", plain }).join("\n");
 }
 
-export function renderProvidersScreen(snapshot, width, height, plain) {
+export function renderProvidersScreen(snapshot, ui, width, height, plain) {
   const inner = Math.max(16, width - 4);
-  const lines = [paint("Local provider executables (the launch boundary):", "muted", plain), ""];
-  for (const name of Object.keys(snapshot.providers || {})) {
-    const spec = providerSpec(snapshot.providerProfile, name);
-    const disc = discoverProvider(name, { command: spec.command });
-    const model = ` · model ${spec.model || "provider default"}`;
-    lines.push(`  ${disc.available ? paint("✓", "mint", plain) : paint("×", "coral", plain)} ${paint(name.padEnd(12), "ink", plain)} ${paint(truncate(`${disc.available ? disc.path : disc.error}${model}`, Math.max(10, inner - 18)), disc.available ? "muted" : "coral", plain)}`);
+  const flow = ui.providerFlow || null;
+  const lines = [];
+
+  if (flow) {
+    // Add-provider wizard: template → name → worker → base URL → key → model.
+    if (flow.step === "template") {
+      lines.push(paint("Add a provider — start from a template:", "violet", plain), "");
+      lines.push(...composeOptionRows(
+        PROVIDER_TEMPLATES.map((t) => ({
+          key: t.id[0],
+          label: `${t.id} — ${t.label}`,
+          note: `claude → ${t.baseUrl.claude || "you supply the endpoint"}`,
+        })),
+        flow.templateIndex, width, plain,
+      ));
+      lines.push("", paint("↑↓ / j k move · Enter choose · Esc cancel", "muted", plain));
+    } else if (flow.step === "worker") {
+      lines.push(`${paint("PROVIDER", "faint", plain)}  ${paint(flow.fields.id || "-", "coral", plain)}`, "");
+      lines.push(paint("Which CLI should run it?", "violet", plain), "");
+      lines.push(...composeOptionRows(PROVIDER_WORKER_OPTIONS, flow.workerIndex, width, plain));
+      lines.push("", paint("↑↓ / j k move · Enter choose · Esc back", "muted", plain));
+    } else if (flow.step === "confirm") {
+      const f = flow.fields;
+      lines.push(paint("Save this provider?", "violet", plain), "");
+      lines.push(`  ${paint("name", "faint", plain)}  ${paint(f.id || "-", "ink", plain)}`);
+      lines.push(`  ${paint("runs on", "faint", plain)}  ${f.worker || "-"}`);
+      lines.push(`  ${paint("base", "faint", plain)}   ${truncate(f.base_url || "-", inner - 8)}`);
+      lines.push(`  ${paint("key", "faint", plain)}   ${paint(maskKey(f.api_key), "mint", plain)} ${paint("→ ~/.atl/providers.json (outside every repo)", "faint", plain)}`);
+      lines.push(`  ${paint("model", "faint", plain)}  ${f.model || "-"}`);
+      lines.push("", paint("Enter save · u save + make it this project's default · Esc cancel", "mint", plain));
+    } else {
+      const value = flow.step === "key" ? maskKey(flow.fields.api_key || "") : (flow.fields[flow.step === "name" ? "id" : flow.step === "base" ? "base_url" : "model"] || "");
+      lines.push(paint(`Add a provider — ${flow.step}`, "violet", plain));
+      lines.push(`  ${paint(value || "(press Enter to fill in)", "muted", plain)}`, "");
+      lines.push(paint("Enter edit · Esc cancel", "muted", plain));
+    }
+  } else {
+    const entries = Object.values(snapshot.userProviders || {});
+    const projectDefault = snapshot.providerProfile.use || null;
+    lines.push(paint("Your providers — stored once per machine in ~/.atl/providers.json; keys never enter a repo.", "muted", plain), "");
+    if (!entries.length) {
+      lines.push(paint("No providers yet. Press a to add one — template, paste key, model, done.", "amber", plain));
+      lines.push(paint("Example: Z.ai GLM → claude worker → paste key → glm-4.6. Launches then run on GLM.", "faint", plain));
+    }
+    entries.forEach((entry, index) => {
+      const mark = index === (ui.providerSelected || 0) ? paint("▸", "coral", plain) : " ";
+      const isDefault = projectDefault === entry.id;
+      lines.push(`${mark} ${paint(entry.id.padEnd(12), "ink", plain)} ${paint(`${entry.worker} · ${entry.model || "no model"} · ${maskKey(entry.api_key)}`, isDefault ? "mint" : "violet", plain)}${isDefault ? paint("  ● project default", "mint", plain) : ""}`);
+      lines.push(`    ${paint(truncate(entry.base_url || "(no base URL)", Math.max(10, inner - 4)), "faint", plain)}`);
+    });
+    lines.push("", paint("Built-in workers (subscription auth — no key stored):", "muted", plain));
+    for (const name of ["codex", "claude"]) {
+      const spec = providerSpec(snapshot.providerProfile, name);
+      const disc = discoverProvider(name, { command: spec.command });
+      lines.push(`  ${disc.available ? paint("✓", "mint", plain) : paint("×", "coral", plain)} ${paint(name.padEnd(12), "ink", plain)} ${paint(truncate(`${disc.available ? disc.path : disc.error}`, Math.max(10, inner - 18)), disc.available ? "muted" : "coral", plain)}`);
+    }
+    lines.push("", paint("Per-role mapping (config/manager.json → providers):", "muted", plain));
+    for (const role of ["pip", "mira", "rowan", "sage", "beacon"]) {
+      const p = providerForRole(snapshot.providerProfile, role);
+      lines.push(`  ${paint(role.padEnd(7), "ink", plain)} ${paint(`${p.worker} · ${p.model || "provider default"}`, "violet", plain)} ${paint(`· auth ${p.auth} · (${p.source})`, "faint", plain)}`);
+    }
+    lines.push("", paint("a add provider · u use highlighted here · d delete highlighted · r re-check · Esc back", "muted", plain));
   }
-  lines.push("", paint("Per-role mapping (config/manager.json → providers):", "muted", plain));
-  for (const role of ["pip", "mira", "rowan", "sage", "beacon"]) {
-    const p = providerForRole(snapshot.providerProfile, role);
-    lines.push(`  ${paint(role.padEnd(7), "ink", plain)} ${paint(`${p.worker} · ${p.model || "provider default"}`, "violet", plain)} ${paint(`· auth ${p.auth} · (${p.source})`, "faint", plain)}`);
-  }
-  lines.push("", paint("r re-check · CLI: atl provider set --provider <id> --model <model> · Esc back", "muted", plain));
   return panel("PROVIDERS", lines, width, height, { accent: "violet", plain }).join("\n");
 }
 
@@ -1124,6 +1235,8 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       spinner: 0,
       view: null,
       feedScroll: 0,
+      panelFocus: "portfolio",
+      taskScroll: 0,
       error: null,
       notice: null,
       editor: null,
@@ -1132,6 +1245,8 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       importState: null,
       launchPlan: null,
       queueSelected: 0,
+      providerSelected: 0,
+      providerFlow: null,
       sessions: null,
       sessionsSelected: 0,
       composeFlow: null,
@@ -1156,7 +1271,9 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     const refreshSnapshot = () => {
       try {
         ui.snapshot = createDashboardSnapshot(root);
+        const before = ui.selected;
         ui.selected = Math.min(ui.selected, Math.max(0, ui.snapshot.tasks.length - 1));
+        if (ui.selected !== before) ui.taskScroll = 0;
         ui.lastSyncAt = Date.now();
       } catch (error) {
         ui.error = error.message;
@@ -1340,6 +1457,181 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       ui.screen = "dashboard";
     };
 
+    // ---------- providers page: registry list + add wizard (z.ai-style form)
+
+    const openProviderWizard = () => {
+      ui.providerFlow = { step: "template", templateIndex: 0, workerIndex: 0, fields: {} };
+    };
+
+    const openProviderEditor = (field, { title, hint, text = "", mask = false }) => {
+      ui.editor = newEditor({ kind: "provider-field", field, title, hint, text, mask });
+    };
+
+    const providerWizardTextField = (flow) => {
+      const f = flow.fields;
+      const template = templateById(f.template);
+      if (flow.step === "name") {
+        openProviderEditor("name", {
+          title: "Name this provider",
+          hint: "Short lowercase id you will select by — zai, work-glm, bigmodel…",
+          text: f.id || (template && template.id !== "custom" ? template.id : ""),
+        });
+      } else if (flow.step === "base") {
+        openProviderEditor("base", {
+          title: "API base URL",
+          hint: "The endpoint the worker CLI calls. Prefilled from the template — edit only if your endpoint differs.",
+          text: f.base_url || (template ? template.baseUrl[f.worker] || "" : ""),
+        });
+      } else if (flow.step === "key") {
+        openProviderEditor("key", {
+          title: "API key / token",
+          hint: "Pasted once, stored in ~/.atl/providers.json outside every repo, masked everywhere, injected into worker sessions at spawn.",
+          mask: true,
+        });
+      } else if (flow.step === "model") {
+        openProviderEditor("model", {
+          title: "Default model id",
+          hint: "The exact id your provider serves — e.g. glm-4.6. Changeable later with atl provider set or here.",
+          text: f.model || (template ? template.models[0] || "" : ""),
+        });
+      }
+    };
+
+    const submitProviderField = () => {
+      const e = ui.editor;
+      const flow = ui.providerFlow;
+      const text = editorText(e).trim();
+      ui.editor = null;
+      if (!flow) return;
+      if (e.field === "name") {
+        if (!text) { ui.error = "A provider name is required."; return; }
+        flow.fields.id = text.toLowerCase();
+        flow.step = "worker";
+      } else if (e.field === "base") {
+        if (!/^https?:\/\//.test(text)) { ui.error = "The base URL must start with http:// or https://."; return; }
+        flow.fields.base_url = text;
+        flow.step = "key";
+        providerWizardTextField(flow);
+      } else if (e.field === "key") {
+        if (!text) { ui.error = "The API key is required — paste it and press Enter."; return; }
+        flow.fields.api_key = text;
+        flow.step = "model";
+        providerWizardTextField(flow);
+      } else if (e.field === "model") {
+        flow.fields.model = text;
+        flow.step = "confirm";
+      }
+    };
+
+    const setProjectProvider = (id) => {
+      try {
+        const cfg = configSafe(root);
+        cfg.providers = cfg.providers || {};
+        cfg.providers.use = id;
+        writeManagerConfig(root, cfg);
+        feedPost(root, { from: "manager", text: `project default provider → "${id}" (API key from ~/.atl/providers.json, injected at spawn).` });
+        flash(`"${id}" is now this project's default provider — l / launch / run will use it.`);
+        refreshSnapshot();
+      } catch (error) {
+        ui.error = error.message;
+      }
+    };
+
+    const saveProviderWizard = (alsoUse) => {
+      const flow = ui.providerFlow;
+      if (!flow) return;
+      const f = flow.fields;
+      try {
+        if (!f.id || !f.base_url || !f.api_key) throw new Error("The form is incomplete — name, base URL, and API key are required.");
+        const registry = loadUserProviders();
+        const template = templateById(f.template);
+        upsertProvider(registry, f.id, {
+          label: template && template.id !== "custom" ? template.label : f.id,
+          worker: f.worker || "claude",
+          base_url: f.base_url,
+          api_key: f.api_key,
+          model: f.model || "",
+          models: template ? template.models : [],
+        });
+        saveUserProviders(registry);
+        ui.providerFlow = null;
+        if (alsoUse) setProjectProvider(f.id);
+        else flash(`Provider "${f.id}" saved. Select it with u to make it this project's default.`);
+        refreshSnapshot();
+      } catch (error) {
+        ui.error = error.message;
+      }
+    };
+
+    const removeProviderById = (id) => {
+      try {
+        const registry = loadUserProviders();
+        removeProvider(registry, id);
+        saveUserProviders(registry);
+        const cfg = configSafe(root);
+        if (cfg.providers?.use === id) {
+          delete cfg.providers.use;
+          writeManagerConfig(root, cfg);
+          flash(`Provider "${id}" deleted — it was this project's default, so the default is cleared.`);
+        } else {
+          flash(`Provider "${id}" deleted from ~/.atl/providers.json.`);
+        }
+        ui.providerSelected = 0;
+        refreshSnapshot();
+      } catch (error) {
+        ui.error = error.message;
+      }
+    };
+
+    const handleProvidersKey = (name) => {
+      const flow = ui.providerFlow;
+      if (flow) {
+        if (name === "escape") {
+          if (!ui.editor && ["name", "base", "key", "model"].includes(flow.step)) {
+            flow.step = flow.step === "name" ? "template"
+              : flow.step === "base" ? "worker"
+              : flow.step === "key" ? "base" : "key";
+          } else {
+            ui.providerFlow = null;
+          }
+          return;
+        }
+        if (flow.step === "template") {
+          if (name === "up" || name === "k") flow.templateIndex = Math.max(0, flow.templateIndex - 1);
+          else if (name === "down" || name === "j") flow.templateIndex = Math.min(PROVIDER_TEMPLATES.length - 1, flow.templateIndex + 1);
+          else if (name === "return") {
+            const template = PROVIDER_TEMPLATES[flow.templateIndex] || PROVIDER_TEMPLATES[0];
+            flow.fields.template = template.id;
+            flow.fields.worker = template.worker;
+            flow.step = "name";
+            providerWizardTextField(flow);
+          }
+        } else if (flow.step === "worker") {
+          if (name === "up" || name === "k") flow.workerIndex = Math.max(0, flow.workerIndex - 1);
+          else if (name === "down" || name === "j") flow.workerIndex = Math.min(PROVIDER_WORKER_OPTIONS.length - 1, flow.workerIndex + 1);
+          else if (name === "return") {
+            flow.fields.worker = PROVIDER_WORKER_OPTIONS[flow.workerIndex]?.key === "x" ? "codex" : "claude";
+            flow.step = "base";
+            providerWizardTextField(flow);
+          }
+        } else if (flow.step === "confirm") {
+          if (name === "return") saveProviderWizard(false);
+          else if (name === "u") saveProviderWizard(true);
+        } else if (name === "return") {
+          providerWizardTextField(flow);
+        }
+        return;
+      }
+      const entries = Object.values(ui.snapshot.userProviders || {});
+      if (name === "escape") ui.screen = "dashboard";
+      else if (name === "r") refresh();
+      else if (name === "a") openProviderWizard();
+      else if (name === "up" || name === "k") ui.providerSelected = Math.max(0, ui.providerSelected - 1);
+      else if (name === "down" || name === "j") ui.providerSelected = Math.min(Math.max(0, entries.length - 1), ui.providerSelected + 1);
+      else if (name === "u" && entries[ui.providerSelected || 0]) setProjectProvider(entries[ui.providerSelected || 0].id);
+      else if (name === "d" && entries[ui.providerSelected || 0]) removeProviderById(entries[ui.providerSelected || 0].id);
+    };
+
     const buildComposePreview = (text) => {
       const candidate = normalizeDraftText(text, { source: "manual" });
       const probe = {
@@ -1448,6 +1740,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     const submitFromEditor = () => {
       if (!ui.editor) return;
       if (ui.editor.kind === "compose") submitCompose();
+      else if (ui.editor.kind === "provider-field") submitProviderField();
       else submitReviewEdit();
     };
 
@@ -1516,7 +1809,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       else if (ui.screen === "queue") output = renderQueueScreen(ui.snapshot, ui, width, height, plain);
       else if (ui.screen === "launch") output = renderLaunchPreviewScreen(ui, width, height, plain);
       else if (ui.screen === "run") output = renderRunScreen(ui, width, height, plain);
-      else if (ui.screen === "providers") output = renderProvidersScreen(ui.snapshot, width, height, plain);
+      else if (ui.screen === "providers") output = renderProvidersScreen(ui.snapshot, ui, width, height, plain);
       else if (ui.screen === "sessions") output = renderSessionsScreen(ui, width, height, plain);
       else if (ui.screen === "logs") output = renderLogsScreen(ui.snapshot, ui, width, height, plain);
       else if (ui.screen === "file") output = renderFileView(ui.view, width, height, plain);
@@ -1623,9 +1916,45 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     const moveScroll = (delta) => {
       if (ui.screen === "file" && ui.view) {
         ui.view.scroll = Math.max(0, Math.min(Math.max(0, ui.view.lines.length - 1), ui.view.scroll + delta));
-      } else if (ui.screen === "feed" || ui.screen === "dashboard") {
+      } else if (ui.screen === "feed") {
         // Feed scroll is distance from the latest message. Up means older,
         // so its direction is the inverse of the file viewport's offset.
+        ui.feedScroll = Math.max(0, ui.feedScroll - delta);
+      }
+      draw();
+    };
+
+    const selectTask = (index) => {
+      const max = Math.max(0, ui.snapshot.tasks.length - 1);
+      const next = Math.max(0, Math.min(max, index));
+      if (next !== ui.selected) {
+        ui.selected = next;
+        ui.taskScroll = 0;
+      }
+    };
+
+    const PANEL_ORDER = ["portfolio", "task", "feed"];
+    const cyclePanelFocus = (step) => {
+      const at = Math.max(0, PANEL_ORDER.indexOf(ui.panelFocus));
+      ui.panelFocus = PANEL_ORDER[(at + (step < 0 ? PANEL_ORDER.length - 1 : 1)) % PANEL_ORDER.length];
+    };
+
+    // Pane-aware scrolling for the dashboard. Wheel events name the hovered
+    // pane; keyboard events act on ui.panelFocus (Tab cycles it).
+    const scrollDashboard = (delta, panelName = null) => {
+      ui.panelFocus = panelName || ui.panelFocus;
+      if (ui.panelFocus === "portfolio") {
+        // One task per wheel notch; a wheel delta of 3 is still one notch.
+        const notch = delta > 0 ? Math.ceil(delta / 3) : -Math.ceil(-delta / 3);
+        selectTask(ui.selected + notch);
+      } else if (ui.panelFocus === "task") {
+        const width = Math.max(60, process.stdout.columns || 120);
+        const height = Math.max(14, process.stdout.rows || 34);
+        const panelHeight = Math.max(7, dashboardRemainingRows(ui.snapshot, width, height));
+        const total = renderTaskDetail(ui.snapshot, ui.selected, dashboardPanelLayout(width).centerWidth, true).length;
+        const pageRows = Math.max(1, panelHeight - 3); // content rows minus the hint line
+        ui.taskScroll = Math.max(0, Math.min(ui.taskScroll + delta, Math.max(0, total - pageRows)));
+      } else {
         ui.feedScroll = Math.max(0, ui.feedScroll - delta);
       }
       draw();
@@ -1635,7 +1964,18 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       const text = String(chunk);
       for (const match of text.matchAll(/\x1b\[<(\d+);(\d+);(\d+)([mM])/g)) {
         const button = Number(match[1]);
-        if (button & 64) moveScroll(button === 64 ? -3 : 3);
+        if (!(button & 64)) continue;
+        const delta = button === 64 ? -3 : 3;
+        if (ui.screen !== "dashboard") {
+          moveScroll(delta);
+          continue;
+        }
+        // The wheel scrolls the pane under the mouse; SGR events carry the
+        // 1-based column. Narrow layouts have no side-by-side panes, so the
+        // wheel falls back to the Tab-focused pane there.
+        const width = Math.max(60, process.stdout.columns || 120);
+        const hovered = width >= 105 ? panelFromColumn(width, Number(match[2]) - 1) : null;
+        scrollDashboard(delta, hovered);
       }
     };
 
@@ -1762,20 +2102,33 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       ui.notice = null;
       if (ui.screen === "dashboard") {
         if (name === "escape" && key.ctrl) return close();
-        if (name === "up" || name === "k") ui.selected = Math.max(0, ui.selected - 1);
-        else if (name === "down" || name === "j") ui.selected = Math.min(Math.max(0, ui.snapshot.tasks.length - 1), ui.selected + 1);
-        else if (name === "pageup") moveScroll(-10);
-        else if (name === "pagedown") moveScroll(10);
-        else if (name === "home") { ui.feedScroll = 100000; draw(); }
-        else if (name === "end") { ui.feedScroll = 0; draw(); }
-        else if (name === "tab") {
-          const step = key.shift ? -1 : 1;
-          ui.selected = ui.snapshot.tasks.length ? (ui.selected + step + ui.snapshot.tasks.length) % ui.snapshot.tasks.length : 0;
-        } else if (/^[1-9]$/.test(name)) {
-          const index = Number(name) - 1;
-          if (index < ui.snapshot.tasks.length) ui.selected = index;
+        if (name === "tab") {
+          cyclePanelFocus(key.shift ? -1 : 1);
+        } else if (ui.panelFocus === "task") {
+          if (name === "up" || name === "k") scrollDashboard(-1);
+          else if (name === "down" || name === "j") scrollDashboard(1);
+          else if (name === "pageup") scrollDashboard(-10);
+          else if (name === "pagedown") scrollDashboard(10);
+          else if (name === "home") scrollDashboard(-1000000);
+          else if (name === "end") scrollDashboard(1000000);
+          else if (/^[1-9]$/.test(name)) selectTask(Number(name) - 1);
+        } else if (ui.panelFocus === "feed") {
+          if (name === "up" || name === "k") scrollDashboard(-1);
+          else if (name === "down" || name === "j") scrollDashboard(1);
+          else if (name === "pageup") scrollDashboard(-10);
+          else if (name === "pagedown") scrollDashboard(10);
+          else if (name === "home") scrollDashboard(-1000000);
+          else if (name === "end") scrollDashboard(1000000);
+        } else {
+          if (name === "up" || name === "k") selectTask(ui.selected - 1);
+          else if (name === "down" || name === "j") selectTask(ui.selected + 1);
+          else if (name === "pageup") selectTask(ui.selected - 10);
+          else if (name === "pagedown") selectTask(ui.selected + 10);
+          else if (name === "home") selectTask(0);
+          else if (name === "end") selectTask(ui.snapshot.tasks.length - 1);
+          else if (/^[1-9]$/.test(name)) selectTask(Number(name) - 1);
         }
-        else if (name === "return" || name === "o") {
+        if (name === "return" || name === "o") {
           const task = ui.snapshot.tasks[ui.selected];
           if (task) {
             ui.view = readTaskFile(root, task);
@@ -1962,8 +2315,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         }
         draw();
       } else if (ui.screen === "providers") {
-        if (name === "escape") ui.screen = "dashboard";
-        else if (name === "r") refresh();
+        handleProvidersKey(name);
         draw();
       } else if (ui.screen === "sessions") {
         const sessions = ui.sessions || [];

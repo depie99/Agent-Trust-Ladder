@@ -13,6 +13,7 @@ import { ensureWorkspace } from "./workspace.mjs";
 import { buildInvocation, isTerminal, nextRole, queueSelect, runInvocation, workerEnvPolicy } from "./worker.mjs";
 import { post as feedPost } from "./feed.mjs";
 import { discoverProvider, providerForRole, providerProfile, providerSpec } from "./providers.mjs";
+import { credentialContext, validateProviderEntry } from "./userProviders.mjs";
 import { loadQueue } from "./queue.mjs";
 
 const say = (root, from, text, opts = {}) => feedPost(root, { from, text, ...opts });
@@ -88,7 +89,9 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       ? resolveWorker(role)
       : { worker, auth, envPolicy };
     const useWorker = pick.worker;
-    const useAuth = pick.auth ?? "subscription";
+    // A user registry provider IS api-key auth: force the api env policy so
+    // the claude subscription stripper can never remove injected credentials.
+    const useAuth = pick.userProvider ? "api" : (pick.auth ?? "subscription");
     const useProvider = pick.provider || providerSpec({ auth: useAuth, catalog: {} }, useWorker);
     const customUnset = Array.isArray(useProvider.unsetEnv) ? useProvider.unsetEnv : [];
     const customEnvPolicy = customUnset.length
@@ -100,6 +103,17 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     const disc = discoverProvider(useWorker, { command: useProvider.command });
     if (!disc.available) {
       return { status: task.status, reason: disc.error, failed: true, blockedLaunch: true };
+    }
+
+    // User provider preflight: a stored provider must be complete before any
+    // agent starts; the actionable error containment-blocks the task.
+    let credentialEnv = {};
+    if (pick.userProvider) {
+      try {
+        credentialEnv = credentialContext(pick.userProvider).env;
+      } catch (error) {
+        return { status: task.status, reason: error.message, failed: true, blockedLaunch: true };
+      }
     }
 
     let workspace = task.workspace || null;
@@ -130,7 +144,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     }
 
     const result = await runInvocation(invocation, {
-      env: { ATL_PROJECT: root },
+      env: { ATL_PROJECT: root, ...credentialEnv },
       unsetEnv: useEnvPolicy.unset,
       logPath,
       timeoutMs,
@@ -193,6 +207,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     const blockers = [];
     if (!role) blockers.push(`no worker role is defined for status ${task.status}`);
     if (disc && !disc.available) blockers.push(disc.error);
+    if (provider.userProvider) blockers.push(...validateProviderEntry(provider.userProvider));
     let invocation = null;
     if (role && disc?.available) {
       try {

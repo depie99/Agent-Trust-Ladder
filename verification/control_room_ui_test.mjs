@@ -14,6 +14,7 @@ import {
   renderLogsScreen,
   renderRunScreen,
   renderQueueScreen,
+  renderReviewScreen,
   tailFileLines,
   mergedLogEntries,
 } from "../runtime/lib/dashboard.mjs";
@@ -141,6 +142,23 @@ const baseUi = {
   assert.match(frame, /synced 7s ago/, "the header reports the sync age");
   assert.match(frame, /1 queued/, "queue depth is on the summary line");
   assert.doesNotMatch(renderDashboard(snapshot, { width: 120, height: 34, plain: true }), /\x1b\[/);
+}
+
+// 7. Regression: a multi-line objective must spread into separate panel rows.
+//    A missing spread nested wrap()'s array into the lines list, and the
+//    implicit Array.toString() rendered the objective as one comma-joined row.
+{
+  const task = {
+    id: "T-900", title: "Wrap regression", status: "in_progress", priority: "normal", risk: "normal",
+    attempt_count: 0,
+    objective: "This objective is deliberately long enough that the review panel must wrap it across two panel rows without joining them.",
+    completion_checks: [], evidence: [], resources: [],
+    source: { type: "manual" },
+  };
+  const frame = renderReviewScreen({ tasks: [task], queue: [] }, { reviewTaskId: "T-900" }, 120, 30, false);
+  const text = frame.replace(/\x1b\[[0-9;]*m/g, "");
+  assert.ok(!/[a-z0-9],[a-z0-9]/.test(text), "wrapped objective lines must never be comma-joined");
+  assert.match(text, /without/, "the objective tail must appear on its own row");
 }
 
 fs.rmSync(root, { recursive: true, force: true });
