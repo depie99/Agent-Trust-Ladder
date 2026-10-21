@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { learnLocal, learningStatus, recallLocal } from "./learning.mjs";
 
 const clients = new Map();
 
@@ -67,34 +68,37 @@ export async function getMemory(root) {
 
 export async function memoryStatus(root) {
   const config = configFor(root);
-  if (config.provider !== "mem0") return { provider: "none", enabled: false };
+  const local = learningStatus(root);
+  if (config.provider !== "mem0") return local;
   try {
     const provider = await getMemory(root);
-    return { provider: "mem0", enabled: true, graph: provider.config.mem0?.enable_graph !== false, available: Boolean(provider.client) };
+    return { ...local, graph_provider: "mem0", graph: provider.config.mem0?.enable_graph !== false, available: Boolean(provider.client) };
   } catch (err) {
-    return { provider: "mem0", enabled: true, available: false, error: err.message };
+    return { ...local, graph_provider: "mem0", available: false, error: err.message };
   }
 }
 
 export async function remember(root, content, { agentId = "atl", runId = null } = {}) {
+  const local = learnLocal(root, { kind: runId ? "outcome" : "lesson", text: content, source: runId ? "verified-run" : "explicit" });
   const provider = await getMemory(root);
-  if (!provider.client) return { stored: false, provider: provider.kind };
+  if (!provider.client) return { stored: true, provider: "local", local };
   const result = await provider.client.add([{ role: "user", content }], {
     ...scope(provider.config, root, { agentId, runId }),
     enableGraph: provider.config.mem0?.enable_graph !== false,
   });
-  return { stored: true, provider: "mem0", result };
+  return { stored: true, provider: "local+mem0", local, result };
 }
 
 export async function recall(root, query, { agentId = "atl", runId = null, limit = 5 } = {}) {
+  const local = recallLocal(root, query, { limit });
   const provider = await getMemory(root);
-  if (!provider.client) return { results: [], provider: provider.kind };
+  if (!provider.client) return local;
   const result = await provider.client.search(query, {
     ...scope(provider.config, root, { agentId, runId }),
     limit,
     enableGraph: provider.config.mem0?.enable_graph !== false,
   });
-  return { results: result?.results || [], relations: result?.relations || [], provider: "mem0" };
+  return { results: [...local.results, ...(result?.results || [])].slice(0, limit), relations: result?.relations || [], provider: "local+mem0" };
 }
 
 export async function safeRemember(root, content, options = {}) {

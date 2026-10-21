@@ -15,6 +15,10 @@ const AGE = (iso) => {
 
 const PRIORITY_ORDER = { urgent: 0, high: 1, normal: 2, low: 3 };
 
+function needsHumanDecision(reason = "") {
+  return /owner approval|human approval|permission to|credentials|production access|spend money|merge|deploy|external message/i.test(reason);
+}
+
 export function activeTasks(state) {
   return Object.values(state.tasks)
     .filter((t) => !["done", "rejected"].includes(t.status))
@@ -58,7 +62,14 @@ export function wakeActions(state, cfg) {
     if (t.status === "blocked") {
       const due = t.next_wake_at ? new Date(t.next_wake_at) : null;
       if (!due || due <= new Date()) {
-        actions.push({ task: t.id, for: "mira", what: `blocked: ${t.blocker?.reason || "?"} — retry timer due, re-route or escalate` });
+        const reason = t.blocker?.reason || "?";
+        actions.push({
+          task: t.id,
+          for: needsHumanDecision(reason) ? "manager" : "mira",
+          what: needsHumanDecision(reason)
+            ? `blocked: ${reason} — explicit manager decision required`
+            : `blocked: ${reason} — retry timer due, re-route or escalate`,
+        });
       } else {
         actions.push({ task: t.id, for: "beacon", what: `wakes ${due.toISOString()} (${t.blocker?.reason || "?"})` });
       }
@@ -128,6 +139,10 @@ export function renderTask(task) {
   const L = [];
   L.push(`${t.id} [${t.status}] ${t.title}`);
   L.push(`  source: ${t.source.type}${t.source.url ? ` ${t.source.url}` : ""}`);
+  if (t.resources?.length) {
+    L.push(`  resources: ${t.resources.length}`);
+    for (const resource of t.resources) L.push(`    [${resource.kind}] ${resource.label}: ${resource.ref}${resource.caption ? ` — ${resource.caption}` : ""}`);
+  }
   L.push(`  priority: ${t.priority}   risk: ${t.risk}   review_required: ${!!t.review_required}`);
   L.push(`  worker: ${t.assigned_worker || "-"}   attempts: ${t.attempt_count}   workspace: ${t.workspace || "-"}`);
   if (t.selected_skills?.length) L.push(`  selected skills: ${t.selected_skills.join(", ")}   proposed worker: ${t.proposed_worker || "-"}`);

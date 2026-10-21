@@ -1,12 +1,13 @@
 // Intake adapters: local bullet files, GitHub issues, Azure Boards work items.
 // Every adapter returns normalized candidates:
 //   { title, objective_hint, completion_checks, priority, risk, labels,
-//     source: { type, url, thread, excerpt }, intake_key }
+//     resources, source: { type, url, thread, excerpt }, intake_key }
 // Dedupe by intake_key is the caller's job (state.tasks[*].intake_key).
 
 import fs from "node:fs";
 import path from "node:path";
 import https from "node:https";
+import { extractResources, normalizeResource } from "./resources.mjs";
 
 export class IntakeError extends Error {}
 
@@ -70,10 +71,12 @@ export function parseIntakeFile(text, fileLabel) {
 
   let current = null;
   let inChecks = false;
+  let inResources = false;
   const flush = () => {
     if (current && current.title) tasks.push(current);
     current = null;
     inChecks = false;
+    inResources = false;
   };
 
   for (const raw of lines) {
@@ -81,13 +84,14 @@ export function parseIntakeFile(text, fileLabel) {
     const heading = line.match(/^#{2,3}\s+(.+?)\s*$/);
     const checkbox = line.match(/^[-*]\s+\[ \]\s+(.+?)\s*$/);
     const meta = line.match(/^@(\w+):\s*(.+?)\s*$/);
-    const checkBullet = line.match(/^[-*]\s+(.+?)\s*$/);
+    const checkBullet = line.trimStart().match(/^[-*]\s+(.+?)\s*$/);
 
     if (heading) {
       flush();
       current = {
         title: heading[1], objective_hint: "", completion_checks: [],
         priority: "normal", risk: "normal", labels: [],
+        resources: [],
         source: { type: "file", url: fileLabel, thread: fileLabel, excerpt: "" },
         intake_key: `${fileLabel}#${heading[1]}`,
       };
@@ -95,6 +99,7 @@ export function parseIntakeFile(text, fileLabel) {
       current = {
         title: checkbox[1], objective_hint: "", completion_checks: [],
         priority: "normal", risk: "normal", labels: [],
+        resources: [],
         source: { type: "file", url: fileLabel, thread: fileLabel, excerpt: "" },
         intake_key: `${fileLabel}#${checkbox[1]}`,
       };
@@ -104,15 +109,33 @@ export function parseIntakeFile(text, fileLabel) {
       else if (key === "priority") current.priority = normalizePriority(meta[2]);
       else if (key === "risk") current.risk = meta[2].toLowerCase() === "risky" ? "risky" : "normal";
       else if (key === "labels") current.labels = meta[2].split(",").map((s) => s.trim()).filter(Boolean);
+    } else if (current && /^resources?:\s*$/i.test(line)) {
+      inResources = true;
+      inChecks = false;
     } else if (current && /^checks?:\s*$/i.test(line)) {
       inChecks = true;
+      inResources = false;
+    } else if (current && inResources && line) {
+      const resourceLine = line.replace(/^\s*[-*]\s+/, "").trim();
+      const extracted = extractResources(resourceLine, { source: current.source.type });
+      if (extracted.length) current.resources.push(...extracted);
+      else {
+        const resource = normalizeResource(resourceLine, { source: current.source.type });
+        if (resource && !current.resources.some((item) => item.ref === resource.ref)) current.resources.push(resource);
+      }
     } else if (current && inChecks && checkBullet && (raw.startsWith("  ") || raw.trimStart().startsWith("-") || raw.trimStart().startsWith("*"))) {
       current.completion_checks.push(checkBullet[1].replace(/^\[\s*[xX]?\s*\]\s*/, ""));
     } else if (current && line && !inChecks) {
       current.objective_hint += (current.objective_hint ? " " : "") + line.trim();
+      for (const resource of extractResources(line, { source: current.source.type })) {
+        if (!current.resources.some((item) => item.ref === resource.ref)) current.resources.push(resource);
+      }
     } else if (current && line && inChecks) {
       inChecks = false;
       current.objective_hint += (current.objective_hint ? " " : "") + line.trim();
+      for (const resource of extractResources(line, { source: current.source.type })) {
+        if (!current.resources.some((item) => item.ref === resource.ref)) current.resources.push(resource);
+      }
     }
   }
   flush();
@@ -187,6 +210,7 @@ export async function intakeFromGitHub(ghCfg) {
         completion_checks: [],
         priority, risk: "normal", labels,
         source: { type: "github", url: i.url, thread: i.url, repo, excerpt: String(i.body || "").slice(0, 300) },
+        resources: extractResources(i.body || "", { source: "github", baseUrl: i.url }),
         intake_key: i.url,
       });
     }
@@ -230,16 +254,17 @@ export async function intakeFromAzure(cfg) {
   const batch = await requestJson(`${base}/_apis/wit/workitemsbatch?api-version=6.0`, {
     method: "POST",
     headers,
-    body: { ids, fields: ["System.Id", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "Microsoft.VSTS.Common.Priority", "System.Description"] },
+    body: { ids, fields: ["System.Id", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "Microsoft.VSTS.Common.Priority", "System.Description"], "$expand": "Relations" },
     ...tls,
   });
 
   return (batch.value || []).map((w) => {
     const f = w.fields || {};
     const assigned = f["System.AssignedTo"] && f["System.AssignedTo"].displayName;
+    const description = String(f["System.Description"] || "");
     return {
       title: `${f["System.WorkItemType"]} ${w.id}: ${f["System.Title"]}`,
-      objective_hint: String(f["System.Description"] || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 800),
+      objective_hint: description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 800),
       completion_checks: [],
       priority: normalizePriority(String(f["Microsoft.VSTS.Common.Priority"] || "")),
       risk: f["System.WorkItemType"] === "Bug" ? "normal" : "normal",
@@ -251,6 +276,15 @@ export async function intakeFromAzure(cfg) {
         project: cfg.project, iteration,
         excerpt: String(f["System.Title"] || ""),
       },
+      resources: [
+        ...extractResources(description, { source: "azure", baseUrl: `${base}/_workitems/edit/${w.id}` }),
+        ...(w.relations || [])
+          .filter((relation) => relation && relation.url && (!relation.rel || /attachedfile|hyperlink/i.test(relation.rel)))
+          .map((relation) => normalizeResource(relation.url, {
+            label: relation.attributes?.name || relation.attributes?.comment || "Azure attachment",
+            source: "azure",
+          })),
+      ].filter(Boolean),
       intake_key: `azure:${cfg.project}:${w.id}:${f["System.Rev"] || 0}`,
     };
   });

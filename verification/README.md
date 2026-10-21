@@ -10,3 +10,41 @@ python verification/atl_lifecycle_model.py --mutation-test
 ```
 
 The mutation test injects an unsafe `implemented → verified` transition without evidence and requires the invariant checker to reject it. If the lifecycle contract changes, update the model and this mapping together, then rerun both commands.
+
+## Manager state gates
+
+`config/manager-state-contract.json` is the canonical machine-readable contract for manager statuses, transition actors, and evidence requirements. `runtime/lib/state.mjs` consumes that file directly; `atl_manager_lifecycle_model.py` checks that its explicit modeling assumptions still match it before exploring states:
+
+```mermaid
+stateDiagram-v2
+  [*] --> new
+  new --> triaged: Pip adds objective + checks
+  triaged --> assigned: Mira assigns worker
+  assigned --> in_progress: Rowan starts
+  in_progress --> in_review: workspace + observed check
+  in_review --> verifying: Sage approves
+  verifying --> done: Beacon sees all checks pass
+```
+
+Run its baseline and negative control:
+
+```text
+python verification/atl_manager_lifecycle_model.py
+python verification/atl_manager_lifecycle_model.py --mutation-test
+```
+
+The project-local `verify-atl-manager-lifecycle` skill documents the mapping, bounds, counterexample meaning, and drift trigger for the next agent.
+
+If the contract changes, the model exits with `MODEL ERROR: CONTRACT DRIFT` until its assumptions and this skill are reviewed together. This catches model/contract drift; runtime behavior inside the requirement checks still needs the normal JavaScript validation and review gates.
+
+## Maintaining the verification skill
+
+Run the project-local maintenance loop after changing a model, contract, verification skill, or packaging path:
+
+```text
+python scripts/maintain_verification_skill.py
+```
+
+It checks the cold-agent skill assets and runs both baseline and mutation checks for the abstract ATL lifecycle and concrete manager lifecycle. This is infrastructure health evidence, not proof of the whole product.
+
+The Jev route test also proves the decision boundary: high-confidence choices may be accepted, while low-confidence choices fall back to deterministic routing.

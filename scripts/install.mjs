@@ -34,7 +34,10 @@ fs.cpSync(path.join(repo, "runtime"), path.join(home, "runtime"), { recursive: t
 fs.rmSync(path.join(home, "skills"), { recursive: true, force: true });
 fs.cpSync(path.join(repo, "skills"), path.join(home, "skills"), { recursive: true });
 fs.mkdirSync(path.join(home, "config"), { recursive: true });
-fs.copyFileSync(path.join(repo, "config", "skill-routing.json"), path.join(home, "config", "skill-routing.json"));
+for (const file of ["skill-routing.json", "manager-state-contract.json", "jev.json"]) {
+  const source = path.join(repo, "config", file);
+  if (fs.existsSync(source)) fs.copyFileSync(source, path.join(home, "config", file));
+}
 
 // 2. write the `atl` shim (absolute path baked in)
 fs.mkdirSync(home, { recursive: true });
