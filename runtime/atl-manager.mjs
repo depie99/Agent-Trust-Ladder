@@ -19,7 +19,7 @@ import {
   createTask, logEvent, transition, addEvidence,
 } from "./lib/state.mjs";
 import { contractFor, renderRole, ROLE_SLOT } from "./lib/roles.mjs";
-import { IntakeError, runIntake } from "./lib/intake.mjs";
+import { IntakeError, ghCliAuthenticated, normalizeGitHubRepo, probeGitHubRepo, runIntake } from "./lib/intake.mjs";
 import { WorkspaceError, ensureWorkspace } from "./lib/workspace.mjs";
 import { renderBrief, renderTask, wakeActions, saveBrief, activeTasks } from "./lib/render.mjs";
 import { post as feedPost, renderFeed, renderRoster } from "./lib/feed.mjs";
@@ -34,7 +34,11 @@ import { applyDeterministicRoute, composeTask, importCandidates } from "./lib/co
 import { queueAdd, queueClear, queueIds, queueRemove, loadQueue } from "./lib/queue.mjs";
 import { buildLaunchPlan, containmentBlock, driveTaskUntilGate, executeLaunchQueue } from "./lib/launch.mjs";
 import { discoverProvider, localDefaultModel, providerForRole, providerModels, providerNames, providerProfile, providerSpec } from "./lib/providers.mjs";
-import { unblockTask } from "./lib/recovery.mjs";
+import {
+  credentialContext, getProvider, loadUserProviders, maskKey, PROVIDER_TEMPLATES,
+  removeProvider, saveUserProviders, templateById, upsertProvider, registryPath, validateProviderEntry,
+} from "./lib/userProviders.mjs";
+import { unblockTask, approveTask, explainTasks } from "./lib/recovery.mjs";
 import { addResourceToTask } from "./lib/resources.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
@@ -61,7 +65,7 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("max-minutes") || eat("max-sessions") || eat("confirm") || eat("dry-run")) continue;
+  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("max-minutes") || eat("max-sessions") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -96,6 +100,12 @@ Setup
 
 Intake (pulls new work in)
   intake [--source file|github|azure|all]
+  intake status                 per-source enabled state + auth readiness
+  intake enable <source> [--repo owner/name,owner2/name2] [--remove owner/name] [--force]
+                                flip the source on in config; github repos are probed
+                                live first — a 404 (private repo, no auth) blocks the
+                                enable with the fix unless --force
+  intake disable <source>       flip the source off (keeps repos/urls)
   triage <task-id>              print Pip's triage packet for a task
 
 Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
@@ -111,6 +121,14 @@ Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   resource <id> <url-or-path> [--label "..."] [--caption "..."]
   escalate <id> --reason "..." --actor <role>
 
+Owner gates (the human's levers, no incantations)
+  why [task-id]                 the full "why" behind every active task — complete
+                                blocker text, never truncated, plus the exact fix command
+  approve <task-id> [--note "..."]
+                                the owner gate in one word: records your approval as
+                                durable evidence, clears an approval blocker, and
+                                queues the task for the next launch
+
 Manager view
   wake                          the wake loop: what Mira should do next
   brief [--save]                Mira's manager brief
@@ -123,8 +141,17 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                 the persistent execution queue — separate from keyboard focus
   launch [--dry-run] [--confirm] [--worker id] [--model model] [--max-minutes m] [--max-sessions n]
                                 preview, then run the queued tasks sequentially with per-role providers
-  providers                     provider availability, selected model, and per-role mapping
-  provider list                 same as providers
+  providers                     providers, keys (masked), and per-role mapping
+  provider templates            pre-filled endpoint presets (zai, bigmodel, custom)
+  provider add <id> [--template t] [--worker claude|codex] [--base-url url]
+                [--key secret | --key-env VAR] [--model model]
+                                store an API provider once per machine in ~/.atl/providers.json
+                                (e.g. GLM: provider add zai --key <key> --model glm-4.6)
+  provider key <id> --key secret | --key-env VAR
+                                update the stored API key
+  provider use <id> [--role role]
+                                make a stored provider the project default (or one role's provider)
+  provider remove <id>          delete a stored provider
   provider models [--provider id]
                                 list known models for a provider (when available)
   provider set --provider id [--model model] [--role role] [--auth mode]
@@ -261,7 +288,7 @@ function defaultConfig() {
       github: {
         enabled: false,
         repos: ["shahryarjb/temp_mishka_cms"],
-        note: "set enabled=true; unauthenticated works for public repos, or run: gh auth login / set GITHUB_TOKEN",
+        note: "enable with: atl intake enable github --repo owner/name (probes access first); public repos work unauthenticated, private need gh auth login or GITHUB_TOKEN",
       },
       azure: {
         enabled: false,
@@ -305,14 +332,20 @@ function parseWorkerFlags({ overnight }) {
     throw new StateError(`${overnight ? "overnight" : "run"} requires --confirm; use --dry-run to preview without starting an agent`);
   }
   const profile = providerProfile(loadConfig());
-  const worker = String(flags.worker || profile.defaultWorker).toLowerCase();
-  const auth = String(flags.auth || profile.auth).toLowerCase();
+  const selectedId = String(flags.worker || profile.use || profile.defaultWorker).toLowerCase();
+  const regEntry = selectedId ? loadUserProviders().providers[selectedId] : null;
+  // A registry id (--worker zai, or providers.use in config) runs on its
+  // underlying worker CLI with the stored key injected at spawn time.
+  const worker = regEntry ? String(regEntry.worker || "claude").toLowerCase() : selectedId;
+  const workerLabel = regEntry ? `${worker} via ${selectedId}` : worker;
+  const auth = regEntry ? "api" : String(flags.auth || profile.auth).toLowerCase();
   assertWorkerAuth(worker, auth);
-  const envPolicy = workerEnvPolicy(worker, auth);
+  const envPolicy = regEntry ? { unset: [], stripped: [] } : workerEnvPolicy(worker, auth);
   const provider = {
     ...providerSpec(profile, worker),
-    ...(flags.model ? { model: String(flags.model) } : {}),
-    auth: flags.auth ? auth : providerSpec(profile, worker).auth,
+    ...(flags.model ? { model: String(flags.model) } : regEntry ? { model: regEntry.model || null } : {}),
+    auth: regEntry ? "api" : (flags.auth ? auth : providerSpec(profile, worker).auth),
+    ...(regEntry ? { userProvider: { id: selectedId, ...regEntry } } : {}),
   };
   const maxMinutes = Number(flags["max-minutes"] || (overnight ? 120 : 60));
   const maxSessions = Number(flags["max-sessions"] || (overnight ? 5 : 1));
@@ -322,7 +355,7 @@ function parseWorkerFlags({ overnight }) {
   if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 20) {
     throw new StateError("--max-sessions must be an integer between 1 and 20");
   }
-  return { dryRun, worker, auth: provider.auth || auth, envPolicy, provider, maxMinutes, maxSessions };
+  return { dryRun, worker, workerLabel, auth: provider.auth || auth, envPolicy, provider, maxMinutes, maxSessions };
 }
 
 async function runWorkerLoop(taskId, { overnight }) {
@@ -330,7 +363,10 @@ async function runWorkerLoop(taskId, { overnight }) {
   const opts = parseWorkerFlags({ overnight });
   const budget = { sessions: 0, maxSessions: opts.maxSessions, deadline: Date.now() + opts.maxMinutes * 60 * 1000 };
   console.log(`${opts.dryRun ? "Previewing" : "Starting"} ${overnight ? "overnight" : "one-shot"} ATL run for ${taskId}`);
-  console.log(`  provider: ${opts.worker}   model: ${opts.provider.model || "provider default"}   max time: ${opts.maxMinutes}m   max sessions: ${opts.maxSessions}`);
+  console.log(`  provider: ${opts.workerLabel}   model: ${opts.provider.model || "provider default"}   max time: ${opts.maxMinutes}m   max sessions: ${opts.maxSessions}`);
+  if (opts.provider.userProvider) {
+    console.log(`  credentials: ${maskKey(opts.provider.userProvider.api_key)} from ~/.atl/providers.json (injected at spawn, never logged)`);
+  }
   if (opts.envPolicy.stripped.length) {
     console.log(`  subscription safety: child will not receive ${opts.envPolicy.stripped.join(", ")}`);
   }
@@ -338,7 +374,7 @@ async function runWorkerLoop(taskId, { overnight }) {
   const outcome = await driveTaskUntilGate(ROOT, taskId, budget, {
     overnight,
     dryRun: opts.dryRun,
-    resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider }),
+    resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
   }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
 
   const finalState = loadState(ROOT);
@@ -360,7 +396,10 @@ async function runQueueLoop({ overnight }) {
   const state = loadState(ROOT);
   const queue = queueSelect(Object.values(state.tasks));
   console.log(`${opts.dryRun ? "Previewing" : "Starting"} overnight queue run — ${queue.length} active task(s)`);
-  console.log(`  provider: ${opts.worker}   model: ${opts.provider.model || "provider default"}   max time: ${opts.maxMinutes}m   max sessions: ${opts.maxSessions}`);
+  console.log(`  provider: ${opts.workerLabel}   model: ${opts.provider.model || "provider default"}   max time: ${opts.maxMinutes}m   max sessions: ${opts.maxSessions}`);
+  if (opts.provider.userProvider) {
+    console.log(`  credentials: ${maskKey(opts.provider.userProvider.api_key)} from ~/.atl/providers.json (injected at spawn, never logged)`);
+  }
   if (opts.envPolicy.stripped.length) {
     console.log(`  subscription safety: child will not receive ${opts.envPolicy.stripped.join(", ")}`);
   }
@@ -392,7 +431,7 @@ async function runQueueLoop({ overnight }) {
     const outcome = await driveTaskUntilGate(ROOT, fresh.id, budget, {
       overnight: true,
       dryRun: false,
-      resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider }),
+      resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
     }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
     results.push({ id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason });
     if (outcome.failed || outcome.stalled) {
@@ -449,20 +488,38 @@ function saveConfig(config) {
 
 function printProviders(cfg) {
   const profile = providerProfile(cfg);
-  console.log("Providers — executable, auth, and effective model:");
-  for (const name of providerNames(cfg)) {
+  const registry = profile.userProviders || {};
+  const registryIds = Object.keys(registry);
+  console.log("Your providers (~/.atl/providers.json — API keys stored outside every repo):");
+  if (!registryIds.length) {
+    console.log("  (none yet — add one: atl provider add zai --key <glm-api-key> --model glm-4.6)");
+    console.log("  or in the control room: atl ui → press p → press a");
+  }
+  for (const id of registryIds) {
+    const entry = registry[id];
+    const problems = validateProviderEntry(entry);
+    const mark = problems.length ? "×" : "✓";
+    const inUse = profile.use === id ? " · IN USE (project default)" : "";
+    const roleUse = PROVIDER_ROLES.filter((role) => (profile.byRole[role] || "") === id);
+    console.log(`  ${mark} ${id.padEnd(12)} ${entry.worker} · ${entry.model || "no model"} · key ${maskKey(entry.api_key)}${inUse}${roleUse.length ? ` · roles: ${roleUse.join(", ")}` : ""}`);
+    console.log(`     ${entry.base_url || "(no base URL)"}`);
+    for (const problem of problems) console.log(`     ! ${problem}`);
+  }
+  console.log("\nBuilt-in workers (subscription auth, no key stored):");
+  for (const name of providerNames(cfg).filter((n) => !registry[n])) {
     const spec = providerSpec(profile, name);
     const disc = discoverProvider(name, { command: spec.command });
     const model = spec.model || "provider default";
-    console.log(`  ${disc.available ? "✓" : "×"} ${name.padEnd(12)} ${disc.available ? `${disc.path} · model ${model}` : `${disc.error} · model ${model}`}`);
+    console.log(`  ${disc.available ? "✓" : "×"} ${name.padEnd(12)} ${disc.available ? `${disc.path} · model ${model} · auth ${spec.auth}` : `${disc.error} · model ${model}`}`);
   }
   console.log("\nPer-role mapping (the provider/model actually used by each ATL role):");
   for (const role of PROVIDER_ROLES) {
     const p = providerForRole(profile, role);
     console.log(`  ${role.padEnd(7)} ${p.worker} · ${p.model || "provider default"} · auth ${p.auth}  (${p.source})`);
   }
-  console.log("\nChange it with: atl provider set --provider codex --model gpt-5.6-luna");
-  console.log("Per role:       atl provider set --role rowan --provider glm --model glm-4.6");
+  console.log("\nAdd a provider:   atl provider add zai --key <glm-api-key> --model glm-4.6");
+  console.log("Use it here:      atl provider use zai   (or per role: atl provider use zai --role rowan)");
+  console.log("Other commands:   provider key · provider remove · provider templates · atl ui → p");
 }
 
 function updateProviderSelection({ clear = false } = {}) {
@@ -485,11 +542,19 @@ function updateProviderSelection({ clear = false } = {}) {
   }
   const worker = flags.provider && String(flags.provider).toLowerCase();
   if (!worker) throw new StateError("provider set needs --provider <id>");
+  const registry = loadUserProviders();
+  const regEntry = registry.providers[worker] || null;
+  if (regEntry && flags.model) {
+    upsertProvider(registry, worker, { model: String(flags.model) });
+    saveUserProviders(registry);
+  }
   if (role) {
     const previous = providers.by_role[role];
     providers.by_role[role] = worker;
-    if (flags.model) providers.model_by_role[role] = String(flags.model);
+    if (flags.model && !regEntry) providers.model_by_role[role] = String(flags.model);
     else if (previous && previous !== worker) delete providers.model_by_role[role];
+  } else if (regEntry) {
+    providers.use = worker;
   } else {
     const previous = providers.default;
     providers.default = worker;
@@ -504,8 +569,135 @@ function updateProviderSelection({ clear = false } = {}) {
   }
   saveConfig(cfg);
   const selected = providerForRole(providerProfile(cfg), role || "rowan");
-  console.log(`Saved ${role ? `${role} role` : "default"} selection: ${selected.worker} · ${selected.model || "provider default"} · auth ${selected.auth}`);
+  console.log(`Saved ${role ? `${role} role` : "default"} selection: ${selected.worker} · ${selected.model || "provider default"} · auth ${selected.auth}${selected.userProvider ? ` (user provider "${selected.userProvider.id}", key injected at spawn)` : ""}`);
   console.log(`Verify: atl providers   Preview: atl launch --dry-run`);
+}
+
+// ---------- intake source config (`atl intake status|enable|disable`)
+
+const INTAKE_SOURCES = ["file", "github", "azure"];
+
+async function printIntakeStatus(only = "all") {
+  const cfg = loadConfig();
+  const sources = cfg.intake || {};
+  const want = (name) => only === "all" || only === name;
+  console.log("Intake sources (config/manager.json):");
+
+  if (want("file")) {
+    const dir = path.resolve(ROOT, cfg.inbox_dir);
+    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => n.toLowerCase().endsWith(".md")) : [];
+    console.log(`  file     ${(sources.file?.enabled !== false ? "enabled " : "disabled")}  inbox ${cfg.inbox_dir} (${files.length} markdown file${files.length === 1 ? "" : "s"})`);
+  }
+  if (want("github")) {
+    const gh = sources.github || {};
+    const repos = gh.repos || [];
+    console.log(`  github   ${gh.enabled ? "enabled " : "disabled"}  repos: ${repos.length ? repos.join(", ") : "(none — add with --repo owner/name)"}`);
+    if (only === "github" || gh.enabled || repos.length) {
+      const ghAuthed = await ghCliAuthenticated();
+      const tokenSet = Boolean(process.env.GITHUB_TOKEN);
+      console.log(`           auth: gh cli ${ghAuthed ? "logged in" : "not logged in"} · GITHUB_TOKEN ${tokenSet ? "set" : "not set"}${!ghAuthed && !tokenSet ? "  (private repos will 404 — fix with: gh auth login)" : ""}`);
+    }
+  }
+  if (want("azure")) {
+    const az = sources.azure || {};
+    const tokenEnv = az.token_env || "AZDO_PAT";
+    console.log(`  azure    ${az.enabled ? "enabled " : "disabled"}  ${az.org_url || "(no org_url)"} · ${az.project || "(no project)"} · ${az.iteration_path || "(no iteration_path)"}`);
+    console.log(`           auth: ${tokenEnv} ${process.env[tokenEnv] ? "set" : "not set"}`);
+  }
+  console.log(`\nEnable:   atl intake enable <file|github|azure> [--repo owner/name]`);
+  console.log(`Disable:  atl intake disable <file|github|azure>`);
+}
+
+async function intakeConfigCommand(sub) {
+  const cfg = loadConfig();
+  const sources = cfg.intake || (cfg.intake = {});
+  const source = String(sub === "status" ? (flags.source || "all") : pos[1] || "").toLowerCase();
+
+  if (sub === "status") {
+    if (source !== "all" && !INTAKE_SOURCES.includes(source)) {
+      throw new StateError(`intake status --source must be one of: ${INTAKE_SOURCES.join(" | ")}`);
+    }
+    await printIntakeStatus(source);
+    return;
+  }
+
+  if (!INTAKE_SOURCES.includes(source)) {
+    throw new StateError(`intake ${sub} needs a source: ${INTAKE_SOURCES.join(" | ")}`);
+  }
+  const entry = sources[source] || (sources[source] = {});
+
+  if (sub === "disable") {
+    entry.enabled = false;
+    saveConfig(cfg);
+    console.log(`${source} intake disabled (repos/urls kept in config).`);
+    console.log(`Re-enable with: atl intake enable ${source}`);
+    return;
+  }
+
+  if (source === "file") {
+    entry.enabled = true;
+    saveConfig(cfg);
+    console.log(`file intake enabled (inbox: ${cfg.inbox_dir}).`);
+    return;
+  }
+
+  if (source === "azure") {
+    const tokenEnv = entry.token_env || "AZDO_PAT";
+    if (!process.env[tokenEnv] && !flags.force) {
+      console.log("azure intake NOT enabled — the personal access token is missing.");
+      console.log(`  1. On ${entry.org_url || "the Azure DevOps server"} create a PAT (Work Items: Read).`);
+      console.log(`  2. set ${tokenEnv}=<token>   (PowerShell: $env:${tokenEnv}="<token>")`);
+      console.log(`  3. re-run: atl intake enable azure   (or --force to enable without the token)`);
+      return;
+    }
+    entry.enabled = true;
+    saveConfig(cfg);
+    console.log(`azure intake enabled (${entry.project || "project"} · ${entry.iteration_path || "no iteration set"}${process.env[tokenEnv] ? "" : ` · warning: ${tokenEnv} is not set`}).`);
+    console.log(`Pull now: atl intake --source azure`);
+    return;
+  }
+
+  // github — probe every configured repo through the same gh-CLI → REST path
+  // the adapter uses, so a private-repo 404 surfaces here with the fix.
+  const toRemove = String(flags.remove || "").split(",").map(normalizeGitHubRepo).filter(Boolean);
+  if (toRemove.length) {
+    entry.repos = (entry.repos || []).map(normalizeGitHubRepo).filter((repo) => !toRemove.includes(repo));
+  }
+  const requested = String(flags.repo || "").split(",").map(normalizeGitHubRepo).filter(Boolean);
+  for (const repo of requested) {
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+      throw new StateError(`--repo expects owner/name, got "${repo}"`);
+    }
+  }
+  entry.repos = [...new Set([...(entry.repos || []), ...requested])];
+  if (!entry.repos.length) {
+    saveConfig(cfg);
+    console.log(`github repo list is now empty${toRemove.length ? ` (removed: ${toRemove.join(", ")})` : ""}. Add one with: atl intake enable github --repo owner/name`);
+    return;
+  }
+  console.log(`Probing ${entry.repos.length} repo(s) the way intake will read them…`);
+  const unreachable = [];
+  for (const repo of entry.repos) {
+    const probe = await probeGitHubRepo(repo);
+    if (probe.ok) {
+      console.log(`  ✓ ${repo} — reachable via ${probe.via}, ${probe.open_issues} open issue(s)`);
+    } else {
+      unreachable.push(repo);
+      console.log(`  × ${repo} — ${String(probe.error).split("\n")[0]}`);
+    }
+  }
+  if (unreachable.length && !flags.force) {
+    console.log(`\ngithub intake NOT enabled for: ${unreachable.join(", ")}.`);
+    console.log(`  Fix access, then retry:             gh auth login  ·  or set GITHUB_TOKEN=<repo read token>`);
+    console.log(`  Drop a stale repo and retry:        atl intake enable github --remove ${unreachable.join(",")} --repo ${entry.repos.filter((r) => !unreachable.includes(r)).join(",") || "owner/name"}`);
+    console.log(`  Enable anyway (will 404 at intake): atl intake enable github --repo ${entry.repos.join(",")} --force`);
+    return;
+  }
+  entry.enabled = true;
+  entry.note = `enabled via 'atl intake enable github' on ${new Date().toISOString().slice(0, 10)}`;
+  saveConfig(cfg);
+  console.log(`\ngithub intake enabled for: ${entry.repos.join(", ")}`);
+  console.log(`Pull now: atl intake --source github`);
 }
 
 // ---------- commands
@@ -549,6 +741,11 @@ async function main() {
     }
 
     case "intake": {
+      const sub = pos[0];
+      if (sub === "status" || sub === "enable" || sub === "disable") {
+        await intakeConfigCommand(sub);
+        return;
+      }
       const cfg = loadConfig();
       const state = loadState(ROOT);
       const which = flags.source || "all";
@@ -663,8 +860,76 @@ async function main() {
         updateProviderSelection();
       } else if (sub === "clear") {
         updateProviderSelection({ clear: true });
+      } else if (sub === "templates") {
+        console.log("Provider templates (pre-filled base URLs; the model id comes from your plan):");
+        for (const t of PROVIDER_TEMPLATES) {
+          console.log(`  ${t.id.padEnd(10)} ${t.label}`);
+          console.log(`             claude → ${t.baseUrl.claude || "(you supply the endpoint)"}`);
+          console.log(`             codex  → ${t.baseUrl.codex || "(you supply the endpoint)"}`);
+        }
+        console.log("\nUse one: atl provider add zai --key <api-key> --model glm-4.6   (--template is implied by the id)");
+      } else if (sub === "add") {
+        const id = pos[1];
+        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex] [--base-url url] [--key secret | --key-env VAR] [--model model]");
+        const template = templateById(flags.template || (templateById(id) ? id : "custom"));
+        const worker = String(flags.worker || template.worker || "claude").toLowerCase();
+        if (!["claude", "codex"].includes(worker)) throw new StateError("--worker must be claude or codex");
+        const base = flags["base-url"] || template.baseUrl[worker] || "";
+        const key = flags.key !== undefined
+          ? String(flags.key)
+          : flags["key-env"]
+            ? (process.env[String(flags["key-env"])] || "").trim()
+            : "";
+        if (flags["key-env"] && !key) throw new StateError(`--key-env ${flags["key-env"]} is not set in this shell`);
+        if (worker === "claude" && !base && !flags["base-url"]) {
+          throw new StateError("a base URL is required for custom providers: --base-url https://your-endpoint/api/anthropic");
+        }
+        const registry = loadUserProviders();
+        const entry = upsertProvider(registry, id, {
+          label: template.id === "custom" ? id : template.label,
+          worker,
+          base_url: String(base),
+          api_key: key,
+          model: flags.model ? String(flags.model) : (template.models[0] || ""),
+          models: template.models,
+        });
+        saveUserProviders(registry);
+        console.log(`Saved provider "${entry.id}" in ${registryPath()}`);
+        console.log(`  worker: ${entry.worker}   model: ${entry.model || "(none)"}   key: ${maskKey(entry.api_key)}`);
+        console.log(`  base:   ${entry.base_url || "(none — custom endpoints need --base-url)"}`);
+        console.log(`Use it in this project:  atl provider use ${entry.id}`);
+      } else if (sub === "key") {
+        const id = pos[1];
+        if (!id) throw new StateError("provider key needs a name: provider key <id> --key secret | --key-env VAR");
+        const key = flags.key !== undefined
+          ? String(flags.key)
+          : (process.env[String(flags["key-env"] || "")] || "").trim();
+        if (flags["key-env"] && !key) throw new StateError(`--key-env ${flags["key-env"]} is not set in this shell`);
+        if (!key) throw new StateError("provider key needs --key <secret> or --key-env <VAR>");
+        const registry = loadUserProviders();
+        const entry = getProvider(registry, id);
+        if (!entry) throw new StateError(`no provider named "${id}" — add it first: atl provider add ${id} --key ...`);
+        upsertProvider(registry, id, { api_key: key });
+        saveUserProviders(registry);
+        console.log(`Updated the key for "${id}": ${maskKey(key)} (stored in ~/.atl/providers.json)`);
+      } else if (sub === "use") {
+        const id = pos[1] || flags.provider;
+        if (!id) throw new StateError("provider use needs a name: provider use <id> [--role role]");
+        const registry = loadUserProviders();
+        const entry = getProvider(registry, id);
+        if (!entry) throw new StateError(`no provider named "${id}" in ~/.atl/providers.json — add it first (atl provider add)`);
+        flags.provider = entry.id;
+        updateProviderSelection();
+      } else if (sub === "remove") {
+        const id = pos[1];
+        if (!id) throw new StateError("provider remove needs a name: provider remove <id>");
+        const registry = loadUserProviders();
+        const entry = removeProvider(registry, id);
+        saveUserProviders(registry);
+        console.log(`Removed "${entry.id}" from ~/.atl/providers.json.`);
+        console.log("If this project still selects it, point roles elsewhere: atl provider use <other-id> (or provider set --provider codex).");
       } else {
-        throw new StateError("provider subcommands: list | models [--provider id] | set --provider id [--model model] [--role role] | clear --role role");
+        throw new StateError("provider subcommands: list | templates | add <id> | key <id> | use <id> [--role role] | remove <id> | set --provider id | clear --role role | models [--provider id]");
       }
       return;
     }
@@ -852,6 +1117,42 @@ async function main() {
       return;
     }
 
+    case "approve": {
+      const id = pos[0];
+      if (!id) throw new StateError("approve needs a task id");
+      const result = approveTask(ROOT, id, { note: flags.note?.[0] || "" });
+      say("manager", `owner approved ${id}${result.unblocked ? ` — blocker cleared, back to ${result.task.status}` : ""}${result.queued ? " and queued for the next launch" : " (already queued)"}.`, { task: id });
+      const state = loadState(ROOT);
+      logEvent(state, { task: id, actor: "manager", event: "approve", detail: result.detail });
+      saveState(ROOT, state);
+      console.log(renderTask(result.task));
+      console.log(`\nNext: atl launch --confirm  (the approval is on the record; the task is ${result.queued ? "queued" : "already in the queue"})`);
+      return;
+    }
+
+    case "why": {
+      const id = pos[0];
+      const rows = explainTasks(ROOT, id);
+      if (id && rows.length === 0) {
+        const state = loadState(ROOT);
+        if (!state.tasks[id]) throw new StateError(`Unknown task ${id}`);
+        console.log(`${id} is ${state.tasks[id].status} — nothing is blocking it.`);
+        return;
+      }
+      console.log(`# Why — the state of every active task, ${new Date().toISOString()}\n`);
+      for (const r of rows) {
+        const t = r.task;
+        console.log(`${t.id} [${t.status}] (${t.priority}${t.risk === "risky" ? "/risky" : ""}) ${t.title}`);
+        console.log(`  why: ${r.why}`);
+        if (r.since) console.log(`  blocked ${r.since}${r.actor ? ` by ${r.actor}` : ""}`);
+        if (r.fix) console.log(`  fix: ${r.fix}`);
+        console.log("");
+      }
+      const gates = rows.filter((r) => r.kind === "owner-approval").length;
+      if (!id) console.log(`${rows.length} active task(s), ${gates} waiting on the owner. Give the word with: atl approve <task-id>`);
+      return;
+    }
+
     case "resource": {
       const id = pos[0];
       const ref = pos.slice(1).join(" ").trim();
@@ -929,6 +1230,8 @@ async function main() {
         for (const t of tasks) {
           console.log(`  ${t.id} [${t.status}] (${t.priority}${t.risk === "risky" ? "/risky" : ""}) ${t.title} — ${t.assigned_worker || "unassigned"}`);
         }
+        const gated = tasks.filter((t) => t.status === "blocked" || t.status === "escalated").length;
+        if (gated > 0) console.log(`\n  ${gated} task(s) stopped at a gate — atl why explains each one and prints its fix.`);
       }
       return;
     }
@@ -1066,6 +1369,12 @@ async function main() {
       }
       if (cfg.intake?.azure?.enabled && !process.env[cfg.intake.azure.token_env || "AZDO_PAT"]) {
         problems.push(`azure intake enabled but ${cfg.intake.azure.token_env || "AZDO_PAT"} is not set`);
+      }
+      if (cfg.intake?.github?.enabled && (cfg.intake.github.repos || []).length) {
+        const ghAuthed = await ghCliAuthenticated();
+        if (!ghAuthed && !process.env.GITHUB_TOKEN) {
+          problems.push("github intake enabled but gh is not logged in and GITHUB_TOKEN is not set (private repos will 404 — run: gh auth login, or atl intake disable github)");
+        }
       }
       if (problems.length) {
         console.error("State problems:\n  - " + problems.join("\n  - "));

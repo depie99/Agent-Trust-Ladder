@@ -139,17 +139,24 @@ In the interactive view, the focused task is highlighted and the panel header
 shows its position. Controls: `↑↓`, `j/k`, or `Tab` move focus, `1..9` jump to
 a task, `c` create, `e`/`v` edit/review, `x` add or remove the focused task
 from the queue, `u` recover a blocked task, `l` open the launch gate,
-`Enter`/`y` confirm the queued run, `r` refresh, `f` open the full feed,
-`PgUp`/`PgDn` or the mouse wheel scroll the feed, `?` help, `Esc` back, and
-`q` quit. A blocked task explains its recovery route in the selected-task
-panel: `u` returns it to `assigned` when a worker is known (otherwise
-`triaged`), then `x` queues it and `l` previews the run.
+`Enter`/`y` confirm the queued run, `r` force a refresh, `f` open the full
+feed, `Q` the execution queue with live gate states, `L` the merged logs
+stream, `PgUp`/`PgDn` or the mouse wheel scroll the feed, `?` help, `Esc`
+back, and `q` quit. A blocked task explains its recovery route in the
+selected-task panel: `u` returns it to `assigned` when a worker is known
+(otherwise `triaged`), then `x` queues it and `l` previews the run.
 Queued tasks carry a `⌁` badge — queue membership is a stored decision, never
 just focus. Run `atl dashboard`
 (or `atl ui`) for this keyboard view. Use `atl dashboard --once --plain` in
 logs, CI, or a redirected terminal for a deterministic, non-interactive
 snapshot; that mode does not advertise selection controls. The `ui` command
 is an alias.
+
+The room is live: state.json and feed.jsonl are re-read about every two
+seconds (every second while a run is active), and the header shows the sync
+age (`● LIVE · synced 3s ago`) so stale data is visible instead of silent.
+Only changed frames are repainted, and open text editors are never
+interrupted.
 
 ### The control room: compose, review, queue, preview, launch
 
@@ -180,19 +187,36 @@ Spec 014 turns the dashboard into the room where work starts — while keeping
   auth mode, workspace, budgets, containment rules, and per-task blockers.
   Press `Enter` or `y` on that screen to confirm the bounded queue run; `Esc`
   backs out without starting anything.
-- `p` **providers** — which provider executables were found on PATH, the
-  effective model and auth, and the per-role mapping from
-  `providers.default` / `providers.by_role` in `config/manager.json` (for
-  example `"by_role": { "sage": "claude" }`).
+- `p` **providers** — your API providers from `~/.atl/providers.json` (keys
+  masked, the project default marked), the built-in `codex`/`claude`
+  executables, and the per-role mapping from `providers.use` /
+  `providers.by_role` in `config/manager.json` (for example
+  `"by_role": { "sage": "claude" }`). `a` opens the add-provider form
+  (template → name → CLI → base URL → pasted key → model), `u` makes the
+  highlighted provider this project's default, `d` deletes it.
   Additional CLIs and model profiles are declared in `providers.catalog`; ATL
   passes the same role prompt to their configured command and arguments.
 - `s` **sessions** — the provider session logs under
-  `.trust/manager/overnight/<task>/`.
+  `.trust/manager/overnight/<task>/`; `Enter` opens one at the latest output
+  (Home/End jump to the top/tail).
+- `Q` **execution queue** — every queued task with its live gate state, role,
+  provider, and model; `d` removes the highlighted task, `l` continues to the
+  launch preview. The plan rebuilds itself while the screen is open.
+- `L` **logs** — one chronological stream of everything the room did:
+  `state.json` decisions (transitions, evidence, worker start/exit, marked ⚙)
+  merged with `feed.jsonl` narration. It follows the latest entry by default
+  (`End` re-follows, `F` toggles), scrolls back through history, and is
+  reachable from any screen — including mid-run — with `Esc` returning to
+  where you were.
 
 The run screen intentionally does not stream the provider's raw prompt or
-model transcript into your terminal. It shows a compact timeline (current
-task, role, provider, workspace, phase, exit, and next gate); the complete
-provider output remains in the transcript shown by `s` or `atl feed`.
+model transcript into your terminal. It shows the bounded run's state instead:
+total elapsed time, the current task with session `n/max` and its elapsed
+time, the phase, a QUEUE PROGRESS line per queued task (queued · running ·
+done · at gate · blocked · failed · skipped, with exit codes and reasons),
+and a short live tail of the active session log so the operator can see the
+provider working without leaving the run. `L` opens the full logs stream; the
+complete transcript remains available through `s` or `atl feed`.
 
 The CLI mirrors every screen:
 
@@ -202,14 +226,51 @@ atl queue add T-001 | remove T-001 | list | clear
 atl launch --dry-run      :: preview the queued run, no agent starts
 atl launch --confirm      :: run the queue: strictly sequential, one shared
                            :: time/session budget, per-role providers
-atl providers             :: PATH discovery + selected model + per-role mapping
+atl providers             :: your API providers (keys masked) + built-ins + per-role mapping
+atl provider templates    :: endpoint presets: zai, bigmodel, custom
+atl provider add zai --key <glm-key> --model glm-4.6
+atl provider use zai      :: project default (or: --role rowan for one role)
+atl provider key zai --key <new-key>
+atl provider remove zai
 atl provider models --provider codex
 atl provider set --provider codex --model gpt-5.6-luna
-atl provider set --role rowan --provider glm --model glm-4.6
+atl provider set --role rowan --provider claude --model glm-4.6
 atl provider clear --role rowan
 ```
 
-### Connect another CLI or model
+### Connect an API provider in one minute (GLM via Z.ai and friends)
+
+The usual way to point the team at a hosted model is a tangle of environment
+variables and config files. ATL replaces that with a per-machine provider
+registry at `~/.atl/providers.json` — a name, the worker CLI that runs it
+(`claude` for Anthropic-compatible endpoints, `codex` for OpenAI-compatible
+ones), the base URL, the API key, and a default model. Keys never live in a
+repository or in `.trust/` state; they are masked in every listing and
+injected into the worker's environment only at spawn time.
+
+```bat
+atl provider add zai --key <your-glm-api-key> --model glm-4.6
+atl provider use zai                    :: every role in this project
+atl provider use zai --role rowan       :: or just one role
+atl run T-004 --worker zai --confirm    :: or just one run
+```
+
+The `zai` and `bigmodel` templates prefill the Anthropic-compatible and
+OpenAI-compatible endpoints; `--worker codex` switches to the coding endpoint,
+and a managed `CODEX_HOME` (`~/.atl/codex/<id>/`) carries the provider config
+so your real `~/.codex/config.toml` is never touched. In the control room the
+same flow is a form: press `p`, then `a`, pick a template, paste the key,
+enter the model, `u` to make it the project default.
+
+Because a stored provider is api-key auth by definition, selecting it flips
+the session to `auth api` automatically — the subscription environment
+stripper stands down and the launch preview shows the resolved provider:
+
+```
+provider: claude   model: glm-4.6   auth: api  (user provider "zai")
+```
+
+### Connect another CLI or model (catalog)
 
 ATL does not assume that every model has its own native adapter. A catalog
 entry names the executable, optional model label, and the exact arguments that
@@ -288,11 +349,28 @@ Who may move what (enforced; the human `--actor manager` may always override):
 
 ### Recovering a blocked task
 
-Blocking is a safety stop, not a permanent failure. In `atl ui`, select the
-blocked task and press `u`. ATL asks for a short resolution note — for example,
-that the repository input is now present or that owner approval was granted.
-Submit that note, press `x` to queue the task, then `l` and `Enter` to run it.
-The CLI equivalent is:
+Blocking is a safety stop, not a permanent failure. First ask why — `atl why`
+prints the full, untruncated blocker text behind every active task plus the
+exact command that fixes it (`atl why T-001` for one task; `atl show` also
+points here whenever something is stopped at a gate):
+
+```bat
+atl why
+atl why T-001
+```
+
+If the blocker is an owner gate (the blocker text names approval), the human
+resolves it in one word. `atl approve` records the approval as durable
+evidence, clears the blocker through the audited
+`blocked → triaged → assigned` path, and queues the task:
+
+```bat
+atl approve T-005 --note "doc-only task, capped at 60 minutes and one session"
+atl launch --confirm
+```
+
+For any other blocker, select the blocked task in `atl ui` and press `u`, or
+use the CLI equivalent:
 
 ```bat
 atl unblock T-001 --to assigned --note "Repository snapshot is available; retrying the bounded install checks."
@@ -303,7 +381,8 @@ atl launch --confirm
 If the blocker names a missing or stale workspace, the next launch repairs it
 from the current project snapshot. ATL archives the old directory first; it
 does not delete it. Approval, credentials, deployment, and other human-owned
-gates still require an explicit human resolution note.
+gates still require an explicit human resolution note — `atl approve` is that
+note, recorded where audits can see it.
 
 ## Roles
 
@@ -356,12 +435,19 @@ The packet, `atl show`, review screen, and worker prompt all include these
 resources. This keeps screenshots, tickets, documents, and links attached to
 the task without pretending an external resource was verified or fetched.
 
-**GitHub issues.** In `config/manager.json` set `intake.github.enabled: true`
-and list repos (`owner/name`). Public repos work unauthenticated; private
-repos need `gh auth login` or `GITHUB_TOKEN`.
+**GitHub issues.** Enable from the CLI:
+`atl intake enable github --repo owner/name` (comma-separate several, or
+re-run to add more). The command probes every configured repo through the
+same gh-CLI → REST path intake uses, and refuses to write the config when a
+repo 404s — the usual private-repo-without-auth case — printing the fix
+instead (`gh auth login` or `GITHUB_TOKEN`; `--force` skips the probe,
+`--remove owner/name` drops a stale repo, `atl intake disable github` turns
+the source off). `atl intake status` shows every source's enabled state and
+auth readiness. Public repos work unauthenticated.
 
-**Azure Boards (self-hosted Azure DevOps Server works).** Set
-`intake.azure.enabled: true`, provide a PAT with *Work Items: Read* in the
+**Azure Boards (self-hosted Azure DevOps Server works).** Run
+`atl intake enable azure` (it refuses until the token exists, or use
+`--force`), provide a PAT with *Work Items: Read* in the
 `AZDO_PAT` environment variable, and set `iteration_path` to the sprint
 (e.g. `Middleware-and-Portals\Sprint 73`). The adapter queries the iteration
 by WIQL and pulls title/state/type/priority/assigned-to.

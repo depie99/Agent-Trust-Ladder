@@ -24,9 +24,9 @@ source_of_truth:
   config: config/manager.json + config/manager-state-contract.json
 
 verified_against: >-
-  working tree 2026-10-21 — uncommitted wave (specs 005–014, docs-site UX
-  overhaul, spec 014 control room). Advance to the landing commit hash when
-  the tree is committed.
+  committed pre-test release point 2026-10-21 (db7bfd1 runtime+verification,
+  e6579fe skills, 7566d4b docs+specs 005–014+config); the same-day
+  owner-gates pass (atl why / atl approve) lands on top.
 
 last_sync:
   date: 2026-10-21
@@ -37,13 +37,28 @@ last_sync:
     team.html / USAGE.md / runtime/README.md / team-playbook.md, claude -p
     stdin shape in the playbook, repair of the orphaned team.html install
     fragment (stray </section> rendered junk between Install and First run).
+    Same-day UI feedback pass: control-room auto-refresh (~2s idle, 1s during
+    a run) with sync-age header, L logs screen (state decisions + feed in one
+    stream), Q execution-queue screen with live gate states, run-screen queue
+    progress + live session-log tail, sessions opening at the latest output —
+    synced into runtime/README.md, USAGE.md, team.html, control-room.html,
+    and the TUI help/footer text; verification/control_room_ui_test.mjs added.
+    Same-day owner-gates pass: new CLI commands `atl why [task-id]` (full
+    untruncated blocker text per active task + the exact fix command, and a
+    blocked-hint footer on the atl show portfolio) and `atl approve
+    <task-id> [--note …]` (owner approval recorded as durable evidence,
+    blocker cleared through blocked → triaged → assigned, task queued) —
+    synced into runtime/README.md (Recovering a blocked task), USAGE.md quick
+    start, team.html command table + troubleshooting row;
+    verification/recovery_test.mjs extended with approve/why coverage.
   checks: >-
     check_tags.py ALL OK (all pages balanced, 19 catalog cards);
     check_links.py clean except styles.css?v=5 query-string false positive
     (checker ignores cache-bust queries; docs/styles.css exists);
     stale-wording sweep of all doc surfaces returned zero hits;
     all documented commands executed for real in temp projects during the
-    spec 014 verification pass.
+    spec 014 verification pass; recovery_test.mjs green including the
+    approve/why paths; all 12 JS suites green after the owner-gates change.
 
 known_gaps:
   - docs/control-room.html is a new guide; its provider example intentionally leaves ZCode's exact flags to the local installation
