@@ -92,17 +92,22 @@ cd Agent-Trust-Ladder
 scripts\install-atl.cmd        # Windows    (macOS/Linux: ./scripts/install-atl.sh)
 ~~~
 
-Requires Node 18+. The installer copies the runtime to `~/.atl`, adds an **`atl`** command to your user PATH (`--no-path` to skip), and ships paste-ready role prompts. Then, in **any project**:
+Requires Node 18+. The installer copies the runtime and skills to the per-user install directory (`%USERPROFILE%\.atl` on Windows, `~/.atl` on macOS/Linux), adds an **`atl`** command to your user PATH (`--no-path` to skip), and ships paste-ready role prompts. The clone is only the installer source; do not copy it into every project. Then, in **any target project**:
 
 ~~~bash
 cd your-project
 atl init                 # scaffolds config + .trust/manager in THIS project
 # drop tasks into .trust/manager/inbox/*.md (or wire GitHub issues / Azure Boards in config/manager.json)
 atl intake               # new tasks appear, narrated by the bots
+atl ui                   # the control room: c compose · i import · v review · x queue · l launch preview
+atl launch --dry-run     # preview the queued run (provider, role, workspace, budget per task)
+atl launch --confirm     # start it: sequential, bounded, per-role providers (codex/claude CLI)
 atl feed --roster        # watch the team work
 ~~~
 
-To put an agent behind a bot, open a session in the project and paste the matching prompt from `~/.atl/runtime/prompts/` — the runner enforces the role contract no matter which agent is behind it. The installer auto-detects Codex CLI and Claude Code and installs the prompts as native slash commands (`/atl-mira`, `/atl-pip`, `/atl-rowan`, `/atl-sage`, `/atl-beacon`); the ATL *skills* install into Codex via `npx skills add depie99/Agent-Trust-Ladder -a codex` (Option A above). Update: re-run the installer. Uninstall: delete `~/.atl`, the wired prompt files (`~/.codex/prompts/atl-*.md`, `~/.claude/commands/atl-*.md`), and remove `~/.atl` from PATH. Full guide: [runtime/README.md](runtime/README.md).
+To put an agent behind a bot, open a session in the target project and paste the matching prompt from `~/.atl/runtime/prompts/` — the runner enforces the role contract no matter which agent is behind it. The installer auto-detects Codex CLI and Claude Code and installs the prompts as native slash commands (`/atl-mira`, `/atl-pip`, `/atl-rowan`, `/atl-sage`, `/atl-beacon`); the ATL *skills* install into Codex via `npx skills add depie99/Agent-Trust-Ladder -a codex` (Option A above). Update: re-run the installer. Uninstall: delete `~/.atl`, the wired prompt files (`~/.codex/prompts/atl-*.md`, `~/.claude/commands/atl-*.md`), and remove `~/.atl` from PATH. Full guide: [runtime/README.md](runtime/README.md).
+
+**Overnight and token boundary:** `atl init`, `show`, `wake`, `brief`, `feed`, and `validate` are local state operations. They do not spend model tokens. The named roles are not background processes: an AI session must remain open for model work to continue. ATL's bounded local runner uses `codex exec` or `claude -p`; it does not yet use `claude --cloud`. An open laptop alone will not make the bots work overnight. For Claude subscription usage, authenticate with `claude login` using the Pro/Max account, open Claude Code and confirm `/status`, then use `--auth subscription`; ATL removes known API/provider environment variables from the child and never falls back to API mode. Use `--auth api` only intentionally. Keep unattended work in an isolated workspace with explicit allowed/forbidden actions and a stop rule; do not permit unattended merge, deploy, policy, spending, or external messaging. Start the morning with `atl wake`, `atl brief --save`, `atl feed`, and an independent review. Jev and Mem0 graph memory are opt-in and may add network/model cost.
 
 ## 3. Use
 

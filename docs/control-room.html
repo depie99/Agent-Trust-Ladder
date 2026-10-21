@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="ATL Control Room guide: compose, import, review, queue, connect providers, and launch bounded agent sessions." />
+    <title>ATL Docs — Control Room</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="styles.css?v=5" />
+  </head>
+  <body class="site-page">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Documentation navigation">
+        <a class="brand brand-link" href="index.html"><div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div><div><strong>ATL</strong><small>Agent Trust Ladder</small></div></a>
+        <div class="sidebar-caption">Start</div>
+        <nav class="nav-list"><a class="nav-item" href="index.html"><span>⌂</span>Overview</a><a class="nav-item" href="index.html#quickstart"><span>→</span>Quickstart</a></nav>
+        <div class="sidebar-caption">Documentation</div>
+        <nav class="nav-list"><a class="nav-item" href="skills.html"><span>✦</span>Skills</a><a class="nav-item" href="guides.html"><span>▤</span>Guides</a><a class="nav-item active" href="control-room.html" aria-current="page"><span>▣</span>Control Room</a><a class="nav-item" href="team.html"><span>◉</span>Team</a><a class="nav-item" href="jev.html"><span>◌</span>Jev routing</a><a class="nav-item" href="reference.html"><span>⌘</span>Reference</a><a class="nav-item" href="diagrams.html"><span>⌁</span>Diagrams</a></nav>
+        <div class="sidebar-footer"><div class="status-dot"><i></i>Evidence-first mode</div><p>Smallest trustworthy route.<br />Clear proof at every gate.</p></div>
+      </aside>
+
+      <main id="main-content">
+        <header class="topbar"><div class="crumbs"><a href="index.html">ATL</a><b>/</b><span class="current">Control Room</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme">☼</button><button class="search-button" id="search-open" aria-label="Open search"><span>⌕</span> Search <kbd>⌘ K</kbd></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder" aria-label="Open the GitHub repository">GitHub <span>↗</span></a></div></header>
+        <div class="content-wrap">
+          <section class="page-hero"><span class="eyebrow"><span class="pulse"></span> TERMINAL CONTROL ROOM</span><h1>From idea<br /><em>to bounded run.</em></h1><p class="hero-copy">The terminal is the manager's room: write or import work, inspect the ATL packet, choose execution explicitly, and watch the evidence trail.</p></section>
+
+          <section class="guide-article" id="picture"><div class="article-label">01 · THE PICTURE</div><div class="article-body"><h2>One screen for the state, one gate for the run.</h2><p>The control room is readable in a static snapshot and navigable in a real TTY. The colored panels are a projection of <code>.trust/manager/state.json</code>, <code>feed.jsonl</code>, the persistent queue, and provider session logs.</p><figure class="terminal-figure"><img src="diagrams/atl-control-room.svg" alt="ATL Control Room terminal preview with a portfolio panel, lifecycle pipeline, selected task, live feed, provider badge, and keyboard controls" /><figcaption>Documentation preview of the ATL Control Room. The real terminal uses the same information architecture and keyboard route.</figcaption></figure></div></section>
+
+          <section class="guide-article" id="compose"><div class="article-label mint-label">02 · COMPOSE OR IMPORT</div><div class="article-body"><h2>Start with what you mean, not the task schema.</h2><p>Press <code>c</code> in <code>atl ui</code>. Choose the outcome and surface, describe the work naturally, and press <code>Ctrl+S</code>. ATL then shows a recommended packet with the title, objective hint, checks, route, worker, priority, risk, and resources. Nothing is persisted until you press <code>Enter</code> on that preview.</p><div class="steps-row"><div><b>01</b><strong>Shape</strong><span>Outcome + surface</span></div><div><b>02</b><strong>Describe</strong><span>Plain-language draft</span></div><div><b>03</b><strong>Preview</strong><span>Route + packet</span></div><div><b>04</b><strong>Create</strong><span>Human confirmation</span></div></div><p>Need existing work? Press <code>i</code> and choose the read-only file inbox, GitHub issues, or Azure Boards adapter. Markdown screenshots and links in those sources become packet resources; source systems are never written back by intake. In packet review, press <code>a</code> to attach a URL or local file.</p></div></section>
+
+          <section class="guide-article" id="execution"><div class="article-label amber-label">03 · REVIEW, QUEUE, LAUNCH</div><div class="article-body"><h2>Focus is not permission to execute.</h2><p>Keyboard focus only tells you what you are reading. Queue membership is a separate, persisted decision.</p><div class="review-matrix"><div><b><code>e / v</code> Edit</b><span>Set objective, completion checks, priority, risk, and route.</span></div><div><b><code>u</code> Resolve</b><span>Write what changed or what approval/input is now available; ATL records the note before reopening the task.</span></div><div><b><code>x</code> Queue</b><span>Add or remove the selected task from <code>queue.json</code>.</span></div><div><b><code>l</code> Preview</b><span>See role, provider, workspace, auth, budget, and blockers.</span></div><div><b><code>Enter / y</code> Run</b><span>Confirm the bounded queue run inside the control room.</span></div></div><div class="warning-box"><strong>Run is always gated.</strong><span>The confirmation screen is explicit; execution is sequential, bounded, and containment-blocks a missing or stalled provider. A blocked task is recoverable: press <code>u</code>, write the resolution, then <code>x</code>, <code>l</code>, and <code>Enter</code>. Stale project workspaces are archived and rebuilt from the current checkout snapshot.</span></div></div></section>
+
+          <section class="guide-article" id="providers"><div class="article-label coral-label">04 · PROVIDER REGISTRY</div><div class="article-body"><h2>Connect Codex, Claude, GLM, or your own local CLI.</h2><p>ATL roles and model providers are separate. Pip, Mira, Rowan, Sage, and Beacon are role contracts. A provider is the executable that receives the role prompt. The control room shows the effective provider, model, and auth for every role. Add custom profiles under <code>providers.catalog</code>.</p><pre><code>{
+  "providers": {
+    "default": "codex",
+    "auth": "subscription",
+    "model": "gpt-5.6-luna",
+    "by_role": { "rowan": "glm" },
+    "catalog": {
+      "glm": {
+        "command": "zcode",
+        "model": "glm-4.6",
+        "args": ["exec", "--model", "{model}", "--cwd", "{workspace}", "-"]
+      }
+    }
+  }
+}</code></pre><p>Use the exact non-interactive flags supported by your ZCode installation. ATL expands <code>{root}</code>, <code>{workspace}</code>, <code>{role}</code>, <code>{task_id}</code>, <code>{auth}</code>, <code>{model}</code>, and <code>{prompt}</code>. Use <code>"prompt_arg": "--prompt={prompt}"</code> when ZCode expects a prompt flag; otherwise include <code>-</code> in <code>args</code> and ATL sends the prompt through stdin.</p><pre><code>atl providers
+atl provider models --provider codex
+atl provider set --provider codex --model gpt-5.6-luna
+atl provider set --role rowan --provider glm --model glm-4.6
+atl launch --dry-run --worker codex --model gpt-5.6-luna</code></pre><p>Verify the executable and selected model with <code>atl providers</code>, inspect the exact command with <code>atl launch --dry-run</code>, and only then confirm.</p></div></section>
+
+          <section class="callout-panel"><div><span class="section-kicker">TERMINAL QUICKSTART</span><h2>Open the room.</h2><p><code>atl ui</code> is interactive. Use <code>atl ui --once --plain</code> for a readable, read-only snapshot in logs or CI.</p></div><a class="button primary" href="guides.html">Read the guides <span>↗</span></a></section>
+        </div>
+      </main>
+    </div>
+    <dialog id="search-dialog"><form method="dialog"><div class="search-modal"><input id="search-input" type="search" placeholder="Search ATL docs…" aria-label="Search ATL docs" /><button value="close" aria-label="Close search">Esc</button><p>Try “control room”, “providers”, “queue”, or “dry-run”.</p><div id="search-results" class="search-results" aria-live="polite"></div></div></form></dialog>
+    <script src="app.js?v=6"></script>
+  </body>
+</html>

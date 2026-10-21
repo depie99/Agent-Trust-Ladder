@@ -4,7 +4,13 @@
 .trust/manager/state.json.tmp
 .trust/manager/feed.jsonl
 .trust/manager/briefs/
+.trust/manager/learning.json
+.trust/manager/overnight/
+.trust/manager/attachments/
 
 # Generated review handoffs are local artifacts, not repository source.
 .atl/tasks/
 .humanlayer/
+
+# Per-user install state created by local runs must never land in the repo.
+.atl/project.json

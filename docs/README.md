@@ -12,6 +12,10 @@ The public site also documents ATL's model-routing loop: route by capability, re
 
 It also documents **manager mode**: the human stays at the portfolio level while named digital colleagues own bounded missions, report status and evidence, and leave a concise morning brief after unattended work.
 
+The Jev guide is available as [Markdown](jev.md) and a [published documentation page](jev.html). It documents the optional `route --smart` and `triage --smart` commands, prompt shape, confidence thresholds, deterministic fallback, setup, and token policy.
+
+The terminal Control Room guide is available as [Control Room](control-room.html). It documents the interactive compose/import/review/queue/launch path, the provider registry for Codex, Claude, GLM/ZCode-style CLIs, and the [Control Room visual](diagrams/atl-control-room.svg).
+
 The launch announcement draft is in [linkedin-launch-post.md](linkedin-launch-post.md). It is intentionally kept beside the docs site so the public story can stay aligned with the actual workflow and evidence model.
 
 ## Diagram workflow rule

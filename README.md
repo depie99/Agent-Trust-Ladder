@@ -1,6 +1,6 @@
 # Agent Trust Ladder
 
-A spec-first, evidence-gated **operator** for AI coding agents — packaged as one smart control plane, one lifecycle router, and eleven independently invocable workflow skills.
+A spec-first, evidence-gated **operator** for AI coding agents — packaged as one smart control plane, one lifecycle router, and nineteen independently invocable workflow skills.
 
 It answers the question every team now has: agents execute faster than humans can verify. So every stage of work here produces **evidence**, and autonomy is earned per task class — never assumed.
 
@@ -25,14 +25,14 @@ bootstrap → frame → specify → plan → implement → verify → trust
 
 | | Spec Kit | Discipline skills (grill / TDD style) | **Agent Trust Ladder** |
 |---|---|---|---|
-| Entry point | Full pipeline from `/specify` | One discipline at a time | **9 workflow entry points — jump in wherever you are** |
+| Entry point | Full pipeline from `/specify` | One discipline at a time | **19 workflow entry points — jump in wherever you are** |
 | Small tasks | Heavy ceremony | Fine | **Dose control: Direct / Standard / Critical** |
 | Existing projects | Painful retrofit | Not its concern | **`bootstrap` maps real rules, invents nothing** |
-| Reviewing a big agent diff | Not covered | Generic review | **`audit` → five-question trust verdict** |
+| Reviewing a big agent diff | Not covered | Generic review | **`audit` → six-question trust verdict** |
 | Autonomy governance | None | None | **L0–L7 ladder, per task class, with gates** |
 | Context cost | Loads everything | One skill each | **One mode per invocation, references on demand** |
 
-The spine is the **Trust Verdict** — five questions with evidence attached: *What changed? Why? What could break? Downstream impact? Objective achieved?*
+The spine is the **Trust Verdict** — six questions with evidence attached: *What changed? Why? What could break? Downstream impact? Objective achieved? Which boundary contracts were directly observed, and which remain inferred?*
 
 ## One smart entry point
 
@@ -66,6 +66,12 @@ Before material work it shows a compact Workflow Manifest: outcome, observed pro
 The manager now reads `config/skill-routing.json` during intake and triage. Pip records the best local specialist match—such as `atl-content-quality`, `atl-tech-docs`, `atl-diagrams`, `atl-ui-review`, or `atl-implement`—and proposes Rowan as the implementation owner. Mira still assigns workers, Sage reviews independently, and Beacon verifies the result.
 
 Inspect a task route with `node runtime\\atl-manager.mjs route T-001`. The repository also ships as an npm package with the `atl` CLI and the `./team` capability export; package metadata is a distribution boundary, not a replacement for the runtime trust gates.
+
+Jev is an optional decision aid for routing. Enable it in `config/jev.json`, set `TYPESAFE_API_KEY`, and run `node runtime\\atl-manager.mjs route T-001 --smart` or `node runtime\\atl-manager.mjs triage T-001 --smart`. You prompt it indirectly by writing a clear ATL task title/objective; ATL sends only those fields, labels, and the fixed available route choices. It returns one typed choice and confidence. Low confidence, timeout, missing-key, invalid-choice, and API failures fall back to deterministic routing. Read the complete [Jev guide](docs/jev.md), including prompt examples and token policy. No Jev SDK dependency is added.
+
+ATL also keeps a small local learning journal at `.trust/manager/learning.json`. Record explicit preferences and lessons with `node runtime\\atl-manager.mjs memory learn style "Prefer concise explanations with direct evidence."` or `memory learn lesson "Do not add third-party directories to the repository."`; triage recalls matching lessons, and verified task outcomes are recorded automatically. It is inspectable, bounded, and advisory—never a replacement for policy, state, or evidence.
+
+Keep verification infrastructure healthy with `python scripts\\maintain_verification_skill.py`; it checks the local verification skill, manager contract, baseline models, and mutation controls. For independent perf or regression samples, the team may split disjoint verifier runs, but ATL records the commands and evidence rather than treating “swarm passed” as a substitute for a trust verdict.
 
 ### You only need to bring the problem
 
@@ -149,15 +155,18 @@ $atl-trust docs_and_examples
 | `$atl-specify` | specify | Observable behavior + acceptance examples; human intent gate |
 | `$atl-plan` | plan | Impact analysis, pre-mortem, tasks each with its verifier command |
 | `$atl-implement` | implement | Self-correcting loop, repair budgets, hard lines against green-washing |
-| `$atl-verify` | verify | Evidence + the five-question Trust Verdict |
+| `$atl-verify` | verify | Evidence + the six-question Trust Verdict |
 | `$atl-audit` | audit | Read-only verdict on an existing diff/PR/session |
 | `$atl-ui-review` | UI review and repair | Runtime inspection across visual, interaction, responsive, accessibility, and state quality |
+| `$atl-diagrams` | diagrams | Create and keep architecture, flow, lifecycle, and dependency diagrams aligned with the code they explain |
 | `$atl-adr` | architecture decision record | Decide whether a durable architecture decision needs a record; capture alternatives, consequences, lifecycle, and fitness evidence |
 | `$atl-tech-docs` | technical documentation | Create or update docs from audience and source-of-truth contracts; verify examples, links, style, and freshness |
 | `$atl-content-quality` | SEO and site content | Audit search/content quality or write bounded factual copy with evidence and explicit unknowns |
 | `$atl-trust` | trust | L0–L7 advancement gate per task class |
 | `$atl-formal-verification` | formal verification authoring | Create a project-local proof/model skill, executable suite, mutation check, and honest scope |
 | `$atl-team` | team orchestration | Coordinate bounded parallel agents through ownership, contracts, integration, and evidence |
+| `$atl-maintain-verification` | verification maintenance | Keep the verification skill, contract mapping, baseline checks, and mutation checks healthy after verification-related changes |
+| `$atl-verify-atl-manager-lifecycle` | manager lifecycle model | Verify manager state transitions and evidence gates when `runtime/lib/state.mjs` or lifecycle behavior changes |
 
 ### Model routing
 
@@ -178,7 +187,7 @@ Configure exact accessible models in [`config/model-routing.json`](config/model-
 
 ### Manager mode
 
-You are the manager of the digital team. ATL gives each colleague a bounded mission, role, status, checkpoint, and evidence trail while you stay at the portfolio level: priorities, decisions, blockers, risks, and outcomes. For unattended work, use `$atl-team` with an explicit `Complete when`, allowed/forbidden actions, workspace, checks, wake condition, stop rule, and morning brief. Time alone is never a finish condition.
+You are the manager of the digital team. ATL gives each colleague a bounded mission, role, status, checkpoint, and evidence trail while you stay at the portfolio level: priorities, decisions, blockers, risks, and outcomes. The terminal control room (`atl ui`) is where work starts: compose or import tasks in plain language, review each packet, queue what may execute, and preview the provider plan before `atl launch --confirm` dispatches bounded sequential sessions. For unattended work, use `$atl-team` with an explicit `Complete when`, allowed/forbidden actions, workspace, checks, wake condition, stop rule, and morning brief. Time alone is never a finish condition.
 
 The default roster is **Mira** (coordinator), **Pip** (triage), **Rowan** (builder), **Sage** (reviewer), and **Beacon** (verifier/night watch). They are friendly names over strict role contracts, not pretend personalities or hidden capabilities.
 
