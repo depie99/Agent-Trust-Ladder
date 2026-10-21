@@ -19,7 +19,7 @@ const config = {
 };
 
 const profile = providerProfile(config);
-assert.deepEqual(providerForRole(profile, "rowan"), { worker: "glm", auth: "subscription", model: "glm-4.6", source: "default" });
+assert.deepEqual(providerForRole(profile, "rowan"), { worker: "glm", auth: "subscription", model: "glm-4.6", source: "project default" });
 assert.deepEqual(providerForRole(profile, "sage"), { worker: "claude", auth: "subscription", model: null, source: "role-override" });
 assert.ok(providerNames(config).includes("glm"), "custom catalog providers appear in discovery and UI lists");
 assert.equal(providerSpec(profile, "glm").model, "glm-4.6");

@@ -155,6 +155,15 @@ export function intakeFromFiles(cfg) {
 
 // ---------- adapter: GitHub issues
 
+// `owner/name` from "https://github.com/owner/name.git", "owner/name/issues", …
+export function normalizeGitHubRepo(entry) {
+  return String(entry || "").trim()
+    .replace(/^https:\/\/github\.com\//i, "")
+    .replace(/\.git$/i, "")
+    .replace(/\/issues$/i, "")
+    .replace(/\/+$/, "");
+}
+
 async function ghCliList(repo) {
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
@@ -194,7 +203,7 @@ async function ghRestList(repo) {
 export async function intakeFromGitHub(ghCfg) {
   const out = [];
   for (const entry of ghCfg.repos || []) {
-    const repo = entry.replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/issues$/, "");
+    const repo = normalizeGitHubRepo(entry);
     let issues;
     try {
       issues = await ghCliList(repo);
@@ -216,6 +225,35 @@ export async function intakeFromGitHub(ghCfg) {
     }
   }
   return out;
+}
+
+export async function ghCliAuthenticated() {
+  try {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    await promisify(execFile)("gh", ["auth", "status"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Live reachability probe used by `atl intake enable github` so a private-repo
+// 404 surfaces at enable time with the fix, not at intake time. Walks the same
+// gh-CLI-then-REST path the adapter itself uses.
+export async function probeGitHubRepo(repo) {
+  const auth = { gh_cli: await ghCliAuthenticated(), token: Boolean(process.env.GITHUB_TOKEN) };
+  try {
+    const issues = await ghCliList(repo);
+    return { ok: true, via: "gh cli", open_issues: issues.length, ...auth };
+  } catch {
+    try {
+      const issues = await ghRestList(repo);
+      return { ok: true, via: auth.token ? "GITHUB_TOKEN" : "anonymous (public repo)", open_issues: issues.length, ...auth };
+    } catch (err) {
+      return { ok: false, error: err.message, ...auth };
+    }
+  }
 }
 
 // ---------- adapter: Azure Boards (self-hosted Azure DevOps Server compatible)

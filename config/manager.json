@@ -15,7 +15,8 @@
     "model": "gpt-5.6-luna",
     "by_role": {},
     "catalog": {},
-    "note": "spec 014 launch boundary: per-role override, e.g. \"by_role\": { \"sage\": \"claude\" }; custom CLIs/models live under catalog. Discovery validates PATH before any preview/launch; a missing executable blocks the run with an actionable message."
+    "note": "spec 014 launch boundary: per-role override, e.g. \"by_role\": { \"sage\": \"claude\" }; custom CLIs/models live under catalog. Discovery validates PATH before any preview/launch; a missing executable blocks the run with an actionable message.",
+    "model_by_role": {}
   },
   "memory": {
     "provider": "none",

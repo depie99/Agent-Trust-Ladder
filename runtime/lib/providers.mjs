@@ -5,6 +5,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { loadUserProviders } from "./userProviders.mjs";
 
 export const KNOWN_PROVIDERS = ["codex", "claude"];
 
@@ -87,11 +88,16 @@ export function discoverProvider(name, { env = process.env, platform = process.p
   };
 }
 
-// Normalize the optional `providers` section of config/manager.json.
+// Normalize the optional `providers` section of config/manager.json and merge
+// in the user's provider registry (~/.atl/providers.json). Registry ids can be
+// selected exactly like built-in workers: providers.use (project default),
+// providers.by_role (per role), or --provider on the CLI.
 export function providerProfile(config = {}) {
   const p = config.providers || {};
   const defaultWorker = String(p.default || "codex").toLowerCase();
   const auth = String(p.auth || "subscription").toLowerCase();
+  const use = p.use ? String(p.use).toLowerCase() : null;
+  const userProviders = loadUserProviders().providers;
   const defaultModel = p.model ? String(p.model) : (defaultWorker === "codex" ? localDefaultModel("codex") : null);
   const byRole = {};
   for (const [role, worker] of Object.entries(p.by_role || {})) {
@@ -115,18 +121,38 @@ export function providerProfile(config = {}) {
       unsetEnv: Array.isArray(entry.unset_env) ? entry.unset_env.map(String) : [],
     };
   }
-  return { defaultWorker, defaultModel, auth, byRole, modelByRole, catalog, raw: p };
+  return { defaultWorker, defaultModel, auth, use, userProviders, byRole, modelByRole, catalog, raw: p };
 }
 
 export function providerNames(config = {}) {
   const profile = config.defaultWorker && config.catalog ? config : providerProfile(config);
-  const names = [...KNOWN_PROVIDERS, ...Object.keys(profile.catalog || {}), profile.defaultWorker, ...Object.values(profile.byRole || {})];
+  const names = [
+    ...KNOWN_PROVIDERS,
+    ...Object.keys(profile.userProviders || {}),
+    ...Object.keys(profile.catalog || {}),
+    profile.defaultWorker,
+    ...Object.values(profile.byRole || {}),
+  ];
   return [...new Set(names.map((name) => String(name).toLowerCase()).filter(Boolean))];
 }
 
 export function providerSpec(profile, worker) {
-  const p = profile?.catalog?.[String(worker || "").toLowerCase()];
   const id = String(worker || "").toLowerCase();
+  const entry = profile?.userProviders?.[id];
+  // A registry id resolves to its underlying worker CLI for discovery, while
+  // keeping the registry's model/auth so previews and launches agree.
+  if (entry) {
+    return {
+      command: entry.worker || "claude",
+      args: null,
+      model: entry.model || null,
+      models: Array.isArray(entry.models) ? entry.models : [],
+      auth: "api",
+      unsetEnv: [],
+      userProvider: entry,
+    };
+  }
+  const p = profile?.catalog?.[id];
   return p || {
     command: id,
     args: null,
@@ -138,13 +164,27 @@ export function providerSpec(profile, worker) {
 }
 
 // Resolve one role to a concrete provider. `source` records why (audit trail
-// for the launch preview): "role-override" or "default".
+// for the launch preview): "role-override", "project default", or
+// `user provider "<id>"`.
 export function providerForRole(profile, role) {
   const r = String(role || "").toLowerCase();
   const override = profile.byRole[r];
+  const registry = profile.userProviders || {};
+  const chosenId = override || profile.use || null;
+  const entry = chosenId ? registry[chosenId] : null;
+  if (entry) {
+    const model = profile.modelOverride || profile.modelByRole[r] || entry.model || null;
+    return {
+      worker: entry.worker || "claude",
+      auth: "api",
+      model,
+      source: `user provider "${chosenId}"`,
+      userProvider: { id: chosenId, ...entry },
+    };
+  }
   const authFor = (worker) => profile.authOverride || providerSpec(profile, worker).auth;
   const worker = override || profile.defaultWorker;
-  const source = override ? "role-override" : "default";
+  const source = override ? "role-override" : "project default";
   const model = profile.modelOverride || profile.modelByRole[r] || providerSpec(profile, worker).model || null;
   return { worker, auth: authFor(worker), model, source };
 }
