@@ -23,10 +23,19 @@ import { IntakeError, runIntake } from "./lib/intake.mjs";
 import { WorkspaceError, ensureWorkspace } from "./lib/workspace.mjs";
 import { renderBrief, renderTask, wakeActions, saveBrief, activeTasks } from "./lib/render.mjs";
 import { post as feedPost, renderFeed, renderRoster } from "./lib/feed.mjs";
+import { runDashboard } from "./lib/dashboard.mjs";
 import { buildShowMe, saveShowMe } from "./lib/show-me.mjs";
 import { saveVisualPrDescription } from "./lib/visual-pr.mjs";
 import { memoryStatus, safeRecall, safeRemember } from "./lib/memory.mjs";
-import { bundledRoot, formatRoute, isSkillAvailable, routeTask } from "./lib/skill-router.mjs";
+import { forgetLocal, learnLocal } from "./lib/learning.mjs";
+import { bundledRoot, formatRoute, isSkillAvailable, routeTaskWithJev } from "./lib/skill-router.mjs";
+import { assertWorkerAuth, isTerminal, nextRole, queueSelect, workerEnvPolicy } from "./lib/worker.mjs";
+import { applyDeterministicRoute, composeTask, importCandidates } from "./lib/composer.mjs";
+import { queueAdd, queueClear, queueIds, queueRemove, loadQueue } from "./lib/queue.mjs";
+import { buildLaunchPlan, containmentBlock, driveTaskUntilGate, executeLaunchQueue } from "./lib/launch.mjs";
+import { discoverProvider, localDefaultModel, providerForRole, providerModels, providerNames, providerProfile, providerSpec } from "./lib/providers.mjs";
+import { unblockTask } from "./lib/recovery.mjs";
+import { addResourceToTask } from "./lib/resources.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
@@ -52,7 +61,7 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title")) continue;
+  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("max-minutes") || eat("max-sessions") || eat("confirm") || eat("dry-run")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -69,7 +78,10 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--evidence-fail") { flags.fail.push(argv[++i]); continue; }
   if (a === "--note") { flags.note.push(argv[++i]); continue; }
   if (a === "--review") { flags.review.push(argv[++i]); continue; }
+  if (a === "--once") { flags.once = true; continue; }
+  if (a === "--plain") { flags.plain = true; continue; }
   if (a === "--force") { flags.force = true; continue; }
+  if (a === "--all") { flags.all = true; continue; }
   pos.push(a);
 }
 
@@ -95,21 +107,47 @@ Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   assign <id> --to <worker> --actor mira
   workspace <id>                create the isolated worktree/clone
   block <id> --reason "..." [--wake-in 2h] --actor <role>
+  unblock <id> [--to triaged|assigned] [--note "..."]
+  resource <id> <url-or-path> [--label "..."] [--caption "..."]
   escalate <id> --reason "..." --actor <role>
 
 Manager view
   wake                          the wake loop: what Mira should do next
   brief [--save]                Mira's manager brief
+  dashboard [--once] [--plain]  interactive control room; --once is a static snapshot (alias: ui)
+
+Control room (spec 014 — compose/import/review/queue/preview/launch)
+  compose [--title "..."] "<body text>" [--check "..."]...
+                                save an immutable raw draft + create a new candidate (idempotent by content)
+  queue [add <id> | remove <id> | list | clear]
+                                the persistent execution queue — separate from keyboard focus
+  launch [--dry-run] [--confirm] [--worker id] [--model model] [--max-minutes m] [--max-sessions n]
+                                preview, then run the queued tasks sequentially with per-role providers
+  providers                     provider availability, selected model, and per-role mapping
+  provider list                 same as providers
+  provider models [--provider id]
+                                list known models for a provider (when available)
+  provider set --provider id [--model model] [--role role] [--auth mode]
+                                persist the default or per-role provider/model selection
+  provider clear --role role    remove a per-role provider override
   show [task-id]                portfolio or one task
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
   memory recall "query"         retrieve advisory project memory
   memory remember "fact"        store an explicitly supplied advisory memory
+  memory learn <kind> "text"    store a preference, style, prompt, lesson, or outcome
+  memory forget <id>             remove one local learning entry
   show-me [task-id] [--save]     render a structural handoff outline
   visual-pr [--title "..."]      write a reviewer-ready PR description
-  route <task-id>                inspect and persist the selected specialist skills
+  route <task-id> [--smart]      inspect and persist the route; --smart opts into one Jev decision
   role <mira|pip|rowan|sage|beacon>   print the role contract a session must adopt
+  run <task-id> --worker <provider-id> [--model model] [--auth subscription|api] [--confirm]
+                                run one bounded role session
+  overnight [<task-id> | --all] --worker <provider-id> [--model model] [--auth subscription|api] --confirm
+                                run bounded role sessions until a gate or budget stops it;
+                                with --all, take the whole active queue in priority order,
+                                block stalled tasks and move on, end with a saved brief
   validate                      sanity-check config + state
 `.trim();
 }
@@ -136,18 +174,24 @@ function loadConfig() {
   return JSON.parse(fs.readFileSync(P.config, "utf8"));
 }
 
-function applySkillRoute(task) {
-  const route = routeTask(ROOT, {
+async function applySkillRoute(task, { smart = false } = {}) {
+  if (!smart) return applyDeterministicRoute(ROOT, task);
+  const route = await routeTaskWithJev(ROOT, {
     title: task.title,
     objective: [task.objective, task.objective_hint].filter(Boolean).join(" "),
     labels: task.labels,
     source: task.source,
-  });
+  }, { config: loadJevConfig() });
   task.selected_skills = route.selected_skills;
   task.proposed_worker = route.proposed_worker;
   task.skill_route = route;
   task.decision_log.push({ at: new Date().toISOString(), route: route.source, skills: route.selected_skills });
   return route;
+}
+
+function loadJevConfig() {
+  const file = path.join(ROOT, "config", "jev.json");
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
 }
 
 // Narration: after any successful mutation, the acting bot speaks in the feed.
@@ -179,35 +223,8 @@ function narrateMove(task, from, to, actor, note) {
   }
 }
 
-// Routines: Mira's routing policy declared in advance.
-function matchRoutine(routines, cand) {
-  for (const r of routines || []) {
-    const w = r.when || {};
-    if (w.source && cand.source.type !== w.source) continue;
-    if (w.keyword) {
-      const hay = `${cand.title} ${cand.objective_hint || ""}`.toLowerCase();
-      if (!hay.includes(String(w.keyword).toLowerCase())) continue;
-    }
-    if (w.label && !(cand.labels || []).some((l) => String(l).toLowerCase() === String(w.label).toLowerCase())) continue;
-    if (w.type && !cand.title.toLowerCase().startsWith(String(w.type).toLowerCase())) continue;
-    return r;
-  }
-  return null;
-}
-
-function applyRoutine(task, routine) {
-  const then = routine.then || {};
-  if (then.priority) task.priority = then.priority;
-  if (then.risk) {
-    task.risk = then.risk === "risky" ? "risky" : "normal";
-    if (task.risk === "risky") task.review_required = true;
-  }
-  if (then.assign_to) {
-    task.assigned_worker = then.assign_to;
-    task.auto_route = routine.name; // the runner kicks the worker as soon as triage lands
-  }
-  task.decision_log.push({ at: new Date().toISOString(), rule: `routine:${routine.name}` });
-}
+// Routines: Mira's routing policy declared in advance. (Match/apply live in
+// lib/composer.mjs so `atl intake` and the control-room composer share them.)
 
 function defaultConfig() {
   return {
@@ -216,6 +233,14 @@ function defaultConfig() {
     briefs_dir: ".trust/manager/briefs",
     budgets: { max_attempts: 3, stale_after_hours: 24, max_active_tasks: 5 },
     routines: [],
+    providers: {
+      default: "codex",
+      auth: "subscription",
+      model: localDefaultModel("codex"),
+      by_role: {},
+      catalog: {},
+      note: 'per-role override, e.g. "by_role": { "sage": "claude" }; custom CLIs/models live under catalog; a missing executable blocks a launch with an actionable message',
+    },
     memory: {
       provider: "none",
       project_id: "",
@@ -271,6 +296,218 @@ const resolveWake = (v) => {
   return d.toISOString();
 };
 
+// driveTaskUntilGate lives in lib/launch.mjs (spec 014): one owner for every
+// provider spawn, shared by `run`, `overnight`, and the control-room queue.
+
+function parseWorkerFlags({ overnight }) {
+  const dryRun = flags["dry-run"] === true;
+  if (!dryRun && flags.confirm !== true) {
+    throw new StateError(`${overnight ? "overnight" : "run"} requires --confirm; use --dry-run to preview without starting an agent`);
+  }
+  const profile = providerProfile(loadConfig());
+  const worker = String(flags.worker || profile.defaultWorker).toLowerCase();
+  const auth = String(flags.auth || profile.auth).toLowerCase();
+  assertWorkerAuth(worker, auth);
+  const envPolicy = workerEnvPolicy(worker, auth);
+  const provider = {
+    ...providerSpec(profile, worker),
+    ...(flags.model ? { model: String(flags.model) } : {}),
+    auth: flags.auth ? auth : providerSpec(profile, worker).auth,
+  };
+  const maxMinutes = Number(flags["max-minutes"] || (overnight ? 120 : 60));
+  const maxSessions = Number(flags["max-sessions"] || (overnight ? 5 : 1));
+  if (!Number.isFinite(maxMinutes) || maxMinutes <= 0 || maxMinutes > 24 * 60) {
+    throw new StateError(`--max-minutes must be between 1 and ${24 * 60}`);
+  }
+  if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 20) {
+    throw new StateError("--max-sessions must be an integer between 1 and 20");
+  }
+  return { dryRun, worker, auth: provider.auth || auth, envPolicy, provider, maxMinutes, maxSessions };
+}
+
+async function runWorkerLoop(taskId, { overnight }) {
+  if (!taskId) throw new StateError(`${overnight ? "overnight" : "run"} needs a task id`);
+  const opts = parseWorkerFlags({ overnight });
+  const budget = { sessions: 0, maxSessions: opts.maxSessions, deadline: Date.now() + opts.maxMinutes * 60 * 1000 };
+  console.log(`${opts.dryRun ? "Previewing" : "Starting"} ${overnight ? "overnight" : "one-shot"} ATL run for ${taskId}`);
+  console.log(`  provider: ${opts.worker}   model: ${opts.provider.model || "provider default"}   max time: ${opts.maxMinutes}m   max sessions: ${opts.maxSessions}`);
+  if (opts.envPolicy.stripped.length) {
+    console.log(`  subscription safety: child will not receive ${opts.envPolicy.stripped.join(", ")}`);
+  }
+
+  const outcome = await driveTaskUntilGate(ROOT, taskId, budget, {
+    overnight,
+    dryRun: opts.dryRun,
+    resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider }),
+  }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
+
+  const finalState = loadState(ROOT);
+  const finalTask = finalState.tasks[taskId];
+  console.log(`\nRun stopped after ${budget.sessions} session(s): ${taskId} is ${finalTask?.status || "unknown"}.`);
+  console.log(`Reason: ${outcome.reason}.`);
+  console.log("Next: atl wake && atl brief --save && atl show " + taskId);
+}
+
+// `overnight --all`: the autonomous queue. Takes every active task in
+// priority order and drives each through the role pipeline with real bounded
+// sessions. One stalled or failed task is recorded (blocked) and the queue
+// moves on — the run stops only on its budget. Ends with a saved brief.
+async function runQueueLoop({ overnight }) {
+  if (!overnight) throw new StateError("--all is only available on overnight");
+  const opts = parseWorkerFlags({ overnight });
+  const budget = { sessions: 0, maxSessions: opts.maxSessions, deadline: Date.now() + opts.maxMinutes * 60 * 1000 };
+
+  const state = loadState(ROOT);
+  const queue = queueSelect(Object.values(state.tasks));
+  console.log(`${opts.dryRun ? "Previewing" : "Starting"} overnight queue run — ${queue.length} active task(s)`);
+  console.log(`  provider: ${opts.worker}   model: ${opts.provider.model || "provider default"}   max time: ${opts.maxMinutes}m   max sessions: ${opts.maxSessions}`);
+  if (opts.envPolicy.stripped.length) {
+    console.log(`  subscription safety: child will not receive ${opts.envPolicy.stripped.join(", ")}`);
+  }
+  if (!queue.length) {
+    console.log("Queue is empty. Drop task files into the inbox, then: atl intake");
+    return;
+  }
+  for (const t of queue) {
+    const role = nextRole(t) || "-";
+    console.log(`  ${t.id}  [${t.priority || "normal"}]  ${t.status} -> ${role}  ${t.title}`);
+  }
+  if (opts.dryRun) {
+    console.log("  dry-run: no agent started.");
+    return;
+  }
+
+  const results = [];
+  for (const queued of queue) {
+    if (budget.sessions >= budget.maxSessions || Date.now() >= budget.deadline) {
+      results.push({ id: queued.id, status: "queued", reason: budget.sessions >= budget.maxSessions ? "not reached: session budget exhausted" : "not reached: time budget exhausted" });
+      continue;
+    }
+    const fresh = loadState(ROOT).tasks[queued.id];
+    if (!fresh || isTerminal(fresh.status)) {
+      results.push({ id: queued.id, status: fresh?.status || "unknown", reason: "skipped: already settled" });
+      continue;
+    }
+    say("runner", `queue: taking ${fresh.id} — ${fresh.title}`, { task: fresh.id });
+    const outcome = await driveTaskUntilGate(ROOT, fresh.id, budget, {
+      overnight: true,
+      dryRun: false,
+      resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider }),
+    }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
+    results.push({ id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason });
+    if (outcome.failed || outcome.stalled) {
+      // Autonomy means moving on: record the blocker honestly, take the next task.
+      const s = loadState(ROOT);
+      if (containmentBlock(s, fresh.id, outcome.reason)) {
+        saveState(ROOT, s);
+        say("runner", `${fresh.id} blocked by the runner: ${outcome.reason}. taking the next task.`, { task: fresh.id });
+      }
+    }
+  }
+
+  const after = loadState(ROOT);
+  saveBrief(ROOT, renderBrief(after));
+  say("runner", "queue run finished — morning brief saved.");
+  console.log(`\nQueue run finished after ${budget.sessions} session(s). Results:`);
+  for (const r of results) console.log(`  ${String(r.id).padEnd(6)} ${String(r.status).padEnd(12)} ${r.reason}`);
+  console.log("\nMorning report: atl brief   ·   transcript: atl feed --roster   ·   per task: atl show <id>");
+}
+
+function printLaunchPlan(plan) {
+  if (!plan.items.length) {
+    console.log("The execution queue is empty. Select work with `atl queue add <id>` (or `x` in atl ui).");
+    return;
+  }
+  console.log(`Launch plan — ${plan.items.length} queued task(s): ${plan.readyCount} ready, ${plan.blockedCount} blocked · strictly sequential`);
+  console.log(`  budget: ${plan.budget.maxMinutes}m total, ${plan.budget.maxSessions} session(s) max · stored in .trust/manager/queue.json`);
+  for (const item of plan.items) {
+    console.log(`\n  ${item.taskId} [${item.status} → ${item.role || "-"}] (${item.priority}) ${item.title}`);
+    console.log(`    provider: ${item.provider.worker}   model: ${item.provider.model || "provider default"}   auth: ${item.provider.auth}  (${item.provider.source})`);
+    console.log(`    workspace: ${item.workspace || item.workspaceNote || "-"}   logs: ${item.sessionLogs}`);
+    if (item.command) console.log(`    command: ${item.command}`);
+    for (const rule of item.containment) console.log(`    containment: ${rule}`);
+    for (const blocker of item.blockers) console.log(`    BLOCKED: ${blocker}`);
+  }
+  console.log(`\nConfirm with: ${plan.confirmCommand}`);
+}
+
+const PROVIDER_ROLES = ["pip", "mira", "rowan", "sage", "beacon"];
+
+function saveConfig(config) {
+  const temp = `${P.config}.tmp-${process.pid}`;
+  fs.writeFileSync(temp, JSON.stringify(config, null, 2) + "\n");
+  try {
+    fs.renameSync(temp, P.config);
+  } catch (error) {
+    // Windows does not replace an existing file with renameSync. The temp
+    // file still protects against a partial write, then is copied into place.
+    fs.copyFileSync(temp, P.config);
+    fs.rmSync(temp, { force: true });
+    if (error && !fs.existsSync(P.config)) throw error;
+  }
+}
+
+function printProviders(cfg) {
+  const profile = providerProfile(cfg);
+  console.log("Providers — executable, auth, and effective model:");
+  for (const name of providerNames(cfg)) {
+    const spec = providerSpec(profile, name);
+    const disc = discoverProvider(name, { command: spec.command });
+    const model = spec.model || "provider default";
+    console.log(`  ${disc.available ? "✓" : "×"} ${name.padEnd(12)} ${disc.available ? `${disc.path} · model ${model}` : `${disc.error} · model ${model}`}`);
+  }
+  console.log("\nPer-role mapping (the provider/model actually used by each ATL role):");
+  for (const role of PROVIDER_ROLES) {
+    const p = providerForRole(profile, role);
+    console.log(`  ${role.padEnd(7)} ${p.worker} · ${p.model || "provider default"} · auth ${p.auth}  (${p.source})`);
+  }
+  console.log("\nChange it with: atl provider set --provider codex --model gpt-5.6-luna");
+  console.log("Per role:       atl provider set --role rowan --provider glm --model glm-4.6");
+}
+
+function updateProviderSelection({ clear = false } = {}) {
+  const cfg = loadConfig();
+  const providers = cfg.providers || (cfg.providers = {});
+  providers.by_role = providers.by_role || {};
+  providers.model_by_role = providers.model_by_role || {};
+  providers.catalog = providers.catalog || {};
+  const role = flags.role && String(flags.role).toLowerCase() !== "default" ? String(flags.role).toLowerCase() : null;
+  if (role && !PROVIDER_ROLES.includes(role)) {
+    throw new StateError(`--role must be one of ${PROVIDER_ROLES.join(", ")}`);
+  }
+  if (clear) {
+    if (!role) throw new StateError("provider clear needs --role <pip|mira|rowan|sage|beacon>");
+    delete providers.by_role[role];
+    delete providers.model_by_role[role];
+    saveConfig(cfg);
+    console.log(`Cleared the ${role} provider/model override. It now follows the default selection.`);
+    return;
+  }
+  const worker = flags.provider && String(flags.provider).toLowerCase();
+  if (!worker) throw new StateError("provider set needs --provider <id>");
+  if (role) {
+    const previous = providers.by_role[role];
+    providers.by_role[role] = worker;
+    if (flags.model) providers.model_by_role[role] = String(flags.model);
+    else if (previous && previous !== worker) delete providers.model_by_role[role];
+  } else {
+    const previous = providers.default;
+    providers.default = worker;
+    if (flags.model) {
+      providers.model = String(flags.model);
+      if (providers.catalog[worker] && typeof providers.catalog[worker] === "object") {
+        providers.catalog[worker].model = String(flags.model);
+      }
+    }
+    else if (previous && previous !== worker) delete providers.model;
+    if (flags.auth) providers.auth = String(flags.auth).toLowerCase();
+  }
+  saveConfig(cfg);
+  const selected = providerForRole(providerProfile(cfg), role || "rowan");
+  console.log(`Saved ${role ? `${role} role` : "default"} selection: ${selected.worker} · ${selected.model || "provider default"} · auth ${selected.auth}`);
+  console.log(`Verify: atl providers   Preview: atl launch --dry-run`);
+}
+
 // ---------- commands
 
 async function main() {
@@ -291,6 +528,10 @@ async function main() {
         fs.mkdirSync(path.dirname(skillRouting), { recursive: true });
         fs.copyFileSync(path.join(bundledRoot(), "config", "skill-routing.json"), skillRouting);
       }
+      const jevConfig = path.join(ROOT, "config", "jev.json");
+      if (!fs.existsSync(jevConfig) && fs.existsSync(path.join(bundledRoot(), "config", "jev.json"))) {
+        fs.copyFileSync(path.join(bundledRoot(), "config", "jev.json"), jevConfig);
+      }
       const projectMeta = path.join(ROOT, ".atl", "project.json");
       if (!fs.existsSync(projectMeta)) {
         fs.mkdirSync(path.dirname(projectMeta), { recursive: true });
@@ -302,7 +543,7 @@ async function main() {
         saveState(ROOT, emptyState());
       }
       console.log(`Ready.\n  state:     ${P.state}\n  config:    ${P.config}\n  routing:   ${P.routing}\n  inbox:     ${P.inbox}  (drop markdown bullet files here)\n  workspaces:${P.workspaces}`);
-      console.log(`  skill route:${P.skillRouting}\n  project:   ${projectMeta}`);
+      console.log(`  skill route:${P.skillRouting}\n  Jev config:${jevConfig}\n  project:   ${projectMeta}`);
       console.log(`\nNext: add a task file to the inbox, then: atl intake   (or: node runtime\\atl-manager.mjs intake)`);
       return;
     }
@@ -314,31 +555,11 @@ async function main() {
       const batches = await runIntake({ ...cfg, inbox_dir: path.resolve(ROOT, cfg.inbox_dir) }, which);
       let added = 0, skipped = 0;
       for (const b of batches) {
-        for (const cand of b.tasks) {
-          const dup = Object.values(state.tasks).find((t) => t.intake_key && t.intake_key === cand.intake_key);
-          if (dup) { skipped++; continue; }
-          const t = createTask(state, {
-            title: cand.title,
-            source: cand.source,
-            priority: cand.priority,
-            risk: cand.risk,
-            labels: cand.labels,
-            intake_key: cand.intake_key,
-          });
-          if (cand.objective_hint) t.objective_hint = cand.objective_hint;
-          if (cand.completion_checks.length) t.completion_checks = cand.completion_checks; // pre-filled; Pip still owns triage
-          const routine = matchRoutine(cfg.routines, cand);
-          if (routine) applyRoutine(t, routine);
-          const route = applySkillRoute(t);
-          logEvent(state, { task: t.id, actor: "runner", event: "intake", detail: `${b.source}: ${cand.title}` });
-          const ref = cand.source.url || cand.title;
-          say("pip", `grabbing ${ref} — "${cand.title}". pulling ${b.source} + thread, then queuing triage.`, { task: t.id });
-          if (routine?.then?.assign_to) {
-            say("mira", `${t.id} pre-routed to ${routine.then.assign_to} by routine "${routine.name}". kicks when triage lands.`, { task: t.id });
-          }
-          say("pip", `${t.id} skill route: ${route.selected_skills.join(", ") || "unresolved"} (${route.status}).`, { task: t.id });
-          added++;
-          console.log(`  + ${t.id} [new] (${b.source})${routine ? ` [routine: ${routine.name}]` : ""} ${cand.title}`);
+        const result = importCandidates(ROOT, state, b.tasks, { cfg });
+        added += result.added;
+        skipped += result.skipped;
+        for (const { task, routine } of result.created) {
+          console.log(`  + ${task.id} [new] (${b.source})${routine ? ` [routine: ${routine.name}]` : ""} ${task.title}`);
         }
       }
       saveState(ROOT, state);
@@ -346,10 +567,112 @@ async function main() {
       return;
     }
 
+    case "compose": {
+      const body = pos.join(" ").trim();
+      const title = typeof flags.title === "string" ? flags.title.trim() : "";
+      if (!body && !title) throw new StateError('compose needs the task text, e.g.: atl compose --title "Fix the login redirect" --check "signed-in user lands on /dashboard"');
+      let text = [title, body].filter(Boolean).join("\n");
+      if (flags.check.length) text += `\nChecks:\n${flags.check.map((c) => `- ${c}`).join("\n")}`;
+      const cfg = loadConfig();
+      const state = loadState(ROOT);
+      const { task, created, draftPath } = composeTask(ROOT, state, text, { source: "manual", cfg });
+      saveState(ROOT, state);
+      if (created) {
+        console.log(`  + ${task.id} [new] (composer) ${task.title}`);
+        console.log(`  draft: ${draftPath}  (immutable raw wording)`);
+        say("manager", `composed ${task.id} in the control room: "${task.title}". waiting for the packet review.`, { task: task.id });
+      } else {
+        console.log(`Already composed: ${task.id} — "${task.title}" (compose is idempotent by content)`);
+      }
+      console.log(`Next: review the packet (atl ui → select → v) or triage: node runtime\\atl-manager.mjs triage ${task.id}`);
+      return;
+    }
+
+    case "queue": {
+      const sub = pos[0] || "list";
+      if (sub === "add") {
+        const id = pos[1];
+        need(id);
+        const { added } = queueAdd(ROOT, id, { by: actorOf() });
+        console.log(added ? `${id} queued for execution (membership is stored in .trust/manager/queue.json).` : `${id} is already queued.`);
+      } else if (sub === "remove") {
+        const id = pos[1];
+        if (!id) throw new StateError("queue remove needs a task id");
+        const { removed } = queueRemove(ROOT, id);
+        console.log(removed ? `${id} removed from the execution queue.` : `${id} was not queued.`);
+      } else if (sub === "clear") {
+        const { removed } = queueClear(ROOT);
+        console.log(`Queue cleared (${removed} entr${removed === 1 ? "y" : "ies"} removed).`);
+      } else if (sub === "list") {
+        printLaunchPlan(buildLaunchPlan(ROOT, { taskIds: queueIds(ROOT) }));
+      } else {
+        throw new StateError("queue subcommands: add <id> | remove <id> | list | clear");
+      }
+      return;
+    }
+
+    case "launch": {
+      const opts = parseWorkerFlags({ overnight: true });
+      const launchOverrides = {};
+      if (flags.worker) launchOverrides.worker = opts.worker;
+      if (flags.auth) launchOverrides.auth = opts.auth;
+      if (flags.model) launchOverrides.model = opts.provider.model;
+      const plan = buildLaunchPlan(ROOT, { taskIds: queueIds(ROOT), maxMinutes: opts.maxMinutes, maxSessions: opts.maxSessions, providerDefaults: launchOverrides });
+      printLaunchPlan(plan);
+      if (opts.dryRun) {
+        console.log("\ndry-run: no agent started.");
+        return;
+      }
+      if (plan.blockedCount) {
+        console.log(`\n${plan.blockedCount} queued task(s) have launch blockers — they will be containment-blocked and skipped.`);
+      }
+      console.log("\nStarting sequential queue run…");
+      const overrides = {};
+      if (flags.worker) overrides.worker = opts.worker;
+      if (flags.auth) overrides.auth = opts.auth;
+      if (flags.model) overrides.model = opts.provider.model;
+      const { results, budget } = await executeLaunchQueue(ROOT, {
+        maxMinutes: opts.maxMinutes, maxSessions: opts.maxSessions, confirm: true, providerDefaults: overrides,
+      });
+      console.log(`\nQueue run finished after ${budget.sessions} session(s). Results:`);
+      for (const r of results) console.log(`  ${String(r.id).padEnd(6)} ${String(r.status).padEnd(12)} ${r.reason}`);
+      const finalState = loadState(ROOT);
+      console.log(`\nMorning report: atl brief   ·   transcript: atl feed --roster   ·   queue: atl queue list`);
+      return;
+    }
+
+    case "providers":
+    case "provider": {
+      const sub = cmd === "providers" ? "list" : (pos[0] || "list");
+      if (sub === "list") {
+        printProviders(loadConfig());
+      } else if (sub === "models") {
+        const cfg = loadConfig();
+        const profile = providerProfile(cfg);
+        const name = String(flags.provider || pos[1] || profile.defaultWorker).toLowerCase();
+        const spec = providerSpec(profile, name);
+        const ids = [...new Set([...(spec.models || []), ...providerModels(name).map((m) => m.id)])];
+        console.log(`Models for ${name}:`);
+        if (!ids.length) console.log("  No model registry is available; enter the exact model id accepted by this provider.");
+        for (const id of ids) {
+          const entry = providerModels(name).find((m) => m.id === id);
+          console.log(`  ${id}${entry?.label && entry.label !== id ? ` — ${entry.label}` : ""}${id === spec.model ? "  (selected)" : ""}`);
+        }
+        console.log(`\nCurrent effective model: ${spec.model || "provider default"}`);
+      } else if (sub === "set") {
+        updateProviderSelection();
+      } else if (sub === "clear") {
+        updateProviderSelection({ clear: true });
+      } else {
+        throw new StateError("provider subcommands: list | models [--provider id] | set --provider id [--model model] [--role role] | clear --role role");
+      }
+      return;
+    }
+
     case "triage": {
       const { state, task } = need(pos[0]);
       const routing = JSON.parse(fs.readFileSync(P.routing, "utf8"));
-      const route = applySkillRoute(task);
+      const route = await applySkillRoute(task, { smart: Boolean(flags.smart) });
       saveState(ROOT, state);
       console.log(renderRole("pip", routing));
       console.log("\n--- Task packet ---\n");
@@ -374,7 +697,7 @@ async function main() {
 
     case "route": {
       const { state, task } = need(pos[0]);
-      const route = applySkillRoute(task);
+      const route = await applySkillRoute(task, { smart: Boolean(flags.smart) });
       saveState(ROOT, state);
       console.log(formatRoute(route));
       return;
@@ -430,7 +753,6 @@ async function main() {
         task.last_checkpoint = { at: new Date().toISOString(), note: flags.checkpoint };
         say(actor, `checkpoint on ${task.id}: ${flags.checkpoint}`, { task: task.id });
       }
-      for (const f of flags.fail) addEvidence(state, task.id, { kind: "check", check: f, result: "fail", detail: "" }, actor);
       for (const r of flags.review) {
         const m = r.match(/^\s*(approve|changes-requested)\s*[:\-]\s*(.+)$/i);
         if (!m) throw new StateError(`--review expects "approve: <findings>" or "changes-requested: <findings>"`);
@@ -520,6 +842,34 @@ async function main() {
       return;
     }
 
+    case "unblock": {
+      const id = pos[0];
+      if (!id) throw new StateError("unblock needs a task id");
+      const result = unblockTask(ROOT, id, { to: flags.to, note: flags.note?.[0] || "blocker resolved by manager" });
+      say("mira", `${id} unblocked → ${result.to}${result.worker ? ` and routed to ${result.worker}` : " — ready for assignment"}.`, { task: id });
+      console.log(renderTask(result.task));
+      console.log(`\nNext: ${result.to === "assigned" ? `atl queue add ${id} && atl launch --confirm` : `assign ${id} --to <worker> --actor mira`}`);
+      return;
+    }
+
+    case "resource": {
+      const id = pos[0];
+      const ref = pos.slice(1).join(" ").trim();
+      if (!id || !ref) throw new StateError('resource needs a task id and a URL or local path');
+      const { state, task } = need(id);
+      const result = addResourceToTask(ROOT, task, ref, {
+        label: typeof flags.label === "string" ? flags.label : "",
+        caption: typeof flags.caption === "string" ? flags.caption : "",
+        source: "manager",
+      });
+      if (!result.added) throw new StateError(`${id}: that resource is already attached`);
+      logEvent(state, { task: id, actor: "manager", event: "resource", detail: `${result.resource.kind}: ${result.resource.ref}` });
+      saveState(ROOT, state);
+      say("manager", `attached ${result.resource.kind} to ${id}: ${result.resource.label}.`, { task: id, detail: result.resource.ref });
+      console.log(renderTask(task));
+      return;
+    }
+
     case "escalate": {
       const { state, task } = need(pos[0]);
       if (!flags.reason) throw new StateError(`escalate needs --reason "..."`);
@@ -559,6 +909,12 @@ async function main() {
         const f = saveBrief(ROOT, text);
         console.log(`\nSaved: ${f}`);
       }
+      return;
+    }
+
+    case "dashboard":
+    case "ui": {
+      await runDashboard(ROOT, { once: flags.once === true, plain: flags.plain === true });
       return;
     }
 
@@ -623,7 +979,17 @@ async function main() {
         console.log(JSON.stringify({ stored: result.stored, provider: result.provider }, null, 2));
         return;
       }
-      throw new StateError(`Unknown memory command "${subcommand}". Use status, recall, or remember.`);
+      if (subcommand === "learn") {
+        const kind = pos[1];
+        const text = pos.slice(2).join(" ").trim();
+        console.log(JSON.stringify(learnLocal(ROOT, { kind, text, source: "explicit-feedback" }), null, 2));
+        return;
+      }
+      if (subcommand === "forget") {
+        console.log(JSON.stringify(forgetLocal(ROOT, pos[1]), null, 2));
+        return;
+      }
+      throw new StateError(`Unknown memory command "${subcommand}". Use status, recall, remember, learn, or forget.`);
     }
 
     case "show-me": {
@@ -638,6 +1004,20 @@ async function main() {
       const file = saveVisualPrDescription(ROOT, { title: flags.title || null, taskId: flags.task || null, slug: pos[0] || null });
       console.log(`Saved: ${file}`);
       console.log(fs.readFileSync(file, "utf8"));
+      return;
+    }
+
+    case "run": {
+      await runWorkerLoop(pos[0], { overnight: false });
+      return;
+    }
+
+    case "overnight": {
+      if (flags.all === true) {
+        await runQueueLoop({ overnight: true });
+      } else {
+        await runWorkerLoop(pos[0], { overnight: true });
+      }
       return;
     }
 
@@ -675,6 +1055,9 @@ async function main() {
         if (t.assigned_worker && !["pip", "rowan", "sage", "beacon"].includes(t.assigned_worker)) {
           problems.push(`${t.id}: bad worker ${t.assigned_worker}`);
         }
+      }
+      for (const item of loadQueue(ROOT).items) {
+        if (!known.has(item.id)) problems.push(`execution queue references unknown task ${item.id}`);
       }
       for (const e of state.log) {
         if (e.task !== null && e.task !== undefined && e.task !== "-" && !known.has(e.task) && e.event !== "intake") {

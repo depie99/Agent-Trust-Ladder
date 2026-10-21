@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { askJev, jevConfig } from "./jev.mjs";
 
 const BUNDLE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -91,6 +92,56 @@ export function routeTask(root, { title = "", objective = "", labels = [], sourc
   };
 }
 
+export async function routeTaskWithJev(root, input = {}, options = {}) {
+  const deterministic = routeTask(root, input);
+  const config = jevConfig(root, options);
+  const registry = loadSkillRegistry(root);
+  const available = (registry.routes || [])
+    .filter((route) => skillAvailable(root, route.skill))
+    .map((route) => ({ id: route.skill, description: `${route.name}: ${(route.keywords || []).slice(0, 6).join(", ")}` }));
+  const decision = await askJev({ state: input, options: available, config, fetchImpl: options.fetchImpl });
+
+  const selected = available.find((option) => option.id === decision.choice);
+  const confidence = decision.confidence;
+  const accepted = selected && !decision.error && confidence !== null && confidence >= config.minConfidence;
+  if (!accepted) {
+    return {
+      ...deterministic,
+      decision: {
+        provider: decision.enabled ? "jev-fallback" : "deterministic",
+        accepted: false,
+        confidence,
+        reason: decision.error || decision.reason || `confidence below ${config.minConfidence}`,
+      },
+    };
+  }
+
+  const route = (registry.routes || []).find((candidate) => candidate.skill === selected.id);
+  return {
+    status: "matched",
+    selected_skills: [route.skill],
+    proposed_worker: route.worker || null,
+    matches: [{
+      name: route.name,
+      skill: route.skill,
+      worker: route.worker || null,
+      score: 0,
+      matched_keywords: [],
+      matched_labels: [],
+    }],
+    skipped: deterministic.skipped || [],
+    source: "jev",
+    decision: {
+      provider: "jev",
+      accepted: true,
+      model: decision.model,
+      confidence,
+      probabilities: decision.probabilities,
+      min_confidence: config.minConfidence,
+    },
+  };
+}
+
 export function formatRoute(route) {
   const lines = [`Route: ${route.status} (${route.source})`];
   lines.push(`  skills: ${route.selected_skills.length ? route.selected_skills.join(", ") : "none"}`);
@@ -100,5 +151,12 @@ export function formatRoute(route) {
   }
   for (const skipped of route.skipped || []) lines.push(`  skipped: ${skipped.skill} (${skipped.reason})`);
   if (route.reason) lines.push(`  reason: ${route.reason}`);
+  if (route.decision) {
+    lines.push(`  decision: ${route.decision.provider} accepted=${route.decision.accepted}`);
+    if (route.decision.confidence !== null && route.decision.confidence !== undefined) {
+      lines.push(`  confidence: ${route.decision.confidence}`);
+    }
+    if (route.decision.reason) lines.push(`  decision reason: ${route.decision.reason}`);
+  }
   return lines.join("\n");
 }

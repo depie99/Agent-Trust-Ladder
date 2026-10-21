@@ -5,33 +5,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export const STATUSES = [
-  "new", "triaged", "assigned", "in_progress", "in_review",
-  "verifying", "done", "blocked", "rejected", "escalated",
-];
+const contractFile = new URL("../../config/manager-state-contract.json", import.meta.url);
+export const STATE_CONTRACT = JSON.parse(fs.readFileSync(contractFile, "utf8"));
+export const STATUSES = STATE_CONTRACT.statuses;
 
-// Who is allowed to drive each transition. The human manager ("manager")
-// can always do anything; agents must present the right name.
-export const TRANSITIONS = {
-  "new->triaged":     { actors: ["pip"],           requires: ["objective", "completion_checks"] },
-  "new->rejected":    { actors: ["pip"],           requires: [] },
-  "new->blocked":     { actors: ["pip"],           requires: ["blocker"] },
-  "triaged->assigned":{ actors: ["mira"],          requires: ["assigned_worker"] },
-  "triaged->rejected":{ actors: ["mira"],          requires: [] },
-  "triaged->blocked": { actors: ["mira"],          requires: ["blocker"] },
-  "assigned->in_progress": { actors: ["rowan", "pip", "sage", "beacon"], requires: [] },
-  "assigned->blocked":{ actors: ["rowan", "mira"], requires: ["blocker"] },
-  "in_progress->in_review": { actors: ["rowan", "pip", "sage", "beacon"], requires: ["workspace", "evidence"] },
-  "in_progress->blocked":   { actors: ["rowan"], requires: ["blocker"] },
-  "in_review->verifying":   { actors: ["sage"],  requires: ["review"] },
-  "in_review->in_progress": { actors: ["sage"],  requires: ["review"] }, // changes requested
-  "in_review->blocked":     { actors: ["sage"],  requires: ["blocker"] },
-  "verifying->done":        { actors: ["beacon"], requires: ["all_checks_pass"] },
-  "verifying->in_progress": { actors: ["beacon"], requires: [] }, // verification failed, retry
-  "verifying->escalated":   { actors: ["beacon"], requires: ["blocker"] },
-  "blocked->triaged":       { actors: ["mira", "pip"], requires: [] },
-  "escalated->triaged":     { actors: ["mira"],  requires: [] },
-};
+// The human manager ("manager") can always do anything; agents must present
+// the actor named by this shared contract.
+export const TRANSITIONS = STATE_CONTRACT.transitions;
 
 export class StateError extends Error {}
 
@@ -99,6 +79,7 @@ export function createTask(state, fields) {
     title: fields.title,
     status: "new",
     source: fields.source || { type: "manual" },
+    resources: Array.isArray(fields.resources) ? fields.resources : [],
     objective: "",
     completion_checks: [],
     priority: fields.priority || "normal",      // low | normal | high | urgent
@@ -138,6 +119,14 @@ function fail(required, task) {
     if (r === "review") {
       const ok = task.evidence.some((e) => e.kind === "review" && e.result === "approve");
       if (!ok) throw new StateError(`${task.id}: an approved review must be recorded first (--review "approve: ...")`);
+    }
+    if (r === "review_approved") {
+      const ok = task.evidence.some((e) => e.kind === "review" && e.result === "approve");
+      if (!ok) throw new StateError(`${task.id}: an approved review must be recorded first (--review "approve: ...")`);
+    }
+    if (r === "review_changes_requested") {
+      const ok = task.evidence.some((e) => e.kind === "review" && e.result === "changes-requested");
+      if (!ok) throw new StateError(`${task.id}: a changes-requested review must be recorded first (--review "changes-requested: ...")`);
     }
     if (r === "blocker" && !task.blocker)
       throw new StateError(`${task.id}: --reason "..." is required to block a task`);
@@ -192,6 +181,9 @@ export function transition(state, taskId, toStatus, { actor, note }) {
 export function addEvidence(state, taskId, entry, actor) {
   const task = state.tasks[taskId];
   if (!task) throw new StateError(`Unknown task ${taskId}`);
+  if (entry.kind === "check" && (!entry.check || !task.completion_checks.includes(entry.check))) {
+    throw new StateError(`${task.id}: evidence must copy one completion check verbatim (--evidence-pass/--evidence-fail)`);
+  }
   task.evidence.push({
     kind: entry.kind, check: entry.check || null, result: entry.result || null,
     detail: entry.detail || "", actor, at: new Date().toISOString(),
