@@ -3,7 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { addEvidence, createTask, emptyState, paths, saveState, transition, loadState } from "../runtime/lib/state.mjs";
-import { unblockTask } from "../runtime/lib/recovery.mjs";
+import { unblockTask, approveTask, explainTasks } from "../runtime/lib/recovery.mjs";
+import { queueIds } from "../runtime/lib/queue.mjs";
 import { wakeActions } from "../runtime/lib/render.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-recovery-"));
@@ -66,3 +67,61 @@ assert.throws(
   /copy one completion check verbatim/,
 );
 console.log("PASS: unknown evidence checks are rejected before they poison state validation");
+
+// Owner gate in one word: approve records durable approval evidence, clears an
+// approval blocker, and queues the task for the next launch.
+const gateState = emptyState();
+const gateTask = createTask(gateState, { title: "Run the capped unattended smoke", risk: "risky" });
+gateTask.objective = "A real capped run happens only with the owner's recorded approval.";
+gateTask.completion_checks = ["the capped run shows an approval in evidence"];
+gateTask.assigned_worker = "rowan";
+transition(gateState, gateTask.id, "triaged", { actor: "manager", note: "packet ready" });
+transition(gateState, gateTask.id, "assigned", { actor: "manager", note: "rowan owns it" });
+gateTask.blocker = { reason: "Owner approval for the real capped run is missing.", since: new Date().toISOString(), actor: "rowan" };
+transition(gateState, gateTask.id, "blocked", { actor: "rowan", note: "owner gate" });
+saveState(root, gateState);
+
+assert.equal(explainTasks(root, gateTask.id)[0].kind, "owner-approval", "an approval-gate blocker is recognized");
+assert.match(explainTasks(root, gateTask.id)[0].fix, /atl approve/, "the fix names the approve command");
+
+const approved = approveTask(root, gateTask.id, { note: "doc-only task, 60m and one session" });
+assert.equal(approved.task.status, "assigned", "approval clears the blocker back to assigned");
+assert.equal(approved.task.blocker, null);
+assert.equal(approved.queued, true, "approval queues the task");
+const gateAfter = loadState(root).tasks[gateTask.id];
+assert.ok(
+  gateAfter.evidence.some((e) => e.kind === "approval" && e.result === "approved" && /doc-only task/.test(e.detail)),
+  "the approval stays on the record as evidence",
+);
+assert.ok(queueIds(root).includes(gateTask.id), "the approved task is in the execution queue");
+
+// A plain (non-approval) blocker still points at unblock, and explainTasks
+// reflects queue membership in the fix hint.
+const plainState = emptyState();
+const plainTask = createTask(plainState, { title: "Refresh the user install" });
+plainTask.objective = "Needs a runner with write access.";
+plainTask.completion_checks = ["the install matches the repo"];
+plainTask.assigned_worker = "rowan";
+transition(plainState, plainTask.id, "triaged", { actor: "manager", note: "packet ready" });
+transition(plainState, plainTask.id, "assigned", { actor: "manager", note: "rowan owns it" });
+plainTask.blocker = { reason: "the managed sandbox identity has only ReadAndExecute access to the install dir", since: new Date().toISOString(), actor: "rowan" };
+transition(plainState, plainTask.id, "blocked", { actor: "rowan", note: "environment wall" });
+saveState(root, plainState);
+
+const plainRow = explainTasks(root, plainTask.id)[0];
+assert.equal(plainRow.kind, "blocked", "a non-approval blocker is classified as blocked");
+assert.match(plainRow.fix, /atl unblock/, "its fix names the unblock command");
+assert.equal(plainRow.why, plainTask.blocker.reason, "the why carries the full blocker text, never truncated");
+
+// Approving an already-active task still records the word and keeps the queue honest.
+const preApproved = approveTask(root, gateTask.id, { note: "second approval is harmless" });
+assert.equal(preApproved.task.status, "assigned");
+assert.equal(preApproved.queued, false, "re-approval does not duplicate the queue entry");
+
+// Waiting tasks explain the exact hop they are stuck at.
+const waitRow = explainTasks(root).find((r) => r.task.id === gateTask.id);
+assert.equal(waitRow.kind, "waiting");
+assert.match(waitRow.fix, /launch --confirm/, "a queued assigned task points at the launch");
+assert.doesNotMatch(waitRow.fix, /queue add/, "no queue add hint for a task already queued");
+
+console.log("PASS: owner approve records durable evidence, clears the gate, and queues the task");

@@ -99,11 +99,23 @@ cd your-project
 atl init                 # scaffolds config + .trust/manager in THIS project
 # drop tasks into .trust/manager/inbox/*.md (or wire GitHub issues / Azure Boards in config/manager.json)
 atl intake               # new tasks appear, narrated by the bots
-atl ui                   # the control room: c compose · i import · v review · x queue · l launch preview
+atl ui                   # the control room: c compose · i import · v review · x queue · l launch · Q queue · L logs (auto-refreshes ~2s)
 atl launch --dry-run     # preview the queued run (provider, role, workspace, budget per task)
 atl launch --confirm     # start it: sequential, bounded, per-role providers (codex/claude CLI)
+atl why                  # the full "why" behind every blocked/waiting task + the exact fix command
+atl approve <id>         # owner gate in one word: record your approval, clear the blocker, queue it
 atl feed --roster        # watch the team work
 ~~~
+
+**Run the team on an API provider (e.g. Z.ai GLM) — one minute, no env vars:** store the provider once per machine, then select it per project. The key lives in `~/.atl/providers.json` (outside every repo, masked everywhere, injected into worker sessions only at spawn):
+
+~~~bash
+atl provider add zai --key <your-glm-api-key> --model glm-4.6   # zai/bigmodel templates prefill the endpoint
+atl provider use zai            # this project's default (or: --role rowan for one role)
+atl launch --dry-run            # shows: claude · glm-4.6 · auth api (user provider "zai")
+~~~
+
+In the control room (`atl ui`), press **p**: the providers page lists your providers and **a** opens the same setup as a form — template, name, CLI (claude/codex), base URL, pasted key, model. `u` makes a provider the project default. For a single run on a stored provider: `atl run <id> --worker zai --confirm`.
 
 To put an agent behind a bot, open a session in the target project and paste the matching prompt from `~/.atl/runtime/prompts/` — the runner enforces the role contract no matter which agent is behind it. The installer auto-detects Codex CLI and Claude Code and installs the prompts as native slash commands (`/atl-mira`, `/atl-pip`, `/atl-rowan`, `/atl-sage`, `/atl-beacon`); the ATL *skills* install into Codex via `npx skills add depie99/Agent-Trust-Ladder -a codex` (Option A above). Update: re-run the installer. Uninstall: delete `~/.atl`, the wired prompt files (`~/.codex/prompts/atl-*.md`, `~/.claude/commands/atl-*.md`), and remove `~/.atl` from PATH. Full guide: [runtime/README.md](runtime/README.md).
 
