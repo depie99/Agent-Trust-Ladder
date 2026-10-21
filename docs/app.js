@@ -66,20 +66,59 @@ document.querySelectorAll('.copy-example').forEach((button) => {
   });
 });
 
-function renderSearchResults(query) {
+// Site-wide search: every page carries the dialog; results cover all pages.
+const SEARCH_PAGES = [
+  { page: 'index.html', label: 'Overview' },
+  { page: 'skills.html', label: 'Skills' },
+  { page: 'guides.html', label: 'Guides' },
+  { page: 'reference.html', label: 'Reference' },
+  { page: 'team.html', label: 'Team' },
+  { page: 'jev.html', label: 'Jev routing' },
+  { page: 'diagrams.html', label: 'Diagrams' },
+];
+let searchIndexPromise = null;
+
+function loadSearchIndex() {
+  if (!searchIndexPromise) {
+    searchIndexPromise = Promise.all(SEARCH_PAGES.map(async ({ page, label }) => {
+      const response = await fetch(page);
+      if (!response.ok) throw new Error(`HTTP ${response.status} for ${page}`);
+      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const entries = [];
+      doc.querySelectorAll('main section[id]').forEach((section) => {
+        const heading = section.querySelector('h1,h2,h3');
+        entries.push({
+          href: `${page}#${section.id}`,
+          title: `${label} — ${heading ? heading.textContent.trim() : section.id}`,
+          text: section.textContent.toLowerCase().replace(/\s+/g, ' ').slice(0, 4000),
+        });
+      });
+      return entries;
+    })).then((groups) => groups.flat());
+    searchIndexPromise.catch(() => { searchIndexPromise = null; });
+  }
+  return searchIndexPromise;
+}
+
+async function renderSearchResults(query) {
   if (!searchResults) return;
   const normalized = query.trim().toLowerCase();
-  const searchable = sections.map((section) => ({
-    id: section.id,
-    title: section.querySelector('h1,h2,h3')?.textContent.trim() || section.id,
-    text: section.textContent.toLowerCase(),
-  }));
-  const matches = normalized ? searchable.filter((item) => `${item.title} ${item.text}`.includes(normalized)).slice(0, 6) : searchable.slice(0, 5);
+  let index;
+  try {
+    index = await loadSearchIndex();
+  } catch {
+    searchResults.innerHTML = '<p class="no-results">Search needs the site served over HTTP (it works on the published site and via a local server).</p>';
+    return;
+  }
+  const wanted = ['index.html#quickstart', 'reference.html#concepts', 'reference.html#evidence', 'team.html#doc-install', 'skills.html#', 'guides.html#prompting', 'jev.html#choose', 'diagrams.html#'];
+  const matches = normalized
+    ? index.filter((item) => `${item.title} ${item.text}`.includes(normalized)).slice(0, 8)
+    : wanted.map((prefix) => index.find((item) => item.href.startsWith(prefix))).filter(Boolean).slice(0, 6);
   searchResults.innerHTML = matches.length
-    ? matches.map((item) => `<a href="#${item.id}" data-search-result="${item.id}"><strong>${item.title}</strong><span>Open section ↗</span></a>`).join('')
+    ? matches.map((item) => `<a href="${item.href}" data-search-result="${item.href}"><strong>${item.title}</strong><span>Open ↗</span></a>`).join('')
     : '<p class="no-results">No matching section. Try “route”, “evidence”, or “production”.</p>';
   searchResults.querySelectorAll('[data-search-result]').forEach((result) => {
-    result.addEventListener('click', () => { setActiveSection(result.dataset.searchResult); dialog.close(); });
+    result.addEventListener('click', () => dialog.close());
   });
 }
 

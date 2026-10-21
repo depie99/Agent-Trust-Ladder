@@ -1,0 +1,51 @@
+# Docs sync anchor — the boundary the next docs sync diffs from.
+# Convention per skills/atl-tech-docs (references/maintenance-workflow.md).
+# Advance only after the docs checks pass; never for unverified edits.
+
+doc_set:
+  - docs/index.html          # entry point + quickstart
+  - docs/skills.html         # skill catalog (19 cards)
+  - docs/guides.html         # workflow guides
+  - docs/control-room.html   # terminal compose/import/queue/provider guide
+  - docs/team.html           # team runtime guide (canonical runtime doc)
+  - docs/reference.html      # vocabulary, verdict, evidence levels, dose
+  - docs/jev.html            # Jev routing guide (+ docs/jev.md)
+  - docs/diagrams.html       # visual models
+  - README.md                # repo entry point
+  - USAGE.md                 # install + quick start
+  - runtime/README.md        # CLI/runtime operator guide
+  - docs/team-playbook.md    # team runbook
+
+primary_audience: an owner adopting ATL (and their agents) in a real project
+
+source_of_truth:
+  cli: runtime/atl-manager.mjs usage()
+  runtime: runtime/lib/*.mjs
+  config: config/manager.json + config/manager-state-contract.json
+
+verified_against: >-
+  working tree 2026-10-21 — uncommitted wave (specs 005–014, docs-site UX
+  overhaul, spec 014 control room). Advance to the landing commit hash when
+  the tree is committed.
+
+last_sync:
+  date: 2026-10-21
+  batch: >-
+    spec 013 dashboard + spec 014 interactive task control room + docs-site
+    overhaul drift: README skill count (eleven → nineteen) and verdict wording
+    (five → six questions), 3 missing Modes rows, control-room flow in
+    team.html / USAGE.md / runtime/README.md / team-playbook.md, claude -p
+    stdin shape in the playbook, repair of the orphaned team.html install
+    fragment (stray </section> rendered junk between Install and First run).
+  checks: >-
+    check_tags.py ALL OK (all pages balanced, 19 catalog cards);
+    check_links.py clean except styles.css?v=5 query-string false positive
+    (checker ignores cache-bust queries; docs/styles.css exists);
+    stale-wording sweep of all doc surfaces returned zero hits;
+    all documented commands executed for real in temp projects during the
+    spec 014 verification pass.
+
+known_gaps:
+  - docs/control-room.html is a new guide; its provider example intentionally leaves ZCode's exact flags to the local installation
+  - README.fa.md (Persian mirror) not audited in this pass and may carry the
+    same stale counts; needs a translated sync

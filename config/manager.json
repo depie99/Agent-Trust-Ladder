@@ -7,18 +7,16 @@
     "stale_after_hours": 24,
     "max_active_tasks": 5
   },
-  "routines": [
-    {
-      "name": "perf-regressions",
-      "when": { "keyword": "timeout" },
-      "then": { "priority": "urgent", "risk": "risky" }
-    },
-    {
-      "name": "readme-doc-fixes",
-      "when": { "source": "file", "keyword": "README" },
-      "then": { "priority": "low", "assign_to": "rowan" }
-    }
-  ],
+  "routines": [],
+  "routines_note": "demo routines (readme-doc-fixes, perf-regressions) removed 2026-10-21 for the clean first run; they overrode explicit @priority in inbox files at intake. Re-add deliberately, and decide whether explicit file metadata should win over a keyword routine.",
+  "providers": {
+    "default": "codex",
+    "auth": "subscription",
+    "model": "gpt-5.6-luna",
+    "by_role": {},
+    "catalog": {},
+    "note": "spec 014 launch boundary: per-role override, e.g. \"by_role\": { \"sage\": \"claude\" }; custom CLIs/models live under catalog. Discovery validates PATH before any preview/launch; a missing executable blocks the run with an actionable message."
+  },
   "memory": {
     "provider": "none",
     "project_id": "",
@@ -39,11 +37,11 @@
       "enabled": true
     },
     "github": {
-      "enabled": true,
+      "enabled": false,
       "repos": [
         "shahryarjb/temp_mishka_cms"
       ],
-      "note": "set enabled=true; unauthenticated works for public repos, or run: gh auth login / set GITHUB_TOKEN"
+      "note": "leftover from the 2026-10-20 intake test; repo is private and gh is unauthenticated. Re-enable only after gh auth login (or GITHUB_TOKEN), otherwise intake 404s."
     },
     "azure": {
       "enabled": false,
