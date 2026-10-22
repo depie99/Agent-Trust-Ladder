@@ -482,6 +482,51 @@ node runtime\atl-manager.mjs feed --roster      :: roster + full transcript
 node runtime\atl-manager.mjs feed --task T-004  :: one task's thread
 ```
 
+### Import the team into Codex app
+
+The TUI keeps the authoritative team state and transcripts under
+`.trust/manager`. To make completed worker sessions visible in an existing
+Codex app conversation, link one explicit Codex thread id. The bridge uses the
+local `codex app-server` protocol and injects an assistant context item; it
+does not start a model turn or spend tokens for each update.
+
+```powershell
+atl codex bridge status
+atl codex bridge link <codex-thread-id>
+atl codex bridge link <codex-thread-id> --mode queue  # visible turns; model usage applies
+atl codex bridge start                 # create a dedicated Codex history thread
+atl codex bridge sync                 # import the current feed and transcripts
+atl codex bridge sync --task T-004    # import one task's context
+atl codex bridge unlink               # stop future imports; local logs remain
+```
+
+When enabled, each completed `run`, `overnight`, or `launch` worker session
+leaves its task feed and session transcript for the bridge; `atl codex bridge
+sync` imports the new material into the linked thread — manually, or
+automatically where the runtime session hook is wired. `bridge start` creates
+an app-server-owned persistent thread named `ATL Team History`; this is the
+recommended path because it remains writable by ATL until the desktop app
+opens it. Imports are append-only and checkpointed in
+`.trust/manager/codex-bridge-state.json`, so repeated syncs do not duplicate
+old feed or transcript content.
+
+If the desktop app opens the current dedicated thread and takes its writer
+lock, the default `new-thread` fallback creates the next `ATL Team History`
+thread, injects the new material there, and updates the target. This keeps the
+history visible without starting a model turn. A failed import never fails the
+ATL run because the local state, feed, and transcript remain authoritative.
+
+On Windows, the desktop app may already own the target thread's writer lock.
+The bridge therefore uses a new persistent thread as the safe fallback. It does
+not silently fall back to `codex queue`, because that path creates a visible
+user message and starts a model turn. The ATL logs remain the canonical source;
+the Codex history thread is a provider-facing projection of that source.
+
+Use `--mode queue` only when the exact current desktop conversation must show a
+normal user message. It uses the documented `codex queue` path, so every import
+starts a model turn and can spend tokens; it is intentionally never selected by
+the automatic fallback.
+
 ## Routines (declared routing policy)
 
 Routines are Mira's routing decisions declared in advance. They apply at

@@ -3,6 +3,7 @@
 .trust/manager/state.json
 .trust/manager/state.json.tmp
 .trust/manager/feed.jsonl
+.trust/manager/codex-bridge-state.json
 .trust/manager/briefs/
 .trust/manager/learning.json
 .trust/manager/overnight/

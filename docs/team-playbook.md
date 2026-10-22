@@ -276,6 +276,28 @@ merge, deploy, push, spending, policy changes, and external messages. Those
 boundaries are instructions plus ATL state gates; they are not a guarantee
 that a model is semantically correct.
 
+### Make the team history available in Codex
+
+ATL keeps the durable team feed and provider transcripts locally, then projects
+new material into a persistent Codex history thread. Create the thread once and
+sync it when you want to inspect the latest evidence in the Codex app:
+
+```powershell
+atl codex bridge start
+atl codex bridge status
+atl codex bridge sync
+atl history --source codex --n 10
+```
+
+The default `dedicated` mode uses Codex app-server `thread/inject_items`, so it
+does not start a model turn. A per-thread checkpoint prevents duplicate
+imports. If the desktop app owns the target writer, ATL creates a new history
+thread and updates the configured target instead of writing the rollout store
+directly. To put a normal visible message into one exact open conversation,
+link it explicitly with `--mode queue`; this starts a model turn and should not
+be enabled as a silent background transport. See the full
+[Codex history bridge guide](codex-history-bridge.html).
+
 ## Speed, token cost, and trust
 
 The local commands `init`, `show`, `wake`, `brief`, `feed`, `validate`,

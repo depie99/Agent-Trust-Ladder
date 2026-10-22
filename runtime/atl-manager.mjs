@@ -66,7 +66,7 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("max-minutes") || eat("max-sessions") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove")) continue;
+  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -140,6 +140,14 @@ History (the agent CLIs' local chat transcripts — providers keep usage only)
                                 the most recent Codex / ZCode CLI sessions on this machine
   history show <number|id|latest> [--n 200]
                                 print one session transcript (who asked what, what came back)
+
+Codex app bridge (opt-in; injects durable ATL context into one existing thread)
+  codex bridge status          show the configured target thread and bridge state
+  codex bridge link <thread>   enable the bridge for an explicit Codex thread id
+                               add --mode queue to create a visible model turn
+  codex bridge start           create a dedicated ATL history thread in Codex
+  codex bridge unlink          disable the bridge without deleting local ATL logs
+  codex bridge sync [--task]   import current feed and team transcripts now
 
 Control room (spec 014 — compose/import/review/queue/preview/launch)
   compose [--title "..."] "<body text>" [--check "..."]...
@@ -275,6 +283,13 @@ function defaultConfig() {
       catalog: {},
       note: 'per-role override, e.g. "by_role": { "sage": "claude" }; custom CLIs/models live under catalog; a missing executable blocks a launch with an actionable message',
     },
+    codex_bridge: {
+      enabled: false,
+      thread_id: "",
+      include_feed: true,
+      include_session_transcripts: true,
+      note: "opt-in app-server bridge; link one explicit Codex thread before enabling",
+    },
     memory: {
       provider: "none",
       project_id: "",
@@ -365,6 +380,16 @@ function parseWorkerFlags({ overnight }) {
   return { dryRun, worker, workerLabel, auth: provider.auth || auth, envPolicy, provider, maxMinutes, maxSessions };
 }
 
+async function syncBridgeSession(summary) {
+  try {
+    const result = await syncTeamContext(ROOT, { taskId: summary.taskId, sessionLog: summary.logPath });
+    if (result.injected) console.log(`  Codex bridge: imported ${summary.taskId}/${summary.role} into ${result.threadId}`);
+  } catch (error) {
+    console.error(`  Codex bridge warning: ${error.message}`);
+    say("runner", `Codex bridge could not import ${summary.taskId}/${summary.role}: ${error.message}`, { task: summary.taskId, detail: "local transcript remains available" });
+  }
+}
+
 async function runWorkerLoop(taskId, { overnight }) {
   if (!taskId) throw new StateError(`${overnight ? "overnight" : "run"} needs a task id`);
   const opts = parseWorkerFlags({ overnight });
@@ -381,6 +406,7 @@ async function runWorkerLoop(taskId, { overnight }) {
   const outcome = await driveTaskUntilGate(ROOT, taskId, budget, {
     overnight,
     dryRun: opts.dryRun,
+    onSession: syncBridgeSession,
     resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
   }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
 
@@ -438,6 +464,7 @@ async function runQueueLoop({ overnight }) {
     const outcome = await driveTaskUntilGate(ROOT, fresh.id, budget, {
       overnight: true,
       dryRun: false,
+      onSession: syncBridgeSession,
       resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
     }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
     results.push({ id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason });
@@ -1253,6 +1280,49 @@ async function main() {
       return;
     }
 
+    case "codex": {
+      const sub = pos[0] || "bridge";
+      const action = sub === "bridge" ? (pos[1] || "status") : sub;
+      if (action === "status") {
+        console.log(JSON.stringify(bridgeStatus(ROOT), null, 2));
+        return;
+      }
+      if (action === "link") {
+        const threadId = String(pos[sub === "bridge" ? 2 : 1] || flags.thread || "").trim();
+        if (!threadId) throw new StateError("codex bridge link needs an explicit thread id");
+        const mode = String(flags.mode || "target").toLowerCase();
+        if (!["target", "dedicated", "queue"].includes(mode)) throw new StateError("codex bridge link --mode must be target, dedicated, or queue");
+        const config = updateBridgeConfig(ROOT, (bridge) => {
+          bridge.enabled = true;
+          bridge.thread_id = threadId;
+          bridge.mode = mode;
+          bridge.fallback = mode === "dedicated" ? "new-thread" : "none";
+        });
+        console.log(`Codex bridge linked to ${config.thread_id}`);
+        console.log(mode === "queue"
+          ? "Future completed ATL team sessions will be queued as visible Codex turns (model usage applies)."
+          : "Future completed ATL team sessions will be imported into this thread.");
+        return;
+      }
+      if (action === "start") {
+        const result = await startDedicatedBridge(ROOT, { name: String(flags.name || "ATL Team History") });
+        console.log(JSON.stringify(result, null, 2));
+        console.log(`Open in Codex app: codex://threads/${result.threadId}`);
+        return;
+      }
+      if (action === "unlink") {
+        const config = updateBridgeConfig(ROOT, (bridge) => { bridge.enabled = false; });
+        console.log(`Codex bridge disabled; target retained as ${config.thread_id || "(none)"}.`);
+        return;
+      }
+      if (action === "sync") {
+        const result = await syncTeamContext(ROOT, { taskId: flags.task || null });
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      throw new StateError("codex bridge commands: status | link <thread-id> | start | unlink | sync [--task T-001]");
+    }
+
     case "history": {
       const sub = pos[0];
       if (sub && sub !== "list" && sub !== "show") {
@@ -1424,3 +1494,4 @@ main().catch((err) => {
   console.error(`error: ${err.message}`);
   process.exitCode = 1;
 });
+import { bridgeStatus, startDedicatedBridge, syncTeamContext, updateBridgeConfig } from "./lib/codex-bridge.mjs";

@@ -106,7 +106,18 @@ atl why                  # the full "why" behind every blocked/waiting task + th
 atl approve <id>         # owner gate in one word: record your approval, clear the blocker, queue it
 atl feed --roster        # watch the team work
 atl history              # the Codex + ZCode CLI chat transcripts on this machine (providers keep usage only, never conversations)
+atl codex bridge start   # create the persistent ATL Team History thread in Codex
+atl codex bridge sync    # import new feed/transcript context without a model turn
 ~~~
+
+To make the local team history available in the Codex app, use the dedicated
+history thread as the default. ATL keeps the local feed and provider session
+logs authoritative, records an idempotent checkpoint, and rolls to a new
+thread if the desktop app owns the current writer. Use
+`atl codex bridge link <thread-id> --mode queue` only when the exact open chat
+must receive a normal visible message; that path starts a model turn and may
+consume model usage. The complete transport contract and troubleshooting guide
+is [Codex history bridge](docs/codex-history-bridge.html).
 
 **Run the team on an API provider (e.g. Z.ai GLM) — one minute, no env vars:** store the provider once per machine, then select it per project. The key lives in `~/.atl/providers.json` (outside every repo, masked everywhere, injected into worker sessions only at spawn):
 
