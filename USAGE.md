@@ -105,6 +105,7 @@ atl launch --confirm     # start it: sequential, bounded, per-role providers (co
 atl why                  # the full "why" behind every blocked/waiting task + the exact fix command
 atl approve <id>         # owner gate in one word: record your approval, clear the blocker, queue it
 atl feed --roster        # watch the team work
+atl history              # the Codex + ZCode CLI chat transcripts on this machine (providers keep usage only, never conversations)
 ~~~
 
 **Run the team on an API provider (e.g. Z.ai GLM) — one minute, no env vars:** store the provider once per machine, then select it per project. The key lives in `~/.atl/providers.json` (outside every repo, masked everywhere, injected into worker sessions only at spawn):
