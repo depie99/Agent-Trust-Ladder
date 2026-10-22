@@ -16,7 +16,7 @@ The Jev guide is available as [Markdown](jev.md) and a [published documentation 
 
 The terminal Control Room guide is available as [Control Room](control-room.html). It documents the interactive compose/import/review/queue/launch path, the provider registry for Codex, Claude, GLM/ZCode-style CLIs, and the [Control Room visual](diagrams/atl-control-room.svg).
 
-The [Codex history bridge](codex-history-bridge.html) documents how ATL projects its authoritative local feed and provider transcripts into Codex history, including the token-free app-server path, writer-lock rollover, idempotent checkpoints, and the explicit queue path for a normal visible turn.
+The [Codex history bridge](codex-history-bridge.html) documents how ATL projects its authoritative local feed and provider transcripts into Codex history, including the token-free app-server path, writer-lock rollover, idempotent checkpoints, and the explicit queue path for a normal visible turn. Its [architecture SVG](diagrams/codex-history-bridge.svg) and rendered Codex surface preview make the connection and display boundary concrete.
 
 The launch announcement draft is in [linkedin-launch-post.md](linkedin-launch-post.md). It is intentionally kept beside the docs site so the public story can stay aligned with the actual workflow and evidence model.
 
