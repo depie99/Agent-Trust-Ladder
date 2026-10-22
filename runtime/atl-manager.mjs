@@ -40,6 +40,7 @@ import {
 } from "./lib/userProviders.mjs";
 import { unblockTask, approveTask, explainTasks } from "./lib/recovery.mjs";
 import { addResourceToTask } from "./lib/resources.mjs";
+import { historySources, listHistory, readTranscript, renderHistoryList, renderTranscript, resolveHistoryRef } from "./lib/history.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
@@ -133,6 +134,12 @@ Manager view
   wake                          the wake loop: what Mira should do next
   brief [--save]                Mira's manager brief
   dashboard [--once] [--plain]  interactive control room; --once is a static snapshot (alias: ui)
+
+History (the agent CLIs' local chat transcripts — providers keep usage only)
+  history [--source codex|zcode|all] [--n 20]
+                                the most recent Codex / ZCode CLI sessions on this machine
+  history show <number|id|latest> [--n 200]
+                                print one session transcript (who asked what, what came back)
 
 Control room (spec 014 — compose/import/review/queue/preview/launch)
   compose [--title "..."] "<body text>" [--check "..."]...
@@ -1243,6 +1250,28 @@ async function main() {
         console.log("");
       }
       console.log(renderFeed(ROOT, { task: flags.task || null, n: flags.n ? Number(flags.n) : 100 }));
+      return;
+    }
+
+    case "history": {
+      const sub = pos[0];
+      if (sub && sub !== "list" && sub !== "show") {
+        throw new StateError('history subcommands: (list) | show <number|id|latest>');
+      }
+      const source = flags.source && String(flags.source).toLowerCase() !== "all" ? String(flags.source).toLowerCase() : null;
+      if (source && !historySources().some((s) => s.id === source)) {
+        throw new StateError(`--source must be one of: ${historySources().map((s) => s.id).join(" | ")} | all`);
+      }
+      const rows = listHistory({ sources: source ? [source] : null, limit: Math.max(1, Number(flags.n) || 20) });
+      if (sub === "show") {
+        const ref = pos.slice(1).join(" ").trim();
+        if (!ref) throw new StateError("history show needs a number from `atl history`, an id prefix, or \"latest\"");
+        const picked = resolveHistoryRef(rows, ref);
+        const transcript = await readTranscript({ source: picked.source, file: picked.file, limit: Math.max(1, Number(flags.n) || 200) });
+        console.log(renderTranscript(transcript, { width: process.stdout.columns || 100 }));
+        return;
+      }
+      console.log(renderHistoryList(rows, { sources: historySources() }));
       return;
     }
 
