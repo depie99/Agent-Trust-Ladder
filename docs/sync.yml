@@ -64,3 +64,14 @@ known_gaps:
   - docs/control-room.html is a new guide; its provider example intentionally leaves ZCode's exact flags to the local installation
   - README.fa.md (Persian mirror) not audited in this pass and may carry the
     same stale counts; needs a translated sync
+
+visual_companion:
+  source: docs/diagrams/codex-history-bridge.svg
+  consumer: docs/codex-history-bridge.html
+  contract: >-
+    architecture map for ATL local authority, incremental bridge context,
+    dedicated token-free Codex projection, and explicit visible queue turn
+  ui_review: >-
+    headless Edge render inspected at 1440x2200 and 390x2200; mobile metrics
+    kept scrollWidth equal to innerWidth; theme toggle and search dialog opened
+    through real controls
