@@ -36,4 +36,3 @@ assert.match(buildInvocation("codex", { root, workspace: root, role: "pip", task
 assert.match(buildInvocation("codex", { root, workspace: root, role: "pip", task }).prompt, /Upstream discussion|github\.com/);
 
 console.log("PASS: task resources parse, persist, copy local attachments, and reach the worker prompt");
-
