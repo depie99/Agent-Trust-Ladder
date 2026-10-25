@@ -41,11 +41,25 @@ function openSearch() {
 
 searchButton?.addEventListener('click', openSearch);
 
+// Theme: the no-flash <head> script applies the stored (or system-preferred)
+// theme before first paint; this handler only toggles, persists, and syncs
+// controls. The toggle glyph itself is CSS-driven (#theme-toggle::before).
+const THEME_KEY = 'atl-theme';
+
+function syncThemeControls(light) {
+  themeToggle?.setAttribute('aria-pressed', String(light));
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f4f3f7' : '#0b0b10');
+}
+
 themeToggle?.addEventListener('click', () => {
-  document.body.classList.toggle('light');
-  themeToggle.textContent = document.body.classList.contains('light') ? '☾' : '☼';
-  themeToggle.setAttribute('aria-pressed', String(document.body.classList.contains('light')));
+  const light = document.documentElement.classList.toggle('light');
+  try {
+    localStorage.setItem(THEME_KEY, light ? 'light' : 'dark');
+  } catch { /* storage unavailable — theme still applies for this visit */ }
+  syncThemeControls(light);
 });
+
+syncThemeControls(document.documentElement.classList.contains('light'));
 
 async function copyText(text, button) {
   try {

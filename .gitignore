@@ -15,3 +15,6 @@
 
 # Per-user install state created by local runs must never land in the repo.
 .atl/project.json
+
+# Local dependency install for the docs CSS build (sass devDependency).
+node_modules/

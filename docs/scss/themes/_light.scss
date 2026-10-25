@@ -1,0 +1,79 @@
+// Light theme. Mirror of themes/_dark.scss — same 54 keys, light-optimized
+// values. Design rules:
+//   * Brand hues keep their hue identity but darken until small mono labels
+//     (9–10px) clear ~4.5:1 contrast on --bg/--panel.
+//   * Tinted fills become soft pastels of the same hue so dark brand text
+//     stays readable on them.
+//   * Code insets, terminal frames, and dialog chrome go light with the page;
+//     the dark SVG screenshots inside them still read as framed images.
+//   * Shadows replace the near-black washes with low-alpha ink so they sit
+//     quietly on a light canvas.
+//
+// Every token MUST exist in both theme maps — _tokens.scss fails the build
+// otherwise. When adding a token, add it to _dark.scss in the same change.
+
+$theme: (
+  // surfaces
+  "bg": #f4f3f7,
+  "panel": #ffffff,
+  "panel2": #f0eff5,
+  "inset": #f1f0f7,
+  "kbd": #e9e8f1,
+  "hover": #ebe9f3,
+  "btn-ghost": #e3e1ee,
+  "result-bg": #f2f1f9,
+  // text
+  "ink": #191726,
+  "muted": #5d5b72,
+  "faint": #8a889e,
+  "crumb": #b1afbf,
+  "code-ink": #514d82,
+  "quote-ink": #4f4b85,
+  "msg-ink": #4a4680,
+  "on-accent": #ffffff,
+  "on-mint": #04261e,
+  // lines
+  "line": #dedde6,
+  "line-strong": #c7c4d6,
+  "edge-callout": #d9d3f2,
+  "edge-violet": #c3b9f2,
+  "edge-mint": #a3d6c6,
+  "edge-amber": #e3c48f,
+  "edge-coral": #eaa99c,
+  "flow-border": #b7abf0,
+  "preview-edge": #cbc9da,
+  "terminal-edge": #dfdde8,
+  // brand
+  "violet": #6753e8,
+  "mint": #0a7d66,
+  "amber": #7d5509,
+  "coral": #bb4534,
+  // violet tints
+  "tint-violet": #e9e4fc,
+  "chip-violet": #ece8fd,
+  "node-violet": #e8e2fb,
+  "callout-violet": #efecfb,
+  "grad-soft": #f0edfd,
+  "grad-tilt": #f4f1fd,
+  "grad-deep": #fbfbfe,
+  "flow-glow": #eeebfa,
+  "msg-context": #f1eefb,
+  // mint tints
+  "tint-mint": #d9f2ea,
+  "chip-mint": #def4ec,
+  "node-mint": #d9f2ea,
+  "check-mint": #d4f0e6,
+  "callout-mint": #e3f6ef,
+  "msg-mint": #e3f6ef,
+  // amber tints
+  "tint-amber": #f8eed7,
+  "chip-amber": #f8edd4,
+  "callout-amber": #fdf3dd,
+  "warn-amber": #fcf3dc,
+  // coral tints
+  "tint-coral": #fbe8e3,
+  // effects
+  "shadow": rgba(30, 26, 58, 0.22),
+  "backdrop": rgba(28, 25, 54, 0.42),
+  "preview-shadow": rgba(30, 26, 58, 0.28),
+);
