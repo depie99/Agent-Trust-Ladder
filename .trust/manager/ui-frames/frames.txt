@@ -1,0 +1,175 @@
+======== DASHBOARD 120x34 ========
+▌ ATL CONTROL ROOM                                                                                ● LIVE · synced 3s ago
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+PORTFOLIO  5 tasks  ·  2 shipped  ·  3 active  ·  1 blocked  ·  0 escalated  ·  ⌁ 5 queued
+last decision 08:52 AM · triaged -> assigned  ·  L logs for the full history
+LIFECYCLE  authoritative state path
+  ○ New 0  ──›  ◌ Triaged 0  ──›  ◔ Assigned 2  ──›  ● Running 0  ──›  ◉ Review 0  ──›  ◍ Verify 0  ──›  ◆ Done 2
+  ↘ 1 blocked   ↗ 0 escalated   ◆ 2 shipped
+ACTIONS  c create task   e edit selected   a resources   x remove from queue   l run queue   r refresh
+
+┌─ ▸ PORTFOLIO · FOCUS 1/5 ────┐ ┌─ SELECTED TASK ──────────────────────────────────┐ ┌─ LIVE FEED ────────────────────┐
+│ ▸ + T-001 ⌁ Refresh t…       │ │ T-001  ◔ Assigned                                │ │ git diff --check EOF failures, │
+│ ◔ Assign 🔨 rowan · 1h ago   │ │ Refresh the user install and prove it matches    │ │ and prior                      │
+│   + T-003 ⌁ Commit th…       │ │ the repo                                         │ │ lifecycle/maintenance model    │
+│ ◔ Assign 🔨 rowan · 1h ago   │ │                                                  │ │ failures. Manager/owner action │
+│   · T-005 ⌁ Smoke the…       │ │ worker  rowan    priority  high                  │ │ is required to reconcile the   │
+│     × Block  Owner approva…  │ │ risk    normal    attempts  7                    │ │ gate and explicitly unblock or │
+│   + T-002 ⌁ Sync docs…       │ │ queue   ⌁ queued for execution (x to remove)     │ │ re-route.                      │
+│ ◆ Done 🔨 rowan · 18h ago    │ │                                                  │ │                                │
+│   + T-004 ⌁ Run the f…       │ │ OBJECTIVE                                        │ │ 08:49 AM ⚙️ Runner             │
+│ ◆ Done 🔨 rowan · 17h ago    │ │ Refresh the per-user ATL install from this       │ │ rowan session ended for T-003: │
+│                              │ │ repository and prove the installed runtime,      │ │ code=0.                        │
+│                              │ │ prompts, CLI surface, and verification suites    │ │                                │
+│                              │ │ match today's repo.                              │ │ 08:52 AM 🧭 Mira               │
+│                              │ │                                                  │ │ T-003 unblocked → assigned and │
+│                              │ │ SOURCE                                           │ │ routed to rowan.               │
+│                              │ │ 2026-10-21-pretest-strengthen.md                 │ │                                │
+│                              │ │ Enter to open source file                        │ │ 08:52 AM 🧭 Mira               │
+│                              │ │                                                  │ │ T-001 unblocked → assigned and │
+│                              │ │ GATE  ●─●─◉─○─○─○─○                              │ │ routed to rowan.               │
+│                              │ │                                                  │ │                                │
+│                              │ │ DETAIL 1-20 / 44 · ↓ more                        │ │ FEED VIEW · ↑ older            │
+└──────────────────────────────┘ └──────────────────────────────────────────────────┘ └────────────────────────────────┘
+
+⌁ Tab pane · ↑↓/jk pane · Enter open · c create · x queue · l run · u unblock · s sess · f feed · ? help · q quit
+
+======== LOGS 120x34 ========
+┌─ LOGS ───────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Everything the room did — ⚙ state decisions and team narration — oldest first.                                       │
+│                                                                                                                      │
+│ 08:48:45 ⚙ sage         T-003 · update — {"set":[],"checks":0,"pass":0,"fail":0,"reviews":1}                         │
+│ 08:48:45 🔍 Sage        T-003 · review verdict on T-003: changes-requested — Independent review confirms origin/ma…  │
+│ 08:48:57 ⚙ runner       T-003 · worker_exit — codex/sage; code=0; timed_out=false; log=D:\Projects\Agentic\Agent-T…  │
+│ 08:48:57 ⚙️ Runner      T-003 · sage session ended for T-003: code=0. — D:\Projects\Agentic\Agent-Trust-Ladder\.tr…  │
+│ 08:48:57 ⚙️ Runner      T-003 · starting bounded codex session as rowan for T-003. — D:\Projects\Agentic\Agent-Tru…  │
+│ 08:49:13 ⚙ rowan        T-003 · evidence:check — the release point sits on current origin/main: the manager fetch …  │
+│ 08:49:13 🔨 Rowan       T-003 · check passed on T-003: the release point sits on current origin/main: the manager …  │
+│ 08:49:13 🔨 Rowan       T-003 · checkpoint on T-003: Attempt budget is exhausted at 7; release gate remains blocke…  │
+│ 08:49:13 ⚙ rowan        T-003 · evidence:note — Truthful handoff evidence: owner checkout status shows 19 release-…  │
+│ 08:49:13 🔨 Rowan       T-003 · Truthful handoff evidence: owner checkout status shows 19 release-scope paths outs…  │
+│ 08:49:13 ⚙ rowan        T-003 · update — {"set":[],"checks":0,"pass":1,"fail":0,"reviews":0}                         │
+│ 08:49:17 ⚙ rowan        T-003 · in_progress -> blocked — Attempt budget 7 is exhausted. Required clean release gat…  │
+│ 08:49:17 🔨 Rowan       T-003 · blocking T-003: Attempt budget 7 is exhausted. Required clean release gate is not …  │
+│ 08:49:25 ⚙ runner       T-003 · worker_exit — codex/rowan; code=0; timed_out=false; log=D:\Projects\Agentic\Agent-…  │
+│ 08:49:25 ⚙️ Runner      T-003 · rowan session ended for T-003: code=0. — D:\Projects\Agentic\Agent-Trust-Ladder\.t…  │
+│ 08:49:30 ⚙ rowan        T-003 · evidence:note — Runner contract conflict resolved in favor of authoritative state:…  │
+│ 08:49:30 🔨 Rowan       T-003 · Runner contract conflict resolved in favor of authoritative state: T-003 is blocke…  │
+│ 08:49:30 ⚙ rowan        T-003 · update — {"set":["last_checkpoint"],"checks":0,"pass":0,"fail":0,"reviews":0}        │
+│ 08:49:38 ⚙ runner       T-003 · worker_exit — codex/rowan; code=0; timed_out=false; log=D:\Projects\Agentic\Agent-…  │
+│ 08:49:38 ⚙️ Runner      T-003 · rowan session ended for T-003: code=0. — D:\Projects\Agentic\Agent-Trust-Ladder\.t…  │
+│ 08:52:24 ⚙ manager      T-003 · blocked -> triaged — Sage's required follow-ups are DONE in ae023a9: lifecycle mod…  │
+│ 08:52:24 ⚙ manager      T-003 · triaged -> assigned — recovered for rowan                                            │
+│ 08:52:24 🧭 Mira        T-003 · T-003 unblocked → assigned and routed to rowan.                                      │
+│ 08:52:24 ⚙ manager      T-001 · blocked -> triaged — Your staged-install verification was exactly right and stands…  │
+│ 08:52:24 ⚙ manager      T-001 · triaged -> assigned — recovered for rowan                                            │
+│ 08:52:24 🧭 Mira        T-001 · T-001 unblocked → assigned and routed to rowan.                                      │
+│                                                                                                                      │
+│ LOGS · FOLLOWING latest · 400 entries · ↑↓ scroll · End follow · F follow on/off · r refresh · Esc back              │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+======== QUEUE 120x30 ========
+┌─ EXECUTION QUEUE ────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Execution queue — membership, not focus. Stored in .trust/manager/queue.json.                                        │
+│                                                                                                                      │
+│ ▸ 1 T-001 ◔ Assign → rowan codex · gpt-5.6-luna · subscription                                                       │
+│     Refresh the user install and prove it matches the repo                                                           │
+│   2 T-003 ◔ Assign → rowan codex · gpt-5.6-luna · subscription                                                       │
+│     Commit the tested tree as the pre-test release point                                                             │
+│                                                                                                                      │
+│ d remove highlighted · l launch preview · gate states refresh live · Esc back                                        │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+======== RUN 120x34 (live tail from real session log) ========
+┌─ RUN QUEUE ──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Queue is running · total 14m00s — raw provider output stays in session logs.                                         │
+│ CURRENT  T-005 · rowan · codex · gpt-5.3-codex · session 1/5 · 6m00s                                                 │
+│ PHASE    recording transcript                                                                                        │
+│                                                                                                                      │
+│ QUEUE PROGRESS                                                                                                       │
+│ ▸ ● T-001  running · rowan/codex/subscription · session 1/5 · 6m00s                                                  │
+│   ○ T-003  queued · rowan/codex/subscription                                                                         │
+│                                                                                                                      │
+│ SESSION LOG TAIL · session-08-rowan.log                                                                              │
+│ 23,484                                                                                                               │
+│ T-005 is blocked safely at the owner-approval gate.                                                                  │
+│ - Dry-run passed: printed the plan and explicitly reported `dry-run: no agent started`.                              │
+│ - No real `--confirm` run was launched because owner approval and a confirmed doc-only task were not recorded.       │
+│ - Checkpoint, evidence, blocker, and show-me outline were logged through ATL.                                        │
+│ - No merge, push, deploy, external message, or code change occurred.                                                 │
+│                                                                                                                      │
+│ L logs · Shift+R reopens this view · Esc back — the run keeps going                                                  │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+======== RUN FINISHED 120x34 ========
+┌─ RUN QUEUE ──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Queue run finished · total 13m30s — inspect the feed and session logs for evidence.                                  │
+│                                                                                                                      │
+│ QUEUE PROGRESS                                                                                                       │
+│ ▸ ● T-001  running · rowan/codex/subscription · session 1/5 · 6m00s                                                  │
+│   – T-003  skipped · rowan/codex/subscription · not reached: session budget exhausted                                │
+│                                                                                                                      │
+│ SESSION LOG TAIL · session-08-rowan.log (final)                                                                      │
+│ 23,484                                                                                                               │
+│ T-005 is blocked safely at the owner-approval gate.                                                                  │
+│ - Dry-run passed: printed the plan and explicitly reported `dry-run: no agent started`.                              │
+│ - No real `--confirm` run was launched because owner approval and a confirmed doc-only task were not recorded.       │
+│ - Checkpoint, evidence, blocker, and show-me outline were logged through ATL.                                        │
+│ - No merge, push, deploy, external message, or code change occurred.                                                 │
+│                                                                                                                      │
+│ r refresh · L logs · Esc back                                                                                        │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

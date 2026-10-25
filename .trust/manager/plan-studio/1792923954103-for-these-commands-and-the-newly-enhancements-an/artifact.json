@@ -1,0 +1,416 @@
+{
+  "schema": 1,
+  "stage": "plan",
+  "artifact": {
+    "title": "Docs format uplift: mishka.tools-style reference docs for the Web Control Plane + CLI (skill, GitHub Pages, package docs)",
+    "objective": "Adopt the mishka.tools/chelekom documentation format (per-topic pages with a short brief, live example blocks, visual previews, usage/commands tables, and related links) as the standard for ATL technical docs. Encode that format and its evidence rules in the atl-tech-docs skill (C:/Users/Sanaz/.agents/skills/atl-tech-docs/SKILL.md), then apply it to the GitHub Pages site (docs/*.html) and the package-facing docs (README.md, README.fa.md, USAGE.md, GUIDE.md for @depie99/atl). Scope: the browser surface — named the Web Control Plane (docs/control-room.html, `atl ui` / `atl control-plane`, runtime/control-plane.html), which resolves the 'how do we call it?' question — plus CLI commands only. Terminal TUI enhancements/bug fixes did not happen and the TUI stays a compatibility surface excluded from primary docs until its UX pass. Every documented web interaction and command must map to shipped behavior in runtime/control-plane.html and runtime/atl-manager.mjs before it is published.",
+    "constraints": [
+      "Docs scope is Web Control Plane + CLI commands only; the terminal TUI is documented solely as a compatibility surface and no TUI enhancement or bug-fix claims may appear (matches the existing stance in docs/README.md).",
+      "The mishka.tools format is adopted as structure and method (brief, examples, previews, briefs) — no copying of their markup, styling, copy, or assets.",
+      "Every documented web interaction must correspond to an existing element/flow in runtime/control-plane.html; every documented command/flag must exist in runtime/atl-manager.mjs CLI help.",
+      "Any new or restructured docs page must be added to the doc_set in docs/sync.yml or the next docs sync will not diff it.",
+      "No runtime code changes: this plan touches the skill file, docs site, diagrams/visuals, and package docs only.",
+      "README.fa.md (Persian) must be updated in parallel or explicitly marked as pending translation; it may not silently drift.",
+      "Visuals and interactive example spaces must use sanitized, representative data only — no real project data (precedent: docs/diagrams/atl-web-control-plane-preview.svg rule in docs/README.md).",
+      "The skill file lives outside this repository; its edit cannot be verified by repo checks, so it needs an explicit local self-check step and a pointer from the repo docs conventions."
+    ],
+    "risks": [
+      "Format drift into design plagiarism if mishka.tools pages are imitated visually rather than structurally; mitigated by capturing an abstract page template in the research notes before touching any ATL page.",
+      "Docs overclaiming: mishka-style 'live example' blocks could imply behaviors the Web Control Plane does not yet ship; mitigated by the runtime-mapping evidence gate per step.",
+      "Silent sync gap: pages not listed in docs/sync.yml doc_set bypass the established docs-check boundary and can ship unverified.",
+      "The SKILL.md edit is outside git, so regressions there are invisible to CI; mitigated by a required checklist section in the skill plus a repo-side convention reference.",
+      "Scope creep back into TUI documentation or TUI fixes, contradicting the stated intent; mitigated by grep guards against TUI-primary phrasing.",
+      "Interactive demo 'spaces' embedded in docs could leak real feed/queue data if built from live state; mitigated by requiring hand-authored sanitized fixtures.",
+      "Bilingual README drift: updating README.md/USAGE.md without README.fa.md leaves the Persian package docs contradicted."
+    ],
+    "completion_checks": [
+      "atl-tech-docs SKILL.md contains a prescribed mishka-style page template (brief, preview/visual, examples, usage/commands, edge cases, related links) plus ATL evidence rules and an explicit web-only scope statement excluding the terminal TUI from primary docs.",
+      "A format research note exists recording the section inventory observed on the six mishka.tools/chelekom reference pages (docs, sidebar, carousel, design-system, ai, cli) with one structural pattern captured per section.",
+      "docs/control-room.html is restructured into per-feature sections (browser spaces, compose, review, queue, preview, confirm, safe stop) each with brief, visual, and step-by-step interaction example, all mapping to runtime/control-plane.html.",
+      "A CLI reference page in the mishka /docs/cli style documents shipped commands with per-command examples, and every flag matches runtime/atl-manager.mjs help output.",
+      "Every new/edited page and visual asset is listed in docs/sync.yml doc_set.",
+      "All internal links and referenced diagram/asset paths in changed pages resolve to existing files.",
+      "README.md, USAGE.md, GUIDE.md, and README.fa.md reflect the web+CLI scope with visuals and contain no TUI-primary guidance.",
+      "All diagram/SVG assets added or edited are sanitized representative art with no real project data."
+    ],
+    "acceptance_examples": [
+      {
+        "given": "the updated atl-tech-docs SKILL.md",
+        "when": "a writer opens it to author any ATL documentation page",
+        "then": "they find a concrete mishka-style page template (brief, preview, examples, usage/commands, edge notes, related links) with ATL evidence rules and the web-only scope statement, so two writers produce structurally identical pages"
+      },
+      {
+        "given": "docs/control-room.html after the restructure",
+        "when": "a reader wants to learn one Web Control Plane interaction such as compose to review to queue to confirm",
+        "then": "the page presents a short brief, an embedded sanitized visual or preview space, and a numbered interaction walkthrough, with no TUI alternative offered as the primary path"
+      },
+      {
+        "given": "a command documented on the new CLI reference page",
+        "when": "it is compared against the CLI help output in runtime/atl-manager.mjs",
+        "then": "every documented command, flag, and example exists in the shipped CLI with matching semantics, and no removed or renamed command remains documented"
+      },
+      {
+        "given": "a new consumer installing @depie99/atl from npm",
+        "when": "they read README.md and USAGE.md",
+        "then": "they reach a working Web Control Plane session and a first CLI command within the quickstart, guided by at least one visual, with the terminal TUI mentioned only as a compatibility surface"
+      },
+      {
+        "given": "the docs sync boundary in docs/sync.yml",
+        "when": "the set of changed and newly created pages and assets is diffed against doc_set",
+        "then": "every changed page and every new asset path appears in doc_set with no untracked docs output remaining outside it"
+      },
+      {
+        "given": "any HTML page or README changed by this plan",
+        "when": "it is searched for TUI-primary phrasing such as TUI enhancements, improved TUI, or TUI-first instructions",
+        "then": "no such phrasing is found; TUI mentions are limited to compatibility-surface notes"
+      }
+    ],
+    "selected_skills": [
+      "atl-tech-docs",
+      "agent-trust-ladder"
+    ],
+    "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+    "implementation_steps": [
+      {
+        "step": "Research the mishka.tools/chelekom docs format: fetch and inventory docs, sidebar, carousel, design-system, ai, and cli pages; record the recurring page skeleton (brief, live example, preview, usage/props table, related links) as an abstract template with no copied markup or assets.",
+        "files": [
+          "docs/format-reference.md"
+        ],
+        "verify": "docs/format-reference.md exists, lists the section inventory for each of the six reference pages, and states the abstract ATL page template derived from them with a note that no mishka markup or assets were copied"
+      },
+      {
+        "step": "Update the atl-tech-docs skill: add the page template, per-section authoring rules, evidence rules (every interaction maps to runtime/control-plane.html, every command to runtime/atl-manager.mjs), sanitized-visual rules, and the explicit scope statement that primary docs cover the Web Control Plane and CLI only while the terminal TUI remains an undocumented compatibility surface pending its UX pass.",
+        "files": [
+          "C:/Users/Sanaz/.agents/skills/atl-tech-docs/SKILL.md"
+        ],
+        "verify": "SKILL.md contains the template, the evidence rules, the sanitized-visual rule, and a literal web-only scope line naming the terminal TUI as out of primary docs; no TUI enhancement claims appear"
+      },
+      {
+        "step": "Restructure the Web Control Plane guide into mishka-style per-feature sections: overview brief, browser spaces, compose, review, queue, preview, confirm, provider boundaries, safe stop — each with a brief, a sanitized visual or preview space, and a step-by-step interaction walkthrough derived from runtime/control-plane.html.",
+        "files": [
+          "docs/control-room.html",
+          "docs/web-control-plane-brief.md",
+          "docs/diagrams/atl-web-control-plane.svg",
+          "docs/diagrams/atl-web-control-plane-preview.svg"
+        ],
+        "verify": "each documented interaction in control-room.html corresponds to an existing flow or element in runtime/control-plane.html, and each feature section contains a brief, a visual reference, and a numbered example"
+      },
+      {
+        "step": "Add a CLI reference page in the mishka /docs/cli style: per-command sections with purpose brief, syntax, flags table, one worked example, and related commands, covering the shipped CLI surface including atl ui / atl control-plane; link it from the site navigation and index.",
+        "files": [
+          "docs/reference.html",
+          "docs/index.html",
+          "docs/app.js",
+          "docs/styles.css"
+        ],
+        "verify": "every command and flag on the new page appears in the runtime/atl-manager.mjs help output, and the page is reachable from docs/index.html navigation"
+      },
+      {
+        "step": "Produce and embed sanitized visuals and interactive example spaces: hand-authored demo fixtures for the preview blocks, updated SVG workflow art, and any CSS/JS needed for embedded example frames; verify no real feed, queue, or workspace data is used.",
+        "files": [
+          "docs/diagrams/",
+          "docs/styles.css",
+          "docs/app.js"
+        ],
+        "verify": "every asset referenced by changed pages exists on disk and contains only representative fixture data with no real project identifiers"
+      },
+      {
+        "step": "Update package-facing docs to the same web+CLI scope: README.md quickstart and feature tour with visuals, USAGE.md web Control Plane and CLI walkthroughs, GUIDE.md alignment, and README.fa.md translated or explicitly marked pending.",
+        "files": [
+          "README.md",
+          "USAGE.md",
+          "GUIDE.md",
+          "README.fa.md"
+        ],
+        "verify": "grep across the four files finds no TUI-primary phrasing, and each contains at least one web Control Plane section, one CLI example, and one visual reference whose path exists"
+      },
+      {
+        "step": "Extend the docs sync boundary and publish: add every new page, diagram, and fixture to doc_set in docs/sync.yml, run the repo docs checks, and let the GitHub Pages workflow publish; record the advance of the sync anchor only after checks pass.",
+        "files": [
+          "docs/sync.yml",
+          "docs/README.md"
+        ],
+        "verify": "doc_set enumerates all changed and new paths from the prior steps with none missing, and docs/README.md describes the new page structure and the web-only scope accurately"
+      }
+    ],
+    "verifier_commands": [
+      "git diff --stat docs/ README.md USAGE.md GUIDE.md README.fa.md .agents/skills/atl-tech-docs/SKILL.md",
+      "grep -rniE \"tui[^\\.]*(enhanc|improv|fix)|improved tui|tui-first|in the tui\" docs/*.html README.md USAGE.md GUIDE.md README.fa.md || echo GUARD-OK",
+      "for f in $(grep -ohE \"diagrams/[a-z0-9._-]+\" docs/*.html README.md USAGE.md | sort -u); do test -f \"docs/$f\" || echo \"MISSING docs/$f\"; done",
+      "grep -c \"control-room.html\\|cli\" docs/index.html",
+      "node runtime/atl-manager.mjs --help",
+      "git diff --name-only docs/ | while read f; do grep -qF \"$f\" docs/sync.yml || echo \"NOT-IN-DOC_SET: $f\"; done",
+      "grep -q \"Web Control Plane\" C:/Users/Sanaz/.agents/skills/atl-tech-docs/SKILL.md && grep -qi \"tui\" C:/Users/Sanaz/.agents/skills/atl-tech-docs/SKILL.md && echo SKILL-SCOPE-PRESENT"
+    ],
+    "task_proposals": [
+      {
+        "id": "p1",
+        "title": "Research the mishka.tools/chelekom docs format: fetch and inventory docs, sidebar, carousel, design-system, ai, and cli pages; record the recurring page skeleton (brief, live example, preview, usage/props table, related links) as an abstrac",
+        "objective": "Research the mishka.tools/chelekom docs format: fetch and inventory docs, sidebar, carousel, design-system, ai, and cli pages; record the recurring page skeleton (brief, live example, preview, usage/props table, related links) as an abstract template with no copied markup or assets.\ncreate a data model of changes",
+        "completion_checks": [
+          "docs/format-reference.md exists, lists the section inventory for each of the six reference pages, and states the abstract ATL page template derived from them with a note that no mishka markup or assets were copied"
+        ],
+        "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+        "selected_skills": [
+          "atl-tech-docs",
+          "agent-trust-ladder",
+          "atl-diagrams"
+        ],
+        "depends_on": [],
+        "files": [
+          "docs/format-reference.md"
+        ],
+        "verify": "docs/format-reference.md exists, lists the section inventory for each of the six reference pages, and states the abstract ATL page template derived from them with a note that no mishka markup or assets were copied",
+        "revision": 2,
+        "source": "manager-edit",
+        "feedback": [],
+        "revisions": [
+          {
+            "rev": 1,
+            "at": "2026-10-25T10:32:33.714Z",
+            "source": "model",
+            "proposal": {
+              "id": "p1",
+              "title": "Research the mishka.tools/chelekom docs format: fetch and inventory docs, sidebar, carousel, design-system, ai, and cli pages; record the recurring page skeleton (brief, live example, preview, usage/props table, related links) as an abstrac",
+              "objective": "Research the mishka.tools/chelekom docs format: fetch and inventory docs, sidebar, carousel, design-system, ai, and cli pages; record the recurring page skeleton (brief, live example, preview, usage/props table, related links) as an abstract template with no copied markup or assets.",
+              "completion_checks": [
+                "docs/format-reference.md exists, lists the section inventory for each of the six reference pages, and states the abstract ATL page template derived from them with a note that no mishka markup or assets were copied"
+              ],
+              "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+              "selected_skills": [
+                "atl-tech-docs",
+                "agent-trust-ladder"
+              ],
+              "depends_on": [],
+              "files": [
+                "docs/format-reference.md"
+              ],
+              "verify": "docs/format-reference.md exists, lists the section inventory for each of the six reference pages, and states the abstract ATL page template derived from them with a note that no mishka markup or assets were copied",
+              "revision": 1,
+              "source": "model",
+              "feedback": [],
+              "revisions": [],
+              "defaults": {
+                "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+                "selected_skills": [
+                  "atl-tech-docs",
+                  "agent-trust-ladder"
+                ]
+              }
+            }
+          }
+        ],
+        "defaults": {
+          "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+          "selected_skills": [
+            "atl-tech-docs",
+            "agent-trust-ladder"
+          ]
+        }
+      },
+      {
+        "id": "p2",
+        "title": "Update the atl-tech-docs skill: add the page template, per-section authoring rules, evidence rules (every interaction maps to runtime/control-plane.html, every command to runtime/atl-manager.mjs), sanitized-visual rules, and the explicit sc",
+        "objective": "Update the atl-tech-docs skill: add the page template, per-section authoring rules, evidence rules (every interaction maps to runtime/control-plane.html, every command to runtime/atl-manager.mjs), sanitized-visual rules, and the explicit scope statement that primary docs cover the Web Control Plane and CLI only while the terminal TUI remains an undocumented compatibility surface pending its UX pass.",
+        "completion_checks": [
+          "SKILL.md contains the template, the evidence rules, the sanitized-visual rule, and a literal web-only scope line naming the terminal TUI as out of primary docs; no TUI enhancement claims appear"
+        ],
+        "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+        "selected_skills": [
+          "atl-tech-docs",
+          "agent-trust-ladder"
+        ],
+        "depends_on": [
+          "p1"
+        ],
+        "files": [
+          "C:/Users/Sanaz/.agents/skills/atl-tech-docs/SKILL.md"
+        ],
+        "verify": "SKILL.md contains the template, the evidence rules, the sanitized-visual rule, and a literal web-only scope line naming the terminal TUI as out of primary docs; no TUI enhancement claims appear",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+          "selected_skills": [
+            "atl-tech-docs",
+            "agent-trust-ladder"
+          ]
+        }
+      },
+      {
+        "id": "p3",
+        "title": "Restructure the Web Control Plane guide into mishka-style per-feature sections: overview brief, browser spaces, compose, review, queue, preview, confirm, provider boundaries, safe stop — each with a brief, a sanitized visual or preview spac",
+        "objective": "Restructure the Web Control Plane guide into mishka-style per-feature sections: overview brief, browser spaces, compose, review, queue, preview, confirm, provider boundaries, safe stop — each with a brief, a sanitized visual or preview space, and a step-by-step interaction walkthrough derived from runtime/control-plane.html.",
+        "completion_checks": [
+          "each documented interaction in control-room.html corresponds to an existing flow or element in runtime/control-plane.html, and each feature section contains a brief, a visual reference, and a numbered example"
+        ],
+        "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+        "selected_skills": [
+          "atl-tech-docs",
+          "agent-trust-ladder"
+        ],
+        "depends_on": [
+          "p2"
+        ],
+        "files": [
+          "docs/control-room.html",
+          "docs/web-control-plane-brief.md",
+          "docs/diagrams/atl-web-control-plane.svg",
+          "docs/diagrams/atl-web-control-plane-preview.svg"
+        ],
+        "verify": "each documented interaction in control-room.html corresponds to an existing flow or element in runtime/control-plane.html, and each feature section contains a brief, a visual reference, and a numbered example",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+          "selected_skills": [
+            "atl-tech-docs",
+            "agent-trust-ladder"
+          ]
+        }
+      },
+      {
+        "id": "p4",
+        "title": "Add a CLI reference page in the mishka /docs/cli style: per-command sections with purpose brief, syntax, flags table, one worked example, and related commands, covering the shipped CLI surface including atl ui / atl control-plane; link it f",
+        "objective": "Add a CLI reference page in the mishka /docs/cli style: per-command sections with purpose brief, syntax, flags table, one worked example, and related commands, covering the shipped CLI surface including atl ui / atl control-plane; link it from the site navigation and index.",
+        "completion_checks": [
+          "every command and flag on the new page appears in the runtime/atl-manager.mjs help output, and the page is reachable from docs/index.html navigation"
+        ],
+        "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+        "selected_skills": [
+          "atl-tech-docs",
+          "agent-trust-ladder"
+        ],
+        "depends_on": [
+          "p3"
+        ],
+        "files": [
+          "docs/reference.html",
+          "docs/index.html",
+          "docs/app.js",
+          "docs/styles.css"
+        ],
+        "verify": "every command and flag on the new page appears in the runtime/atl-manager.mjs help output, and the page is reachable from docs/index.html navigation",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+          "selected_skills": [
+            "atl-tech-docs",
+            "agent-trust-ladder"
+          ]
+        }
+      },
+      {
+        "id": "p5",
+        "title": "Produce and embed sanitized visuals and interactive example spaces: hand-authored demo fixtures for the preview blocks, updated SVG workflow art, and any CSS/JS needed for embedded example frames; verify no real feed, queue, or workspace da",
+        "objective": "Produce and embed sanitized visuals and interactive example spaces: hand-authored demo fixtures for the preview blocks, updated SVG workflow art, and any CSS/JS needed for embedded example frames; verify no real feed, queue, or workspace data is used.",
+        "completion_checks": [
+          "every asset referenced by changed pages exists on disk and contains only representative fixture data with no real project identifiers"
+        ],
+        "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+        "selected_skills": [
+          "atl-tech-docs",
+          "agent-trust-ladder"
+        ],
+        "depends_on": [
+          "p4"
+        ],
+        "files": [
+          "docs/diagrams/",
+          "docs/styles.css",
+          "docs/app.js"
+        ],
+        "verify": "every asset referenced by changed pages exists on disk and contains only representative fixture data with no real project identifiers",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+          "selected_skills": [
+            "atl-tech-docs",
+            "agent-trust-ladder"
+          ]
+        }
+      },
+      {
+        "id": "p6",
+        "title": "Update package-facing docs to the same web+CLI scope: README.md quickstart and feature tour with visuals, USAGE.md web Control Plane and CLI walkthroughs, GUIDE.md alignment, and README.fa.md translated or explicitly marked pending.",
+        "objective": "Update package-facing docs to the same web+CLI scope: README.md quickstart and feature tour with visuals, USAGE.md web Control Plane and CLI walkthroughs, GUIDE.md alignment, and README.fa.md translated or explicitly marked pending.",
+        "completion_checks": [
+          "grep across the four files finds no TUI-primary phrasing, and each contains at least one web Control Plane section, one CLI example, and one visual reference whose path exists"
+        ],
+        "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+        "selected_skills": [
+          "atl-tech-docs",
+          "agent-trust-ladder"
+        ],
+        "depends_on": [
+          "p5"
+        ],
+        "files": [
+          "README.md",
+          "USAGE.md",
+          "GUIDE.md",
+          "README.fa.md"
+        ],
+        "verify": "grep across the four files finds no TUI-primary phrasing, and each contains at least one web Control Plane section, one CLI example, and one visual reference whose path exists",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+          "selected_skills": [
+            "atl-tech-docs",
+            "agent-trust-ladder"
+          ]
+        }
+      },
+      {
+        "id": "p7",
+        "title": "Extend the docs sync boundary and publish: add every new page, diagram, and fixture to doc_set in docs/sync.yml, run the repo docs checks, and let the GitHub Pages workflow publish; record the advance of the sync anchor only after checks pa",
+        "objective": "Extend the docs sync boundary and publish: add every new page, diagram, and fixture to doc_set in docs/sync.yml, run the repo docs checks, and let the GitHub Pages workflow publish; record the advance of the sync anchor only after checks pass.",
+        "completion_checks": [
+          "doc_set enumerates all changed and new paths from the prior steps with none missing, and docs/README.md describes the new page structure and the web-only scope accurately"
+        ],
+        "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+        "selected_skills": [
+          "atl-tech-docs",
+          "agent-trust-ladder"
+        ],
+        "depends_on": [
+          "p6"
+        ],
+        "files": [
+          "docs/sync.yml",
+          "docs/README.md"
+        ],
+        "verify": "doc_set enumerates all changed and new paths from the prior steps with none missing, and docs/README.md describes the new page structure and the web-only scope accurately",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Mira routes to one named docs worker (atl-pip, atl-rowan, or atl-sage per the current team roster) for implementation, with Beacon as the independent verifier of the evidence gates",
+          "selected_skills": [
+            "atl-tech-docs",
+            "agent-trust-ladder"
+          ]
+        }
+      }
+    ]
+  },
+  "saved_at": "2026-10-25T10:32:33.715Z",
+  "provider": "solico-glm",
+  "model": null,
+  "role": "pip",
+  "generated_via": "custom-invoke"
+}

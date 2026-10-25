@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "stage": "frame",
+  "artifact": {
+    "schema": 1,
+    "stage": "frame",
+    "title": "Describe the bounded change you want ATL to plan and verify.",
+    "objective": "Describe the bounded change you want ATL to plan and verify.",
+    "constraints": [],
+    "risks": [],
+    "completion_checks": [
+      "The requested behavior is observable in a real verification command."
+    ],
+    "acceptance_examples": [
+      {
+        "given": "the bounded task is implemented",
+        "when": "the verifier runs",
+        "then": "the requested outcome is observed"
+      }
+    ],
+    "selected_skills": [
+      "atl-frame",
+      "atl-specify",
+      "atl-plan",
+      "atl-verify"
+    ],
+    "proposed_worker": "pip",
+    "skill_route": [
+      {
+        "skill": "atl-frame",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-specify",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-plan",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-verify",
+        "reason": "selected by the manager or ATL route"
+      }
+    ],
+    "implementation_steps": [],
+    "verifier_commands": [],
+    "generated_by": "atl-deterministic-frame"
+  },
+  "saved_at": "2026-10-23T09:48:13.242Z"
+}

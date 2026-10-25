@@ -1,0 +1,1461 @@
+{
+  "version": 1,
+  "created_at": "2026-10-21T08:18:30.119Z",
+  "updated_at": "2026-10-21T08:18:30.258Z",
+  "tasks": {
+    "T-001": {
+      "id": "T-001",
+      "title": "Fix README quickstart typo in install section",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "2026-10-20-autokick-demo.md",
+        "thread": "2026-10-20-autokick-demo.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "install command in README matches the actual script name"
+      ],
+      "priority": "low",
+      "risk": "normal",
+      "labels": [],
+      "selected_skills": [
+        "atl-implement",
+        "atl-tech-docs",
+        "atl-ui-review"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-implement",
+          "atl-tech-docs",
+          "atl-ui-review"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "implementation",
+            "skill": "atl-implement",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "fix"
+            ],
+            "matched_labels": []
+          },
+          {
+            "name": "technical-docs",
+            "skill": "atl-tech-docs",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "readme"
+            ],
+            "matched_labels": []
+          },
+          {
+            "name": "ui-review",
+            "skill": "atl-ui-review",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "ui"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": "rowan",
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.200Z",
+          "rule": "routine:readme-doc-fixes"
+        },
+        {
+          "at": "2026-10-21T08:18:30.212Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-implement",
+            "atl-tech-docs",
+            "atl-ui-review"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.199Z",
+      "updated_at": "2026-10-21T08:18:30.199Z",
+      "intake_key": "2026-10-20-autokick-demo.md#Fix README quickstart typo in install section",
+      "auto_route": "readme-doc-fixes"
+    },
+    "T-002": {
+      "id": "T-002",
+      "title": "Fix login redirect loop after session expiry",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "https://github.com/shahryarjb/temp_mishka_cms/issues",
+        "thread": "2026-10-20-demo.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "user with a valid session reaching a protected page is not redirected",
+        "expired session redirects to /login exactly once (no loop)"
+      ],
+      "priority": "high",
+      "risk": "normal",
+      "labels": [],
+      "selected_skills": [
+        "atl-implement"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-implement"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "implementation",
+            "skill": "atl-implement",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "fix"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.215Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-implement"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.215Z",
+      "updated_at": "2026-10-21T08:18:30.215Z",
+      "intake_key": "2026-10-20-demo.md#Fix login redirect loop after session expiry",
+      "objective_hint": "Users report being bounced back to /login even with a valid session."
+    },
+    "T-003": {
+      "id": "T-003",
+      "title": "Sprint 73 task: middleware portal timeout spike",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "https://devops.soitco.net:32678/Solico-Group/Middleware-and-Portals/_sprints/taskboard/Middleware-and-Portals%20Team/Middleware-and-Portals/Sprint%2073",
+        "thread": "2026-10-20-demo.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "p95 latency back under the agreed threshold on the staging environment",
+        "dashboard shows the regression window and the recovery window"
+      ],
+      "priority": "urgent",
+      "risk": "risky",
+      "labels": [],
+      "selected_skills": [
+        "atl-implement"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "fallback",
+        "selected_skills": [
+          "atl-implement"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [],
+        "skipped": [],
+        "source": "fallback",
+        "reason": "No specialist intent matched; use the native bounded implementation route."
+      },
+      "review_required": true,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.218Z",
+          "rule": "routine:perf-regressions"
+        },
+        {
+          "at": "2026-10-21T08:18:30.218Z",
+          "route": "fallback",
+          "skills": [
+            "atl-implement"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.218Z",
+      "updated_at": "2026-10-21T08:18:30.218Z",
+      "intake_key": "2026-10-20-demo.md#Sprint 73 task: middleware portal timeout spike",
+      "objective_hint": "API gateway p95 latency doubled since the last deployment."
+    },
+    "T-004": {
+      "id": "T-004",
+      "title": "Update README quickstart for the new install steps",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "2026-10-20-demo.md",
+        "thread": "2026-10-20-demo.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "quickstart commands run successfully on a clean checkout",
+        "README no longer references the removed config flag"
+      ],
+      "priority": "low",
+      "risk": "normal",
+      "labels": [],
+      "selected_skills": [
+        "atl-tech-docs",
+        "atl-ui-review"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-ui-review"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "technical-docs",
+            "skill": "atl-tech-docs",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "readme"
+            ],
+            "matched_labels": []
+          },
+          {
+            "name": "ui-review",
+            "skill": "atl-ui-review",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "ui"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": "rowan",
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.220Z",
+          "rule": "routine:readme-doc-fixes"
+        },
+        {
+          "at": "2026-10-21T08:18:30.220Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-tech-docs",
+            "atl-ui-review"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.219Z",
+      "updated_at": "2026-10-21T08:18:30.219Z",
+      "intake_key": "2026-10-20-demo.md#Update README quickstart for the new install steps",
+      "auto_route": "readme-doc-fixes"
+    },
+    "T-005": {
+      "id": "T-005",
+      "title": "Fix broken changelog link on the docs index",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "2026-10-20-feed-arc.md",
+        "thread": "2026-10-20-feed-arc.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "changelog link on docs index resolves to the changelog page"
+      ],
+      "priority": "normal",
+      "risk": "normal",
+      "labels": [],
+      "selected_skills": [
+        "atl-implement",
+        "atl-tech-docs"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-implement",
+          "atl-tech-docs"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "implementation",
+            "skill": "atl-implement",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "fix"
+            ],
+            "matched_labels": []
+          },
+          {
+            "name": "technical-docs",
+            "skill": "atl-tech-docs",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "docs"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.223Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-implement",
+            "atl-tech-docs"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.222Z",
+      "updated_at": "2026-10-21T08:18:30.222Z",
+      "intake_key": "2026-10-20-feed-arc.md#Fix broken changelog link on the docs index"
+    },
+    "T-006": {
+      "id": "T-006",
+      "title": "Fix API timeout on bulk import endpoint",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "https://devops.soitco.net:32678/Solico-Group/Middleware-and-Portals/_workitems/edit/5312",
+        "thread": "2026-10-20-routine-demo.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "bulk import of 500 rows completes under the gateway timeout",
+        "partial failures return a resumable batch id"
+      ],
+      "priority": "urgent",
+      "risk": "risky",
+      "labels": [],
+      "selected_skills": [
+        "atl-implement"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-implement"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "implementation",
+            "skill": "atl-implement",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "fix"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": true,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.225Z",
+          "rule": "routine:perf-regressions"
+        },
+        {
+          "at": "2026-10-21T08:18:30.226Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-implement"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.225Z",
+      "updated_at": "2026-10-21T08:18:30.225Z",
+      "intake_key": "2026-10-20-routine-demo.md#Fix API timeout on bulk import endpoint",
+      "objective_hint": "Bulk import over 500 rows hits the gateway timeout."
+    },
+    "T-007": {
+      "id": "T-007",
+      "title": "Refresh the user install and prove it matches the repo",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "2026-10-21-pretest-strengthen.md",
+        "thread": "2026-10-21-pretest-strengthen.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "scripts\\install-atl.cmd runs from the repo clone and completes without error",
+        "C:\\Users\\Sanaz\\.atl\\runtime\\lib contains 13 .mjs modules including worker.mjs, jev.mjs, learning.mjs, memory.mjs, skill-router.mjs, show-me.mjs and visual-pr.mjs",
+        "atl --help lists run, overnight, route, memory, show-me and visual-pr commands",
+        "atl-mira.md through atl-beacon.md in %USERPROFILE%\\.codex\\prompts and %USERPROFILE%\\.claude\\commands match the repo runtime\\prompts files by size and content (mtime is preserved on copy, so compare bytes, not dates)",
+        "all five verification suites pass: node verification\\install_test.mjs, intake_test.mjs, worker_test.mjs, learning_test.mjs, jev_router_test.mjs"
+      ],
+      "priority": "high",
+      "risk": "normal",
+      "labels": [
+        "install",
+        "pretest",
+        "gate"
+      ],
+      "selected_skills": [
+        "atl-implement",
+        "atl-ui-review"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-implement",
+          "atl-ui-review"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "implementation",
+            "skill": "atl-implement",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "code"
+            ],
+            "matched_labels": []
+          },
+          {
+            "name": "ui-review",
+            "skill": "atl-ui-review",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "visual"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.228Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-implement",
+            "atl-ui-review"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.227Z",
+      "updated_at": "2026-10-21T08:18:30.227Z",
+      "intake_key": "2026-10-21-pretest-strengthen.md#Refresh the user install and prove it matches the repo",
+      "objective_hint": "The installed ~/.atl runtime is stale (2026-10-20, missing worker/jev/learning/memory/skill-router/show-me/visual-pr). Bring the per-user install to exactly the current repo runtime so every later task exercises today's code. Do not touch PATH manually; the installer owns it."
+    },
+    "T-008": {
+      "id": "T-008",
+      "title": "Sync docs and role prompts with the real runtime",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "2026-10-21-pretest-strengthen.md",
+        "thread": "2026-10-21-pretest-strengthen.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "runtime\\README.md references role prompts at runtime\\prompts and no bare ~/.atl/prompts path remains in any repo doc",
+        "pip.md, rowan.md, sage.md and beacon.md in runtime\\prompts each state that --evidence-pass text must copy the completion check verbatim (exact string match)",
+        "a text search for evidence-pass across runtime\\README.md, USAGE.md and docs\\team.html finds the verbatim rule next to the first mention in each file",
+        "root README.md no longer claims \"eleven skills\" and uses the six-question Trust Verdict wording",
+        "docs\\team.html documents the same verbatim-evidence rule in the team usage flow"
+      ],
+      "priority": "low",
+      "risk": "normal",
+      "labels": [
+        "docs",
+        "prompts",
+        "gotcha"
+      ],
+      "selected_skills": [
+        "atl-tech-docs"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-tech-docs"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "technical-docs",
+            "skill": "atl-tech-docs",
+            "worker": "rowan",
+            "score": 2,
+            "matched_keywords": [
+              "docs",
+              "readme"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": "rowan",
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.230Z",
+          "rule": "routine:readme-doc-fixes"
+        },
+        {
+          "at": "2026-10-21T08:18:30.230Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-tech-docs"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.230Z",
+      "updated_at": "2026-10-21T08:18:30.230Z",
+      "intake_key": "2026-10-21-pretest-strengthen.md#Sync docs and role prompts with the real runtime",
+      "objective_hint": "Remove the known tripwires before the first real run: the exact-match evidence gate is undocumented, runtime\\README.md points to a prompts path that does not exist (~/.atl/prompts), and the root README still carries stale counts. Keep the docs-site theme untouched.",
+      "auto_route": "readme-doc-fixes"
+    },
+    "T-009": {
+      "id": "T-009",
+      "title": "Commit the tested tree as the pre-test release point",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "2026-10-21-pretest-strengthen.md",
+        "thread": "2026-10-21-pretest-strengthen.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "git fetch origin ran and current branch plus recent log were checked before committing",
+        "git status --porcelain lists no modified files and no untracked files outside .trust\\manager\\ (state, feed, inbox, briefs and workspaces are allowed runtime churn)",
+        "the work is grouped into commits whose messages name their scope (runtime+verification, skills+commands, docs+config)",
+        "git log origin/main..HEAD lists the new commits, proving nothing was pushed (owner gate intact)"
+      ],
+      "priority": "high",
+      "risk": "normal",
+      "labels": [
+        "git",
+        "release"
+      ],
+      "selected_skills": [
+        "atl-tech-docs"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-tech-docs"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "technical-docs",
+            "skill": "atl-tech-docs",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "docs"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.234Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-tech-docs"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.233Z",
+      "updated_at": "2026-10-21T08:18:30.233Z",
+      "intake_key": "2026-10-21-pretest-strengthen.md#Commit the tested tree as the pre-test release point",
+      "objective_hint": "Capture the tested runtime, skills, docs and verification state in clean local commits so the state the team is about to test is reproducible. This repo has had parallel sessions before: fetch and inspect the log before writing anything. Pushing is the owner's decision, not this task's."
+    },
+    "T-010": {
+      "id": "T-010",
+      "title": "Run the first real team lifecycle end to end",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "2026-10-21-pretest-strengthen.md",
+        "thread": "2026-10-21-pretest-strengthen.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "a scratch project reaches atl init, atl intake and one task closed done with every completion check showing PASS",
+        "atl feed --task shows all five bot voices in order: Pip triage, Mira kick, Rowan running card, Sage review verdict, Beacon done card",
+        "move triaged without an objective is rejected by the runner",
+        "move done without matching evidence is rejected by the runner",
+        "an assign attempt with --actor rowan is rejected as out-of-contract",
+        "one changes-requested loop is exercised on the same task id: in_review to in_progress, then back through in_review, verifying, done"
+      ],
+      "priority": "high",
+      "risk": "risky",
+      "labels": [
+        "team",
+        "e2e",
+        "first-test"
+      ],
+      "selected_skills": [
+        "atl-diagrams"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-diagrams"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "diagrams",
+            "skill": "atl-diagrams",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "lifecycle"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": true,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.237Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-diagrams"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.237Z",
+      "updated_at": "2026-10-21T08:18:30.237Z",
+      "intake_key": "2026-10-21-pretest-strengthen.md#Run the first real team lifecycle end to end",
+      "objective_hint": "Prove the full role pipeline on Windows: in a fresh scratch project (never this repo), drive one small bounded task from new to done through the installed atl CLI with every role acting through --actor, and prove the gates that must reject, reject."
+    },
+    "T-011": {
+      "id": "T-011",
+      "title": "Smoke the bounded unattended path safely",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "2026-10-21-pretest-strengthen.md",
+        "thread": "2026-10-21-pretest-strengthen.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "atl overnight <task-id> --worker codex --dry-run prints the plan without launching a model session",
+        "the real capped run (owner-approved only) used --confirm with --max-minutes 60 and --max-sessions 1 on a doc-only task",
+        "evidence and checkpoints were logged while it ran and the budget stop condition fired",
+        "no merge, push, deploy or external message happened during the run"
+      ],
+      "priority": "normal",
+      "risk": "risky",
+      "labels": [
+        "overnight",
+        "budget"
+      ],
+      "selected_skills": [
+        "atl-implement"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "fallback",
+        "selected_skills": [
+          "atl-implement"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [],
+        "skipped": [],
+        "source": "fallback",
+        "reason": "No specialist intent matched; use the native bounded implementation route."
+      },
+      "review_required": true,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.240Z",
+          "route": "fallback",
+          "skills": [
+            "atl-implement"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.239Z",
+      "updated_at": "2026-10-21T08:18:30.239Z",
+      "intake_key": "2026-10-21-pretest-strengthen.md#Smoke the bounded unattended path safely",
+      "objective_hint": "Show the bounded worker path works and stops where it must, before any real overnight use. Dry-run first. A real capped run happens only after the owner says so, on a doc-only task, never on this repo's main checkout."
+    },
+    "T-012": {
+      "id": "T-012",
+      "title": "Reconcile bounded memory and learning",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "atl-backlog-reconciliation.md",
+        "thread": "atl-backlog-reconciliation.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "local learning is bounded and inspectable",
+        "Mem0 is optional and failure-safe",
+        "memory cannot override policy or evidence"
+      ],
+      "priority": "normal",
+      "risk": "normal",
+      "labels": [
+        "memory",
+        "learning",
+        "mem0"
+      ],
+      "selected_skills": [
+        "atl-implement"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "fallback",
+        "selected_skills": [
+          "atl-implement"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [],
+        "skipped": [],
+        "source": "fallback",
+        "reason": "No specialist intent matched; use the native bounded implementation route."
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.242Z",
+          "route": "fallback",
+          "skills": [
+            "atl-implement"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.242Z",
+      "updated_at": "2026-10-21T08:18:30.242Z",
+      "intake_key": "atl-backlog-reconciliation.md#Reconcile bounded memory and learning",
+      "objective_hint": "Reconcile the local learning journal and optional Mem0 graph memory against its spec. Keep default ATL deterministic and low-token."
+    },
+    "T-013": {
+      "id": "T-013",
+      "title": "Reconcile low-token Jev routing",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "atl-backlog-reconciliation.md",
+        "thread": "atl-backlog-reconciliation.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "default route makes no network/model call",
+        "smart route sends only compact task fields",
+        "low confidence and failures fall back honestly"
+      ],
+      "priority": "normal",
+      "risk": "normal",
+      "labels": [
+        "jev",
+        "routing",
+        "tokens"
+      ],
+      "selected_skills": [
+        "atl-implement"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "fallback",
+        "selected_skills": [
+          "atl-implement"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [],
+        "skipped": [],
+        "source": "fallback",
+        "reason": "No specialist intent matched; use the native bounded implementation route."
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.245Z",
+          "route": "fallback",
+          "skills": [
+            "atl-implement"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.244Z",
+      "updated_at": "2026-10-21T08:18:30.244Z",
+      "intake_key": "atl-backlog-reconciliation.md#Reconcile low-token Jev routing",
+      "objective_hint": "Reconcile the optional Jev decision aid against its spec. Keep deterministic routing as the default and fallback."
+    },
+    "T-014": {
+      "id": "T-014",
+      "title": "Reconcile ATL package and installer",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "atl-backlog-reconciliation.md",
+        "thread": "atl-backlog-reconciliation.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "package dry-run contains required files",
+        "init separates user install from project state",
+        "no third-party vendor directories are created"
+      ],
+      "priority": "high",
+      "risk": "normal",
+      "labels": [
+        "package",
+        "install",
+        "github"
+      ],
+      "selected_skills": [
+        "atl-diagrams"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-diagrams"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "diagrams",
+            "skill": "atl-diagrams",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "flow"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.247Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-diagrams"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.246Z",
+      "updated_at": "2026-10-21T08:18:30.246Z",
+      "intake_key": "atl-backlog-reconciliation.md#Reconcile ATL package and installer",
+      "objective_hint": "Reconcile the installable ATL package, user-level installer, project init, and GitHub Packages workflow."
+    },
+    "T-015": {
+      "id": "T-015",
+      "title": "Reconcile visual handoffs without vendor directories",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "atl-backlog-reconciliation.md",
+        "thread": "atl-backlog-reconciliation.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "multi-file output is compact and evidence-shaped",
+        "unavailable screenshots are not invented",
+        "repository contains no .humanlayer task directory"
+      ],
+      "priority": "normal",
+      "risk": "normal",
+      "labels": [
+        "visual",
+        "pr",
+        "show-me"
+      ],
+      "selected_skills": [
+        "atl-diagrams",
+        "atl-ui-review"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-diagrams",
+          "atl-ui-review"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "diagrams",
+            "skill": "atl-diagrams",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "diagram"
+            ],
+            "matched_labels": []
+          },
+          {
+            "name": "ui-review",
+            "skill": "atl-ui-review",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "visual"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.249Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-diagrams",
+            "atl-ui-review"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.248Z",
+      "updated_at": "2026-10-21T08:18:30.248Z",
+      "intake_key": "atl-backlog-reconciliation.md#Reconcile visual handoffs without vendor directories",
+      "objective_hint": "Reconcile show-me and visual-pr output, compact diagrams, and the rule that external HumanLayer skills are never copied into ATL."
+    },
+    "T-016": {
+      "id": "T-016",
+      "title": "Reconcile the ATL team runtime and owner guide",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "atl-backlog-reconciliation.md",
+        "thread": "atl-backlog-reconciliation.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "owner can install and initialize a target project",
+        "bounded worker sessions stop at limits and log evidence",
+        "open laptop and Claude cloud are not described as hidden local daemons"
+      ],
+      "priority": "high",
+      "risk": "normal",
+      "labels": [
+        "team",
+        "runtime",
+        "overnight"
+      ],
+      "selected_skills": [
+        "atl-tech-docs",
+        "atl-ui-review"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-ui-review"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "technical-docs",
+            "skill": "atl-tech-docs",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "documentation"
+            ],
+            "matched_labels": []
+          },
+          {
+            "name": "ui-review",
+            "skill": "atl-ui-review",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "ui"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.251Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-tech-docs",
+            "atl-ui-review"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.250Z",
+      "updated_at": "2026-10-21T08:18:30.250Z",
+      "intake_key": "atl-backlog-reconciliation.md#Reconcile the ATL team runtime and owner guide",
+      "objective_hint": "Reconcile installation, init, role usage, bounded local worker execution, and overnight documentation."
+    },
+    "T-017": {
+      "id": "T-017",
+      "title": "Adapt Archive content and docs skills",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "atl-backlog-reconciliation.md",
+        "thread": "atl-backlog-reconciliation.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "SEO tasks select atl-content-quality",
+        "technical docs tasks select atl-tech-docs",
+        "product-specific Archive commands are not misrepresented as ATL behavior"
+      ],
+      "priority": "normal",
+      "risk": "normal",
+      "labels": [
+        "seo",
+        "content",
+        "docs",
+        "archive"
+      ],
+      "selected_skills": [
+        "atl-content-quality",
+        "atl-tech-docs"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-content-quality",
+          "atl-tech-docs"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "content-quality",
+            "skill": "atl-content-quality",
+            "worker": "rowan",
+            "score": 3,
+            "matched_keywords": [
+              "content",
+              "copy",
+              "seo"
+            ],
+            "matched_labels": []
+          },
+          {
+            "name": "technical-docs",
+            "skill": "atl-tech-docs",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "docs"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.253Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-content-quality",
+            "atl-tech-docs"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.252Z",
+      "updated_at": "2026-10-21T08:18:30.252Z",
+      "intake_key": "atl-backlog-reconciliation.md#Adapt Archive content and docs skills",
+      "objective_hint": "Reconcile the archived SEO, site-copy, and docs-writing skills with native ATL content and technical-doc routes."
+    },
+    "T-018": {
+      "id": "T-018",
+      "title": "Make ATL Claude execution subscription-safe",
+      "status": "new",
+      "source": {
+        "type": "file",
+        "url": "claude-subscription-auth.md",
+        "thread": "claude-subscription-auth.md",
+        "excerpt": ""
+      },
+      "objective": "",
+      "completion_checks": [
+        "subscription mode removes known Anthropic API/provider override variables from the child environment",
+        "explicit API mode preserves API credentials and is not silently selected",
+        "invalid auth is rejected before spawning a worker",
+        "documentation explains claude.ai login, /status, claude -p, and the billing boundary"
+      ],
+      "priority": "high",
+      "risk": "normal",
+      "labels": [
+        "auth",
+        "billing",
+        "claude",
+        "atl"
+      ],
+      "selected_skills": [
+        "atl-ui-review"
+      ],
+      "proposed_worker": "rowan",
+      "skill_route": {
+        "status": "matched",
+        "selected_skills": [
+          "atl-ui-review"
+        ],
+        "proposed_worker": "rowan",
+        "matches": [
+          {
+            "name": "ui-review",
+            "skill": "atl-ui-review",
+            "worker": "rowan",
+            "score": 1,
+            "matched_keywords": [
+              "ui"
+            ],
+            "matched_labels": []
+          }
+        ],
+        "skipped": [],
+        "source": "skill-routing.json"
+      },
+      "review_required": false,
+      "assigned_worker": null,
+      "workspace": null,
+      "attempt_count": 0,
+      "last_checkpoint": null,
+      "evidence": [],
+      "blocker": null,
+      "next_wake_at": null,
+      "decision_log": [
+        {
+          "at": "2026-10-21T08:18:30.255Z",
+          "route": "skill-routing.json",
+          "skills": [
+            "atl-ui-review"
+          ]
+        }
+      ],
+      "created_at": "2026-10-21T08:18:30.255Z",
+      "updated_at": "2026-10-21T08:18:30.255Z",
+      "intake_key": "claude-subscription-auth.md#Make ATL Claude execution subscription-safe",
+      "objective_hint": "Ensure ATL's Claude worker uses the user's Claude subscription rather than accidentally forwarding Anthropic API credentials that cause pay-as-you-go charges. Keep API mode available only when explicitly selected, and document the login/status check required before running."
+    }
+  },
+  "seq": 18,
+  "log": [
+    {
+      "at": "2026-10-21T08:18:30.212Z",
+      "task": "T-001",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Fix README quickstart typo in install section"
+    },
+    {
+      "at": "2026-10-21T08:18:30.215Z",
+      "task": "T-002",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Fix login redirect loop after session expiry"
+    },
+    {
+      "at": "2026-10-21T08:18:30.218Z",
+      "task": "T-003",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Sprint 73 task: middleware portal timeout spike"
+    },
+    {
+      "at": "2026-10-21T08:18:30.220Z",
+      "task": "T-004",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Update README quickstart for the new install steps"
+    },
+    {
+      "at": "2026-10-21T08:18:30.223Z",
+      "task": "T-005",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Fix broken changelog link on the docs index"
+    },
+    {
+      "at": "2026-10-21T08:18:30.226Z",
+      "task": "T-006",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Fix API timeout on bulk import endpoint"
+    },
+    {
+      "at": "2026-10-21T08:18:30.228Z",
+      "task": "T-007",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Refresh the user install and prove it matches the repo"
+    },
+    {
+      "at": "2026-10-21T08:18:30.230Z",
+      "task": "T-008",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Sync docs and role prompts with the real runtime"
+    },
+    {
+      "at": "2026-10-21T08:18:30.234Z",
+      "task": "T-009",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Commit the tested tree as the pre-test release point"
+    },
+    {
+      "at": "2026-10-21T08:18:30.237Z",
+      "task": "T-010",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Run the first real team lifecycle end to end"
+    },
+    {
+      "at": "2026-10-21T08:18:30.240Z",
+      "task": "T-011",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Smoke the bounded unattended path safely"
+    },
+    {
+      "at": "2026-10-21T08:18:30.242Z",
+      "task": "T-012",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Reconcile bounded memory and learning"
+    },
+    {
+      "at": "2026-10-21T08:18:30.245Z",
+      "task": "T-013",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Reconcile low-token Jev routing"
+    },
+    {
+      "at": "2026-10-21T08:18:30.247Z",
+      "task": "T-014",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Reconcile ATL package and installer"
+    },
+    {
+      "at": "2026-10-21T08:18:30.249Z",
+      "task": "T-015",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Reconcile visual handoffs without vendor directories"
+    },
+    {
+      "at": "2026-10-21T08:18:30.251Z",
+      "task": "T-016",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Reconcile the ATL team runtime and owner guide"
+    },
+    {
+      "at": "2026-10-21T08:18:30.253Z",
+      "task": "T-017",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Adapt Archive content and docs skills"
+    },
+    {
+      "at": "2026-10-21T08:18:30.255Z",
+      "task": "T-018",
+      "actor": "runner",
+      "event": "intake",
+      "detail": "file: Make ATL Claude execution subscription-safe"
+    }
+  ]
+}

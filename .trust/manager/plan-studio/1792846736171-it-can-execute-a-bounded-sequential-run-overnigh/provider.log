@@ -1,0 +1,99 @@
+Claude Code doesn't recognize the model "glm-4.6", so it assumes a context window of 200k tokens. Update Claude Code, or see https://code.claude.com/docs/en/model-config#correct-the-window-for-a-gateway-or-custom-model-id to set the window.
+[claude-code:unrecognized_model] {"model":"glm-4.6","query_source":"sdk"}
+{
+  "title": "Resilient bounded overnight runs: configurable budgets, hardened durable boundaries, and a real-provider soak test",
+  "objective": "Close the five overnight-resilience gaps — hardcoded 120m/5-session defaults, an untested resume-from-ledger path, a missing restart command plan, the documented open-session constraint, and the absence of an unattended real-provider soak test — without adding a daemon or scheduler install and without raising the existing caps.",
+  "constraints": [
+    "Existing caps stay: --max-minutes <= 1440 and --max-sessions <= 20 (runtime/atl-manager.mjs:419-424); this plan may change only where defaults come from, not the caps.",
+    "Non-dry-run overnight runs keep requiring --confirm (runtime/atl-manager.mjs:398-400); the resume path and the soak test must enforce the same gate.",
+    "An in-flight provider session is recorded interrupted and never replayed or auto-continued (USAGE.md:136); the hardened ledger must preserve this exclusion.",
+    "Human-gate blockers are never manufactured by retry (runtime/lib/recovery.mjs:14,59-78); resume and restart paths reuse requiresHumanAction and auto_recovery budgets unchanged.",
+    "ATL does not install scheduled tasks; the restart story remains a documented Windows Task Scheduler command plan for integrators (USAGE.md:136).",
+    "Local commands (init, show, wake, brief, feed, validate, dry-run) stay token-free (USAGE.md:136); all new verification must skip real-provider calls unless ATL_SOAK=1 is explicitly set.",
+    "The documented constraint that an AI/host session must remain open is verified and documented, not removed, by this plan.",
+    "Scope is bounded to: budget configuration, ledger hardening, resume, restart documentation, and the soak test — no scheduler, daemon, or new lifecycle stages."
+  ],
+  "risks": [
+    "Resume could double-run work if the ledger is finalized only after a session completes: mitigate with a write-ahead in-flight marker persisted before the child process starts, so any crash leaves the entry 'interrupted', never 'unknown'.",
+    "Larger budgets raise unattended spend: keep shipped defaults at 120m/5 (runtime/atl-manager.mjs:417-418) and require explicit --max-minutes/--max-sessions or config values for whole-night budgets.",
+    "A real-provider soak test spends tokens and can flake on network: gate it behind ATL_SOAK=1 plus --confirm, cap it at exactly one small session, and report 'skipped' (never 'passed') when gated off.",
+    "An automatic restart plan could hammer a failing provider CLI: the documented Task Scheduler command must retry at most once per durable boundary and preserve blocker skipping.",
+    "Soak evidence cannot prove resilience to a closed laptop or a dead host process; docs must state host-liveness as an explicit out-of-scope limitation to avoid overclaiming.",
+    "Ledger schema changes could strand existing run.json files: version the schema and keep recovery tolerant of the previous shape, covered by a migration test."
+  ],
+  "completion_checks": [
+    "Overnight defaults remain 120 minutes / 5 sessions when no config override exists, and configured values are clamped or rejected by the existing 1440/20 cap logic — verified by unit test, not assumed.",
+    "A simulated kill between session spawn and finalize leaves the ledger entry 'interrupted', and the continuation set from the last durable boundary excludes it.",
+    "The resume path refuses to start without --confirm and never includes an interrupted in-flight session or a human-action blocker in the continuation set.",
+    "The documented Task Scheduler command plan performs no provider call and no state mutation without --confirm, verified by dry-run test.",
+    "Soak test with ATL_SOAK unset reports 'SKIPPED' and makes zero network calls; with ATL_SOAK=1 and a stored provider it completes one bounded session and asserts ledger integrity before and after a forced mid-session abort.",
+    "Full existing suites (node --test verification/, python verification/atl_manager_lifecycle_model.py) pass after the ledger schema change — to be run, not claimed here."
+  ],
+  "acceptance_examples": [
+    "Given no config override, When 'node runtime/atl-manager.mjs overnight T-001 --dry-run' runs, Then the printed budget is 'max time: 120m  max sessions: 5'.",
+    "Given config sets overnight budget to 480 minutes, When the dry-run preview runs, Then it shows 480m within the caps; given 2000 minutes, When it runs, Then the existing StateError cap message is thrown unchanged.",
+    "Given run.json with one finalized task and one in-flight task, When the runner process is killed and 'node runtime/atl-manager.mjs overnight status' runs, Then status shows the in-flight task as interrupted and excluded from recovery candidates.",
+    "Given that interrupted ledger, When 'node runtime/atl-manager.mjs overnight recover --confirm' runs, Then only untouched tasks continue and the interrupted id is listed as excluded; when the same command runs without --confirm, Then it exits with the existing confirmation error.",
+    "Given ATL_SOAK is unset, When 'node verification/soak_test.mjs' runs, Then it prints 'SKIPPED: ATL_SOAK not set', exits 0, and makes zero provider calls.",
+    "Given ATL_SOAK=1 and a stored provider ('atl provider add', USAGE.md:124-132), When the soak test runs with --confirm, Then it completes exactly one bounded session, then forces a mid-session abort and asserts the new session is marked interrupted and absent from the recovery continuation set.",
+    "Given the documented Task Scheduler command, When it is executed in a scratch workspace without --confirm, Then it exits with the confirmation error and run.json and state.json checksums are unchanged."
+  ],
+  "selected_skills": [
+    "agent-trust-ladder",
+    "atl-rowan",
+    "atl-beacon"
+  ],
+  "proposed_worker": "rowan implements inside the task workspace with evidence checkpoints; beacon (night watch / verifier) owns the gated soak and finish-condition checks; sage reviews the diff and evidence independently before any Done verdict",
+  "implementation_steps": [
+    {
+      "step": 1,
+      "title": "Spec first: observable behavior + acceptance examples for budget, boundary, resume, restart-doc, soak",
+      "evidence": "USAGE.md:136 (current overnight contract, ledger, recover semantics); runtime/atl-manager.mjs:417-418 (hardcoded 120/5)",
+      "detail": "Run $atl-specify to capture the behaviors above as bounded spec tasks with verifier commands. No code changes in this step."
+    },
+    {
+      "step": 2,
+      "title": "TDD: source overnight defaults from config with caps and errors unchanged",
+      "evidence": "runtime/atl-manager.mjs:417-424 (defaults plus StateError clamps); config/manager.json is the existing config surface",
+      "detail": "Red: unit test asserting 120/5 without config, honored config values, and unchanged cap rejection at 1440/20. Green: read overnight budgets from config/manager.json with fallback to the current literals; error messages and caps untouched."
+    },
+    {
+      "step": 3,
+      "title": "TDD: write-ahead in-flight marker in the overnight ledger",
+      "evidence": "USAGE.md:136 ('durable ledger at .trust/manager/overnight/run.json'; interrupted sessions excluded from recovery)",
+      "detail": "Red: crash-simulation test that terminates between spawn and finalize and asserts the entry reads 'interrupted'. Green: persist a versioned in-flight marker before the child session starts; recovery stays backward-compatible with unversioned ledgers."
+    },
+    {
+      "step": 4,
+      "title": "TDD: resume strictly from durable boundaries, --confirm gated",
+      "evidence": "USAGE.md:136 ('atl overnight recover --confirm' continues only untouched tasks); runtime/lib/recovery.mjs:14,59-78 (human-action blockers and retry budgets)",
+      "detail": "Red: tests that resume without --confirm throws, interrupted in-flight ids never appear in the continuation set, and human-action blockers stay blocked. Green: extend the existing recover flow to carry remaining budget from the ledger, clamped to existing caps. No background loop, no daemon."
+    },
+    {
+      "step": 5,
+      "title": "Restart-after-failure command plan: document, never install",
+      "evidence": "USAGE.md:136 ('A Windows Task Scheduler command plan is available to integrations, but ATL does not install scheduled tasks itself')",
+      "detail": "Publish the exact Task Scheduler command in USAGE.md: at most one retry per durable boundary, --confirm required, blocker skipping preserved. Add a checksum-based dry-run verification proving the command mutates nothing without --confirm."
+    },
+    {
+      "step": 6,
+      "title": "Gated real-provider soak test",
+      "evidence": "Intent: unit/API tests exist but no unattended soak against an actual provider; provider storage and spawn path exist (USAGE.md:124-132; runtime/atl-manager.mjs:396-426)",
+      "detail": "Add verification/soak_test.mjs: skip with a visible 'SKIPPED' verdict unless ATL_SOAK=1; when enabled, run exactly one small bounded confirmed session against the stored provider, assert ledger integrity, then force a mid-session abort and assert the interrupted-exclusion contract from step 3."
+    },
+    {
+      "step": 7,
+      "title": "Docs and lifecycle-model sync",
+      "evidence": "USAGE.md:136 overnight paragraph; verification/atl_manager_lifecycle_model.py mirrors the state contract",
+      "detail": "Update the overnight paragraph: where budgets come from, resume semantics, the restart command plan, soak instructions, and the explicit host-liveness limitation (open laptop alone is insufficient). Reconcile the lifecycle model with the versioned ledger schema."
+    }
+  ],
+  "verifier_commands": [
+    "node --test verification/  # budget defaults/clamps, ledger write-ahead, resume exclusions; run after steps 2-4 and read the output, do not assume",
+    "node runtime/atl-manager.mjs overnight T-001 --dry-run  # token-free preview of the effective budget and session cap",
+    "node runtime/atl-manager.mjs validate  # local contract check after ledger schema versioning",
+    "$env:ATL_SOAK='1'; node verification/soak_test.mjs --confirm  # manual, real provider, spends tokens; also run once without ATL_SOAK to confirm it reports SKIPPED with zero calls",
+    "node verification/soak_test.mjs  # ungated run must print SKIPPED and exit 0",
+    "python -I verification/atl_manager_lifecycle_model.py  # lifecycle model reconciled with the versioned ledger schema"
+  ]
+}

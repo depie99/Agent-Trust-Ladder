@@ -1,0 +1,5 @@
+Error loading config.toml: `wire_api = "chat"` is no longer supported.
+How to fix: set `wire_api = "responses"` in your provider config.
+More info: https://github.com/openai/codex/discussions/7782
+in `model_providers.solico-glm.wire_api`
+

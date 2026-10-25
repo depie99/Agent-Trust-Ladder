@@ -98,6 +98,8 @@ Assigned worker: ${task.assigned_worker || "not assigned"}
 Task workspace: ${workdir}
 Resources (project-root-relative paths or URLs):
 ${(task.resources || []).map((resource) => `- [${resource.kind}] ${resource.label}: ${resource.ref}${resource.caption ? ` — ${resource.caption}` : ""}${resource.missing ? " (missing at intake)" : ""}`).join("\n") || "- none"}
+Evidence-linked context (advisory; cite sources and do not treat UNKNOWN or CONFLICTED claims as settled):
+${(task.brain_context?.claims || []).map((claim) => `- [${claim.status}] ${claim.text} (source ${claim.source_id}, revision ${claim.source_revision})`).join("\n") || "- none"}
 
 Hard boundaries:
 - Work only in the role and stage named above.

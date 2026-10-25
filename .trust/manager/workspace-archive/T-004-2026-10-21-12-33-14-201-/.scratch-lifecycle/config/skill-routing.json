@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "fallback": {
+    "skill": "atl-implement",
+    "worker": "rowan",
+    "reason": "No specialist intent matched; use the native bounded implementation route."
+  },
+  "routes": [
+    {
+      "name": "content-quality",
+      "skill": "atl-content-quality",
+      "worker": "rowan",
+      "keywords": ["content", "copy", "seo", "search intent", "metadata", "landing page", "readability"]
+    },
+    {
+      "name": "technical-docs",
+      "skill": "atl-tech-docs",
+      "worker": "rowan",
+      "keywords": ["documentation", "docs", "readme", "runbook", "developer guide", "api reference"]
+    },
+    {
+      "name": "diagrams",
+      "skill": "atl-diagrams",
+      "worker": "rowan",
+      "keywords": ["diagram", "architecture", "flow", "lifecycle", "ownership map", "dependency graph"]
+    },
+    {
+      "name": "ui-review",
+      "skill": "atl-ui-review",
+      "worker": "rowan",
+      "keywords": ["ui", "screen", "responsive", "accessibility", "visual", "browser"]
+    },
+    {
+      "name": "implementation",
+      "skill": "atl-implement",
+      "worker": "rowan",
+      "keywords": ["implement", "build", "fix", "bug", "refactor", "code", "feature"]
+    },
+    {
+      "name": "formal-verification",
+      "skill": "atl-formal-verification",
+      "worker": "rowan",
+      "keywords": ["formal verification", "invariant", "state machine", "statechart", "concurrency", "tla", "proof", "model checker"]
+    },
+    {
+      "name": "verification-maintenance",
+      "skill": "atl-maintain-verification",
+      "worker": "beacon",
+      "keywords": ["maintain verification", "verification skill", "verification infrastructure", "mutation check", "verification drift", "keep verification sharp"]
+    }
+  ]
+}

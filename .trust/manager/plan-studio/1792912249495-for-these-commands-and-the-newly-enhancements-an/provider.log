@@ -1,0 +1,151 @@
+Claude Code doesn't recognize the model "glm-5.3-flash", so it assumes a context window of 200k tokens. Update Claude Code, or see https://code.claude.com/docs/en/model-config#correct-the-window-for-a-gateway-or-custom-model-id to set the window.
+[claude-code:unrecognized_model] {"model":"glm-5.3-flash","query_source":"sdk"}
+{
+  "title": "Mishka-style docs refresh: ATL Web Console + CLI commands (skill, GitHub Pages, runtime README)",
+  "objective": "Rewrite the atl-tech-docs skill (user-level SKILL.md and its in-repo mirror) and the published surfaces (GitHub Pages under docs/, runtime package README) so they document, in the complete-brief format modeled on mishka.tools/chelekom docs pages (overview, when-to-use, reference tables, live examples/previews, related links), exactly two surfaces: the ATL Web Console — the name locked for what the intent calls 'web TUI', per runtime/control-plane.html, docs/control-room.html, docs/web-control-plane-brief.md and commit 631d36b 'feat: publish browser control plane and docs' — and the nine CLI commands defined in commands/atl*.md. Terminal TUI documentation is explicitly out of scope until its UI/UX bug work lands; existing terminal-TUI content is reframed as 'pending' or removed from feature docs.",
+  "constraints": [
+    "Docs-only change: no edits to runtime/*.mjs, verification/*, or commands/* — documentation must match code as it exists today, and any gap between docs and behavior is recorded, not fixed in this task.",
+    "Scope exclusion: no terminal TUI feature documentation (layouts, keyboard shortcuts, tui-layout/tui-theme/tui-components internals); at most an explicit 'TUI docs pending — UI/UX fixes in flight' note with a pointer.",
+    "Terminology is standardized to 'ATL Web Console (browser control plane)'; the phrase 'web TUI' must not appear in published docs or the skill template.",
+    "Emulate the structure and completeness of mishka.tools/chelekom docs pages only — no copying of Mishka/Chelekom content, branding, or assets.",
+    "Every feature or command claim written into docs must trace to evidence: a commands/atl*.md file, runtime/ source, verification/ test, or a captured run; claims without evidence are dropped, not softened.",
+    "The user-level skill file (C:/Users/Sanaz/.agents/skills/atl-tech-docs/SKILL.md) and the repo mirror (skills/atl-tech-docs/SKILL.md) must be updated together to prevent drift.",
+    "No check may be claimed passed in artifacts; completion is asserted only by running the verifier commands listed below."
+  ],
+  "risks": [
+    "No packages/ directory exists in the repo (verified by glob); the intent's 'packages + packages readme' is interpreted as the runtime package (runtime/README.md) — if the user means published npm packages, publishing flow and package metadata must be confirmed before any manifest edits.",
+    "The user-level skill file lives outside this repo on C: — permission and sync between it and skills/atl-tech-docs/SKILL.md is a standing drift risk.",
+    "Visuals require running the web console to capture frames (scripts/render-ui-frames.mjs exists); screenshots can go stale against the UI, so each image must carry capture provenance (command/commit) or the risk is docs contradicting the app.",
+    "scripts/check_docs.mjs may not cover newly added pages; extending it would be a code change that violates the docs-only boundary — if it fails on new pages, that is escalated rather than patched silently.",
+    "The mishka format is example-heavy; without the evidence gate, plausible-sounding examples could document commands or console features that do not exist yet.",
+    "docs/ is the live GitHub Pages source — a broken nav link or malformed HTML in index.html publishes immediately on push."
+  ],
+  "completion_checks": [
+    "node scripts/check_docs.mjs exits 0 with all docs pages resolving links.",
+    "git diff --name-only shows changes confined to docs/, skills/atl-tech-docs/, runtime/README.md, and C:/Users/Sanaz/.agents/skills/atl-tech-docs/SKILL.md — no runtime/ or verification/ source changes.",
+    "The web console docs page contains, per mishka format: overview, when-to-use, a feature reference table, at least one worked example with preview/visual, and related-page links.",
+    "Each of the nine commands/atl*.md commands is documented in docs/reference.html or docs/guides.html with syntax, flags, and one runnable example matching the source file.",
+    "Every command/feature claim in the new docs traces to a listed evidence pointer (commands/*, runtime source, or verification test) recorded in the docs brief.",
+    "A search for 'web TUI' across docs/, skills/atl-tech-docs/, and runtime/README.md returns no matches, and terminal-TUI feature content survives only as explicit pending notes.",
+    "Each embedded visual has a caption and capture provenance (render command or commit).",
+    "runtime/README.md documents install, CLI commands, and Web Console usage with links to the corresponding docs pages and makes no terminal-TUI feature claims.",
+    "node verification/control_plane_contract_test.mjs and node verification/control_room_ui_test.mjs still pass, confirming docs-only changes caused no runtime regression."
+  ],
+  "acceptance_examples": [
+    {
+      "given": "The user-level atl-tech-docs SKILL.md and its repo mirror skills/atl-tech-docs/SKILL.md",
+      "when": "Both are updated with the new scope rule and page template",
+      "then": "The template mandates mishka-style sections (overview, when-to-use, reference table, live example with preview, related links), names the subject 'ATL Web Console (browser control plane)', restricts CLI coverage to commands/atl*.md, and marks terminal TUI out of scope; both copies are identical."
+    },
+    {
+      "given": "The published GitHub Pages site in docs/ with docs/control-room.html already nav-linked",
+      "when": "A new Web Console documentation page is authored following the template",
+      "then": "The page covers each console surface evidenced in runtime/control-plane.html and runtime/lib/control-plane*.mjs with a description, a reference entry, and at least one example or captured preview, and is reachable from docs/index.html navigation."
+    },
+    {
+      "given": "The nine files commands/atl.md through commands/atl-verify.md",
+      "when": "CLI documentation is written or refreshed in docs/reference.html and docs/guides.html",
+      "then": "Every command has syntax, flags, purpose, and one runnable example that matches its commands/atl*.md source, and no command is documented that lacks a source file."
+    },
+    {
+      "given": "Captured visuals of the Web Console",
+      "when": "Images are embedded into the docs pages",
+      "then": "Each image sits in an example context (surrounded by explanatory copy and a usage snippet) and carries a caption plus provenance — the render command (e.g. scripts/render-ui-frames.mjs) or commit it was captured from."
+    },
+    {
+      "given": "runtime/README.md as the package readme (no packages/ directory exists in the repo)",
+      "when": "The readme is updated",
+      "then": "It documents install (scripts/install-atl.sh / install-atl.cmd), the CLI commands, and Web Console usage, links to the matching GitHub Pages docs, contains no terminal-TUI feature claims, and any npm-publish question is flagged to the user rather than answered by editing manifests."
+    },
+    {
+      "given": "The full set of changed docs after implementation",
+      "when": "The scope and evidence gates are applied",
+      "then": "No page documents terminal-TUI features as current (only explicit pending notes), every remaining claim has an evidence pointer, and rg for 'web TUI' across docs/, skills/atl-tech-docs/, and runtime/README.md returns nothing."
+    }
+  ],
+  "selected_skills": [
+    "atl-tech-docs",
+    "atl-content-quality",
+    "atl-diagrams",
+    "atl-ui-review"
+  ],
+  "proposed_worker": "Rowan (builder) implements the doc changes inside the task workspace; Sage reviews scope fidelity and evidence pointers; Beacon verifies finish conditions against observed check output; Mira coordinates handoffs.",
+  "implementation_steps": [
+    {
+      "step": "Evidence sweep and naming lock: inventory every CLI command from commands/atl*.md and every Web Console surface from runtime/control-plane.html, runtime/lib/control-plane*.mjs, runtime/lib/control-room sources, and docs/web-control-plane-brief.md; record the evidence pointer for each item; lock the public name 'ATL Web Console (browser control plane)'.",
+      "files": [
+        "docs/web-control-plane-brief.md",
+        "docs/README.md"
+      ],
+      "verify": "The inventory in the brief lists each command and console surface with a source pointer (file path or verification test); any candidate feature without a pointer is excluded from the docs scope before writing begins."
+    },
+    {
+      "step": "Rewrite the atl-tech-docs skill: define the mishka-style page template (overview, when-to-use, reference table, live example + preview, usage snippet, related links), the naming rule, the CLI-commands-only scope, and the terminal-TUI exclusion; apply identically to the user-level file and the repo mirror.",
+      "files": [
+        "C:/Users/Sanaz/.agents/skills/atl-tech-docs/SKILL.md",
+        "skills/atl-tech-docs/SKILL.md"
+      ],
+      "verify": "Diff of the two SKILL.md copies shows identical templates; the template names the Web Console, restricts command coverage to commands/atl*.md, and contains an explicit out-of-scope clause for terminal TUI."
+    },
+    {
+      "step": "Author the Web Console docs page in the mishka format from the step-1 inventory: one section per console surface, each with when-to-use copy, a reference-table row, and an example with usage snippet; wire it into docs/index.html navigation.",
+      "files": [
+        "docs/web-console.html",
+        "docs/index.html"
+      ],
+      "verify": "The page renders as valid HTML linked from the index nav, every section maps to an inventory entry with its evidence pointer, and node scripts/check_docs.mjs exits 0."
+    },
+    {
+      "step": "Author or refresh the CLI commands documentation in the same format: syntax, flags, purpose, and one runnable example per command from commands/atl*.md, plus a CLI overview page tying commands to the Web Console workflow.",
+      "files": [
+        "docs/reference.html",
+        "docs/guides.html"
+      ],
+      "verify": "A per-command checklist shows all nine commands covered with syntax/flags/example, each example's text matching its commands/atl*.md source, and node scripts/check_docs.mjs exits 0."
+    },
+    {
+      "step": "Produce and embed visuals: capture Web Console frames (via scripts/render-ui-frames.mjs or a manual browser capture against a live run) and place each image inside its example section with caption and provenance; add spacing/context so a reader can follow the interaction end to end.",
+      "files": [
+        "docs/web-console.html",
+        "docs/guides.html",
+        "docs/assets/"
+      ],
+      "verify": "Every embedded image in the changed pages has a caption and a stated capture source (script invocation or commit), and no page contains a placeholder or uncaptioned image."
+    },
+    {
+      "step": "Update the package readme: install, CLI command summary, Web Console usage, and links to the corresponding GitHub Pages docs; keep terminal TUI to a pending-status note; flag the missing packages/ directory and ask the user to confirm whether published npm package metadata is in scope before touching any manifest.",
+      "files": [
+        "runtime/README.md",
+        "docs/README.md"
+      ],
+      "verify": "The readme covers only CLI + Web Console, links resolve to existing docs pages, no terminal-TUI feature claims appear, and no package.json/manifest was modified."
+    },
+    {
+      "step": "Scope and evidence gate, then review: sweep all changed pages for terminal-TUI feature content (reframe as pending or remove), strip 'web TUI' phrasing, confirm every claim's evidence pointer, and route the full diff through Sage review before publication.",
+      "files": [
+        "docs/web-console.html",
+        "docs/reference.html",
+        "docs/guides.html",
+        "docs/index.html",
+        "runtime/README.md",
+        "skills/atl-tech-docs/SKILL.md"
+      ],
+      "verify": "A search for 'web TUI' across docs/, skills/atl-tech-docs/, and runtime/README.md returns no matches; TUI mentions are limited to pending notes; each documented claim carries a traceable pointer; Sage's review objections are resolved or recorded."
+    },
+    {
+      "step": "Final verification gate before publish: run the docs checker, the two control-plane verification suites to confirm zero runtime regression, and inspect the confined diff; publish to GitHub Pages only after all gates report clean.",
+      "files": [
+        "docs/"
+      ],
+      "verify": "node scripts/check_docs.mjs exits 0; node verification/control_plane_contract_test.mjs and node verification/control_room_ui_test.mjs pass; git diff --name-only shows changes only under docs/, skills/atl-tech-docs/, runtime/README.md, and the C: skill path."
+    }
+  ],
+  "verifier_commands": [
+    "node scripts/check_docs.mjs",
+    "node verification/control_plane_contract_test.mjs",
+    "node verification/control_room_ui_test.mjs",
+    "git diff --name-only",
+    "rg -n \"web TUI\" docs skills/atl-tech-docs runtime/README.md",
+    "rg -n \"atl [a-z-]+\" docs/reference.html"
+  ]
+}

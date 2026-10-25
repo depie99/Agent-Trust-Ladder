@@ -1,0 +1,224 @@
+{
+  "schema": 1,
+  "stage": "plan",
+  "artifact": {
+    "title": "Bounded retry helper for the Plan Studio provider fetch",
+    "objective": "Add a bounded retry helper around the Plan Studio provider invoke in runtime/lib/plan-studio.mjs: the provider fetch is attempted once, retried exactly once after a 2-second delay on failure, and both failures surface one clear error that preserves the existing providerLogPath/last-response diagnostics.",
+    "constraints": [
+      "Bounded to the studio provider fetch path: the invoke call inside runPlanProvider in runtime/lib/plan-studio.mjs; regenerateProposal and all other runtime fetch paths are unchanged.",
+      "Exactly one retry with a fixed 2-second delay; no backoff ladder, no extra stages, no new configuration surface.",
+      "Confirmation and usage gates still run exactly once before the first attempt; the retry never re-runs a gate.",
+      "On both attempts failing, throw a single clear error that keeps the existing withLog contract (providerLogPath plus the last provider response) so the browser can still offer the transcript.",
+      "No real provider is contacted by changes or verification; tests use a fake invoke and an injectable or short-circuited delay.",
+      "Do not claim any check passed; do not execute commands or change files while producing this plan."
+    ],
+    "risks": [
+      "One extra invoke doubles provider spend and latency for calls that fail persistently.",
+      "A hard-coded 2-second wait makes the both-fail test path slow or flaky unless the delay is injectable in tests.",
+      "Retrying a provider call that partially executed before failing could duplicate side effects on the provider side.",
+      "Retrying may convert a fast-fail into a slow-fail for the Plan Studio UI, delaying error feedback by ~2 seconds."
+    ],
+    "completion_checks": [
+      "A retry helper exists in runtime/lib/plan-studio.mjs that makes at most two invoke attempts separated by a 2-second delay.",
+      "runPlanProvider routes its provider fetch through the retry helper with the delay injectable for tests.",
+      "A first attempt that throws or returns a non-zero code is followed by exactly one retry, and a successful retry returns the normal plan draft.",
+      "Both attempts failing reject with one clear error stating the provider fetch failed after two attempts, carrying providerLogPath and the last provider response.",
+      "A first-attempt success performs exactly one invoke call with no retry delay.",
+      "Existing Plan Studio verification scripts still exercise their current success and gate-refusal paths unchanged."
+    ],
+    "acceptance_examples": [
+      {
+        "given": "the first provider invoke attempt fails by throwing or returning a non-zero code",
+        "when": "runPlanProvider is called with confirm true and a fake invoke that succeeds on its second call",
+        "then": "the helper waits 2 seconds, retries exactly once, and returns the normal plan draft with exactly two invoke calls recorded"
+      },
+      {
+        "given": "both provider invoke attempts fail",
+        "when": "runPlanProvider completes with a fake invoke that always fails",
+        "then": "it rejects with a single clear error naming the provider fetch failed after two attempts, and the error carries providerLogPath plus the last provider response"
+      },
+      {
+        "given": "the first provider invoke attempt succeeds",
+        "when": "runPlanProvider runs normally with a fake invoke that succeeds immediately",
+        "then": "exactly one invoke call is made, no retry delay is introduced, and the returned draft is unchanged from current behavior"
+      },
+      {
+        "given": "the confirmation or usage gate refuses the call",
+        "when": "runPlanProvider is called without confirm or with an exhausted budget",
+        "then": "it rejects immediately with the existing refusal message and the invoke is never called, so no retry path runs"
+      }
+    ],
+    "selected_skills": [
+      "agent-trust-ladder",
+      "atl-pip"
+    ],
+    "proposed_worker": "atl-pip",
+    "implementation_steps": [
+      {
+        "step": "Add a bounded retry helper (for example invokeProviderWithRetry) in runtime/lib/plan-studio.mjs that takes the invoke thunk and a delay (default 2000 ms), awaits the first attempt, on a thrown error or non-zero code waits the delay and retries once, and on a second failure throws the withLog-based error carrying providerLogPath and the last provider response.",
+        "files": [
+          "runtime/lib/plan-studio.mjs"
+        ],
+        "verify": "Read the helper and confirm it performs at most two attempts, awaits the 2-second delay between them, and preserves the withLog error contract."
+      },
+      {
+        "step": "Route the provider fetch in runPlanProvider through the retry helper, passing a delay parameter so tests can inject a short delay, while leaving the confirm and usage gates ahead of the first attempt and leaving regenerateProposal untouched.",
+        "files": [
+          "runtime/lib/plan-studio.mjs"
+        ],
+        "verify": "Read runPlanProvider and confirm exactly one invoke site goes through the helper and no gate is re-evaluated between attempts."
+      },
+      {
+        "step": "Extend verification/plan_studio_test.mjs with a fail-then-succeed fake invoke asserting two calls and a normal draft, an always-fail fake invoke asserting the single clear rejection with providerLogPath, and a succeed-first-time case asserting exactly one call, all using an injected short delay.",
+        "files": [
+          "verification/plan_studio_test.mjs"
+        ],
+        "verify": "Read the new assertions and confirm they count invoke calls, cover both-failure and first-try-success paths, and inject the delay rather than sleeping 2 real seconds."
+      },
+      {
+        "step": "Leave behavior of the success, missing-confirm, and exhausted-budget paths unchanged and do not touch regenerateProposal or any other fetch call site.",
+        "files": [
+          "runtime/lib/plan-studio.mjs",
+          "verification/plan_studio_api_test.mjs"
+        ],
+        "verify": "Read the diff scope and confirm only the retry helper, the runPlanProvider call site, and the Plan Studio test gained changes."
+      }
+    ],
+    "verifier_commands": [
+      "node --check runtime/lib/plan-studio.mjs",
+      "node verification/plan_studio_test.mjs",
+      "node verification/plan_studio_api_test.mjs",
+      "node verification/plan_studio_cards_test.mjs"
+    ],
+    "task_proposals": [
+      {
+        "id": "p1",
+        "title": "Add a bounded retry helper (for example invokeProviderWithRetry) in runtime/lib/plan-studio.mjs that takes the invoke thunk and a delay (default 2000 ms), awaits the first attempt, on a thrown error or non-zero code waits the delay and retr",
+        "objective": "Add a bounded retry helper (for example invokeProviderWithRetry) in runtime/lib/plan-studio.mjs that takes the invoke thunk and a delay (default 2000 ms), awaits the first attempt, on a thrown error or non-zero code waits the delay and retries once, and on a second failure throws the withLog-based error carrying providerLogPath and the last provider response.",
+        "completion_checks": [
+          "Read the helper and confirm it performs at most two attempts, awaits the 2-second delay between them, and preserves the withLog error contract."
+        ],
+        "proposed_worker": "atl-pip",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-pip"
+        ],
+        "depends_on": [],
+        "files": [
+          "runtime/lib/plan-studio.mjs"
+        ],
+        "verify": "Read the helper and confirm it performs at most two attempts, awaits the 2-second delay between them, and preserves the withLog error contract.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-pip",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-pip"
+          ]
+        }
+      },
+      {
+        "id": "p2",
+        "title": "Route the provider fetch in runPlanProvider through the retry helper, passing a delay parameter so tests can inject a short delay, while leaving the confirm and usage gates ahead of the first attempt and leaving regenerateProposal untouched",
+        "objective": "Route the provider fetch in runPlanProvider through the retry helper, passing a delay parameter so tests can inject a short delay, while leaving the confirm and usage gates ahead of the first attempt and leaving regenerateProposal untouched.",
+        "completion_checks": [
+          "Read runPlanProvider and confirm exactly one invoke site goes through the helper and no gate is re-evaluated between attempts."
+        ],
+        "proposed_worker": "atl-pip",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-pip"
+        ],
+        "depends_on": [
+          "p1"
+        ],
+        "files": [
+          "runtime/lib/plan-studio.mjs"
+        ],
+        "verify": "Read runPlanProvider and confirm exactly one invoke site goes through the helper and no gate is re-evaluated between attempts.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-pip",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-pip"
+          ]
+        }
+      },
+      {
+        "id": "p3",
+        "title": "Extend verification/plan_studio_test.mjs with a fail-then-succeed fake invoke asserting two calls and a normal draft, an always-fail fake invoke asserting the single clear rejection with providerLogPath, and a succeed-first-time case assert",
+        "objective": "Extend verification/plan_studio_test.mjs with a fail-then-succeed fake invoke asserting two calls and a normal draft, an always-fail fake invoke asserting the single clear rejection with providerLogPath, and a succeed-first-time case asserting exactly one call, all using an injected short delay.",
+        "completion_checks": [
+          "Read the new assertions and confirm they count invoke calls, cover both-failure and first-try-success paths, and inject the delay rather than sleeping 2 real seconds."
+        ],
+        "proposed_worker": "atl-pip",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-pip"
+        ],
+        "depends_on": [
+          "p2"
+        ],
+        "files": [
+          "verification/plan_studio_test.mjs"
+        ],
+        "verify": "Read the new assertions and confirm they count invoke calls, cover both-failure and first-try-success paths, and inject the delay rather than sleeping 2 real seconds.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-pip",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-pip"
+          ]
+        }
+      },
+      {
+        "id": "p4",
+        "title": "Leave behavior of the success, missing-confirm, and exhausted-budget paths unchanged and do not touch regenerateProposal or any other fetch call site.",
+        "objective": "Leave behavior of the success, missing-confirm, and exhausted-budget paths unchanged and do not touch regenerateProposal or any other fetch call site.",
+        "completion_checks": [
+          "Read the diff scope and confirm only the retry helper, the runPlanProvider call site, and the Plan Studio test gained changes."
+        ],
+        "proposed_worker": "atl-pip",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-pip"
+        ],
+        "depends_on": [
+          "p3"
+        ],
+        "files": [
+          "runtime/lib/plan-studio.mjs",
+          "verification/plan_studio_api_test.mjs"
+        ],
+        "verify": "Read the diff scope and confirm only the retry helper, the runPlanProvider call site, and the Plan Studio test gained changes.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-pip",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-pip"
+          ]
+        }
+      }
+    ]
+  },
+  "saved_at": "2026-10-25T07:53:10.398Z",
+  "provider": "solico-glm",
+  "model": null,
+  "role": "pip",
+  "generated_via": "custom-invoke"
+}

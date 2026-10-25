@@ -1,0 +1,59 @@
+Claude Code doesn't recognize the model "glm-4.6", so it assumes a context window of 200k tokens. Update Claude Code, or see https://code.claude.com/docs/en/model-config#correct-the-window-for-a-gateway-or-custom-model-id to set the window.
+[claude-code:unrecognized_model] {"model":"glm-4.6","query_source":"sdk"}
+{
+  "title": "Control-plane CRUD completion and action-surface consolidation (task delete, default-queue reset, minimized per-page controls)",
+  "objective": "Complete the task CRUD surface by adding a manager-gated task delete, expose the existing queue clear/reset capability on the queue page (default queue reset included), and consolidate the over-populated per-page/tab action surfaces in both the TUI (runtime/lib/dashboard.mjs) and the browser control plane (runtime/control-plane-client.js) so every page shows only state-appropriate controls while keeping all current functionality reachable — all verified under the atl-ui-review evidence standard against the real rendered surfaces.",
+  "constraints": [
+    "Task delete is manager-only and restricted to no-work-in-flight statuses (archived or rejected per config/manager-state-contract.json); it must cascade the task out of every queue via queueList + queueRemove and write a 'task deleted' event into state.log before the record leaves state.tasks, preserving the audit trail.",
+    "Reuse the existing queueClear (runtime/lib/queue.mjs:154) and its control-plane precedent (runtime/control-plane-client.js:639 'Reset default queue' vs 'Clear queue' wording); do not invent a new queue operation, and keep queue.json at QUEUE_VERSION 2 with the default queue never archived.",
+    "Functionality is conserved, not removed: every control in the current inventory (runtime/README.md:141-152 — c, e, v, x, u, l, Enter/y, r, f, Q, L, PgUp/PgDn, ?, Esc, q plus per-screen actions) stays reachable in at most one extra step via the consolidated overflow affordance and the '?' help screen.",
+    "No new global keybindings; the reduction comes from context-sensitivity (state-appropriate subset per selection) and grouping (one overflow/menu affordance), not from dropping features.",
+    "TUI '--once --plain' snapshot determinism is preserved (no selection controls advertised); the ACTIONS render contract asserted at verification/dashboard_test.mjs:15 is updated in the same change as the renderer.",
+    "Both destructive flows (task delete, queue clear/reset) require a two-step confirmation in TUI and control plane, mirroring the existing queue-clear-confirm dialog pattern at runtime/control-plane-client.js:639.",
+    "Spec-017 regression lesson applies (skills/atl-ui-review/SKILL.md): every new or changed control is verified through the full chain state → rendered identity → hit-test → input event → visible state change; anything not replayable in the running surface is reported NOT OBSERVED, never passed by inference.",
+    "Tests never start provider sessions and run against throwaway projects, following verification/control_room_ui_test.mjs; new coverage is folded into the existing verification files rather than introducing new stages.",
+    "Scope is bounded to runtime/lib/state.mjs (delete semantics), runtime/lib/queue.mjs (wiring only), runtime/lib/dashboard.mjs, runtime/lib/control-plane-server.mjs, runtime/control-plane-client.js, runtime/atl-manager.mjs / runtime/lib/command-console.mjs (CLI verbs), verification/*, and the docs pages that enumerate controls."
+  ],
+  "risks": [
+    "Data loss and dangling references: deleting a task that is queued or has workspaces leaves queue items or workspace dirs orphaned — mitigated by cascade removal from all queues, refusal for non-terminal statuses, and a durable state.log event.",
+    "Discoverability regression: consolidation hides rarely used actions behind an overflow affordance and users cannot find them — mitigated by a keyboard-only walkthrough in the review ledger, a '?' help screen that still enumerates every action, and a reachability assertion that each pre-consolidation control maps to a current path.",
+    "Test-contract drift: the ACTIONS regex at verification/dashboard_test.mjs:15 breaks when the action bar changes — mitigated by updating renderer and assertion atomically and gating on the full verification suite.",
+    "Accidental destructive clicks in the browser control plane on delete/reset buttons — mitigated by the two-step confirm dialogs reused from the existing queue-clear-confirm pattern.",
+    "Lifecycle-model drift: delete sits outside the transitions table in config/manager-state-contract.json and verification/atl_manager_lifecycle_model.py models that contract — mitigated by documenting delete as a manager-only record removal outside transitions and keeping the model checker green.",
+    "Review-scope creep: atl-ui-review could balloon into a full redesign — mitigated by restricting findings to the three intent areas (task delete, queue reset, action-surface reduction) plus defects directly caused by those changes."
+  ],
+  "completion_checks": [
+    "node verification/dashboard_test.mjs passes with new assertions: a delete affordance renders only for terminal-status (archived/rejected) tasks, the queue screen renders exactly one clear/reset control behind a confirm step, the consolidated action bar renders the reduced control set, and the --plain non-interactive snapshot still hides selection controls.",
+    "node verification/control_room_ui_test.mjs passes covering, on a throwaway project: manager-gated delete (removes the state.tasks entry, cascades out of all queues, logs the 'task deleted' event, refuses non-terminal statuses with a named error), default-queue reset (items emptied, queue record/policy/provider and queue.json v2 shape intact, nothing executes), and a reachability inventory proving every pre-consolidation control remains reachable.",
+    "python verification/atl_manager_lifecycle_model.py still passes, confirming the state contract and its model are not silently broken by the delete semantics.",
+    "An atl-ui-review ledger over the real rendered TUI and control plane records PASS / FAIL / NOT OBSERVED for: keyboard-only path to delete and queue reset, both confirm flows, before/after visible-control counts per page/tab, and the spec-017 full-chain check (state → render → hit-test → input → state change) for each new control, ending in a verdict for the inspected scope.",
+    "runtime/README.md (control listing around lines 132-158) and docs/control-room.html describe the new surface with no stale keybindings, verified by reading the updated sections against the rendered UI."
+  ],
+  "acceptance_examples": [
+    "Given a task in archived status, the selected-task panel offers one Delete control; confirming twice removes the record from state.json and from every queue's items, state.log gains a 'task deleted' event, and the portfolio count decrements by one.",
+    "Given a task in in_progress status, no delete control renders in either surface, and the underlying delete call refuses with an error naming the terminal-status requirement.",
+    "Given the default queue holding three items, the queue page shows one Reset control; after confirmation items is empty while the queue record, name, policy, and provider are unchanged in queue.json, and no run starts.",
+    "Given a non-default queue, the queue page shows Clear (with confirm) while archive remains the only way to remove the queue record itself, and the default queue still cannot be archived.",
+    "On the dashboard with a blocked task focused, the visible action row shows only the applicable subset (unblock, queue, launch preview) while '?' still lists every action, and 'atl dashboard --once --plain' renders a deterministic snapshot with no selection controls.",
+    "A keyboard-only walkthrough reaches task delete, queue reset, and each previously bound action (c, e, v, x, u, l, r, f, Q, L) without the mouse; any condition not exercised in the running surface is marked NOT OBSERVED in the review ledger."
+  ],
+  "selected_skills": ["atl-ui-review", "atl-implement"],
+  "proposed_worker": "rowan",
+  "implementation_steps": [
+    "TDD red: write failing delete-semantics tests against a throwaway project (terminal-status-only, manager-only actor, cascade out of all queues, state.log event, refusal message for non-terminal statuses), following the patterns in verification/control_room_ui_test.mjs.",
+    "Implement manager-gated deleteTask in runtime/lib/state.mjs (validate status in archived/rejected, append the 'task deleted' log event, remove state.tasks[id]) and cascade queue removal via queueList + queueRemove in runtime/lib/queue.mjs; expose it through runtime/atl-manager.mjs and runtime/lib/command-console.mjs (precedent: 'queue remove' at runtime/lib/command-console.mjs:163).",
+    "TDD red: write failing render assertions for the queue-page clear/reset control and the consolidated action bar, and rewrite the ACTIONS assertion at verification/dashboard_test.mjs:15 to the new reduced contract in the same change as the renderer.",
+    "Wire queueClear (runtime/lib/queue.mjs:154) into the TUI queue screen and the control plane behind a two-step confirm, reusing the 'Reset default queue' vs 'Clear queue' split from runtime/control-plane-client.js:639; add the matching endpoint in runtime/lib/control-plane-server.mjs with the same manager gating as task delete.",
+    "Implement the consolidated, state-sensitive action surface in runtime/lib/dashboard.mjs and runtime/control-plane-client.js: each screen/tab renders only controls applicable to the current selection and status, one overflow affordance holds the rest, '?' help keeps the full enumeration, and the delete control appears only for archived/rejected tasks.",
+    "Run the full verification suite (dashboard, control_room_ui, intake, recovery, lifecycle model) and fix only observed failures; do not weaken assertions to pass.",
+    "Run the atl-ui-review fix loop per skills/atl-ui-review/SKILL.md: baseline the real rendered TUI and control plane, apply the smallest responsible fixes, re-observe the same viewports/states, and record the PASS / FAIL / NOT OBSERVED ledger including keyboard-only operation and the spec-017 full-chain check for every new control.",
+    "Update runtime/README.md (controls section, ~lines 132-158) and docs/control-room.html to describe the new surface, then re-run the verification suite as the final gate."
+  ],
+  "verifier_commands": [
+    "node verification/dashboard_test.mjs",
+    "node verification/control_room_ui_test.mjs",
+    "node verification/intake_test.mjs",
+    "node verification/recovery_test.mjs",
+    "python verification/atl_manager_lifecycle_model.py"
+  ]
+}

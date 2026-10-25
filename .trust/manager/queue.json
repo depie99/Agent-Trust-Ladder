@@ -1,0 +1,118 @@
+{
+  "version": 2,
+  "updated_at": "2026-10-25T11:21:02.901Z",
+  "active_queue": "default",
+  "queues": {
+    "default": {
+      "id": "default",
+      "name": "Default",
+      "status": "paused",
+      "policy": {
+        "maxMinutes": 120,
+        "maxSessions": 5,
+        "maxConcurrent": 1
+      },
+      "provider": null,
+      "items": [],
+      "created_at": "2026-10-24T05:23:01.725Z",
+      "updated_at": "2026-10-25T10:55:12.238Z",
+      "archived_at": null,
+      "queue_id": "default",
+      "active_queue": "default"
+    },
+    "plan-plan-plan-owned-q-rnight": {
+      "id": "plan-plan-plan-owned-q-rnight",
+      "name": "Plan — Plan-owned queues and multi-plan overnight execution",
+      "status": "archived",
+      "policy": {
+        "maxMinutes": 120,
+        "maxSessions": 5,
+        "maxConcurrent": 1
+      },
+      "provider": null,
+      "items": [
+        {
+          "id": "T-007",
+          "added_at": "2026-10-24T10:08:23.350Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-008",
+          "added_at": "2026-10-24T10:08:23.387Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-009",
+          "added_at": "2026-10-24T10:08:23.427Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-010",
+          "added_at": "2026-10-24T10:08:23.466Z",
+          "added_by": "manager"
+        }
+      ],
+      "created_at": "2026-10-24T10:08:23.312Z",
+      "updated_at": "2026-10-24T10:08:23.312Z",
+      "archived_at": "2026-10-24T10:08:42.636Z",
+      "queue_id": "plan-plan-plan-owned-q-rnight",
+      "active_queue": "default",
+      "plan_draft_id": "2026-10-24T10-08-01-821Z-plan-plan-owned-queues-and-multi-plan-overnight-"
+    },
+    "plan-docs-format-uplif-entsan": {
+      "id": "plan-docs-format-uplif-entsan",
+      "name": "Docs format uplift: mishka.tools-style reference docs for th",
+      "status": "archived",
+      "policy": {
+        "maxMinutes": 120,
+        "maxSessions": 5,
+        "maxConcurrent": 1
+      },
+      "provider": "solico-glm",
+      "items": [
+        {
+          "id": "T-011",
+          "added_at": "2026-10-25T10:32:36.601Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-012",
+          "added_at": "2026-10-25T10:32:36.624Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-013",
+          "added_at": "2026-10-25T10:32:36.644Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-014",
+          "added_at": "2026-10-25T10:32:36.661Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-015",
+          "added_at": "2026-10-25T10:32:36.682Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-016",
+          "added_at": "2026-10-25T10:32:36.705Z",
+          "added_by": "manager"
+        },
+        {
+          "id": "T-017",
+          "added_at": "2026-10-25T10:32:36.725Z",
+          "added_by": "manager"
+        }
+      ],
+      "created_at": "2026-10-25T10:32:36.571Z",
+      "updated_at": "2026-10-25T11:12:13.704Z",
+      "archived_at": "2026-10-25T11:20:58.592Z",
+      "queue_id": "plan-docs-format-uplif-entsan",
+      "active_queue": "default",
+      "plan_draft_id": "1792923954103-for-these-commands-and-the-newly-enhancements-an"
+    }
+  },
+  "items": []
+}

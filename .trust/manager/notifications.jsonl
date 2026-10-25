@@ -1,0 +1,1 @@
+{"id":"N-1792847678619-zriv1d","version":1,"at":"2026-10-24T13:14:38.619Z","severity":"danger","title":"Local budget exhausted","message":"budget exhausted — sessions 1/1, 1m/60","source":"usage-telemetry","taskId":null,"queueId":null,"runId":null,"action":"open the usage panel (U) or run queue inspect","state":"unread","snoozed_until":null,"count":1}

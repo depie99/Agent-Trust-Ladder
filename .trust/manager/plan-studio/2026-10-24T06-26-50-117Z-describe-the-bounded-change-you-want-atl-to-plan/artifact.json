@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "stage": "plan",
+  "artifact": {
+    "schema": 1,
+    "stage": "plan",
+    "title": "Describe the bounded change you want ATL to plan and verify.",
+    "objective": "Describe the bounded change you want ATL to plan and verify.",
+    "constraints": [
+      "Preserve existing project behavior outside the approved scope",
+      "Keep execution behind an explicit owner confirmation"
+    ],
+    "risks": [
+      "State, UI, and runtime behavior may drift unless verified together"
+    ],
+    "completion_checks": [
+      "The requested behavior is observable from the real user-facing surface.",
+      "Regression checks cover the changed state and interaction contracts.",
+      "Failure and recovery behavior remain explicit and auditable."
+    ],
+    "acceptance_examples": [
+      {
+        "given": "an approved SDD/TDD plan",
+        "when": "the task is queued",
+        "then": "the launch preview shows its worker, provider, checks, and blockers before execution"
+      },
+      {
+        "given": "a confirmed queue run",
+        "when": "execution starts",
+        "then": "progress, outcome, evidence, and any blocker are visible in the control plane"
+      },
+      {
+        "given": "an invalid or unsafe run",
+        "when": "a gate fails",
+        "then": "execution is refused with a recoverable explanation"
+      }
+    ],
+    "selected_skills": [
+      "atl-frame",
+      "atl-specify",
+      "atl-plan",
+      "atl-implement",
+      "atl-verify"
+    ],
+    "proposed_worker": "rowan",
+    "skill_route": [
+      {
+        "skill": "atl-frame",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-specify",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-plan",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-implement",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-verify",
+        "reason": "selected by the manager or ATL route"
+      }
+    ],
+    "implementation_steps": [
+      {
+        "step": "Specify observable behavior and preserve the approved intent",
+        "files": [
+          "project specification and affected contracts"
+        ],
+        "verify": "Review acceptance examples and scope boundaries"
+      },
+      {
+        "step": "Write or strengthen failing regression checks",
+        "files": [
+          "verification/"
+        ],
+        "verify": "Run the focused tests and observe the intended failure before implementation"
+      },
+      {
+        "step": "Implement the smallest complete vertical slice",
+        "files": [
+          "responsible runtime and UI modules"
+        ],
+        "verify": "Run the focused tests and inspect the real surface"
+      },
+      {
+        "step": "Verify recovery, adjacent behavior, and evidence",
+        "files": [
+          "runtime evidence and task brief"
+        ],
+        "verify": "Run the project checks and record observed versus unobserved boundaries"
+      }
+    ],
+    "verifier_commands": [
+      "project focused verification command",
+      "project regression suite",
+      "real surface acceptance replay"
+    ],
+    "generated_by": "atl-local-sdd-tdd-planner"
+  },
+  "saved_at": "2026-10-24T06:26:50.121Z"
+}

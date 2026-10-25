@@ -1,0 +1,92 @@
+Claude Code doesn't recognize the model "glm-5.3-flash", so it assumes a context window of 200k tokens. Update Claude Code, or see https://code.claude.com/docs/en/model-config#correct-the-window-for-a-gateway-or-custom-model-id to set the window.
+[claude-code:unrecognized_model] {"model":"glm-5.3-flash","query_source":"sdk"}
+{
+  "title": "Docs wave: mishka-format ATL Control Plane (web) + CLI documentation across the docs site, GitHub Pages, and package readme",
+  "objective": "Rewrite ATL's technical documentation to cover the recently enhanced browser-native ATL Control Plane (the `web TUI`, fixed name: \"ATL Control Plane (web)\", CLI spellings `atl ui` / `atl web` / `atl control-plane`) and the current CLI commands, in the mishka.tools/chelekom documentation format — per-page overview, how-it-works, examples with rendered previews, CLI reference, and troubleshooting under a shared sidebar nav — across docs/*.html (published to https://depie99.github.io/Agent-Trust-Ladder/ via GitHub Pages), README.md (the @depie99/atl package readme), USAGE.md, runtime/README.md, and docs/README.md. Explicitly scope out the terminal TUI: it was neither enhanced nor bug-fixed in this wave, so docs must not claim TUI improvements and must present the terminal Control Room only as the `atl tui` terminal-compatibility surface.",
+  "constraints": [
+    "Docs-only change surface: docs/*.html, docs/styles.css, docs/app.js, docs/diagrams/*, docs/README.md, README.md, USAGE.md, runtime/README.md, docs/sync.yml; no behavior changes to runtime/atl-manager.mjs or runtime/lib/*.mjs.",
+    "Source of truth stays as declared in docs/sync.yml: CLI = runtime/atl-manager.mjs usage(), runtime = runtime/lib/*.mjs (control-plane.mjs, control-plane-server.mjs for the web part), config = config/manager.json + config/manager-state-contract.json; every documented command, flag, and alias is copied from usage(), never invented.",
+    "Terminal TUI (atl tui / dashboard, specs 013-017) is out of documentation scope except as the terminal-compatibility alias: no page, figure, or readme paragraph may present it as the current or enhanced interface.",
+    "Every new or restructured docs page must be registered in scripts/check_docs.mjs PAGES and carry the shared Documentation nav, or the checker's pass means nothing for that page.",
+    "Mishka/chelekom page anatomy is mandatory for feature pages: overview, how-it-works, at least one example with a preview figure, CLI reference, troubleshooting; visuals live under docs/diagrams/ and every src/href must resolve.",
+    "Visuals must be truthful and synthetic: capture or render the web Control Plane from demo state with masked keys, never the machine's real provider registry, matching the convention recorded for scripts/render-tui-images.mjs in docs/sync.yml.",
+    "docs/sync.yml last_sync advances only after the docs checks pass, with verified_against naming the exact commits the text was checked against."
+  ],
+  "risks": [
+    "CLI drift: a documented flag or alias diverges from runtime/atl-manager.mjs usage(), shipping misleading install/usage instructions in both the Pages site and the npm package readme.",
+    "TUI leak: existing docs/diagrams/tui-*.svg figures and docs/control-room.html copy keep presenting the buggy terminal TUI as the primary interface, exactly the impression the intent forbids.",
+    "Checker blind spot: a new page is added but not registered in scripts/check_docs.mjs PAGES, so it ships to GitHub Pages unchecked.",
+    "Naming confusion: without one fixed name, docs deepen the web-TUI / Control Room / control-plane ambiguity the user flagged ('how do we call it?').",
+    "Secret leak: visual capture of the live web Control Plane uses the real provider registry or keys instead of synthetic demo state, publishing them to a public GitHub Pages site.",
+    "Package boundary: README.md doubles as the @depie99/atl package readme shipped in the published tarball, so unverified claims propagate into GitHub Packages on the next publish.",
+    "Format mimicry without substance: pages adopt the mishka layout but lack working examples/previews, producing 'complete briefs' that describe commands that were never exercised."
+  ],
+  "completion_checks": [
+    "node scripts/check_docs.mjs exits 0 from the repo root with every new/updated page registered in PAGES, balanced tags, resolved links/anchors, and the shared nav present.",
+    "Every CLI command, flag, and alias written on any docs page or readme matches the usage() text printed by node runtime/atl-manager.mjs (bare invocation), verified by line-by-line diff review of the doc text against that output.",
+    "A scan of all docs pages, README.md, and USAGE.md finds no claim that the terminal TUI was enhanced or bug-fixed; the TUI appears only as the `atl tui` terminal-compatibility surface.",
+    "The new ATL Control Plane (web) page names the interface consistently, documents all three CLI spellings exactly as usage() declares, and embeds at least one captioned preview figure rendered from real demo state.",
+    "Each feature page follows the mishka/chelekom anatomy (overview, how-it-works, examples with previews, CLI reference, troubleshooting) with all figures resolving from docs/diagrams/.",
+    "README.md, USAGE.md, runtime/README.md, and docs/README.md lead web-first: Control Plane + CLI commands up front, cross-linked, accurate as the shipped package readme.",
+    "docs/sync.yml last_sync describes this wave's batch and verified_against names the commits the docs were checked against; the GitHub Pages workflow publishes the updated pages with no broken image or link targets reported by the checker."
+  ],
+  "acceptance_examples": [
+    {
+      "given": "the repository with the new and restructured docs pages",
+      "when": "node scripts/check_docs.mjs is run from the repo root",
+      "then": "it exits 0 and reports no missing pages, unbalanced tags, unresolved href/src/anchors, or missing shared nav for any page, including every newly added page."
+    },
+    {
+      "given": "any command, flag, or alias written on a docs page or readme",
+      "when": "the documentation text is compared against the usage() output of node runtime/atl-manager.mjs",
+      "then": "every documented command, flag, and alias matches usage() verbatim and no invented flag, shortcut, or default exists."
+    },
+    {
+      "given": "the complete docs set plus README.md, USAGE.md, and runtime/README.md",
+      "when": "the pages are scanned for terminal-TUI claims and presented interfaces",
+      "then": "no page states the TUI was enhanced or bug-fixed, no new TUI screenshots are added, and the terminal Control Room is referenced only as the `atl tui` (alias `dashboard`) compatibility surface."
+    },
+    {
+      "given": "the new ATL Control Plane (web) documentation page",
+      "when": "a reader opens it from the shared nav",
+      "then": "the page names the interface \"ATL Control Plane (web)\", shows the three CLI spellings `atl ui` / `atl web` / `atl control-plane` exactly as usage() declares, and includes at least one captioned preview figure of the web UI rendered from synthetic demo state."
+    },
+    {
+      "given": "each new or restructured feature page",
+      "when": "it is reviewed against the mishka.tools/chelekom page anatomy referenced in the intent",
+      "then": "the page carries overview, how-it-works, examples with previews, CLI reference, and troubleshooting sections, with every preview image present under docs/diagrams/ and loading in the published site."
+    },
+    {
+      "given": "the visual-capture step for the web Control Plane",
+      "when": "preview figures are generated",
+      "then": "they are rendered from fixed demo state with masked keys and no real provider registry entries, and the generation command and synthetic-data boundary are recorded in docs/sync.yml the same way the tui-* wave recorded it."
+    },
+    {
+      "given": "the @depie99/atl package contents listed in package.json files",
+      "when": "README.md and USAGE.md are read as the shipped package documentation",
+      "then": "they describe the web Control Plane and current CLI commands accurately, contain no statements tied to unverified TUI work, and their cross-links resolve both in the repo and on GitHub Pages."
+    }
+  ],
+  "selected_skills": [
+    "atl-tech-docs",
+    "atl-diagrams",
+    "atl-content-quality",
+    "atl-ui-review",
+    "atl-verify"
+  ],
+  "proposed_worker": "Rowan implements the docs wave (owner per the skill-routing convention that pairs atl-tech-docs/atl-diagrams routes with Rowan); Pip records the route at intake; Sage reviews the rendered pages and CLI-text diff independently; Beacon verifies the checks and the Pages publish.",
+  "implementation_steps": [
+    "Evidence sweep before prose: print the CLI source of truth with node runtime/atl-manager.mjs (bare invocation prints usage()), and read the web surface in runtime/lib/control-plane.mjs and runtime/lib/control-plane-server.mjs plus docs/sync.yml's declared doc_set; record the command/flag inventory as task evidence before writing any page.",
+    "Fix naming and scope in a short terms note: \"ATL Control Plane (web)\" for the browser-native surface (atl ui / atl web / atl control-plane) versus \"Control Room (terminal)\" for the atl tui compatibility surface; mark terminal-TUI enhancements and bug fixes explicitly out of documentation scope.",
+    "Restructure docs/ into mishka-format pages: add a Control Plane (web) page and a CLI reference page, and re-flow existing feature pages (team.html, control-room.html, guides.html, index.html) to the overview / how-it-works / examples-with-previews / CLI / troubleshooting anatomy under the shared sidebar nav; register every new page in scripts/check_docs.mjs PAGES.",
+    "Produce truthful visuals: capture or render web Control Plane screens from fixed synthetic demo state (masked keys, no real registry) into docs/diagrams/, and de-emphasize or replace tui-*.svg figures and control-room.html copy that currently present the terminal TUI as the primary interface.",
+    "Update the package-facing docs web-first: README.md (as the @depie99/atl readme), USAGE.md, runtime/README.md, and docs/README.md lead with the Control Plane and CLI commands, cross-link the new pages, and drop or downgrade TUI-forward claims.",
+    "Review pass: Sage runs atl-content-quality on the text and atl-ui-review against the pages served locally (layout, nav, figures, previews); diff every documented command/flag against the usage() output and fix findings before any sync advance.",
+    "Verify and sync: run node scripts/check_docs.mjs, confirm the GitHub Pages workflow publishes the updated pages, then advance docs/sync.yml last_sync with the batch description and verified_against naming the checked commits."
+  ],
+  "verifier_commands": [
+    "node scripts/check_docs.mjs",
+    "node runtime/atl-manager.mjs",
+    "node scripts/render-ui-frames.mjs"
+  ]
+}

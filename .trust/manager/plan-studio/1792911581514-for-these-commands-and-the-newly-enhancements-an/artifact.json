@@ -1,0 +1,471 @@
+{
+  "schema": 1,
+  "stage": "plan",
+  "artifact": {
+    "title": "Chelekom-format Web Control Plane documentation refresh — GitHub Pages, repo docs, and package READMEs (web + CLI only)",
+    "objective": "Update the ATL technical documentation to the complete mishka.tools/chelekom docs format (overview + per-topic pages, each with a brief, copyable examples, and previews) for the browser-native surface — formally the ATL Control Plane, launched with `atl ui` / `atl control-plane` (runtime/atl-manager.mjs:1350), resolving the intent's naming question; the terminal surface stays `atl tui`/`atl dashboard` as a compatibility pointer only. Cover GitHub Pages (docs/), the repo entry docs (README.md, USAGE.md, runtime/README.md, docs/README.md, docs/index.html), and npm package metadata, adding annotated visuals and browser-interaction walkthroughs. Evidence-gated: the Chelekom format is recorded from the six reference URLs before restructuring, and every UI preview is created only after the live local Control Plane is observed; every documented CLI command must trace to usage() in runtime/atl-manager.mjs. TUI UX and bug fixes are explicitly out of scope.",
+    "constraints": [
+      "Docs-and-package-surfaces only: no changes to runtime/, config/, or verification/ behavior; bounded to the stated intent.",
+      "Source of truth for commands is runtime/atl-manager.mjs usage() plus the Control Plane server routes; no command or flag may be documented that does not exist there.",
+      "TUI interaction model, keyboard maps, and TUI bug fixes are out of scope; terminal mentions are limited to a short compatibility notice, per docs/web-control-plane-brief.md and the intent.",
+      "The surface is named 'ATL Control Plane (web)' / `atl ui` consistently; do not call it 'web TUI' in any reader-facing doc.",
+      "UI previews and screenshots may only depict the locally observed Control Plane (synthetic/demo data, masked provider keys, localhost/private-data boundary labeled), never fabricated states or real keys.",
+      "scripts/check_docs.mjs enforces the shared Documentation nav order and the PAGES list; any new page must be added there or the checker fails.",
+      "docs/sync.yml anchor (doc_set + last_sync) may only advance after the docs checks pass, per its own header rule.",
+      "README.fa.md stale-count debt is a known gap and stays out of scope for this pass."
+    ],
+    "risks": [
+      "Fabricated previews: creating browser screenshots before observing the live Control Plane would violate the visual contract and misdocument the UI.",
+      "Checker breakage: adding Chelekom-style subpages without updating PAGES/expected nav in scripts/check_docs.mjs fails tag-balance or nav-consistency checks.",
+      "CLI drift: docs listing commands or flags absent from usage() (e.g., misdocumenting `provider add|key|use|remove|templates` or `codex login`) would make the guide untruthful.",
+      "Naming confusion: reusing 'web TUI' or mixing Control Plane and terminal Control Room terminology would reintroduce the ambiguity the intent asks to resolve.",
+      "Key leakage: provider examples or screenshots could expose real credentials from ~/.atl/providers.json.",
+      "Anchor over-advance: bumping docs/sync.yml last_sync before checks pass would break the repo's evidence convention.",
+      "Mobile/layout regressions from new example blocks overflowing at 390px, which prior passes explicitly guarded against."
+    ],
+    "completion_checks": [
+      "node scripts/check_docs.mjs exits 0 (ALL OK) covering every page in the final set, including any new Chelekom-style pages registered in PAGES.",
+      "Every CLI command, flag, and browser action documented in the updated docs is found verbatim in `node runtime/atl-manager.mjs` usage() output or the Control Plane server route list.",
+      "Each Control Plane topic section (get started, spaces, create→review→queue→preview→confirm workflow, providers + Codex subscription sign-in, run safety/stop/recovery, CLI equivalence) contains a brief, at least one copyable example, and a preview or text-equivalent, matching the recorded Chelekom contract.",
+      "docs/diagrams/atl-web-control-plane.svg and any new browser-surface preview SVGs carry intrinsic width/height, accessible <title>/<desc>, and a nearby text equivalent; provider keys are masked in all visuals and snippets.",
+      "README.md, USAGE.md, runtime/README.md, docs/README.md, docs/index.html, and package.json metadata present the web Control Plane first with CLI equivalents and mention the terminal TUI only as a compatibility command.",
+      "Full-page headless renders inspected at 1440px and 390px: figures legible, copy controls work, no horizontal overflow on mobile.",
+      "docs/sync.yml doc_set/last_sync updated only in the same change as the passing checks, with the Chelekom-format batch described.",
+      "Terminal-TUI docs receive no interaction-content changes beyond compatibility pointers; no runtime or verification files are modified."
+    ],
+    "acceptance_examples": [
+      {
+        "given": "the published GitHub Pages site after this change",
+        "when": "a reader opens the ATL Control Plane guide",
+        "then": "they find a Chelekom-style structure — an overview with a complete brief plus per-topic sections/pages (spaces, workflow, providers, safety, CLI equivalence), each with copyable browser and CLI examples and a preview — and no terminal-TUI interaction instructions"
+      },
+      {
+        "given": "the docs checker after any new documentation pages are added",
+        "when": "node scripts/check_docs.mjs is run from the repo root",
+        "then": "it exits 0 with tags balanced, all local links/anchors resolving, and the shared Documentation nav consistent across every page including the new ones"
+      },
+      {
+        "given": "any CLI command written in README.md, USAGE.md, runtime/README.md, or the Control Plane guide",
+        "when": "the documented command set is diffed against the output of `node runtime/atl-manager.mjs` (usage())",
+        "then": "every documented command and flag exists in usage() and no usage() web/CLI command relevant to the Control Plane is missing from the docs"
+      },
+      {
+        "given": "the workflow SVG and browser-surface preview visuals in the guide",
+        "when": "they are rendered on GitHub Pages",
+        "then": "each has intrinsic width/height, an accessible title and description, a nearby text equivalent, and shows only observed demo-state UI with masked provider keys and the localhost boundary labeled"
+      },
+      {
+        "given": "a new user following the repo or npm package quickstart (README.md / USAGE.md / runtime/README.md / package.json homepage and description)",
+        "when": "they install ATL and want to use the web interface",
+        "then": "they are led web-first to `atl ui` / `atl control-plane` at 127.0.0.1 with the CLI equivalents alongside, and the terminal TUI is presented only as a compatibility command"
+      },
+      {
+        "given": "the Control Plane guide opened at a 390px-wide viewport",
+        "when": "the page is rendered and its example blocks and previews are inspected",
+        "then": "scrollWidth equals innerWidth with no horizontal overflow and all preview figures remain legible"
+      }
+    ],
+    "selected_skills": [
+      "atl-tech-docs",
+      "atl-content-quality",
+      "atl-diagrams",
+      "atl-ui-review",
+      "atl-verify"
+    ],
+    "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+    "implementation_steps": [
+      {
+        "step": "Record the Chelekom docs-format contract: fetch and study the six mishka.tools reference pages (docs root, sidebar, carousel, design-system, ai, cli) and distill their shared anatomy (nav model, per-topic page with overview brief, example blocks, live previews, copy affordances) into a written format contract appended to the brief.",
+        "files": [
+          "docs/web-control-plane-brief.md"
+        ],
+        "verify": "The brief contains the format contract citing all six reference URLs, and no docs page is restructured before this evidence exists."
+      },
+      {
+        "step": "Re-observe the live Web Control Plane: start `node runtime/atl-manager.mjs ui`, walk every browser space (Overview, Tasks, Plan, Queues, Team, Activity, Usage, Settings), and record observed states for command palette, task creation, queue preview vs confirm, stop, provider registry, and Codex subscription sign-in against runtime/lib/control-plane-server.mjs routes.",
+        "files": [
+          "docs/web-control-plane-brief.md"
+        ],
+        "verify": "Observed space list and preview/confirm/stop behaviors are recorded in the brief and match the server routes; this is the designated prerequisite for any UI preview artifact."
+      },
+      {
+        "step": "Restructure docs/control-room.html into the complete Chelekom-format Control Plane documentation set: overview + per-topic sections (or registered subpages) for get-started, spaces reference, create→review→queue→preview→confirm workflow, providers and Codex login, run safety/stop/recovery, and CLI equivalence — each with a brief, copyable examples, and previews; use 'ATL Control Plane (web)' naming throughout and reduce terminal content to a compatibility pointer.",
+        "files": [
+          "docs/control-room.html",
+          "docs/styles.css",
+          "docs/app.js"
+        ],
+        "verify": "Every topic section carries a brief, at least one copyable browser and one CLI example, and a preview or text-equivalent; a grep of the page finds no TUI keyboard/interaction content beyond the compatibility notice."
+      },
+      {
+        "step": "Add or refresh the visual set: keep docs/diagrams/atl-web-control-plane.svg as the workflow figure and add a browser-surface preview annotated with the eight spaces and the localhost/private-data boundary, rendered only from the observed local Control Plane demo state.",
+        "files": [
+          "docs/diagrams/atl-web-control-plane.svg",
+          "docs/control-room.html"
+        ],
+        "verify": "Each SVG has intrinsic width/height, <title> and <desc>, a nearby text equivalent in the page, and a 'local example, not live data' label; check_docs SVG integrity rules would pass on inspection."
+      },
+      {
+        "step": "Sync the repo and package surfaces web-first: rewrite the quickstarts and entry points in README.md, USAGE.md, runtime/README.md, docs/README.md, and docs/index.html (nav + search index) around the web Control Plane with a CLI equivalence table, and align package.json description/homepage/keywords wording; terminal TUI appears only as a compatibility command.",
+        "files": [
+          "README.md",
+          "USAGE.md",
+          "runtime/README.md",
+          "docs/README.md",
+          "docs/index.html",
+          "package.json"
+        ],
+        "verify": "Each surface links to the Control Plane guide; every CLI table entry resolves in usage(); no surface instructs TUI interaction."
+      },
+      {
+        "step": "Keep the checker and anchor honest: register any new pages in scripts/check_docs.mjs PAGES and the expected nav order, and update docs/sync.yml doc_set/last_sync with the Chelekom-format batch description only after all checks pass.",
+        "files": [
+          "scripts/check_docs.mjs",
+          "docs/sync.yml"
+        ],
+        "verify": "node scripts/check_docs.mjs exits 0 on the final page set, and the sync anchor entry names this batch without claiming runtime-verified until the live re-observation is recorded."
+      },
+      {
+        "step": "Run the UI-review pass on the restructured guide: headless full-page renders at 1440px and 390px, exercise theme toggle, search dialog, and copy buttons through real controls, and fix any layout or legibility defects found.",
+        "files": [
+          "docs/control-room.html",
+          "docs/styles.css"
+        ],
+        "verify": "Renders inspected at both widths with no horizontal overflow at 390px and all copy/interaction controls functional; defects found are fixed before completion."
+      },
+      {
+        "step": "Final truth sweep: cross-check every documented command, flag, browser action, and provider/Codex claim against runtime/atl-manager.mjs usage() and the Control Plane server; confirm all example keys are masked placeholders and no runtime, config, or verification file changed.",
+        "files": [
+          "docs/control-room.html",
+          "README.md",
+          "USAGE.md",
+          "runtime/README.md",
+          "docs/README.md"
+        ],
+        "verify": "Zero undocumented or nonexistent commands remain, zero real credentials appear anywhere, and `git status` shows changes confined to docs/, README.md, USAGE.md, package.json, and scripts/check_docs.mjs."
+      }
+    ],
+    "verifier_commands": [
+      "node scripts/check_docs.mjs",
+      "node runtime/atl-manager.mjs",
+      "node verification/control_room_ui_test.mjs",
+      "node verification/provider_registry_test.mjs",
+      "node verification/dashboard_test.mjs"
+    ],
+    "task_proposals": [
+      {
+        "id": "p1",
+        "title": "Record the Chelekom docs-format contract: fetch and study the six mishka.tools reference pages (docs root, sidebar, carousel, design-system, ai, cli) and distill their shared anatomy (nav model, per-topic page with overview brief, example b",
+        "objective": "Record the Chelekom docs-format contract: fetch and study the six mishka.tools reference pages (docs root, sidebar, carousel, design-system, ai, cli) and distill their shared anatomy (nav model, per-topic page with overview brief, example blocks, live previews, copy affordances) into a written format contract appended to the brief.",
+        "completion_checks": [
+          "The brief contains the format contract citing all six reference URLs, and no docs page is restructured before this evidence exists."
+        ],
+        "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-content-quality",
+          "atl-diagrams",
+          "atl-ui-review",
+          "atl-verify"
+        ],
+        "depends_on": [],
+        "files": [
+          "docs/web-control-plane-brief.md"
+        ],
+        "verify": "The brief contains the format contract citing all six reference URLs, and no docs page is restructured before this evidence exists.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+          "selected_skills": [
+            "atl-tech-docs",
+            "atl-content-quality",
+            "atl-diagrams",
+            "atl-ui-review",
+            "atl-verify"
+          ]
+        }
+      },
+      {
+        "id": "p2",
+        "title": "Re-observe the live Web Control Plane: start `node runtime/atl-manager.mjs ui`, walk every browser space (Overview, Tasks, Plan, Queues, Team, Activity, Usage, Settings), and record observed states for command palette, task creation, queue ",
+        "objective": "Re-observe the live Web Control Plane: start `node runtime/atl-manager.mjs ui`, walk every browser space (Overview, Tasks, Plan, Queues, Team, Activity, Usage, Settings), and record observed states for command palette, task creation, queue preview vs confirm, stop, provider registry, and Codex subscription sign-in against runtime/lib/control-plane-server.mjs routes.",
+        "completion_checks": [
+          "Observed space list and preview/confirm/stop behaviors are recorded in the brief and match the server routes; this is the designated prerequisite for any UI preview artifact."
+        ],
+        "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-content-quality",
+          "atl-diagrams",
+          "atl-ui-review",
+          "atl-verify"
+        ],
+        "depends_on": [
+          "p1"
+        ],
+        "files": [
+          "docs/web-control-plane-brief.md"
+        ],
+        "verify": "Observed space list and preview/confirm/stop behaviors are recorded in the brief and match the server routes; this is the designated prerequisite for any UI preview artifact.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+          "selected_skills": [
+            "atl-tech-docs",
+            "atl-content-quality",
+            "atl-diagrams",
+            "atl-ui-review",
+            "atl-verify"
+          ]
+        }
+      },
+      {
+        "id": "p3",
+        "title": "Restructure docs/control-room.html into the complete Chelekom-format Control Plane documentation set: overview + per-topic sections (or registered subpages) for get-started, spaces reference, create→review→queue→preview→confirm workflow, pr",
+        "objective": "Restructure docs/control-room.html into the complete Chelekom-format Control Plane documentation set: overview + per-topic sections (or registered subpages) for get-started, spaces reference, create→review→queue→preview→confirm workflow, providers and Codex login, run safety/stop/recovery, and CLI equivalence — each with a brief, copyable examples, and previews; use 'ATL Control Plane (web)' naming throughout and reduce terminal content to a compatibility pointer.",
+        "completion_checks": [
+          "Every topic section carries a brief, at least one copyable browser and one CLI example, and a preview or text-equivalent; a grep of the page finds no TUI keyboard/interaction content beyond the compatibility notice."
+        ],
+        "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-content-quality",
+          "atl-diagrams",
+          "atl-ui-review",
+          "atl-verify"
+        ],
+        "depends_on": [
+          "p2"
+        ],
+        "files": [
+          "docs/control-room.html",
+          "docs/styles.css",
+          "docs/app.js"
+        ],
+        "verify": "Every topic section carries a brief, at least one copyable browser and one CLI example, and a preview or text-equivalent; a grep of the page finds no TUI keyboard/interaction content beyond the compatibility notice.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+          "selected_skills": [
+            "atl-tech-docs",
+            "atl-content-quality",
+            "atl-diagrams",
+            "atl-ui-review",
+            "atl-verify"
+          ]
+        }
+      },
+      {
+        "id": "p4",
+        "title": "Add or refresh the visual set: keep docs/diagrams/atl-web-control-plane.svg as the workflow figure and add a browser-surface preview annotated with the eight spaces and the localhost/private-data boundary, rendered only from the observed lo",
+        "objective": "Add or refresh the visual set: keep docs/diagrams/atl-web-control-plane.svg as the workflow figure and add a browser-surface preview annotated with the eight spaces and the localhost/private-data boundary, rendered only from the observed local Control Plane demo state.",
+        "completion_checks": [
+          "Each SVG has intrinsic width/height, <title> and <desc>, a nearby text equivalent in the page, and a 'local example, not live data' label; check_docs SVG integrity rules would pass on inspection."
+        ],
+        "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-content-quality",
+          "atl-diagrams",
+          "atl-ui-review",
+          "atl-verify"
+        ],
+        "depends_on": [
+          "p3"
+        ],
+        "files": [
+          "docs/diagrams/atl-web-control-plane.svg",
+          "docs/control-room.html"
+        ],
+        "verify": "Each SVG has intrinsic width/height, <title> and <desc>, a nearby text equivalent in the page, and a 'local example, not live data' label; check_docs SVG integrity rules would pass on inspection.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+          "selected_skills": [
+            "atl-tech-docs",
+            "atl-content-quality",
+            "atl-diagrams",
+            "atl-ui-review",
+            "atl-verify"
+          ]
+        }
+      },
+      {
+        "id": "p5",
+        "title": "Sync the repo and package surfaces web-first: rewrite the quickstarts and entry points in README.md, USAGE.md, runtime/README.md, docs/README.md, and docs/index.html (nav + search index) around the web Control Plane with a CLI equivalence t",
+        "objective": "Sync the repo and package surfaces web-first: rewrite the quickstarts and entry points in README.md, USAGE.md, runtime/README.md, docs/README.md, and docs/index.html (nav + search index) around the web Control Plane with a CLI equivalence table, and align package.json description/homepage/keywords wording; terminal TUI appears only as a compatibility command.",
+        "completion_checks": [
+          "Each surface links to the Control Plane guide; every CLI table entry resolves in usage(); no surface instructs TUI interaction."
+        ],
+        "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-content-quality",
+          "atl-diagrams",
+          "atl-ui-review",
+          "atl-verify"
+        ],
+        "depends_on": [
+          "p4"
+        ],
+        "files": [
+          "README.md",
+          "USAGE.md",
+          "runtime/README.md",
+          "docs/README.md",
+          "docs/index.html",
+          "package.json"
+        ],
+        "verify": "Each surface links to the Control Plane guide; every CLI table entry resolves in usage(); no surface instructs TUI interaction.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+          "selected_skills": [
+            "atl-tech-docs",
+            "atl-content-quality",
+            "atl-diagrams",
+            "atl-ui-review",
+            "atl-verify"
+          ]
+        }
+      },
+      {
+        "id": "p6",
+        "title": "Keep the checker and anchor honest: register any new pages in scripts/check_docs.mjs PAGES and the expected nav order, and update docs/sync.yml doc_set/last_sync with the Chelekom-format batch description only after all checks pass.",
+        "objective": "Keep the checker and anchor honest: register any new pages in scripts/check_docs.mjs PAGES and the expected nav order, and update docs/sync.yml doc_set/last_sync with the Chelekom-format batch description only after all checks pass.",
+        "completion_checks": [
+          "node scripts/check_docs.mjs exits 0 on the final page set, and the sync anchor entry names this batch without claiming runtime-verified until the live re-observation is recorded."
+        ],
+        "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-content-quality",
+          "atl-diagrams",
+          "atl-ui-review",
+          "atl-verify"
+        ],
+        "depends_on": [
+          "p5"
+        ],
+        "files": [
+          "scripts/check_docs.mjs",
+          "docs/sync.yml"
+        ],
+        "verify": "node scripts/check_docs.mjs exits 0 on the final page set, and the sync anchor entry names this batch without claiming runtime-verified until the live re-observation is recorded.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+          "selected_skills": [
+            "atl-tech-docs",
+            "atl-content-quality",
+            "atl-diagrams",
+            "atl-ui-review",
+            "atl-verify"
+          ]
+        }
+      },
+      {
+        "id": "p7",
+        "title": "Run the UI-review pass on the restructured guide: headless full-page renders at 1440px and 390px, exercise theme toggle, search dialog, and copy buttons through real controls, and fix any layout or legibility defects found.",
+        "objective": "Run the UI-review pass on the restructured guide: headless full-page renders at 1440px and 390px, exercise theme toggle, search dialog, and copy buttons through real controls, and fix any layout or legibility defects found.",
+        "completion_checks": [
+          "Renders inspected at both widths with no horizontal overflow at 390px and all copy/interaction controls functional; defects found are fixed before completion."
+        ],
+        "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-content-quality",
+          "atl-diagrams",
+          "atl-ui-review",
+          "atl-verify"
+        ],
+        "depends_on": [
+          "p6"
+        ],
+        "files": [
+          "docs/control-room.html",
+          "docs/styles.css"
+        ],
+        "verify": "Renders inspected at both widths with no horizontal overflow at 390px and all copy/interaction controls functional; defects found are fixed before completion.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+          "selected_skills": [
+            "atl-tech-docs",
+            "atl-content-quality",
+            "atl-diagrams",
+            "atl-ui-review",
+            "atl-verify"
+          ]
+        }
+      },
+      {
+        "id": "p8",
+        "title": "Final truth sweep: cross-check every documented command, flag, browser action, and provider/Codex claim against runtime/atl-manager.mjs usage() and the Control Plane server; confirm all example keys are masked placeholders and no runtime, c",
+        "objective": "Final truth sweep: cross-check every documented command, flag, browser action, and provider/Codex claim against runtime/atl-manager.mjs usage() and the Control Plane server; confirm all example keys are masked placeholders and no runtime, config, or verification file changed.",
+        "completion_checks": [
+          "Zero undocumented or nonexistent commands remain, zero real credentials appear anywhere, and `git status` shows changes confined to docs/, README.md, USAGE.md, package.json, and scripts/check_docs.mjs."
+        ],
+        "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+        "selected_skills": [
+          "atl-tech-docs",
+          "atl-content-quality",
+          "atl-diagrams",
+          "atl-ui-review",
+          "atl-verify"
+        ],
+        "depends_on": [
+          "p7"
+        ],
+        "files": [
+          "docs/control-room.html",
+          "README.md",
+          "USAGE.md",
+          "runtime/README.md",
+          "docs/README.md"
+        ],
+        "verify": "Zero undocumented or nonexistent commands remain, zero real credentials appear anywhere, and `git status` shows changes confined to docs/, README.md, USAGE.md, package.json, and scripts/check_docs.mjs.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "Single docs implementation worker running the atl-tech-docs + atl-diagrams skills (Mira-coordinated), followed by a separate reviewer pass with atl-ui-review; no runtime worker or skills/ changes required.",
+          "selected_skills": [
+            "atl-tech-docs",
+            "atl-content-quality",
+            "atl-diagrams",
+            "atl-ui-review",
+            "atl-verify"
+          ]
+        }
+      }
+    ]
+  },
+  "saved_at": "2026-10-25T07:02:42.240Z",
+  "provider": "solico-glm",
+  "model": null,
+  "role": "pip",
+  "generated_via": "custom-invoke"
+}
