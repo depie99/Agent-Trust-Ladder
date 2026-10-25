@@ -112,6 +112,8 @@ PowerShell execution policy blocks `atl.ps1`.
   `verification/`.
 - Advance `docs/sync.yml` only after the checks succeed.
 
+The visual companion set now includes `docs/diagrams/atl-web-control-plane-preview.svg`, a sanitized representative browser surface derived from the standalone Control Plane client. It is documentation art, not a live screenshot; review it when navigation, major layout, API routes, or execution gates change.
+
 ## Open owner choice
 
 The public documentation must show either a **sanitized representative Control
