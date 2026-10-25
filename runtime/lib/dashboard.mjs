@@ -12,13 +12,20 @@ import { activeTasks, wakeActions } from "./render.mjs";
 import { paths, loadState, saveState, logEvent, transition } from "./state.mjs";
 import { AVATARS, NAMES, readFeed, post as feedPost } from "./feed.mjs";
 import { applyDeterministicRoute, composeTask, importCandidates, normalizeDraftText } from "./composer.mjs";
-import { loadQueue, queueAdd, queueIds, queueRemove } from "./queue.mjs";
-import { buildLaunchPlan, executeLaunchQueue } from "./launch.mjs";
+import { loadQueue, queueAdd, queueIds, queueRemove, queueArchive, queueCreate, queuePause, queueRename, queueResume, queueSetActive } from "./queue.mjs";
+import { buildLaunchPlan, executeLaunchQueue, requestRunAbort, requestSessionInterrupt } from "./launch.mjs";
 import { unblockTask } from "./recovery.mjs";
 import { addResourceToTask } from "./resources.mjs";
+import { submitFeedback } from "./feedback.mjs";
 import { intakeFromFiles, intakeFromAzure, intakeFromGitHub } from "./intake.mjs";
 import { discoverProvider, providerForRole, providerNames, providerProfile, providerSpec } from "./providers.mjs";
-import { loadUserProviders, maskKey, PROVIDER_TEMPLATES, removeProvider, saveUserProviders, templateById, upsertProvider } from "./userProviders.mjs";
+import { loadUserProviders, maskKey, PROVIDER_TEMPLATES, removeProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
+import { layoutFor } from "./tui-layout.mjs";
+import { dispatchTuiCommand, TUI_COMMANDS } from "./command-console.mjs";
+import { createControlPlaneSnapshot } from "./control-plane.mjs";
+import { frameIntent, savePlanDraft, loadPlanDraft, approvePlanDraft } from "./plan-studio.mjs";
+import { usageFreshness } from "./usage.mjs";
+import { archiveTask, createTaskInWorkspace, editTaskInWorkspace, restoreTask } from "./task-workspace.mjs";
 
 export const STATUS_ORDER = [
   "new", "triaged", "assigned", "in_progress", "in_review", "verifying", "done",
@@ -35,6 +42,7 @@ const STATUS_LABELS = {
   blocked: "Blocked",
   escalated: "Escalated",
   rejected: "Rejected",
+  archived: "Archived",
 };
 
 const COMPACT_STATUS_LABELS = {
@@ -48,6 +56,7 @@ const COMPACT_STATUS_LABELS = {
   blocked: "Block",
   escalated: "Escalate",
   rejected: "Reject",
+  archived: "Archive",
 };
 
 const STATUS_ICON = {
@@ -61,6 +70,7 @@ const STATUS_ICON = {
   blocked: "×",
   escalated: "!",
   rejected: "–",
+  archived: "⌁",
 };
 
 const STATUS_COLOR = {
@@ -74,29 +84,34 @@ const STATUS_COLOR = {
   blocked: "amber",
   escalated: "coral",
   rejected: "muted",
+  archived: "muted",
 };
 
 const PRIORITY_ORDER = { urgent: 0, high: 1, normal: 2, low: 3 };
 const SPINNER = ["◐", "◓", "◑", "◒"];
 const RESET = "\x1b[0m";
 const COLORS = {
-  ink: [245, 245, 247],
-  muted: [150, 152, 168],
-  faint: [111, 113, 129],
-  violet: [155, 140, 255],
-  mint: [95, 224, 194],
-  amber: [244, 198, 126],
-  coral: [250, 143, 131],
-  line: [36, 37, 48],
-  panel: [18, 19, 26],
-  panel2: [23, 24, 33],
+  // These are the terminal equivalents of the prototype's dark navy system:
+  // #0b1018 canvas, #121b28 panels, #192535 raised surfaces, and mint as the
+  // primary action. Keeping the values here makes every page feel like the
+  // supplied control-plane artifact instead of a separate legacy theme.
+  ink: [228, 236, 247],
+  muted: [139, 155, 176],
+  faint: [118, 137, 165],
+  violet: [190, 169, 255],
+  mint: [79, 225, 182],
+  amber: [243, 192, 115],
+  coral: [251, 135, 146],
+  line: [41, 56, 75],
+  panel: [18, 27, 40],
+  panel2: [25, 37, 53],
 };
 const SURFACES = {
-  coral: [30, 23, 31],
-  violet: [25, 24, 41],
-  mint: [20, 31, 32],
+  coral: [38, 29, 38],
+  violet: [29, 34, 52],
+  mint: [22, 53, 46],
 };
-const FOCUS_SURFACE = [57, 43, 78];
+const FOCUS_SURFACE = [32, 53, 47];
 
 function paint(value, color, plain) {
   if (plain || !COLORS[color]) return String(value);
@@ -222,6 +237,17 @@ export function tailFileLines(filePath, count) {
   }
 }
 
+// Read a provider transcript without truncating evidence. ANSI is removed for
+// the UI, but line boundaries and all text are preserved for wrapping/scroll.
+export function readLogLines(filePath) {
+  if (!filePath) return [];
+  try {
+    return fs.readFileSync(filePath, "utf8").split(/\r?\n/).map((line) => stripAnsi(line));
+  } catch {
+    return [];
+  }
+}
+
 // One chronological stream for the LOGS screen: state.json decisions
 // (transitions, evidence, worker start/exit) merged with feed.jsonl narration.
 export function mergedLogEntries(snapshot, { limit = 400 } = {}) {
@@ -276,7 +302,9 @@ function panel(title, body, width, height, { accent = "violet", plain = false } 
   const totalWidth = Math.max(24, width);
   const totalHeight = Math.max(4, height);
   const inner = totalWidth - 4;
-  const topTitle = `─ ${title} `;
+  // Titles are content too: a focused/long title must never make the border
+  // wider than its owning column and break the shell geometry.
+  const topTitle = truncate(`─ ${stripAnsi(title)} `, Math.max(0, totalWidth - 2));
   const top = `┌${topTitle}${"─".repeat(Math.max(0, totalWidth - 2 - topTitle.length))}┐`;
   const bottom = `└${"─".repeat(totalWidth - 2)}┘`;
   const source = [];
@@ -304,6 +332,135 @@ function joinPanels(panels, gap = 1) {
     out.push(panels.map((p, index) => fit(p[row] || "", widths[index])).join(" ".repeat(gap)));
   }
   return out;
+}
+
+// The sidebar is intentionally a route map, not a second source of truth.
+// It gives the manager a stable place to discover the same screens that are
+// reachable by shortcuts, while narrow terminals keep the compact keyboard UI.
+export const TUI_NAV_ITEMS = Object.freeze([
+  ["dashboard", "Overview", "1"],
+  ["tasks", "Tasks", "2"],
+  ["plan", "Plan Studio", "3"],
+  ["queue", "Queues", "4"],
+  ["team", "Agent Team", "5"],
+  ["activity", "Activity & Logs", "6"],
+  ["usage", "Usage & Limits", "7"],
+  ["settings", "Settings", "8"],
+]);
+
+export const TUI_SIDEBAR_WIDTH = 24;
+
+// Medium terminals still need visible information architecture.  The old
+// renderer silently dropped the sidebar below 120 columns, which made the
+// interactive TUI look like the legacy three-pane dashboard and left mouse
+// clicks with nowhere useful to land.  Keep the same routes, but pack them
+// into a keyboard- and mouse-addressable switcher when the full sidebar does
+// not fit.
+function routeSwitcherLayout(width) {
+  const safeWidth = Math.max(20, Number(width) || 80);
+  const rows = [];
+  let row = { prefix: "ROUTES ", entries: [], cursor: "ROUTES ".length };
+  for (const [route, label, key] of TUI_NAV_ITEMS) {
+    const text = `${key} ${label}`;
+    const separator = row.entries.length ? " · " : "";
+    const needed = separator.length + text.length;
+    if (row.entries.length && row.cursor + needed > safeWidth) {
+      rows.push(row);
+      row = { prefix: "       ", entries: [], cursor: "       ".length };
+    }
+    const leading = row.entries.length ? " · " : "";
+    const start = row.cursor + leading.length;
+    row.entries.push({ route, text, start, end: start + text.length });
+    row.cursor = start + text.length;
+  }
+  if (row.entries.length || !rows.length) rows.push(row);
+  return rows;
+}
+
+function renderRouteSwitcher(current, width, plain) {
+  return routeSwitcherLayout(width).map((row) => {
+    let line = row.prefix;
+    for (const entry of row.entries) {
+      const leading = line.length > row.prefix.length ? " · " : "";
+      const token = entry.route === current
+        ? focusRow(entry.text, entry.text.length, plain)
+        : paint(entry.text, "muted", plain);
+      line += leading + token;
+    }
+    return truncate(line, width);
+  });
+}
+
+function routeAtSwitcherPosition(width, rowIndex, column) {
+  const row = routeSwitcherLayout(width)[rowIndex];
+  if (!row) return null;
+  const entry = row.entries.find((item) => column >= item.start && column < item.end);
+  return entry?.route || null;
+}
+
+// Consume complete SGR mouse packets while retaining an incomplete suffix.
+// Keeping this pure makes PTY chunking testable without pretending that a
+// source-level regex is proof of a working terminal interaction.
+export function consumeSgrMousePackets(buffer) {
+  const input = String(buffer || "");
+  const pattern = /\x1b\[<(\d+);(\d+);(\d+)([mM])/g;
+  const packets = [];
+  let match;
+  let consumedThrough = 0;
+  while ((match = pattern.exec(input))) {
+    packets.push({ button: Number(match[1]), x: Number(match[2]) - 1, y: Number(match[3]) - 1, type: match[4] });
+    consumedThrough = pattern.lastIndex;
+  }
+  const trailing = input.slice(consumedThrough);
+  const partialStart = trailing.lastIndexOf("\x1b[<");
+  return { packets, remainder: partialStart >= 0 ? trailing.slice(partialStart) : "" };
+}
+
+// Keep the visible sidebar and its mouse hit map on one model. The previous
+// handler assumed that every route started immediately below the panel title;
+// once WORKSPACE and OPERATIONS section rows were added, every click landed on
+// the next route (Tasks opened Queues, etc.).
+function sidebarBodyModel(height) {
+  const compact = height <= 16;
+  if (compact) {
+    return TUI_NAV_ITEMS.map(([route, label, key]) => ({ type: "route", route, label, key }));
+  }
+  const body = [
+    { type: "text", value: "agent-trust-ladder", color: "ink" },
+    { type: "text", value: "main · control-plane", color: "muted" },
+    { type: "blank" },
+    { type: "text", value: "WORKSPACE", color: "faint" },
+  ];
+  for (const [route, label, key] of TUI_NAV_ITEMS.slice(0, 4)) body.push({ type: "route", route, label, key });
+  body.push({ type: "blank" }, { type: "text", value: "OPERATIONS", color: "faint" });
+  for (const [route, label, key] of TUI_NAV_ITEMS.slice(4)) body.push({ type: "route", route, label, key });
+  body.push(
+    { type: "blank" },
+    { type: "text", value: "PROVIDER STATUS", color: "faint" },
+    { type: "provider" },
+    { type: "text", value: "Workspace Manager", color: "ink" },
+    { type: "text", value: "Owner / approvals", color: "muted" },
+  );
+  return body;
+}
+
+export function sidebarRouteAtPanelRow(panelRow, height) {
+  const row = sidebarBodyModel(height)[Number(panelRow)];
+  return row?.type === "route" ? row.route : null;
+}
+
+function renderSidebar(current, width, height, plain) {
+  const body = sidebarBodyModel(height).map((entry) => {
+    if (entry.type === "blank") return "";
+    if (entry.type === "provider") return `${paint("●", "amber", plain)} quota unknown`;
+    if (entry.type === "route") {
+      const selected = entry.route === current;
+      const row = `${selected ? "▸" : " "} ${entry.key.padEnd(2)} ${entry.label}`;
+      return selected ? focusRow(row, width - 4, plain) : row;
+    }
+    return paint(entry.value, entry.color, plain);
+  });
+  return panel("A  ATL / CONTROL", body, width, height, { accent: "mint", plain });
 }
 
 function statusCounts(tasks) {
@@ -359,6 +516,8 @@ export function createDashboardSnapshot(root) {
   for (const name of providerNames(config)) {
     providers[name] = discoverProvider(name, { command: providerSpec(providerProfileValue, name).command }).available;
   }
+  let controlPlane = null;
+  try { controlPlane = createControlPlaneSnapshot(root); } catch { /* optional additive records */ }
   return {
     root,
     state,
@@ -373,33 +532,38 @@ export function createDashboardSnapshot(root) {
     userProviders: providerProfileValue.userProviders || {},
     updatedAt: state.updated_at,
     lastEvent: state.log.at(-1) || null,
+    controlPlane,
   };
 }
 
-function renderHeader(snapshot, width, { plain, loading, spinner, interactive, syncedAt }) {
+function renderHeader(snapshot, width, { plain, loading, spinner, interactive, syncedAt, routeLabel = "Overview" }) {
   const age = Math.max(0, Math.round((Date.now() - (syncedAt || Date.now())) / 1000));
   const live = loading
     ? `${SPINNER[spinner % SPINNER.length]} SYNCING`
     : interactive
       ? `● LIVE · synced ${age}s ago`
       : `SNAPSHOT · state of ${timeOf(snapshot.updatedAt)}`;
-  const left = `${paint("▌", "coral", plain)} ${paint("ATL", "ink", plain)} ${paint("CONTROL ROOM", "muted", plain)}`;
-  const right = paint(live, loading ? "amber" : "mint", plain);
+  const left = `${paint("A", "mint", plain)} ${paint("ATL CONTROL ROOM", "ink", plain)}  ${paint(routeLabel, "ink", plain)}${interactive ? `  ${paint("INTERACTIVE DEMO", "faint", plain)}` : ""}`;
+  const right = `${interactive ? `${paint("◈", "amber", plain)} 3  ${paint("+ New task", "mint", plain)}   ` : ""}${paint(live, loading ? "amber" : "mint", plain)}`;
   const gap = Math.max(1, width - widthOf(left) - widthOf(right));
-  return `${left}${" ".repeat(gap)}${right}`;
+  return truncate(`${left}${" ".repeat(gap)}${right}`, width);
 }
 
-function renderSummary(snapshot, plain) {
+function renderSummary(snapshot, plain, width = null) {
   const total = snapshot.tasks.length;
   const active = snapshot.active.length;
   const done = snapshot.counts.done || 0;
   const blocked = snapshot.counts.blocked || 0;
   const escalated = snapshot.counts.escalated || 0;
   const queued = (snapshot.queue || []).length;
-  return [
+  const unread = snapshot.controlPlane?.notifications?.unread || 0;
+  const latestUsage = snapshot.controlPlane?.usage?.latest;
+  const usageLabel = latestUsage ? `${latestUsage.provider || "provider"} ${latestUsage.status || "unknown"}` : "provider quota unknown";
+  const lines = [
     `${paint("PORTFOLIO", "faint", plain)}  ${paint(total, "ink", plain)} tasks  ·  ${paint(done, "mint", plain)} shipped  ·  ${paint(active, "violet", plain)} active  ·  ${paint(blocked, "amber", plain)} blocked  ·  ${paint(escalated, "coral", plain)} escalated  ·  ${paint("⌁", "mint", plain)} ${paint(queued, "mint", plain)} queued`,
-    `${paint("last decision", "faint", plain)} ${snapshot.lastEvent ? `${timeOf(snapshot.lastEvent.at)} · ${snapshot.lastEvent.event}` : "no events yet"}  ·  ${paint("L logs", "faint", plain)} for the full history`,
+    `${paint("last decision", "faint", plain)} ${snapshot.lastEvent ? `${timeOf(snapshot.lastEvent.at)} · ${snapshot.lastEvent.event}` : "no events yet"}  ·  ${paint("N", "coral", plain)} ${unread} notifications  ·  ${paint("usage", "faint", plain)} ${usageLabel}`,
   ];
+  return width ? lines.map((line) => truncate(line, width)) : lines;
 }
 
 function renderPipeline(snapshot, width, plain) {
@@ -433,12 +597,38 @@ function renderActionBar(snapshot, selected, width, plain) {
     : false;
   const task = snapshot.tasks[selected];
   const recovery = task?.status === "blocked" ? `   ${paint("u", "amber", plain)} unblock` : "";
-  const compact = `${paint("ACTIONS", "faint", plain)}  ${paint("c", "coral", plain)} new · ${paint("e", "coral", plain)} edit · ${paint("a", "coral", plain)} files · ${paint("x", "coral", plain)} queue · ${paint("l", "coral", plain)} run${recovery ? ` · ${paint("u", "amber", plain)} fix` : ""} · ${paint("r", "coral", plain)} refresh · ${paint("?", "coral", plain)} help`;
-  const full = `${paint("ACTIONS", "faint", plain)}  ${paint("c", "coral", plain)} create task   ${paint("e", "coral", plain)} edit selected   ${paint("a", "coral", plain)} resources   ${paint("x", "coral", plain)} ${selectedQueued ? "remove from" : "add to"} queue   ${paint("l", "coral", plain)} run queue${recovery}   ${paint("r", "coral", plain)} refresh`;
+  const compact = `${paint("ACTIONS", "faint", plain)}  ${paint("c", "coral", plain)} new · ${paint("e", "coral", plain)} edit · ${paint("x", "coral", plain)} queue · ${paint("l", "coral", plain)} run${recovery ? ` · ${paint("u", "amber", plain)} fix` : ""} · ${paint("r", "coral", plain)} refresh · ${paint("w", "coral", plain)} why · ${paint(":", "coral", plain)} commands`;
+  const full = `${paint("ACTIONS", "faint", plain)}  ${paint("c", "coral", plain)} create task   ${paint("e", "coral", plain)} edit selected   ${paint("x", "coral", plain)} ${selectedQueued ? "remove from" : "add to"} queue   ${paint("l", "coral", plain)} run queue${recovery}   ${paint("r", "coral", plain)} refresh   ${paint("w", "coral", plain)} why   ${paint(":", "coral", plain)} commands   ${paint("a", "coral", plain)} resources`;
   return truncate(width < 105 ? compact : full, width);
 }
 
-function renderPortfolio(snapshot, selected, width, plain) {
+function renderOverviewPrelude(snapshot, width, plain, wide) {
+  if (!wide) return [];
+  const blocked = snapshot.counts.blocked || 0;
+  return [
+    paint("WORKSPACE / CONTROL ROOM", "mint", plain),
+    `${paint("Overview", "ink", plain)}  ${paint("Tasks, execution health, decisions and live agent activity.", "muted", plain)}`,
+    `${paint("● Manager online · live", "mint", plain)}   ${paint(`${blocked} blocked`, "amber", plain)}   ${paint("SDD / TDD", "violet", plain)}`,
+  ].map((line) => truncate(line, width));
+}
+
+function renderOverviewStatCards(snapshot, width, plain, wide) {
+  if (!wide) return [];
+  const total = snapshot.tasks.length;
+  const active = snapshot.active.length;
+  const blocked = snapshot.counts.blocked || 0;
+  const done = snapshot.counts.done || 0;
+  const cardWidth = Math.max(20, Math.floor((width - 3) / 4));
+  const cards = [
+    ["Portfolio", total, "Tracked tasks", "violet"],
+    ["Active / available", `${active} / 5`, "Agent snapshot", "mint"],
+    ["Blocked", blocked, "Need intervention", "amber"],
+    ["Shipped", done, "Verified sample", "mint"],
+  ].map(([label, value, detail, accent]) => panel(label, [paint(String(value), accent, plain), paint(detail, "faint", plain)], cardWidth, 4, { accent, plain }));
+  return joinPanels(cards);
+}
+
+function renderPortfolio(snapshot, selected, width, plain, scroll = 0, maxRows = null) {
   if (!snapshot.tasks.length) return [paint("No tasks yet.", "muted", plain), "", "Run `atl intake`, press c to compose, or i to import."];
   const queuedIds = new Set((snapshot.queue || []).map((q) => q.id));
   const lines = [];
@@ -452,14 +642,24 @@ function renderPortfolio(snapshot, selected, width, plain) {
     const titleWidth = Math.max(10, rowWidth - 20);
     const title = truncate(task.title, titleWidth);
     const row = `${selectedMark} ${priority} ${paint(task.id, "ink", plain)} ${queuedIds.has(task.id) ? paint("⌁", "mint", plain) : " "} ${title}`;
-    lines.push(isSelected ? focusRow(`${isSelected ? "▸" : " "} ${priorityChar} ${task.id} ${queuedMark} ${title}`, rowWidth, plain) : row);
+    // Keep the task row physically single-line. `panel()` wraps oversized
+    // body entries, but mouse hit-testing intentionally maps one task to a
+    // fixed two-row pair; an unexpected wrap shifts every task below it.
+    lines.push(isSelected ? focusRow(`${isSelected ? "▸" : " "} ${priorityChar} ${task.id} ${queuedMark} ${title}`, rowWidth, plain) : truncate(row, rowWidth));
     const worker = task.assigned_worker ? `${AVATARS[task.assigned_worker] || "·"} ${task.assigned_worker}` : "unassigned";
     const extra = task.status === "blocked" && task.blocker?.reason
       ? truncate(task.blocker.reason, Math.max(10, rowWidth - 14))
       : `${worker} · ${ageOf(task.updated_at)}`;
-    lines.push(`    ${statusLine(task.status, plain, true)}  ${paint(extra, task.status === "blocked" ? "amber" : "faint", plain)}`);
+    const statusRow = `    ${statusLine(task.status, plain, true)}  ${paint(extra, task.status === "blocked" ? "amber" : "faint", plain)}`;
+    lines.push(truncate(statusRow, rowWidth));
   });
-  return lines;
+  // Windowed list: the wheel scrolls this pane without moving the selection,
+  // so keep only the visible pair-window on screen.
+  if (!maxRows || lines.length <= maxRows) return lines;
+  const visible = portfolioWindowSize(maxRows);
+  const maxScroll = Math.max(0, snapshot.tasks.length - visible);
+  const start = Math.min(Math.max(0, Number(scroll) || 0), maxScroll);
+  return lines.slice(start * 2, (start + visible) * 2);
 }
 
 function renderTaskDetail(snapshot, selected, width, plain, scroll = 0, maxRows = null) {
@@ -549,6 +749,90 @@ function renderFeedPanel(snapshot, width, plain, scroll = 0, maxLines = 8) {
   return [...page, paint(`FEED VIEW · ${hint}`, "faint", plain)];
 }
 
+const TASK_FILTERS = ["All", "New", "Queued", "Running", "Blocked", "Review", "Done", "Archived"];
+
+function taskPageItems(snapshot, ui) {
+  const filter = ui.tasksFilter || "All";
+  const query = String(ui.tasksQuery || "").trim().toLowerCase();
+  return snapshot.tasks.filter((task) => {
+    if (filter !== "All" && statusLabel(task.status) !== filter) return false;
+    if (!query) return true;
+    return [task.id, task.title, task.objective, task.assigned_worker, task.priority, task.status]
+      .filter(Boolean).join(" ").toLowerCase().includes(query);
+  });
+}
+
+export function renderTasksScreen(snapshot, ui, width, height, plain) {
+  const tasks = taskPageItems(snapshot, ui);
+  const selected = Math.min(Math.max(0, Number(ui.tasksSelected) || 0), Math.max(0, tasks.length - 1));
+  const filtered = { ...snapshot, tasks, counts: statusCounts(tasks) };
+  const contentWidth = Math.max(20, width - 2);
+  const leftWidth = Math.max(30, Math.floor(contentWidth * 0.58));
+  const rightWidth = Math.max(24, contentWidth - leftWidth - 1);
+  const cards = [
+    ["All", snapshot.tasks.length, "Tracked", "violet"],
+    ["Blocked", snapshot.tasks.filter((task) => task.status === "blocked").length, "Need action", "amber"],
+    ["Queued", (snapshot.queue || []).length, "Ready path", "mint"],
+    ["Archived", snapshot.tasks.filter((task) => task.status === "archived").length, "Recoverable", "muted"],
+  ].map(([label, value, detail, accent]) => panel(label, [paint(String(value), accent, plain), paint(detail, "faint", plain)], Math.max(24, Math.floor((contentWidth - 1) / 2)), 4, { accent, plain }));
+  const cardRows = width < 105
+    ? [`${paint("PORTFOLIO", "faint", plain)} ${snapshot.tasks.length}  ·  ${paint("BLOCKED", "amber", plain)} ${snapshot.tasks.filter((task) => task.status === "blocked").length}  ·  ${paint("QUEUED", "mint", plain)} ${(snapshot.queue || []).length}  ·  ${paint("ARCHIVED", "muted", plain)} ${snapshot.tasks.filter((task) => task.status === "archived").length}`]
+    : [joinPanels(cards.slice(0, 2)), joinPanels(cards.slice(2))].flat();
+  const tableLines = [
+    `${paint("FILTER", "faint", plain)} ${paint(ui.tasksFilter || "All", "mint", plain)}  ${paint("QUERY", "faint", plain)} ${paint(ui.tasksQuery || "all tasks", "muted", plain)}`,
+    "",
+    ...renderPortfolio(filtered, selected, leftWidth, plain, 0, Math.max(4, height - 10)),
+    "",
+    paint("↑↓ select · f filter · / search · c create · e edit · d archive/restore", "faint", plain),
+  ];
+  const detailLines = tasks[selected]
+    ? renderTaskDetail(filtered, selected, rightWidth, plain, 0, Math.max(4, height - 4))
+    : [paint("No matching tasks.", "muted", plain), "", paint("Press c to create a task.", "mint", plain)];
+  const body = [
+    paint("WORKSPACE / TASKS", "mint", plain),
+    `${paint("Task management", "ink", plain)}  ${paint("Create, edit, filter, archive and restore real ATL tasks.", "muted", plain)}`,
+    "",
+    ...cardRows,
+    "",
+    ...joinPanels([
+      panel("TASK LIST", tableLines, leftWidth, Math.max(8, height - 8), { accent: "coral", plain }),
+      panel("SELECTED TASK", detailLines, rightWidth, Math.max(8, height - 8), { accent: "violet", plain }),
+    ]),
+  ];
+  return panel("TASKS", body, width, height, { accent: "mint", plain }).join("\n");
+}
+
+export function renderQueuesScreen(snapshot, ui, width, height, plain) {
+  const queueBook = snapshot.controlPlane?.queues || {};
+  const queues = queueBook.items || [];
+  const selected = Math.min(Math.max(0, Number(ui.queuePageSelected) || 0), Math.max(0, queues.length - 1));
+  const body = [
+    paint("WORKSPACE / QUEUES", "mint", plain),
+    `${paint("Multi-queue manager", "ink", plain)}  ${paint("Independent workstreams with explicit gates and one safe global runner.", "muted", plain)}`,
+    "",
+    `${paint("ACTIVE", "faint", plain)} ${paint(queueBook.active_queue || "default", "mint", plain)}   ${paint("CONCURRENCY", "faint", plain)} ${paint("1 global session", "violet", plain)}   ${paint("RUNNABLE", "faint", plain)} ${paint(String(snapshot.queue?.length || 0), "ink", plain)}`,
+    "",
+  ];
+  if (!queues.length) body.push(paint("No named queues yet. Press n to create one.", "muted", plain));
+  for (const [index, queue] of queues.entries()) {
+    const active = index === selected;
+    const status = queue.status === "paused" ? paint("PAUSED", "amber", plain) : queue.status === "archived" ? paint("ARCHIVED", "muted", plain) : paint(queue.id === queueBook.active_queue ? "ACTIVE" : "READY", queue.id === queueBook.active_queue ? "mint" : "violet", plain);
+    const marker = active ? paint("▸", "coral", plain) : " ";
+    body.push(`${marker} ${paint(queue.name || queue.id, "ink", plain)}  ${status}  ${paint(`${queue.items?.length || 0} task(s)`, "muted", plain)}  ${paint(`${queue.policy?.maxMinutes || 120}m / ${queue.policy?.maxSessions || 5} sessions`, "faint", plain)}`);
+  }
+  const current = queues[selected];
+  body.push("", paint("TASKS IN SELECTED QUEUE", "violet", plain));
+  if (current?.items?.length) {
+    const live = new Map(snapshot.tasks.map((task) => [task.id, task]));
+    for (const item of current.items.slice(0, Math.max(1, height - body.length - 5))) {
+      const task = live.get(item.id);
+      body.push(`  ${paint(item.id, "ink", plain)}  ${statusLine(task?.status || "new", plain, true)}  ${truncate(task?.title || "unknown task", Math.max(12, width - 30))}`);
+    }
+  } else body.push(paint("  Queue is empty.", "muted", plain));
+  body.push("", paint("↑↓ select · n new queue · r rename · p pause/resume · u use · a archive · l run preview · : commands", "faint", plain));
+  return panel("QUEUES", body, width, height, { accent: "mint", plain }).join("\n");
+}
+
 function renderActions(snapshot, plain) {
   if (!snapshot.actions.length) return [paint("Queue is quiet.", "mint", plain), "", "No next move is waiting."];
   const lines = [paint("NEXT MOVES", "faint", plain)];
@@ -577,28 +861,113 @@ function renderTeam(snapshot, plain) {
 // with a 1-space gap). Shared by the renderer and the mouse-wheel handler so
 // hover routing never drifts from what is on screen.
 function dashboardPanelLayout(safeWidth) {
-  const leftWidth = Math.floor(safeWidth * 0.27);
-  const rightWidth = Math.floor(safeWidth * 0.29);
-  const centerWidth = Math.max(20, safeWidth - leftWidth - rightWidth - 2);
-  return { leftWidth, centerWidth, rightWidth };
+  const geometry = layoutFor(safeWidth, 34);
+  const contentWidth = geometry.mode === "wide" ? safeWidth - TUI_SIDEBAR_WIDTH - 1 : safeWidth;
+  // The control-plane prototype is a two-column work surface: task portfolio
+  // and lifecycle on the left, attention/activity on the right. Keep one
+  // shared geometry object so mouse hover, wheel routing, and rendering agree.
+  const leftWidth = geometry.mode === "wide" ? Math.max(36, Math.floor(contentWidth * 0.62)) : Math.floor(contentWidth * 0.58);
+  const rightWidth = geometry.mode === "wide" ? Math.max(24, contentWidth - leftWidth - 1) : Math.max(20, contentWidth - leftWidth - 1);
+  const centerWidth = rightWidth;
+  return { leftWidth, centerWidth, rightWidth, contentWidth };
 }
 
 export function panelFromColumn(safeWidth, column) {
-  const { leftWidth, centerWidth } = dashboardPanelLayout(safeWidth);
-  if (column < leftWidth) return "portfolio";
-  if (column < leftWidth + 1 + centerWidth) return "task";
+  const layout = dashboardPanelLayout(safeWidth);
+  const offset = layout.contentWidth < safeWidth ? TUI_SIDEBAR_WIDTH + 1 : 0;
+  if (offset && column < offset) return "nav";
+  const relative = column - offset;
+  const { leftWidth, centerWidth } = layout;
+  if (relative < leftWidth) return "portfolio";
+  if (relative < leftWidth + 1 + centerWidth) return "task";
   return "feed";
 }
 
 // Rows the renderer spends above the panels (header, divider, summary,
 // pipeline, action bar, blank). Shared so input handlers can clamp scroll
 // offsets with the same panel height the next paint will use.
-function dashboardRemainingRows(snapshot, safeWidth, safeHeight) {
-  const before = 4 + renderSummary(snapshot, false).length + renderPipeline(snapshot, safeWidth, false).length;
-  return Math.max(8, safeHeight - before - 2);
+function dashboardPanelOrigin(snapshot, safeWidth) {
+  const layout = layoutFor(safeWidth, 34);
+  const routeRows = layout.mode === "wide" ? 0 : routeSwitcherLayout(safeWidth).length;
+  const preludeRows = layout.mode === "wide" ? renderOverviewPrelude(snapshot, safeWidth, true, true).length : 0;
+  const statRows = layout.mode === "wide" ? 4 : 0;
+  return 4 + preludeRows + statRows + renderSummary(snapshot, false, safeWidth).length + renderPipeline(snapshot, safeWidth, false).length + routeRows;
 }
 
-export { dashboardPanelLayout, dashboardRemainingRows, renderTaskDetail };
+function dashboardRemainingRows(snapshot, safeWidth, safeHeight) {
+  return Math.max(8, safeHeight - dashboardPanelOrigin(snapshot, safeWidth) - 2);
+}
+
+// The dashboard has two different vertical geometries. Wide mode keeps the
+// portfolio, detail and feed panes side by side; compact mode stacks the
+// portfolio above the selected-task pane. Keep mouse selection derived from
+// those same bounds instead of guessing from whatever text happens to contain
+// a task id. The previous fallback silently did nothing in compact mode and
+// could select a task when the pointer was over lifecycle/detail content.
+export function dashboardTaskIndexAtPoint(snapshot, { x = 0, y = 0, width = 120, height = 34, portfolioScroll = 0 } = {}) {
+  const safeWidth = Math.max(60, Number(width) || 120);
+  const safeHeight = Math.max(14, Number(height) || 34);
+  const origin = dashboardPanelOrigin(snapshot, safeWidth);
+  const panelHeight = Math.max(7, dashboardRemainingRows(snapshot, safeWidth, safeHeight));
+  const layout = layoutFor(safeWidth, safeHeight);
+  let relativeX = Number(x) || 0;
+  let listRows;
+  let row;
+  if (layout.mode === "wide") {
+    const { leftWidth } = dashboardPanelLayout(safeWidth);
+    const offset = TUI_SIDEBAR_WIDTH + 1;
+    if (relativeX < offset || relativeX >= offset + leftWidth) return -1;
+    relativeX -= offset;
+    listRows = Math.max(4, Math.floor(panelHeight * 0.62));
+    const panelRow = (Number(y) || 0) - origin - 1;
+    if (panelRow < 0 || panelRow >= listRows) return -1;
+    row = Math.floor(panelRow / 2) + Math.max(0, Number(portfolioScroll) || 0);
+  } else {
+    if (relativeX < 0 || relativeX >= safeWidth) return -1;
+    listRows = Math.max(1, panelHeight - 2);
+    const panelRow = (Number(y) || 0) - origin - 1;
+    if (panelRow < 0 || panelRow >= listRows) return -1;
+    row = Math.floor(panelRow / 2) + Math.max(0, Number(portfolioScroll) || 0);
+  }
+  return row >= 0 && row < (snapshot.tasks || []).length ? row : -1;
+}
+
+// Portfolio list rows come in pairs (task row + status row); the window is
+// how many whole task pairs fit the panel's content rows (borders excluded).
+function portfolioWindowSize(contentRows) {
+  return Math.max(1, Math.floor(contentRows / 2));
+}
+
+export { dashboardPanelLayout, dashboardPanelOrigin, dashboardRemainingRows, portfolioWindowSize, renderPortfolio, renderTaskDetail };
+
+function dashboardProjection(snapshot) {
+  if (snapshot?.tasks) return snapshot;
+  const plane = snapshot || {};
+  const state = plane.state || {};
+  const tasks = Object.values(state.tasks || {}).sort(taskSort);
+  const taskState = { tasks: state.tasks || {} };
+  const active = activeTasks(taskState);
+  const queueBook = plane.queues || {};
+  const activeQueue = (queueBook.items || []).find((queue) => queue.id === queueBook.active_queue);
+  const queue = activeQueue?.items || [];
+  const counts = statusCounts(tasks);
+  return {
+    ...plane,
+    root: plane.root || null,
+    state: state,
+    tasks,
+    active,
+    counts,
+    feed: plane.feed || [],
+    actions: plane.actions || [],
+    queue,
+    providers: plane.providers || {},
+    providerProfile: plane.providerProfile || {},
+    userProviders: plane.userProviders || {},
+    updatedAt: plane.updatedAt || state.updated_at || null,
+    lastEvent: plane.lastEvent || (state.log_tail || []).at(-1) || null,
+  };
+}
 
 export function renderDashboard(snapshot, {
   width = 120,
@@ -609,50 +978,83 @@ export function renderDashboard(snapshot, {
   selected = 0,
   feedScroll = 0,
   panelFocus = "portfolio",
+  navSelected = 0,
   taskScroll = 0,
+  portfolioScroll = 0,
   interactive = true,
   syncedAt = null,
 } = {}) {
-  const safeWidth = Math.max(60, Number(width) || 120);
+  snapshot = dashboardProjection(snapshot);
+  const requestedWidth = Number(width) || 120;
+  const safeWidth = Math.max(60, requestedWidth);
   const safeHeight = Math.max(14, Number(height) || 34);
+  const tooNarrow = requestedWidth < 60;
+  const shell = layoutFor(safeWidth, safeHeight);
   const lines = [
-    renderHeader(snapshot, safeWidth, { plain, loading, spinner, interactive, syncedAt }),
+    renderHeader(snapshot, safeWidth, { plain, loading, spinner, interactive, syncedAt, routeLabel: "Overview" }),
+    ...(tooNarrow
+      ? [paint(truncate(`RESIZE · ${requestedWidth} columns is below the 60-column minimum — widen the terminal for the full control room`, safeWidth), "amber", plain)]
+      : []),
     paint("─".repeat(safeWidth), "line", plain),
-    ...renderSummary(snapshot, plain),
+    ...renderOverviewPrelude(snapshot, safeWidth, plain, shell.mode === "wide"),
+    ...renderOverviewStatCards(snapshot, safeWidth, plain, shell.mode === "wide"),
+    ...renderSummary(snapshot, plain, safeWidth),
     ...renderPipeline(snapshot, safeWidth, plain),
     interactive ? renderActionBar(snapshot, selected, safeWidth, plain) : "",
+    ...(shell.mode === "wide" ? [] : renderRouteSwitcher(TUI_NAV_ITEMS[navSelected]?.[0] || "dashboard", safeWidth, plain)),
     "",
   ];
   const remaining = dashboardRemainingRows(snapshot, safeWidth, safeHeight);
-  if (safeWidth >= 105) {
-    const { leftWidth, centerWidth, rightWidth } = dashboardPanelLayout(safeWidth);
+  if (shell.mode === "wide") {
+    const { leftWidth, centerWidth } = dashboardPanelLayout(safeWidth);
     const panelHeight = Math.max(7, remaining);
     const mark = (name) => interactive && panelFocus === name ? "▸ " : "";
-    const panels = [
-      panel(`${mark("portfolio")}PORTFOLIO · FOCUS ${snapshot.tasks.length ? Math.min(selected + 1, snapshot.tasks.length) : 0}/${snapshot.tasks.length}`, renderPortfolio(snapshot, selected, leftWidth, plain), leftWidth, panelHeight, { accent: "coral", plain }),
-      panel(`${mark("task")}SELECTED TASK`, renderTaskDetail(snapshot, selected, centerWidth, plain, taskScroll, panelHeight - 2), centerWidth, panelHeight, { accent: "violet", plain }),
-      panel(`${mark("feed")}LIVE FEED`, renderFeedPanel(snapshot, rightWidth, plain, feedScroll, panelHeight - 2), rightWidth, panelHeight, { accent: "mint", plain }),
+    const task = snapshot.tasks[selected];
+    const attention = [
+      paint("SELECTED TASK", "faint", plain),
+      paint("FEED VIEW · latest", "faint", plain),
+      ...renderTaskDetail(snapshot, selected, centerWidth, plain, taskScroll, Math.min(7, panelHeight - 2)),
+      ...(task?.blocker?.reason ? [paint(`RECOVERY · ${truncate(task.blocker.reason, Math.max(12, centerWidth - 12))}`, "amber", plain), paint("u unblock · x queue · l run", "amber", plain)] : []),
+      "",
+      paint("ATTENTION REQUIRED", "amber", plain),
+      ...renderActions(snapshot, plain),
+      "",
+      paint("LIVE ACTIVITY", "mint", plain),
+      ...renderFeedPanel(snapshot, centerWidth, plain, feedScroll, Math.max(4, panelHeight - 12)),
     ];
-    lines.push(...joinPanels(panels));
+    const panels = [
+      renderSidebar(TUI_NAV_ITEMS[navSelected]?.[0] || "dashboard", TUI_SIDEBAR_WIDTH, panelHeight, plain),
+      panel(`${mark("portfolio")}TASK PORTFOLIO · FOCUS ${snapshot.tasks.length ? Math.min(selected + 1, snapshot.tasks.length) : 0}/${snapshot.tasks.length}`, [
+        ...renderPortfolio(snapshot, selected, leftWidth, plain, portfolioScroll, Math.max(4, Math.floor(panelHeight * 0.62))),
+        "",
+        paint("SDD / TDD LIFECYCLE", "violet", plain),
+        ...renderPipeline(snapshot, leftWidth - 4, plain),
+        "",
+        renderActionBar(snapshot, selected, leftWidth - 4, plain),
+      ], leftWidth, panelHeight, { accent: "coral", plain }),
+      panel(`${mark("task")}ATTENTION & ACTIVITY`, attention, centerWidth, panelHeight, { accent: "violet", plain }),
+    ];
+    const sidebar = panels.shift();
+    lines.push(...joinPanels([sidebar, ...panels]));
   } else {
     const panelHeight = Math.max(6, Math.floor(remaining / 2));
-    lines.push(...panel(interactive ? `PORTFOLIO · FOCUS ${snapshot.tasks.length ? Math.min(selected + 1, snapshot.tasks.length) : 0}/${snapshot.tasks.length}` : "PORTFOLIO", renderPortfolio(snapshot, selected, safeWidth, plain), safeWidth, panelHeight, { accent: "coral", plain }));
+    lines.push(...panel(interactive ? `PORTFOLIO · FOCUS ${snapshot.tasks.length ? Math.min(selected + 1, snapshot.tasks.length) : 0}/${snapshot.tasks.length}` : "PORTFOLIO", renderPortfolio(snapshot, selected, safeWidth, plain, portfolioScroll, panelHeight - 2), safeWidth, panelHeight, { accent: "coral", plain }));
     lines.push(...panel("SELECTED TASK", renderTaskDetail(snapshot, selected, safeWidth, plain, taskScroll, panelHeight - 2), safeWidth, panelHeight, { accent: "violet", plain }));
   }
   const footerChoices = interactive
     ? [
-        "Tab pane · ↑↓/jk pane · Enter open · c create · x queue · l run · u unblock · s sess · f feed · ? help · q quit",
-        "Tab pane · ↑↓ scroll pane · Enter open · c create · x queue · l run · ? help · q quit",
-        "Tab pane · ↑↓ scroll · ? help · q quit",
+        "atl › : commands · Ctrl-K palette · c new task · Enter open · x queue · l run · q quit",
+        "atl › : commands · ↑↓ scroll · c new task · x queue · ? help · q quit",
+        "atl › : commands · ↑↓ scroll · ? help · q quit",
       ]
     : ["SNAPSHOT · read-only · run `atl ui` for keyboard navigation"];
   const footer = footerChoices.find((choice) => widthOf(choice) <= safeWidth - 2) || footerChoices[footerChoices.length - 1];
-  const footerLine = `${paint("⌁", "coral", plain)} ${paint(footer, "muted", plain)}`;
+  const footerLine = `${paint("●", "mint", plain)} ${paint(footer, "muted", plain)}`;
   const output = [...lines, "", truncate(footerLine, safeWidth)];
   return output.slice(0, safeHeight).join("\n");
 }
 
-function renderFileView(view, width, height, plain) {
+export function renderFileView(view, width, height, plain) {
   const title = view.filePath ? path.basename(view.filePath) : "source file";
   const header = `${paint("SOURCE FILE", "faint", plain)}  ${paint(title, "ink", plain)}`;
   const info = view.filePath ? path.relative(view.root, view.filePath) : "No local source file resolved for this task.";
@@ -671,7 +1073,7 @@ function renderFileView(view, width, height, plain) {
   return panel(`TASK ${view.taskId || "-"}`, lines, width, height, { accent: "mint", plain }).join("\n");
 }
 
-function renderFeedView(snapshot, width, height, scroll, plain) {
+export function renderFeedView(snapshot, width, height, scroll, plain) {
   const all = [];
   for (const message of snapshot.feed) {
     all.push(`${timeOf(message.at)}  ${NAMES[message.from] || message.from} ${AVATARS[message.from] || "·"}`);
@@ -684,34 +1086,40 @@ function renderFeedView(snapshot, width, height, scroll, plain) {
   const offset = Math.min(Math.max(0, Number(scroll) || 0), maxOffset);
   const start = Math.max(0, maxOffset - offset);
   const hint = [offset < maxOffset ? "↑ older" : "", offset > 0 ? "↓ newer" : ""].filter(Boolean).join(" · ") || "latest";
-  const body = [paint("FULL TEAM FEED", "faint", plain), ...all.slice(start, start + visible), "", paint(`Esc back   ↑↓ / j k / wheel scroll   PgUp/PgDn jump   · ${hint}`, "muted", plain)];
+  const body = [paint("FULL TEAM FEED", "faint", plain), ...all.slice(start, start + visible), "", paint(`Esc back   ↑↓ / j k scroll   PgUp/PgDn jump   · ${hint}`, "muted", plain)];
   return panel("FEED", body, width, height, { accent: "mint", plain }).join("\n");
 }
 
-function renderHelp(width, height, plain) {
+export function renderHelp(width, height, plain) {
+  const hk = (label, color = "coral") => paint(label.padEnd(9), color, plain);
   const body = [
-    paint("A calm view of the work — and the room where it starts.", "ink", plain),
+    paint("A calm view of the room — select any text with the mouse and copy it.", "ink", plain),
     "",
-    `${paint("↑↓ / j k", "coral", plain)}  act on the focused pane (move tasks, scroll task detail or feed)`,
-    `${paint("Tab", "coral", plain)}        choose the focused pane: portfolio → task detail → live feed`,
-    `${paint("wheel", "coral", plain)}      scrolls the pane under the mouse and focuses it`,
-    `${paint("PgUp/PgDn", "coral", plain)}  bigger jumps · Home/End: top/last (pane-aware)`,
-    `${paint("Enter / o", "coral", plain)}  read the task source file`,
-    `${paint("c", "coral", plain)}        create: choose outcome + surface, write freely, preview packet, create candidate`,
-    `${paint("i", "coral", plain)}        import: read-only candidates from inbox / GitHub / Azure`,
-    `${paint("e / v", "coral", plain)}    edit/review the canonical packet (objective, checks, priority, risk, route)`,
-    `${paint("a", "coral", plain)}        attach a URL or local screenshot/file; local files are copied into the task packet`,
-    `${paint("x", "coral", plain)}        add/remove the selected task in the execution queue`,
-    `${paint("l", "coral", plain)}        launch preview; Enter / y confirms the queued run`,
-    `${paint("Q", "coral", plain)}        execution queue: live gate state per queued task (d remove · l launch)`,
-    `${paint("L", "coral", plain)}        logs: state decisions + feed narration in one stream (F follow · End latest)`,
-    `${paint("u", "amber", plain)}        unblock the selected blocked task; then x queue and l run`,
-    `${paint("p", "coral", plain)}        providers: executable + model + per-role mapping (change with atl provider set ...)`,
-    `${paint("s", "coral", plain)}        sessions: provider session logs (Enter opens at the latest output)`,
-    `${paint("f", "coral", plain)}        open the full team feed; ↑↓/wheel scroll, PgUp/PgDn jump`,
-    `${paint("r", "coral", plain)}        force a refresh (state.json + feed.jsonl are also re-read automatically)`,
-    `${paint("Esc", "coral", plain)}      return to the dashboard`,
-    `${paint("q", "coral", plain)}        quit without changing state`,
+    `${hk("mouse")}  click cards and controls; wheel pans the pane under the pointer`,
+    `${hk("Shift+M")}  toggle capture: Shift+drag selects and copies text in terminal mode`,
+    `${hk("↑↓ / j k")}  act on the focused pane (move tasks, scroll task detail or feed)`,
+    `${hk("Tab")}  choose the focused pane: portfolio → task detail → live feed`,
+    `${hk("PgUp/PgDn")}  bigger jumps · Home/End: top/last (pane-aware)`,
+    `${hk("Enter / o")}  read the task source file`,
+    `${hk("c")}  create: choose outcome + surface, write freely, preview packet, create candidate`,
+    `${hk("i")}  import: read-only candidates from inbox / GitHub / Azure`,
+    `${hk("e / v")}  edit/review the canonical packet (objective, checks, priority, risk, route)`,
+    `${hk("a")}  attach a URL or local screenshot/file; local files are copied into the task packet`,
+    `${hk("x")}  add/remove the selected task in the execution queue`,
+    `${hk("l")}  launch preview; Enter / y confirms the queued run`,
+    `${hk("Q")}  execution queue: live gate state per queued task (d remove · l launch)`,
+    `${hk("L")}  logs: state decisions + feed narration in one stream (F follow · End latest)`,
+    `${hk("b / i")}  queue feedback for the next bot / interrupt and restart the active session`,
+    `${hk("Shift+R")}  reopen the run view from anywhere while a queue run is live`,
+    `${hk("u", "amber")}  unblock the selected blocked task; then x queue and l run`,
+    `${hk("w")}  explain the selected task in the bounded command console`,
+    `${hk(":")}  open the ATL command console (help, why, queue, task, feedback, launch)`,
+    `${hk("p")}  providers: executable + model + per-role mapping (change with atl provider set ...)`,
+    `${hk("s")}  sessions: provider session logs (Enter opens at the latest output)`,
+    `${hk("f")}  open the full team feed; ↑↓ scroll, PgUp/PgDn jump`,
+    `${hk("r")}  force a refresh (state.json + feed.jsonl are also re-read automatically)`,
+    `${hk("Esc")}  back to the previous screen (works on every screen)`,
+    `${hk("q")}  quit without changing state`,
     "",
     paint("Live: the room re-reads state.json + feed.jsonl every ~2s, and every 1s while a run is active.", "muted", plain),
     paint("Dispatch boundary: a confirmed run is sequential, bounded, and uses per-role providers.", "muted", plain),
@@ -725,6 +1133,285 @@ function renderHelp(width, height, plain) {
     ".trust/manager/overnight/   provider session logs",
   ];
   return panel("HELP", body, width, height, { accent: "violet", plain }).join("\n");
+}
+
+export function renderCommandScreen(ui, width, height, plain) {
+  const inner = Math.max(20, width - 4);
+  const command = ui.command || { input: "", output: [] };
+  const output = [];
+  for (const line of command.output || []) output.push(...wrap(String(line), inner));
+  const visible = Math.max(4, height - 8);
+  const maxOffset = Math.max(0, output.length - visible);
+  const offset = Math.min(Math.max(0, Number(command.outputScroll) || 0), maxOffset);
+  const page = output.slice(offset, offset + visible);
+  const history = (ui.commandHistory || []).length;
+  const inputWidth = Math.max(10, inner - 2);
+  const rawInput = String(command.input || "");
+  // Keep the insertion end visible while a long ATL command is being typed.
+  // The previous leading truncate made the TUI appear to stop accepting input
+  // once the command crossed the right edge.
+  const input = widthOf(rawInput) <= inputWidth
+    ? rawInput
+    : `…${rawInput.slice(-(inputWidth - 1))}`;
+  const lines = [
+    paint("ATL command console · accepts `atl <command>` · no shell execution", "muted", plain),
+    paint("Use ? or help for commands. Mutations use the same audited runtime as the CLI.", "faint", plain),
+    "",
+    ...(page.length ? page : [paint("No command output yet. Try: why T-001", "muted", plain)]),
+    "",
+    `${paint(":", "coral", plain)} ${input}`,
+    paint(`history ${history} · output ${output.length ? `${offset + 1}-${Math.min(output.length, offset + page.length)} / ${output.length}` : "empty"} · Enter run · ↑↓ history/scroll · PgUp/PgDn output · Esc back`, "faint", plain),
+  ];
+  return panel("COMMAND CONSOLE", lines, width, height, { accent: "violet", plain }).join("\n");
+}
+
+const TEAM_PHASE_COLOR = {
+  blocked: "amber",
+  escalated: "coral",
+  in_progress: "mint",
+  in_review: "violet",
+  verifying: "mint",
+  done: "mint",
+};
+
+const TEAM_PHASE_COMPACT = {
+  "awaiting assignment": "WAITING",
+  "ready to start": "READY",
+  working: "WORKING",
+  "independent review": "REVIEW",
+  verification: "VERIFYING",
+  "blocked — manager action": "BLOCKED",
+  "escalated to owner": "ESCALATED",
+  shipped: "SHIPPED",
+  idle: "IDLE",
+};
+
+export function renderTeamScreen(snapshot, ui, width, height, plain) {
+  const plane = snapshot.controlPlane || snapshot;
+  const inner = Math.max(20, width - 6);
+  const compact = width < 70;
+  const team = Array.isArray(plane.team) && plane.team.length ? plane.team : null;
+  const lines = [paint("TEAM · five role contracts over one authoritative state", "muted", plain)];
+  if (team?.[0]?.latestBrief) lines.push(paint(`latest brief ${team[0].latestBrief.name}`, "faint", plain));
+  lines.push("");
+  if (!team) {
+    const roles = [
+      ["mira", "coordinates, assigns, unblocks, escalates"],
+      ["pip", "frames intake into bounded tasks"],
+      ["rowan", "builds in isolated workspaces"],
+      ["sage", "reviews independently"],
+      ["beacon", "verifies and watches the gates"],
+    ];
+    const tasks = plane.state?.tasks || Object.fromEntries((snapshot.tasks || []).map((task) => [task.id, task]));
+    const events = plane.state?.log_tail || snapshot.state?.log || [];
+    for (const [role, mission] of roles) {
+      const assigned = Object.values(tasks).filter((task) => task.assigned_worker === role && !["done", "rejected", "archived"].includes(task.status));
+      const last = [...events].reverse().find((event) => event.actor === role || (role === "mira" && event.actor === "manager"));
+      const activeRun = (ui.runTasks || []).find((entry) => entry.role === role && ["running", "gate"].includes(entry.state));
+      const state = activeRun ? activeRun.state : assigned[0]?.status || "idle";
+      lines.push(`${paint("▸", role === "mira" ? "coral" : "violet", plain)} ${paint(role.padEnd(7), "ink", plain)} ${statusLine(state, plain, true)} ${paint(mission, "muted", plain)}`);
+      lines.push(`    task ${assigned[0]?.id || activeRun?.taskId || "-"} · provider ${activeRun?.provider || "not running"} · last ${last ? `${last.event} ${timeOf(last.at)}` : "no event"}`);
+    }
+  } else {
+    for (const card of team) {
+      const phaseText = card.phase.toUpperCase();
+      const phase = compact ? (TEAM_PHASE_COMPACT[card.phase] || phaseText.slice(0, 8)) : phaseText;
+      const color = TEAM_PHASE_COLOR[card.taskStatus] || "muted";
+      const missionRoom = compact ? 0 : Math.max(12, inner - card.role.length - phase.length - 8);
+      const mission = missionRoom > 12 ? paint(truncate(card.mission, missionRoom), "muted", plain) : "";
+      lines.push(`${paint("▸", card.role === "mira" ? "coral" : "violet", plain)} ${paint(card.role.padEnd(7), "ink", plain)} ${paint(phase, color, plain)}${mission ? " " + mission : ""}`);
+      const facts = [
+        `task ${card.taskId || "-"}`,
+        `queue ${card.queueId || "-"}`,
+        `provider ${card.provider ? `${card.provider}${card.model ? `/${card.model}` : ""}` : "not running"}`,
+      ];
+      lines.push(truncate(`    ${facts.join(" · ")}`, inner));
+      if (card.session) {
+        lines.push(truncate(paint(`    session ${card.session.n ?? "?"} · ${path.basename(String(card.session.logPath || ""))}`, "faint", plain), inner));
+      }
+      if (card.feedback) {
+        // Safety-relevant state gets its own line: it must survive narrow
+        // widths instead of being clipped off a shared truncated tail.
+        lines.push(truncate(paint(`    feedback ${card.feedback.pending} pending (${card.feedback.latest.slice(0, 13)})`, "amber", plain), inner));
+      }
+      if (!card.session && !card.feedback) {
+        lines.push(paint("    no session yet · Enter/: inspect · L logs", "faint", plain));
+      }
+    }
+  }
+  lines.push("", paint("Enter/: inspect with the command console · L logs · Esc back", "faint", plain));
+  return panel("TEAM", lines, width, height, { accent: "mint", plain }).join("\n");
+}
+
+export function renderNotificationsScreen(snapshot, width, height, plain) {
+  const plane = snapshot.controlPlane || snapshot;
+  const items = plane.notifications?.items || [];
+  const inner = Math.max(20, width - 4);
+  const lines = [paint("Manager notifications · deduplicated state, run, blocker, and usage signals", "muted", plain), ""];
+  if (!items.length) lines.push(paint("No notifications yet. The room is quiet.", "muted", plain));
+  for (const item of items.slice(0, Math.max(1, height - 7))) {
+    const color = item.severity === "danger" ? "coral" : item.severity === "warning" ? "amber" : "mint";
+    const badge = item.count > 1 ? paint(` ×${item.count}`, color, plain) : "";
+    lines.push(`${paint(item.state === "unread" ? "●" : "○", color, plain)} ${paint(item.severity, color, plain)}${badge} ${timeOf(item.at)} · ${item.title}`);
+    lines.push(...wrap(truncate(item.message, inner), inner));
+    // Source-object links: every notification names the object it came from.
+    const links = [item.taskId ? `→ ${item.taskId}` : null, item.queueId ? `queue ${item.queueId}` : null, item.runId ? `run ${item.runId}` : null].filter(Boolean).join(" · ");
+    if (links) lines.push(paint(`  ${links}`, "faint", plain));
+    if (item.action) lines.push(paint(`  action: ${item.action}`, "faint", plain));
+    if (item.state === "snoozed" && item.snoozed_until) lines.push(paint(`  snoozed until ${item.snoozed_until}`, "faint", plain));
+  }
+  lines.push("", paint("N opens this panel · : notify list|ack <id>|snooze <id> [minutes] · Esc back", "faint", plain));
+  return panel("NOTIFICATIONS", lines, width, height, { accent: "amber", plain }).join("\n");
+}
+
+export function renderUsageScreen(snapshot, ui, width, height, plain) {
+  const plane = snapshot.controlPlane || snapshot;
+  const latest = plane.usage?.latest;
+  const lines = [paint("Usage and capacity · local budgets are authoritative; provider quota may be unknown", "muted", plain), ""];
+  const budget = ui.launchBudget || { maxMinutes: 120, maxSessions: 5 };
+  lines.push(`${paint("LOCAL RUN BUDGET", "violet", plain)}  ${budget.maxMinutes} minutes · ${budget.maxSessions} sessions · explicit launch policy`);
+  lines.push(`${paint("OBSERVED USAGE", "mint", plain)}  ${latest ? `${latest.provider || "provider"} · ${latest.model || "model"} · ${latest.status} · ${latest.source}` : "no provider snapshot recorded yet"}`);
+  if (latest) {
+    const freshness = usageFreshness(latest, { maxAgeMs: ui.usageMaxAgeMs ?? 60 * 60000 });
+    lines.push(`  freshness: ${freshness.fresh ? paint(freshness.label, "mint", plain) : paint(freshness.label, "amber", plain)} · confidence ${latest.confidence || "low"}${latest.detail ? ` · ${truncate(latest.detail, Math.max(12, inner - 20))}` : ""}`);
+  }
+  if (latest?.used) lines.push(`  used: ${JSON.stringify(latest.used)} · captured ${timeOf(latest.captured_at)}`);
+  lines.push(`${paint("REMOTE REMAINING", latest?.remaining == null ? "faint" : "amber", plain)}  ${latest?.remaining == null ? "unknown — provider adapter/auth did not expose a verified quota" : JSON.stringify(latest.remaining)}`);
+  if (latest?.reset_at) lines.push(`  reset: ${latest.reset_at}`);
+  lines.push("", paint("Forecasts must be labeled estimates and never replace the provider's authoritative value.", "faint", plain));
+  lines.push("", paint("U opens this panel · : usage/queue commands · Esc back", "faint", plain));
+  return panel("USAGE", lines, width, height, { accent: "violet", plain }).join("\n");
+}
+
+export function renderPlanStudioScreen(root, ui, width, height, plain) {
+  const inner = Math.max(20, width - 4);
+  const studioDir = path.join(path.dirname(paths(root).state), "plan-studio");
+  let drafts = [];
+  try {
+    drafts = fs.existsSync(studioDir)
+      ? fs.readdirSync(studioDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => {
+        try { return loadPlanDraft(root, entry.name); } catch { return null; }
+      }).filter(Boolean).sort((a, b) => String(b.saved_at).localeCompare(String(a.saved_at)))
+      : [];
+  } catch { drafts = []; }
+  const current = ui.planStudio?.draft || drafts[0] || null;
+  const lines = [
+    paint("Plan Studio · intent → ATL SDD/TDD artifact → manager approval", "muted", plain),
+    paint("Provider planning is an explicit action; this screen never silently spends quota or starts work.", "faint", plain),
+    "",
+  ];
+  if (ui.planStudio?.intent) {
+    lines.push(`${paint("WORKING INTENT", "coral", plain)}  ${truncate(ui.planStudio.intent, inner - 15)}`);
+    lines.push(paint("deterministic frame ready · c edit intent · f save frame · : command console", "mint", plain), "");
+  }
+  if (!current) {
+    lines.push(paint("No plan drafts yet.", "muted", plain), "", paint("c start an intent · : plan frame ... · Esc back", "faint", plain));
+  } else {
+    lines.push(`${paint("DRAFT", "violet", plain)} ${truncate(current.id, inner - 8)} · stage ${current.stage}`);
+    lines.push(`${paint("title", "faint", plain)} ${truncate(current.artifact?.title || "intent-only draft", inner - 8)}`);
+    lines.push(`${paint("objective", "faint", plain)} ${truncate(current.artifact?.objective || current.intent, inner - 11)}`);
+    lines.push(`${paint("skills", "faint", plain)} ${(current.artifact?.selected_skills || []).join(", ") || "select through ATL route"}`);
+    lines.push("", paint("Stages: intent → frame → specify → route → plan → review → approved", "muted", plain));
+    if (current.artifact?.implementation_steps?.length) lines.push(`${paint("steps", "faint", plain)} ${current.artifact.implementation_steps.length} · ${current.artifact.verifier_commands.length} verifier command(s)`);
+    lines.push("", paint("c edit intent · f save deterministic frame · a approve a complete provider plan · : commands · Esc back", "faint", plain));
+  }
+  if (drafts.length > 1) lines.push("", paint(`${drafts.length} saved draft(s) · newest shown`, "faint", plain));
+  return panel("PLAN STUDIO", lines, width, height, { accent: "violet", plain }).join("\n");
+}
+
+export function renderSettingsScreen(root, ui, width, height, plain) {
+  const cfg = configSafe(root);
+  const queuePolicy = ui.snapshot.controlPlane?.queues?.items?.find((queue) => queue.id === ui.snapshot.controlPlane?.queues?.active_queue)?.policy || {};
+  const lines = [
+    paint("Settings · explicit policies and local-only controls", "muted", plain),
+    "",
+    `${paint("workspace", "faint", plain)} ${root}`,
+    `${paint("active queue", "faint", plain)} ${ui.snapshot.controlPlane?.queues?.active_queue || "default"}`,
+    `${paint("concurrency", "faint", plain)} ${queuePolicy.maxConcurrent || 1} active session(s) by default`,
+    `${paint("run budget", "faint", plain)} ${queuePolicy.maxMinutes || 120}m · ${queuePolicy.maxSessions || 5} sessions`,
+    `${paint("provider default", "faint", plain)} ${cfg.providers?.use || "configured role/default"}`,
+    `${paint("remote quota", "faint", plain)} unknown unless a provider adapter verifies it`,
+    "",
+    paint("SAFETY", "violet", plain),
+    "provider planning requires explicit confirmation",
+    "archive/restore is recoverable; hard deletion is not exposed by default",
+    "launch stays behind preview + Enter/y confirmation",
+    "",
+    paint("KEYBOARD", "violet", plain),
+    "Tab sidebar/pane · : command console · c new task · w why · u unblock",
+    "Q queues · L logs · Shift+R run · Shift+U usage · ? help · Esc back",
+    "",
+    paint("Settings are read-only in this first control-plane slice; policy mutations remain CLI/domain actions until their approval contract is added.", "faint", plain),
+  ];
+  return panel("SETTINGS", lines, width, height, { accent: "mint", plain }).join("\n");
+}
+
+function controlPlaneRouteForScreen(screen) {
+  return {
+    dashboard: "dashboard",
+    tasks: "tasks",
+    compose: "tasks",
+    queue: "queue",
+    launch: "queue",
+    plan: "plan",
+    team: "team",
+    logs: "activity",
+    notifications: "activity",
+    usage: "usage",
+    settings: "settings",
+    providers: "settings",
+  }[screen] || null;
+}
+
+function controlPlaneDimensions(width, height) {
+  const safeWidth = Math.max(60, Number(width) || 120);
+  const safeHeight = Math.max(14, Number(height) || 34);
+  const shell = layoutFor(safeWidth, safeHeight);
+  const wide = shell.mode === "wide";
+  const routeRows = wide ? 0 : routeSwitcherLayout(safeWidth).length;
+  const headerRows = 1;
+  const dockRows = 2;
+  const contentWidth = wide ? safeWidth - TUI_SIDEBAR_WIDTH - 1 : safeWidth;
+  const contentHeight = Math.max(8, safeHeight - headerRows - routeRows - dockRows - 2);
+  return { safeWidth, safeHeight, shell, wide, routeRows, contentWidth: Math.max(24, contentWidth), contentHeight };
+}
+
+function controlPlaneContentOrigin(dims) {
+  return 2 + dims.routeRows + (dims.routeRows ? 1 : 0);
+}
+
+function renderedItemIndexAtLine(lines, items, line, { column = null, maxColumn = Infinity } = {}) {
+  const candidates = items.map((item, index) => {
+    const needles = [item?.id, item?.name, item].filter(Boolean).map((value) => String(value).toLowerCase());
+    const matches = lines.map((value, row) => ({ value, row })).filter(({ value, row }) => row > 0 && needles.some((needle) => value.toLowerCase().includes(needle)));
+    const match = matches.find(({ value }) => column === null || needles.some((needle) => {
+      const at = value.toLowerCase().indexOf(needle);
+      return at >= 0 && at < maxColumn;
+    }));
+    return { index, line: match?.row ?? -1 };
+  }).filter((item) => item.line >= 0);
+  const hit = candidates.find((item) => item.line === line);
+  return hit ? hit.index : -1;
+}
+
+export function renderControlPlaneShell(snapshot, { route = "dashboard", body = "", width = 120, height = 34, plain = false, interactive = true, syncedAt = null, loading = false, spinner = 0 } = {}) {
+  const dims = controlPlaneDimensions(width, height);
+  const header = renderHeader(snapshot, dims.safeWidth, { plain, loading, spinner, interactive, syncedAt, routeLabel: TUI_NAV_ITEMS.find((item) => item[0] === route)?.[1] || "Overview" });
+  const routeLines = dims.wide ? [] : renderRouteSwitcher(route, dims.safeWidth, plain);
+  const content = String(body || "").split("\n").slice(0, dims.contentHeight).map((line) => fit(line, dims.contentWidth));
+  while (content.length < dims.contentHeight) content.push("");
+  const center = content.map((line) => fit(line, dims.contentWidth));
+  const main = dims.wide
+    ? joinPanels([renderSidebar(route, TUI_SIDEBAR_WIDTH, dims.contentHeight, plain), center])
+    : center;
+  const dock = interactive
+    ? [
+      `${paint("atl ›", "mint", plain)} ${paint(": commands", "ink", plain)}  ${paint("Ctrl-K palette", "faint", plain)}  ${paint("n new task", "mint", plain)}  ${paint("6 activity", "muted", plain)}  ${paint("q quit", "muted", plain)}`,
+      `${paint("●", "mint", plain)} ${paint("LIVE", "mint", plain)}  ${paint("state-backed control plane", "faint", plain)}${snapshot.controlPlane?.usage?.latest ? `  ·  ${paint("usage observed", "violet", plain)}` : ""}`,
+    ]
+    : [paint("SNAPSHOT · read-only · run `atl ui` for keyboard navigation", "faint", plain)];
+  const lines = [header, paint("─".repeat(dims.safeWidth), "line", plain), ...routeLines, ...(routeLines.length ? [""] : []), ...main, "", ...dock];
+  return lines.slice(0, dims.safeHeight).join("\n");
 }
 
 function readTaskFile(root, task) {
@@ -800,7 +1487,10 @@ export function scanSessions(root) {
       const full = path.join(dir, file);
       try {
         const stat = fs.statSync(full);
-        out.push({ taskId, file: full, name: file, size: stat.size, mtime: stat.mtime.toISOString() });
+        let summary = null;
+        const summaryFile = full.replace(/\.log$/i, ".json");
+        try { summary = JSON.parse(fs.readFileSync(summaryFile, "utf8")); } catch { /* session still running */ }
+        out.push({ taskId, file: full, name: file, size: stat.size, mtime: stat.mtime.toISOString(), summary });
       } catch { /* raced with a delete; skip */ }
     }
   }
@@ -916,8 +1606,8 @@ export function renderComposeScreen(ui, width, height, plain) {
 
 const IMPORT_SOURCES = [
   { key: "f", label: "file inbox", note: "markdown files in .trust/manager/inbox" },
-  { key: "g", label: "GitHub issues", note: "read-only; set intake.github.enabled in config/manager.json" },
-  { key: "a", label: "Azure Boards", note: "read-only; set intake.azure.enabled + PAT in the environment" },
+  { key: "g", label: "GitHub issues", note: "read-only; enable with: atl intake enable github --repo owner/name" },
+  { key: "a", label: "Azure Boards", note: "read-only; enable with: atl intake enable azure (needs the PAT env var)" },
 ];
 
 function renderImportScreen(ui, width, height, plain) {
@@ -997,11 +1687,21 @@ export function renderQueueScreen(snapshot, ui, width, height, plain) {
   const plan = ui.launchPlan?.items?.length ? ui.launchPlan : null;
   const entries = plan ? plan.items : [];
   const live = new Map(snapshot.tasks.map((t) => [t.id, t]));
+  const queueBook = snapshot.controlPlane?.queues;
   const runs = new Map((ui.runTasks || []).map((t) => [t.taskId, t]));
   const lines = [
-    paint("Execution queue — membership, not focus. Stored in .trust/manager/queue.json.", "muted", plain),
+    paint(`Execution queue — active: ${queueBook?.active_queue || "default"}. Membership, not focus; stored in .trust/manager/queue.json.`, "muted", plain),
     "",
   ];
+  if (queueBook?.items?.length) {
+    lines.push(paint("QUEUES", "faint", plain));
+    for (const queue of queueBook.items) {
+      const marker = queue.id === queueBook.active_queue ? "▸" : " ";
+      const statusTag = queue.status === "paused" ? paint(" · paused", "amber", plain) : "";
+      lines.push(`${marker} ${queue.id} · ${queue.items.length} task(s) · ${queue.policy.maxMinutes}m/${queue.policy.maxSessions} sessions${statusTag}`);
+    }
+    lines.push("");
+  }
   if (!entries.length) {
     lines.push(paint("Queue is empty. Select work with x on a task (here or in packet review).", "muted", plain));
   } else {
@@ -1026,7 +1726,7 @@ export function renderLaunchPreviewScreen(ui, width, height, plain) {
   if (!plan || !plan.items.length) {
     lines.push(paint("Queue is empty — nothing to launch.", "muted", plain));
   } else {
-    lines.push(`${paint(plan.items.length, "ink", plain)} queued · ${paint(plan.readyCount, "mint", plain)} ready · ${paint(plan.blockedCount, "coral", plain)} blocked · sequential · budget ${plan.budget.maxMinutes}m / ${plan.budget.maxSessions} sessions`);
+    lines.push(`${paint(plan.items.length, "ink", plain)} queued · ${paint(plan.readyCount, "mint", plain)} ready · ${paint(plan.blockedCount, "coral", plain)} blocked · sequential · budget ${plan.budget.maxMinutes}m / ${plan.budget.maxSessions} sessions ${paint("· SHARED by the whole queue", "faint", plain)}`);
     for (const item of plan.items) {
       lines.push("");
       lines.push(`${paint(item.taskId, "ink", plain)} [${item.status} → ${item.role || "-"}] ${paint(`${item.provider.worker} · ${item.provider.model || "provider default"} · ${item.provider.auth}`, "violet", plain)} (${item.provider.source})`);
@@ -1038,7 +1738,7 @@ export function renderLaunchPreviewScreen(ui, width, height, plain) {
     lines.push("");
     lines.push(paint(`Press Enter / y to run now:  ${plan.confirmCommand}`, "mint", plain));
   }
-  lines.push("", paint("Enter / y confirm run · r rebuild plan · Esc back", "muted", plain));
+  lines.push("", paint(`p ${ui.pauseAfterBot ? "disable" : "enable"} pause-after-bot · +/− more/fewer sessions · [ ] less/more minutes · Enter / y confirm run · r rebuild · Esc back`, "muted", plain));
   return panel("LAUNCH PREVIEW", lines, width, height, { accent: "amber", plain }).join("\n");
 }
 
@@ -1066,6 +1766,9 @@ export function renderRunScreen(ui, width, height, plain) {
     lines.push(`${paint("CURRENT", "faint", plain)}  ${paint(current.taskId, "ink", plain)} · ${current.role} · ${current.provider}${current.model ? ` · ${current.model}` : ""}${current.sessionMax ? ` · session ${current.session}/${current.sessionMax}` : ""}${sessionElapsed ? ` · ${sessionElapsed}` : ""}`);
     lines.push(`${paint("PHASE", "faint", plain)}    ${current.phase}`);
   }
+  if (ui.reviewPause) {
+    lines.push("", paint("HUMAN REVIEW GATE", "amber", plain), paint("a Accept and continue · b Revise with checkpoint feedback · i Interrupt and restart · s Stop queue", "ink", plain));
+  }
   if (tasks.length) {
     lines.push("", paint("QUEUE PROGRESS", "faint", plain));
     for (const entry of tasks) {
@@ -1080,18 +1783,34 @@ export function renderRunScreen(ui, width, height, plain) {
       lines.push(`${active}${paint(style.icon, style.color, plain)} ${paint(entry.taskId, "ink", plain)}  ${paint(bits.join(" · "), style.color, plain)}`);
     }
   }
-  const tail = ui.runLogTail || [];
+  const timeline = (ui.runLines || []).slice(-6);
+  if (timeline.length) {
+    lines.push("", paint("STRUCTURED TIMELINE", "faint", plain));
+    for (const event of timeline) {
+      const text = String(event);
+      const color = /failed|error|blocked|timeout/i.test(text) ? "coral"
+        : /BRIEF|finished|done|success|evidence/i.test(text) ? "mint"
+          : /feedback|interrupt|paused|warning/i.test(text) ? "amber" : "ink";
+      lines.push(paint(text, color, plain));
+    }
+  }
+  const tail = ui.runLogLines?.length ? ui.runLogLines : (ui.runLogTail || []);
   if (ui.runLogName) {
-    lines.push("", paint(`SESSION LOG TAIL · ${ui.runLogName}${ui.running ? (tail.length ? "" : " (waiting for output)") : " (final)"}`, "faint", plain));
+    const rawMode = ui.runLogMode === "raw";
+    lines.push("", paint(`${rawMode ? "RAW TRANSCRIPT" : "SESSION LOG"} · ${ui.runLogName}${ui.running ? (tail.length ? "" : " (waiting for output)") : " (final)"}`, "faint", plain));
     if (tail.length) {
       const fixed = lines.length + 2;
       const tailRoom = Math.max(1, Math.min(tail.length, height - 7 - fixed));
-      for (const line of tail.slice(-tailRoom)) lines.push(paint(truncate(line, inner), "muted", plain));
+      const maxScroll = Math.max(0, tail.length - tailRoom);
+      const scroll = Math.min(Math.max(0, Number(ui.runLogScroll) || 0), maxScroll);
+      const start = Math.max(0, tail.length - tailRoom - scroll);
+      for (const line of tail.slice(start, start + tailRoom)) lines.push(...wrap(line, inner).map((part) => paint(part, rawMode ? "ink" : "muted", plain)));
+      lines.push(paint(`${start + 1}-${Math.min(tail.length, start + tailRoom)} / ${tail.length} lines`, "faint", plain));
     } else {
       lines.push(paint("  (no provider output recorded yet)", "muted", plain));
     }
   }
-  lines.push("", paint(ui.running ? "L logs · the frame stays stable while the run continues · Esc stays here" : "r refresh · L logs · Esc back", "muted", plain));
+  lines.push("", paint(ui.running ? "L logs · v raw/structured · ↑↓/wheel transcript · Shift+R reopen · Esc back — run continues" : "r refresh · v raw/structured · ↑↓/wheel transcript · L logs · Esc back", "muted", plain));
   return panel("RUN QUEUE", lines, width, height, { accent: ui.running ? "amber" : "mint", plain }).join("\n");
 }
 
@@ -1172,7 +1891,8 @@ function renderSessionsScreen(ui, width, height, plain) {
   } else {
     sessions.forEach((s, index) => {
       const mark = index === (ui.sessionsSelected || 0) ? paint("▸", "coral", plain) : " ";
-      lines.push(`${mark} ${paint(s.taskId, "ink", plain)} ${paint(s.name, "violet", plain)}  ${paint(`${Math.max(1, Math.round(s.size / 1024))}KB · ${ageOf(s.mtime)}`, "faint", plain)}`);
+      const brief = s.summary ? ` · ${s.summary.statusBefore || "?"} → ${s.summary.statusAfter || "?"} · exit ${s.summary.exitCode}` : " · running";
+      lines.push(`${mark} ${paint(s.taskId, "ink", plain)} ${paint(s.name, "violet", plain)}  ${paint(`${Math.max(1, Math.round(s.size / 1024))}KB · ${ageOf(s.mtime)}${brief}`, s.summary ? "mint" : "amber", plain)}`);
     });
     lines.push("", paint("Enter open log at the latest output · Esc back", "muted", plain));
   }
@@ -1235,16 +1955,28 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       spinner: 0,
       view: null,
       feedScroll: 0,
-      panelFocus: "portfolio",
+      // Start on the route map so the first Tab/Enter interaction is
+      // discoverable and matches the visible control-plane navigation.
+      panelFocus: "nav",
+      navSelected: 0,
       taskScroll: 0,
+      portfolioScroll: 0,
       error: null,
       notice: null,
       editor: null,
+      command: null,
+      commandHistory: [],
       reviewTaskId: null,
       reviewDigit: null,
+      tasksFilter: "All",
+      tasksQuery: "",
+      tasksSelected: 0,
       importState: null,
       launchPlan: null,
+       launchBudget: { maxMinutes: 120, maxSessions: 5 },
+       pauseAfterBot: false,
       queueSelected: 0,
+      queuePageSelected: 0,
       providerSelected: 0,
       providerFlow: null,
       sessions: null,
@@ -1256,17 +1988,112 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       runTasks: [],
       runStartedAt: null,
       runEndedAt: null,
-      runLogPath: null,
-      runLogName: null,
-      runLogTail: [],
+       runLogPath: null,
+       runLogName: null,
+       runLogTail: [],
+       runLogLines: [],
+       runLogScroll: 0,
+       runLogMode: "structured",
+       runSessionSummary: null,
+       reviewPause: false,
+       reviewResolve: null,
       lastSyncAt: Date.now(),
       logsFollow: true,
       logsScroll: 0,
-      logsReturn: "dashboard",
+      screenStack: [],
+       // Interactive mode is the default. Shift+M hands capture back to the
+       // terminal so native selection/copy remains available on demand.
+       mouseMode: true,
     };
     let closed = false;
+    let ignoreMouseProtocolKey = false;
+    let mouseProtocolBuffer = "";
 
     const flash = (text) => { ui.notice = text; };
+
+    // Navigation with a back stack: every screen entered through gotoScreen
+    // remembers where it came from, and Esc pops back one level. goHome is
+    // for deliberate jumps to the dashboard — it clears the stack so a later
+    // Esc can never land on a stale half-finished flow.
+    const gotoScreen = (screen, prepare = null) => {
+      if (ui.screen !== screen) {
+        ui.screenStack.push(ui.screen);
+        if (ui.screenStack.length > 16) ui.screenStack.shift();
+      }
+      if (prepare) prepare();
+      ui.screen = screen;
+    };
+    const goBack = () => {
+      ui.screen = ui.screenStack.pop() || "dashboard";
+    };
+    const goHome = () => {
+      ui.screenStack.length = 0;
+      ui.screen = "dashboard";
+    };
+
+    const openCommandConsole = (initial = "") => {
+      ui.command = { input: initial, output: [], outputScroll: 0, historyIndex: -1 };
+      gotoScreen("command");
+    };
+
+    const submitCommand = () => {
+      const input = String(ui.command?.input || "").trim();
+      if (!input) return;
+      ui.commandHistory = [...ui.commandHistory.filter((item) => item !== input), input].slice(-50);
+      ui.command.historyIndex = -1;
+      const selectedTaskId = ui.snapshot.tasks[ui.selected]?.id || null;
+      const outcome = dispatchTuiCommand(root, input, { selectedTaskId });
+      ui.command.output = outcome.lines || [];
+      ui.command.outputScroll = 0;
+      ui.command.input = "";
+      if (outcome.refresh) refreshSnapshot();
+      if (outcome.selectedTaskId) {
+        const index = ui.snapshot.tasks.findIndex((task) => task.id === outcome.selectedTaskId);
+        if (index >= 0) ui.selected = index;
+      }
+      if (outcome.launchPlan) ui.launchPlan = outcome.launchPlan;
+      if (outcome.effect === "launch-preview") gotoScreen("launch");
+      if (outcome.ok) flash("Command completed in the ATL runtime.");
+      else ui.error = "Command was not applied.";
+    };
+
+    const handleCommandKey = (_input, key = {}) => {
+      const command = ui.command || (ui.command = { input: "", output: [], outputScroll: 0, historyIndex: -1 });
+      const name = key.name || _input;
+      if (name === "escape") {
+        goBack();
+        return;
+      }
+      const outputLength = command.output.reduce((total, line) => total + wrap(String(line), Math.max(20, (process.stdout.columns || 120) - 8)).length, 0);
+      if (name === "pageup") { command.outputScroll = Math.min(outputLength, command.outputScroll + 10); return; }
+      if (name === "pagedown") { command.outputScroll = Math.max(0, command.outputScroll - 10); return; }
+      if (name === "home" && !command.input) { command.outputScroll = outputLength; return; }
+      if (name === "end" && !command.input) { command.outputScroll = 0; return; }
+      if (name === "return") { submitCommand(); return; }
+      if (name === "up" || name === "down") {
+        if (!command.input && ui.commandHistory.length) {
+          const delta = name === "up" ? 1 : -1;
+          command.historyIndex = Math.min(Math.max(-1, command.historyIndex + delta), ui.commandHistory.length - 1);
+          command.input = command.historyIndex < 0 ? "" : ui.commandHistory[ui.commandHistory.length - 1 - command.historyIndex];
+        } else {
+          command.outputScroll = Math.min(Math.max(0, outputLength), Math.max(0, command.outputScroll + (name === "up" ? 1 : -1)));
+        }
+        return;
+      }
+      if (name === "backspace") { command.input = command.input.slice(0, -1); return; }
+      if (key.ctrl && name === "u") { command.input = ""; return; }
+      if (name === "tab") {
+        const word = command.input.trim().split(/\s+/)[0] || "";
+        const matches = TUI_COMMANDS.filter((item) => item.name.startsWith(word.toLowerCase()));
+        if (matches.length === 1 && !command.input.includes(" ")) command.input = `${matches[0].name} `;
+        else if (matches.length) command.output = matches.map((item) => `${item.usage} · ${item.summary}`);
+        return;
+      }
+      const insert = typeof _input === "string" ? _input : key.sequence;
+      if (typeof insert === "string" && insert && !insert.startsWith("\x1b")) {
+        command.input += insert.replace(/[\r\n]/g, "");
+      }
+    };
 
     const refreshSnapshot = () => {
       try {
@@ -1274,6 +2101,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         const before = ui.selected;
         ui.selected = Math.min(ui.selected, Math.max(0, ui.snapshot.tasks.length - 1));
         if (ui.selected !== before) ui.taskScroll = 0;
+        ui.portfolioScroll = Math.max(0, Math.min(ui.portfolioScroll, Math.max(0, ui.snapshot.tasks.length - 1)));
         ui.lastSyncAt = Date.now();
       } catch (error) {
         ui.error = error.message;
@@ -1296,11 +2124,26 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
 
     const openLaunchPlan = () => {
       try {
-        ui.launchPlan = buildLaunchPlan(root, { taskIds: queueIds(root) });
+        ui.launchPlan = buildLaunchPlan(root, {
+          taskIds: queueIds(root),
+          maxMinutes: ui.launchBudget?.maxMinutes ?? 120,
+          maxSessions: ui.launchBudget?.maxSessions ?? 5,
+        });
       } catch (error) {
         ui.launchPlan = null;
         ui.error = error.message;
       }
+    };
+
+    // Launch budget controls: the queue shares ONE budget across all tasks,
+    // so a 4-task run at the default 5 sessions starves. +/− moves sessions,
+    // [ ] moves minutes; the plan and confirm command rebuild each change.
+    const adjustLaunchBudget = (deltaSessions, deltaMinutes) => {
+      const budget = ui.launchBudget || { maxMinutes: 120, maxSessions: 5 };
+      budget.maxSessions = Math.min(20, Math.max(1, budget.maxSessions + deltaSessions));
+      budget.maxMinutes = Math.min(1440, Math.max(15, budget.maxMinutes + deltaMinutes));
+      ui.launchBudget = budget;
+      openLaunchPlan();
     };
 
     const runQueuedLaunch = async () => {
@@ -1328,17 +2171,45 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       }));
       ui.runStartedAt = Date.now();
       ui.runEndedAt = null;
-      ui.runLogPath = null;
-      ui.runLogName = null;
-      ui.runLogTail = [];
+      try {
+        const runDir = path.join(root, ".trust", "manager", "overnight");
+        fs.mkdirSync(runDir, { recursive: true });
+        fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ startedAt: new Date(ui.runStartedAt).toISOString(), pauseAfterBot: ui.pauseAfterBot, budget: ui.launchBudget }, null, 2) + "\n");
+      } catch { /* telemetry must not prevent a confirmed run */ }
+       ui.runLogPath = null;
+       ui.runLogName = null;
+       ui.runLogTail = [];
+       ui.runLogLines = [];
+       ui.runLogScroll = 0;
+       ui.runSessionSummary = null;
+       ui.reviewPause = false;
+       ui.reviewResolve = null;
       ui.error = null;
       ui.notice = null;
-      ui.screen = "run";
+      gotoScreen("run");
       draw();
       const runEntry = (taskId) => ui.runTasks.find((t) => t.taskId === taskId);
       try {
         const result = await executeLaunchQueue(root, {
           confirm: true,
+          maxMinutes: ui.launchBudget?.maxMinutes ?? 120,
+          maxSessions: ui.launchBudget?.maxSessions ?? 5,
+          onSession: (summary) => {
+            ui.runSessionSummary = summary;
+            ui.runLines.push(`BRIEF · ${summary.taskId} ${summary.role} · exit ${summary.exitCode} · ${summary.statusBefore} → ${summary.statusAfter}`);
+            draw();
+          },
+          pauseAfterSession: ui.pauseAfterBot,
+          onReview: (summary) => new Promise((resolve) => {
+            ui.runSessionSummary = summary;
+            ui.reviewPause = true;
+            ui.reviewResolve = (decision) => {
+              ui.reviewPause = false;
+              ui.reviewResolve = null;
+              resolve(decision);
+            };
+            draw();
+          }),
           onProgress: (line) => {
             const text = String(line);
             ui.runLines.push(text);
@@ -1373,7 +2244,8 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
               ui.runCurrent.phase = "recording transcript";
               ui.runLogPath = text.match(/^\s*transcript:\s*(.+)$/)[1].trim();
               ui.runLogName = path.basename(ui.runLogPath);
-              ui.runLogTail = tailFileLines(ui.runLogPath, 6);
+              ui.runLogLines = readLogLines(ui.runLogPath);
+              ui.runLogTail = ui.runLogLines.slice(-6);
             }
             else if (/preview only/.test(text) && ui.runCurrent) ui.runCurrent.phase = "preview only — no agent started";
             draw();
@@ -1394,7 +2266,8 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
           }
         }
         ui.runEndedAt = Date.now();
-        ui.runLogTail = tailFileLines(ui.runLogPath, 6);
+        ui.runLogLines = readLogLines(ui.runLogPath);
+        ui.runLogTail = ui.runLogLines.slice(-6);
         refreshSnapshot();
         openLaunchPlan();
       } catch (error) {
@@ -1438,7 +2311,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     const openCompose = () => {
       ui.composeFlow = { step: "intent", intentIndex: 0, audienceIndex: 0, text: "", preview: null };
       ui.editor = null;
-      ui.screen = "compose";
+      gotoScreen("compose");
     };
 
     const openResourceEditor = (task) => {
@@ -1451,10 +2324,22 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       });
     };
 
+    const openFeedbackEditor = (taskId, mode = "checkpoint") => {
+      if (!taskId) { ui.error = "No active task is selected for feedback."; return; }
+      ui.editor = newEditor({
+        kind: "feedback",
+        taskId,
+        title: `${mode === "interrupt" ? "Interrupt and revise" : "Queue feedback"} for ${taskId}`,
+        hint: `${mode === "interrupt" ? "The current provider session will stop safely." : "The next applicable bot session will receive this."} Write the change or review instruction in plain language.`,
+        multiline: true,
+      });
+      ui.editor.feedbackMode = mode;
+    };
+
     const cancelCompose = () => {
       ui.editor = null;
       ui.composeFlow = null;
-      ui.screen = "dashboard";
+      goHome();
     };
 
     // ---------- providers page: registry list + add wizard (z.ai-style form)
@@ -1543,6 +2428,8 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       const f = flow.fields;
       try {
         if (!f.id || !f.base_url || !f.api_key) throw new Error("The form is incomplete — name, base URL, and API key are required.");
+        const wireProblems = wireMismatches(f.worker || "claude", f.base_url);
+        if (wireProblems.length) throw new Error(`This provider cannot work as configured — ${wireProblems.join("; ")}`);
         const registry = loadUserProviders();
         const template = templateById(f.template);
         upsertProvider(registry, f.id, {
@@ -1623,7 +2510,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         return;
       }
       const entries = Object.values(ui.snapshot.userProviders || {});
-      if (name === "escape") ui.screen = "dashboard";
+      if (name === "escape") goBack();
       else if (name === "r") refresh();
       else if (name === "a") openProviderWizard();
       else if (name === "up" || name === "k") ui.providerSelected = Math.max(0, ui.providerSelected - 1);
@@ -1679,6 +2566,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         }
         ui.reviewTaskId = task.id;
         ui.composeFlow = null;
+        goHome();
         ui.screen = "review";
         refreshSnapshot();
       } catch (error) {
@@ -1734,6 +2622,17 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         } catch (error) {
           ui.error = error.message;
         }
+      } else if (e.kind === "feedback") {
+        if (!text) { ui.error = "Feedback cannot be empty."; ui.editor = e; return; }
+        try {
+          const item = submitFeedback(root, { taskId: e.taskId, prompt: text, mode: e.feedbackMode || "checkpoint" });
+          feedPost(root, { from: "manager", text: `feedback queued for ${e.taskId} (${item.mode}).`, task: e.taskId, detail: item.id });
+          if (item.mode === "interrupt" && ui.running) requestSessionInterrupt();
+          if (ui.reviewPause && ui.reviewResolve) ui.reviewResolve("continue");
+          flash(`${e.taskId} feedback saved — ${item.mode === "interrupt" ? "stopping the current session is requested" : "next session will receive it"}.`);
+        } catch (error) {
+          ui.error = error.message;
+        }
       }
     };
 
@@ -1741,7 +2640,49 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       if (!ui.editor) return;
       if (ui.editor.kind === "compose") submitCompose();
       else if (ui.editor.kind === "provider-field") submitProviderField();
-      else submitReviewEdit();
+      else if (ui.editor.kind === "plan-intent") {
+        const text = editorText(ui.editor).trim();
+        ui.editor = null;
+        if (text) {
+          ui.planStudio = { ...(ui.planStudio || {}), intent: text, draft: ui.planStudio?.draft || null };
+          ui.screen = "plan";
+        }
+      } else if (ui.editor.kind === "task-filter") {
+        ui.tasksQuery = editorText(ui.editor).trim();
+        ui.tasksSelected = 0;
+        ui.editor = null;
+        ui.screen = "tasks";
+      } else if (ui.editor.kind === "task-edit") {
+        const [title, ...rest] = editorText(ui.editor).split(/\r?\n/);
+        if (!title.trim()) { ui.error = "Task title cannot be empty."; return; }
+        const taskId = ui.editor.taskId;
+        try {
+          editTaskInWorkspace(root, taskId, { title: title.trim(), objective: rest.join("\n").trim() });
+          feedPost(root, { from: "manager", text: `edited ${taskId} in the Tasks page.`, task: taskId });
+          ui.editor = null;
+          refreshSnapshot();
+          ui.screen = "tasks";
+          flash(`${taskId} saved.`);
+        } catch (error) { ui.error = error.message; }
+      } else if (ui.editor.kind === "queue-create" || ui.editor.kind === "queue-rename") {
+        const value = editorText(ui.editor).trim();
+        if (!value) { ui.error = "Queue name cannot be empty."; return; }
+        try {
+          if (ui.editor.kind === "queue-create") {
+            const id = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || `queue-${Date.now()}`;
+            queueCreate(root, id, { name: value });
+            flash(`Queue ${value} created.`);
+          } else {
+            const queue = ui.snapshot.controlPlane?.queues?.items?.[ui.queuePageSelected];
+            if (!queue) throw new Error("Select a queue before renaming it.");
+            queueRename(root, queue.id, value);
+            flash(`Queue ${queue.id} renamed.`);
+          }
+          ui.editor = null;
+          refreshSnapshot();
+          ui.screen = "queue";
+        } catch (error) { ui.error = error.message; }
+      } else submitReviewEdit();
     };
 
     const openImport = (sourceKey) => {
@@ -1756,7 +2697,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         }
         const sourceCfg = (cfg.intake || {})[sourceKey === "g" ? "github" : "azure"];
         if (!sourceCfg || sourceCfg.enabled === false || !sourceCfg.enabled) {
-          throw new Error(`${entry.label} intake is disabled — set intake.${sourceKey === "g" ? "github" : "azure"}.enabled = true in config/manager.json${sourceKey === "a" ? " and put the PAT in the environment" : ""}`);
+          throw new Error(`${entry.label} intake is disabled — enable it with: atl intake enable ${sourceKey === "g" ? "github --repo owner/name" : "azure"}${sourceKey === "a" ? " (after putting the PAT in the environment)" : ""}`);
         }
         return sourceKey === "g" ? intakeFromGitHub(sourceCfg) : intakeFromAzure(sourceCfg);
       }).then((candidates) => {
@@ -1787,35 +2728,137 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     const openSessions = () => {
       ui.sessions = scanSessions(root);
       ui.sessionsSelected = 0;
-      ui.screen = "sessions";
+      gotoScreen("sessions");
     };
 
     const openLogs = () => {
-      ui.logsReturn = ui.screen === "logs" ? ui.logsReturn : ui.screen;
       ui.logsFollow = true;
       ui.logsScroll = 0;
-      ui.screen = "logs";
+      gotoScreen("logs");
+    };
+
+    const openPlanStudio = () => {
+      ui.planStudio = ui.planStudio || { intent: "", draft: null };
+      gotoScreen("plan");
+    };
+
+    const openPlanIntentEditor = () => {
+      ui.planStudio = ui.planStudio || { intent: "", draft: null };
+      ui.editor = newEditor({
+        kind: "plan-intent",
+        title: "Plan Studio intent",
+        hint: "Describe the outcome. ATL will frame it first; provider planning remains an explicit confirmed action.",
+        text: ui.planStudio.intent || "",
+        multiline: true,
+      });
+    };
+
+    const openTaskEditEditor = (task) => {
+      if (!task) return;
+      ui.editor = newEditor({
+        kind: "task-edit",
+        taskId: task.id,
+        title: `Edit ${task.id}`,
+        hint: "First line is the title. Following lines are the objective. Ctrl+S saves through task-workspace.",
+        text: `${task.title || ""}\n${task.objective || ""}`,
+        multiline: true,
+      });
+    };
+
+    const openTaskFilterEditor = () => {
+      ui.editor = newEditor({
+        kind: "task-filter",
+        title: "Filter tasks",
+        hint: "Type a task id, title, objective, worker, priority, or leave empty to show all.",
+        text: ui.tasksQuery || "",
+      });
+    };
+
+    const openQueueEditor = (kind, queue = null) => {
+      ui.editor = newEditor({
+        kind,
+        title: kind === "queue-create" ? "Create queue" : `Rename ${queue?.id || "queue"}`,
+        hint: "Use a short stable name. Queue changes are persisted through the named-queue domain module.",
+        text: kind === "queue-rename" ? (queue?.name || queue?.id || "") : "",
+      });
+    };
+
+    const saveDeterministicPlan = () => {
+      const intent = String(ui.planStudio?.intent || "").trim();
+      if (!intent) { ui.error = "Plan Studio needs an intent first. Press c."; return; }
+      try {
+        const artifact = frameIntent(intent, { skills: ["atl-frame", "atl-specify", "atl-plan", "atl-verify"] });
+        ui.planStudio.draft = savePlanDraft(root, { intent, artifact, stage: "frame" });
+        flash("Deterministic frame saved. Provider planning is still an explicit next step.");
+      } catch (error) { ui.error = error.message; }
+    };
+
+    const openRoute = (route) => {
+      if (route === "dashboard") return goHome();
+      if (route === "tasks") return gotoScreen("tasks", () => { ui.tasksFilter = "All"; ui.tasksQuery = ""; });
+      if (route === "queue") return gotoScreen("queue", () => { ui.queuePageSelected = ui.queuePageSelected || 0; });
+      if (route === "plan") return openPlanStudio();
+      if (route === "team") return gotoScreen("team");
+      if (route === "activity") return openLogs();
+      if (route === "usage") return gotoScreen("usage");
+      if (route === "settings") return gotoScreen("settings");
+    };
+
+    // The frame currently on screen; null forces the next paint (resize).
+    let lastFrameWritten = null;
+    const onResize = () => {
+      lastFrameWritten = null;
+      draw();
+    };
+
+    const applyMouseMode = () => {
+      // 1000/1006 = SGR wheel reporting. Enabled only while ui.mouseMode is
+      // on; close() always releases the capture.
+      process.stdout.write(ui.mouseMode ? "\x1b[?1000h\x1b[?1006h" : "\x1b[?1000l\x1b[?1006l");
+    };
+
+    const toggleMouseMode = () => {
+      ui.mouseMode = !ui.mouseMode;
+      applyMouseMode();
+      flash(ui.mouseMode
+        ? "Mouse capture ON — wheel pans the panes; hold Shift while dragging to select text."
+        : "Mouse capture OFF — drag to select and copy text freely (Shift+M brings wheel panning back).");
+      draw();
     };
 
     const drawNow = () => {
       if (closed) return;
       const width = Math.max(60, process.stdout.columns || 120);
       const height = Math.max(14, process.stdout.rows || 34);
+      const pageRoute = controlPlaneRouteForScreen(ui.screen);
+      const pageDims = pageRoute && ui.screen !== "dashboard" && !ui.editor ? controlPlaneDimensions(width, height) : null;
+      const pageWidth = pageDims?.contentWidth || width;
+      const pageHeight = pageDims?.contentHeight || height;
       let output;
       if (ui.editor) output = renderEditorScreen(ui, width, height, plain);
-      else if (ui.screen === "compose") output = renderComposeScreen(ui, width, height, plain);
+      else if (ui.screen === "command") output = renderCommandScreen(ui, pageWidth, pageHeight, plain);
+      else if (ui.screen === "compose") output = renderComposeScreen(ui, pageWidth, pageHeight, plain);
+      else if (ui.screen === "tasks") output = renderTasksScreen(ui.snapshot, ui, pageWidth, pageHeight, plain);
       else if (ui.screen === "import") output = renderImportScreen(ui, width, height, plain);
       else if (ui.screen === "review") output = renderReviewScreen(ui.snapshot, ui, width, height, plain);
-      else if (ui.screen === "queue") output = renderQueueScreen(ui.snapshot, ui, width, height, plain);
-      else if (ui.screen === "launch") output = renderLaunchPreviewScreen(ui, width, height, plain);
+      else if (ui.screen === "queue") output = renderQueuesScreen(ui.snapshot, ui, pageWidth, pageHeight, plain);
+      else if (ui.screen === "launch") output = renderLaunchPreviewScreen(ui, pageWidth, pageHeight, plain);
       else if (ui.screen === "run") output = renderRunScreen(ui, width, height, plain);
-      else if (ui.screen === "providers") output = renderProvidersScreen(ui.snapshot, ui, width, height, plain);
+      else if (ui.screen === "providers") output = renderProvidersScreen(ui.snapshot, ui, pageWidth, pageHeight, plain);
       else if (ui.screen === "sessions") output = renderSessionsScreen(ui, width, height, plain);
-      else if (ui.screen === "logs") output = renderLogsScreen(ui.snapshot, ui, width, height, plain);
+      else if (ui.screen === "logs") output = renderLogsScreen(ui.snapshot, ui, pageWidth, pageHeight, plain);
+      else if (ui.screen === "team") output = renderTeamScreen(ui.snapshot, ui, pageWidth, pageHeight, plain);
+      else if (ui.screen === "notifications") output = renderNotificationsScreen(ui.snapshot, pageWidth, pageHeight, plain);
+      else if (ui.screen === "usage") output = renderUsageScreen(ui.snapshot, ui, pageWidth, pageHeight, plain);
+      else if (ui.screen === "plan") output = renderPlanStudioScreen(root, ui, pageWidth, pageHeight, plain);
+      else if (ui.screen === "settings") output = renderSettingsScreen(root, ui, pageWidth, pageHeight, plain);
       else if (ui.screen === "file") output = renderFileView(ui.view, width, height, plain);
       else if (ui.screen === "feed") output = renderFeedView(ui.snapshot, width, height, ui.feedScroll, plain);
       else if (ui.screen === "help") output = renderHelp(width, height, plain);
-      else output = renderDashboard(ui.snapshot, { width, height, plain, loading: ui.loading, spinner: ui.spinner, selected: ui.selected, feedScroll: ui.feedScroll, syncedAt: ui.lastSyncAt });
+      else output = renderDashboard(ui.snapshot, { width, height, plain, loading: ui.loading, spinner: ui.spinner, selected: ui.selected, feedScroll: ui.feedScroll, panelFocus: ui.panelFocus, navSelected: ui.navSelected, taskScroll: ui.taskScroll, portfolioScroll: ui.portfolioScroll, syncedAt: ui.lastSyncAt });
+      if (!ui.editor && pageRoute && ui.screen !== "dashboard") {
+        output = renderControlPlaneShell(ui.snapshot, { route: pageRoute, body: output, width, height, plain, interactive: true, syncedAt: ui.lastSyncAt, loading: ui.loading, spinner: ui.spinner });
+      }
       const status = ui.error
         ? paint(`Error: ${ui.error}`, "coral", plain)
         : ui.notice
@@ -1830,9 +2873,15 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       // Clear in-place and never write more rows than the terminal owns. The
       // previous implementation appended notices and repainted on a timer;
       // both behaviors made PowerShell scroll a second dashboard into view.
+      const nextFrame = stableFrame.join("\n");
+      // Repainting wipes whatever text the user is selecting with the mouse,
+      // so an identical frame is never rewritten: idle ticks and quiet runs
+      // leave the screen — and any in-progress selection — untouched.
+      if (nextFrame === lastFrameWritten) return;
+      lastFrameWritten = nextFrame;
       readline.cursorTo(process.stdout, 0, 0);
       readline.clearScreenDown(process.stdout);
-      process.stdout.write("\x1b[?25l" + stableFrame.join("\n"));
+      process.stdout.write("\x1b[?25l" + nextFrame);
     };
 
     // A full-frame paint goes through ConPTY and costs real milliseconds, and
@@ -1883,7 +2932,8 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       tickCount += 1;
       if (ui.running) {
         refreshSnapshot();
-        ui.runLogTail = tailFileLines(ui.runLogPath, 6);
+         ui.runLogLines = readLogLines(ui.runLogPath);
+         ui.runLogTail = ui.runLogLines.slice(-6);
         draw();
         return;
       }
@@ -1892,7 +2942,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       const before = lastSignature;
       refreshSnapshot();
       if (ui.screen === "sessions") ui.sessions = scanSessions(root);
-      if (ui.screen === "launch" || ui.screen === "queue") openLaunchPlan();
+      if (ui.screen === "launch") openLaunchPlan();
       lastSignature = signatureOf(ui.snapshot);
       if (lastSignature !== before) draw();
     };
@@ -1904,8 +2954,9 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       closed = true;
       clearInterval(tickTimer);
       process.stdin.removeListener("keypress", onKey);
+      process.stdin.removeListener("data", markMouseProtocol);
       process.stdin.removeListener("data", onMouseData);
-      process.stdout.removeListener("resize", draw);
+      process.stdout.removeListener("resize", onResize);
       process.removeListener("SIGINT", close);
       try { process.stdin.setRawMode(false); } catch { /* stdin may already be closed */ }
       process.stdin.pause();
@@ -1924,6 +2975,18 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       draw();
     };
 
+    const terminalSize = () => ({
+      width: Math.max(60, process.stdout.columns || 120),
+      height: Math.max(14, process.stdout.rows || 34),
+    });
+
+    const portfolioWindow = () => {
+      const { width, height } = terminalSize();
+      const panelHeight = Math.max(7, dashboardRemainingRows(ui.snapshot, width, height));
+      // Content rows (panel minus borders), matching renderPortfolio's input.
+      return portfolioWindowSize(panelHeight - 2);
+    };
+
     const selectTask = (index) => {
       const max = Math.max(0, ui.snapshot.tasks.length - 1);
       const next = Math.max(0, Math.min(max, index));
@@ -1931,25 +2994,32 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         ui.selected = next;
         ui.taskScroll = 0;
       }
+      // Keep the selection visible in the scrolled portfolio list.
+      const visible = portfolioWindow();
+      if (ui.selected < ui.portfolioScroll) ui.portfolioScroll = ui.selected;
+      else if (ui.selected >= ui.portfolioScroll + visible) ui.portfolioScroll = ui.selected - visible + 1;
     };
 
-    const PANEL_ORDER = ["portfolio", "task", "feed"];
     const cyclePanelFocus = (step) => {
+      const PANEL_ORDER = layoutFor(terminalSize().width, terminalSize().height).showSidebar
+        ? ["nav", "portfolio", "task", "feed"]
+        : ["portfolio", "task", "feed"];
       const at = Math.max(0, PANEL_ORDER.indexOf(ui.panelFocus));
       ui.panelFocus = PANEL_ORDER[(at + (step < 0 ? PANEL_ORDER.length - 1 : 1)) % PANEL_ORDER.length];
     };
 
     // Pane-aware scrolling for the dashboard. Wheel events name the hovered
-    // pane; keyboard events act on ui.panelFocus (Tab cycles it).
+    // pane; keyboard events act on ui.panelFocus (Tab cycles it). Portfolio
+    // wheeling moves the list window; the selection only changes via keys.
     const scrollDashboard = (delta, panelName = null) => {
       ui.panelFocus = panelName || ui.panelFocus;
       if (ui.panelFocus === "portfolio") {
         // One task per wheel notch; a wheel delta of 3 is still one notch.
         const notch = delta > 0 ? Math.ceil(delta / 3) : -Math.ceil(-delta / 3);
-        selectTask(ui.selected + notch);
+        const maxScroll = Math.max(0, ui.snapshot.tasks.length - portfolioWindow());
+        ui.portfolioScroll = Math.max(0, Math.min(ui.portfolioScroll + notch, maxScroll));
       } else if (ui.panelFocus === "task") {
-        const width = Math.max(60, process.stdout.columns || 120);
-        const height = Math.max(14, process.stdout.rows || 34);
+        const { width, height } = terminalSize();
         const panelHeight = Math.max(7, dashboardRemainingRows(ui.snapshot, width, height));
         const total = renderTaskDetail(ui.snapshot, ui.selected, dashboardPanelLayout(width).centerWidth, true).length;
         const pageRows = Math.max(1, panelHeight - 3); // content rows minus the hint line
@@ -1961,21 +3031,177 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     };
 
     const onMouseData = (chunk) => {
-      const text = String(chunk);
-      for (const match of text.matchAll(/\x1b\[<(\d+);(\d+);(\d+)([mM])/g)) {
-        const button = Number(match[1]);
+      if (!ui.mouseMode) return; // capture is off: the terminal owns the mouse
+      // PTYs are allowed to split an SGR packet across data events. The old
+      // single-chunk regex dropped the first half, then readline interpreted
+      // the remainder as keyboard input. Keep only the incomplete packet
+      // suffix and parse complete packets from the shared buffer.
+      mouseProtocolBuffer += String(chunk);
+      const parsed = consumeSgrMousePackets(mouseProtocolBuffer);
+      mouseProtocolBuffer = parsed.remainder;
+      for (const packet of parsed.packets) {
+        const { button, x, y } = packet;
+        if (!(button & 64) && packet.type === "M") {
+          // Every prototype page keeps the same sidebar and route switcher.
+          // Resolve those clicks before page-specific hit maps so navigation
+          // remains usable after entering Tasks, Queues, or any other page.
+          if (ui.screen !== "dashboard") {
+            const route = controlPlaneRouteForScreen(ui.screen);
+            if (route) {
+              const dims = controlPlaneDimensions(terminalSize().width, terminalSize().height);
+              const contentOrigin = controlPlaneContentOrigin(dims);
+              if (dims.wide && x < TUI_SIDEBAR_WIDTH + 1 && y >= contentOrigin && y < contentOrigin + dims.contentHeight) {
+                const sidebarRoute = sidebarRouteAtPanelRow(y - contentOrigin - 1, dims.contentHeight);
+                if (sidebarRoute) {
+                  ui.navSelected = Math.max(0, TUI_NAV_ITEMS.findIndex((item) => item[0] === sidebarRoute));
+                  ui.panelFocus = "nav";
+                  openRoute(sidebarRoute);
+                  draw();
+                  continue;
+                }
+              } else if (!dims.wide && dims.routeRows && y >= 2 && y < 2 + dims.routeRows) {
+                const switchRoute = routeAtSwitcherPosition(dims.safeWidth, y - 2, x);
+                if (switchRoute) {
+                  ui.navSelected = Math.max(0, TUI_NAV_ITEMS.findIndex((item) => item[0] === switchRoute));
+                  ui.panelFocus = "nav";
+                  openRoute(switchRoute);
+                  draw();
+                  continue;
+                }
+              }
+              if ((dims.wide ? x >= TUI_SIDEBAR_WIDTH + 1 : true) && y >= contentOrigin && y < contentOrigin + dims.contentHeight) {
+                const pageRow = y - contentOrigin;
+                if (ui.screen === "tasks") {
+                  const tasks = taskPageItems(ui.snapshot, ui);
+                  const rendered = renderTasksScreen(ui.snapshot, ui, dims.contentWidth, dims.contentHeight, true).split("\n");
+                  const listWidth = Math.max(30, Math.floor(Math.max(20, dims.contentWidth - 2) * 0.58));
+                  const contentX = dims.wide ? x - TUI_SIDEBAR_WIDTH - 1 : x;
+                  const hit = contentX >= 0 && contentX < listWidth
+                    ? renderedItemIndexAtLine(rendered, tasks, pageRow, { column: contentX, maxColumn: listWidth })
+                    : -1;
+                  if (hit >= 0) {
+                    ui.tasksSelected = hit;
+                    ui.panelFocus = "tasks";
+                    draw();
+                    continue;
+                  }
+                } else if (ui.screen === "queue") {
+                  const queues = ui.snapshot.controlPlane?.queues?.items || [];
+                  const rendered = renderQueuesScreen(ui.snapshot, ui, dims.contentWidth, dims.contentHeight, true).split("\n");
+                  const hit = renderedItemIndexAtLine(rendered, queues, pageRow, { column: dims.wide ? x - TUI_SIDEBAR_WIDTH - 1 : x, maxColumn: dims.contentWidth });
+                  if (hit >= 0) {
+                    ui.queuePageSelected = hit;
+                    ui.panelFocus = "queues";
+                    draw();
+                    continue;
+                  }
+                }
+              }
+            }
+          }
+          if (ui.screen === "dashboard") {
+            const { width, height } = terminalSize();
+            const origin = dashboardPanelOrigin(ui.snapshot, width);
+            const panelHeight = Math.max(7, dashboardRemainingRows(ui.snapshot, width, height));
+            const shell = layoutFor(width, height);
+            const routeRows = shell.mode === "wide" ? 0 : routeSwitcherLayout(width).length;
+            const routeOrigin = origin - routeRows - 1;
+            if (routeRows && y >= routeOrigin && y < routeOrigin + routeRows) {
+              const route = routeAtSwitcherPosition(width, y - routeOrigin, x);
+              if (route) {
+                const index = TUI_NAV_ITEMS.findIndex((item) => item[0] === route);
+                if (index >= 0) {
+                  ui.navSelected = index;
+                  ui.panelFocus = "nav";
+                  openRoute(route);
+                  draw();
+                }
+              }
+              continue;
+            }
+            if (y >= origin && y < origin + panelHeight) {
+              if (width >= 105) {
+                const layout = dashboardPanelLayout(width);
+                const offset = layout.contentWidth < width ? TUI_SIDEBAR_WIDTH + 1 : 0;
+                if (offset && x < offset) {
+                  const route = sidebarRouteAtPanelRow(y - origin - 1, panelHeight);
+                  if (route) {
+                    const index = TUI_NAV_ITEMS.findIndex((item) => item[0] === route);
+                    if (index >= 0) {
+                      ui.navSelected = index;
+                      ui.panelFocus = "nav";
+                      openRoute(route);
+                    }
+                  }
+                } else if (x - offset < layout.leftWidth) {
+                  const row = dashboardTaskIndexAtPoint(ui.snapshot, { x, y, width, height, portfolioScroll: ui.portfolioScroll });
+                  if (row >= 0) {
+                    selectTask(row);
+                    ui.panelFocus = "portfolio";
+                  }
+                } else if (x - offset < layout.leftWidth + layout.centerWidth + 1) ui.panelFocus = "task";
+                else ui.panelFocus = "feed";
+              } else {
+                const row = dashboardTaskIndexAtPoint(ui.snapshot, { x, y, width, height, portfolioScroll: ui.portfolioScroll });
+                if (row >= 0) {
+                  selectTask(row);
+                  ui.panelFocus = "portfolio";
+                } else if (y >= origin + panelHeight) {
+                  ui.panelFocus = "task";
+                }
+              }
+            }
+          } else if (ui.screen === "sessions") {
+            const index = Math.max(0, y - 3);
+            if (index < (ui.sessions || []).length) ui.sessionsSelected = index;
+          } else if (ui.screen === "run" && ui.reviewPause) {
+            // The review gate is rendered as four left-to-right actions.
+            // Keep the hit map intentionally coarse and keyboard-equivalent.
+            if (y >= Math.max(0, terminalSize().height - 6) && ui.reviewResolve) {
+              if (x < 25) ui.reviewResolve("continue");
+              else if (x < 55) openFeedbackEditor(ui.runSessionSummary?.taskId, "checkpoint");
+              else if (x < 85) openFeedbackEditor(ui.runSessionSummary?.taskId, "interrupt");
+              else ui.reviewResolve("stop");
+            }
+          }
+          draw();
+          continue;
+        }
         if (!(button & 64)) continue;
         const delta = button === 64 ? -3 : 3;
         if (ui.screen !== "dashboard") {
           moveScroll(delta);
           continue;
         }
-        // The wheel scrolls the pane under the mouse; SGR events carry the
-        // 1-based column. Narrow layouts have no side-by-side panes, so the
-        // wheel falls back to the Tab-focused pane there.
-        const width = Math.max(60, process.stdout.columns || 120);
-        const hovered = width >= 105 ? panelFromColumn(width, Number(match[2]) - 1) : null;
-        scrollDashboard(delta, hovered);
+        // The wheel scrolls only the pane the mouse is actually inside: the
+        // event row must land in the panel block, not the header or footer.
+        // SGR rows/columns are 1-based. Wide layouts map by column; narrow
+        // layouts stack the two panels, so the upper half is the portfolio.
+        const { width, height } = terminalSize();
+        const row = y;
+        const origin = dashboardPanelOrigin(ui.snapshot, width);
+        const panelHeight = Math.max(7, dashboardRemainingRows(ui.snapshot, width, height));
+        const shell = layoutFor(width, height);
+        const routeRows = shell.mode === "wide" ? 0 : routeSwitcherLayout(width).length;
+        const routeOrigin = origin - routeRows - 1; // one blank row separates routes from panels
+        if (routeRows && row >= routeOrigin && row < routeOrigin + routeRows) {
+          const route = routeAtSwitcherPosition(width, row - routeOrigin, x);
+          if (route) {
+            const index = TUI_NAV_ITEMS.findIndex((item) => item[0] === route);
+            if (index >= 0) {
+              ui.navSelected = index;
+              ui.panelFocus = "nav";
+              openRoute(route);
+              draw();
+            }
+          }
+          continue;
+        }
+        let hovered = null;
+        if (row >= origin && row < origin + panelHeight) {
+          hovered = width >= 105 ? panelFromColumn(width, x) : (row < origin + Math.floor(panelHeight / 2) ? "portfolio" : "task");
+        }
+        if (hovered) scrollDashboard(delta, hovered);
       }
     };
 
@@ -2065,17 +3291,46 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       }
     }
 
+    // Leaving while a queue run is live requires a second press within 5 s:
+    // the run is aborted (current session terminated, task keeps its gate
+    // status, remaining tasks recorded as not reached) and the TUI exits.
+    let quitArmedAt = 0;
+    const confirmQuitWhileRunning = (label) => {
+      if (Date.now() - quitArmedAt < 5000) {
+        ui.notice = "Stopping the run and leaving…";
+        draw();
+        requestRunAbort();
+        close();
+        return;
+      }
+      quitArmedAt = Date.now();
+      ui.notice = `A queue run is in progress — press ${label} again within 5 s to stop it and leave (the current session is terminated; the task keeps its gate status).`;
+      draw();
+    };
+
     function onKey(_input, key = {}) {
       // Mouse tracking is delivered through stdin as an escape sequence and
       // must never leak into the text editor or into task shortcuts.
-      if (typeof _input === "string" && /\x1b\[<\d+;\d+;\d+[mM]/.test(_input)) return;
-      const name = key.name || _input;
-      if (key.ctrl && name === "c") {
-        if (ui.running) {
-          ui.notice = "A confirmed queue run is still in progress; wait for the run screen to finish.";
-          draw();
+      if (ignoreMouseProtocolKey) {
+        const value = typeof _input === "string" ? _input : "";
+        const name = key.name || "";
+        const protocolFragment = value.includes("\x1b") || /^[\[<0-9;Mm]+$/.test(value) || name === "escape";
+        if ((key.shift && name === "m") || protocolFragment) {
+          if (key.shift && name === "m") ignoreMouseProtocolKey = false;
           return;
         }
+        ignoreMouseProtocolKey = false;
+      }
+      // Some ConPTY/readline combinations expose the complete SGR packet on
+      // keypress instead of forwarding it through the data listener. Feed it
+      // into the same buffered parser rather than silently dropping the click.
+      if (typeof _input === "string" && /\x1b\[</.test(_input)) {
+        onMouseData(_input);
+        return;
+      }
+      const name = key.name || _input;
+      if (key.ctrl && name === "c") {
+        if (ui.running) return confirmQuitWhileRunning("Ctrl+C");
         return close();
       }
       if (ui.editor) {
@@ -2083,19 +3338,63 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         draw();
         return;
       }
+      if (ui.screen === "command") {
+        handleCommandKey(_input, key);
+        draw();
+        return;
+      }
       if (name === "q" && !key.shift) {
-        if (ui.running) {
-          ui.notice = "A confirmed queue run is still in progress; wait for the run screen to finish.";
+        if (ui.running) return confirmQuitWhileRunning("q");
+        return close();
+      }
+      // Match the prototype's persistent command-palette affordance while
+      // keeping the audited ATL console as the single command surface.
+      if (key.ctrl && name === "k") {
+        openCommandConsole();
+        draw();
+        return;
+      }
+      if (name === "n") {
+        openCompose();
+        draw();
+        return;
+      }
+      if (name === ":") {
+        openCommandConsole();
+        draw();
+        return;
+      }
+      if (ui.screen !== "dashboard") {
+        const keyedRoute = TUI_NAV_ITEMS.find((item) => item[2] === name);
+        if (keyedRoute) {
+          ui.navSelected = TUI_NAV_ITEMS.indexOf(keyedRoute);
+          openRoute(keyedRoute[0]);
           draw();
           return;
         }
-        return close();
       }
-      // Shift+L opens the LOGS stream from any screen (including mid-run);
-      // the previous screen is restored with Esc.
+      // Shift+L opens the LOGS stream and Shift+R the run view from any
+      // screen (including mid-run); Esc goes back one screen.
       if (name === "l" && key.shift) {
         openLogs();
         draw();
+        return;
+      }
+      if (name === "r" && key.shift) {
+        gotoScreen("run");
+        draw();
+        return;
+      }
+      // ConPTY can surface the final `M` of every SGR click as Shift+M. Do
+      // not let that synthetic keypress disable capture while it is active.
+      // Ctrl+M is the deterministic toggle; Shift+M re-enables capture after
+      // it has been turned off.
+      if (name === "m" && key.shift) {
+        if (!ui.mouseMode) toggleMouseMode();
+        return;
+      }
+      if (name === "m" && key.ctrl) {
+        toggleMouseMode();
         return;
       }
       ui.error = null;
@@ -2104,6 +3403,14 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         if (name === "escape" && key.ctrl) return close();
         if (name === "tab") {
           cyclePanelFocus(key.shift ? -1 : 1);
+        } else if (ui.panelFocus === "nav") {
+          if (name === "up" || name === "k") ui.navSelected = Math.max(0, ui.navSelected - 1);
+          else if (name === "down" || name === "j") ui.navSelected = Math.min(TUI_NAV_ITEMS.length - 1, ui.navSelected + 1);
+          else if (name === "return" || name === "o") {
+            openRoute(TUI_NAV_ITEMS[ui.navSelected]?.[0]);
+            draw();
+            return;
+          }
         } else if (ui.panelFocus === "task") {
           if (name === "up" || name === "k") scrollDashboard(-1);
           else if (name === "down" || name === "j") scrollDashboard(1);
@@ -2132,19 +3439,18 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
           const task = ui.snapshot.tasks[ui.selected];
           if (task) {
             ui.view = readTaskFile(root, task);
-            ui.screen = "file";
+            gotoScreen("file");
           }
         } else if (name === "c") {
           openCompose();
         } else if (name === "i") {
-          ui.screen = "import";
-          ui.importState = null;
+          gotoScreen("import", () => { ui.importState = null; });
         } else if (name === "v") {
           const task = ui.snapshot.tasks[ui.selected];
           if (task) {
             ui.reviewTaskId = task.id;
             ui.reviewDigit = null;
-            ui.screen = "review";
+            gotoScreen("review");
           }
         } else if (name === "x") {
           const task = ui.snapshot.tasks[ui.selected];
@@ -2154,30 +3460,99 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
           if (task) {
             ui.reviewTaskId = task.id;
             ui.reviewDigit = null;
-            ui.screen = "review";
+            gotoScreen("review");
           }
         } else if (name === "a") {
           openResourceEditor(ui.snapshot.tasks[ui.selected]);
+        } else if (name === "n") {
+          gotoScreen("notifications");
+        } else if (name === "t") {
+          gotoScreen("team");
+        } else if (name === "u" && key.shift) {
+          gotoScreen("usage");
         } else if (name === "u") {
           openRecoveryEditor(ui.snapshot.tasks[ui.selected]);
+        } else if (name === "w") {
+          const task = ui.snapshot.tasks[ui.selected];
+          if (task) openCommandConsole(`why ${task.id}`);
+        } else if (name === ":") {
+          openCommandConsole();
         } else if (name === "l" && !key.shift) {
           openLaunchPlan();
-          ui.screen = "launch";
+          gotoScreen("launch");
         } else if (name === "q" && key.shift) {
           openLaunchPlan();
-          ui.screen = "queue";
+          gotoScreen("queue");
         } else if (name === "p") {
-          ui.screen = "providers";
+          gotoScreen("providers");
         } else if (name === "s") {
           openSessions();
-        } else if (name === "f") ui.screen = "feed";
-        else if (name === "?") ui.screen = "help";
+        } else if (name === "f") gotoScreen("feed");
+        else if (name === "?") gotoScreen("help");
         else if (name === "r") refresh();
+        draw();
+      } else if (ui.screen === "tasks") {
+        const pageTasks = taskPageItems(ui.snapshot, ui);
+        const selectedTask = pageTasks[Math.min(Math.max(0, ui.tasksSelected || 0), Math.max(0, pageTasks.length - 1))];
+        if (name === "escape") goBack();
+        else if (name === "up" || name === "k") ui.tasksSelected = Math.max(0, (ui.tasksSelected || 0) - 1);
+        else if (name === "down" || name === "j") ui.tasksSelected = Math.min(Math.max(0, pageTasks.length - 1), (ui.tasksSelected || 0) + 1);
+        else if (name === "f") {
+          const index = TASK_FILTERS.indexOf(ui.tasksFilter || "All");
+          ui.tasksFilter = TASK_FILTERS[(index + 1) % TASK_FILTERS.length];
+          ui.tasksSelected = 0;
+        } else if (name === "/") openTaskFilterEditor();
+        else if (name === "c") openCompose();
+        else if (name === "e") openTaskEditEditor(selectedTask);
+        else if (name === "d" && selectedTask) {
+          try {
+            archiveTask(root, selectedTask.id, { note: "archived from the ATL Tasks page" });
+            feedPost(root, { from: "manager", text: `archived ${selectedTask.id} from the Tasks page.`, task: selectedTask.id });
+            flash(`${selectedTask.id} archived; it remains recoverable via the Archived filter.`);
+            refreshSnapshot();
+          } catch (error) { ui.error = error.message; }
+        } else if (name === "r" && key.shift && selectedTask?.status === "archived") {
+          try {
+            restoreTask(root, selectedTask.id, { note: "restored from the ATL Tasks page" });
+            feedPost(root, { from: "manager", text: `restored ${selectedTask.id} from the Tasks page.`, task: selectedTask.id });
+            flash(`${selectedTask.id} restored to New.`);
+            refreshSnapshot();
+          } catch (error) { ui.error = error.message; }
+        } else if (name === "x" && selectedTask) toggleQueue(selectedTask.id);
+        else if (name === "return" || name === "o") {
+          if (selectedTask) {
+            ui.reviewTaskId = selectedTask.id;
+            gotoScreen("review");
+          }
+        } else if (name === ":") openCommandConsole();
+        else if (name === "r") refresh();
+        draw();
+      } else if (ui.screen === "team" || ui.screen === "notifications" || ui.screen === "usage") {
+        if (name === "escape") goBack();
+        else if (name === "r") refresh();
+        else if (name === ":") openCommandConsole();
+        draw();
+      } else if (ui.screen === "settings") {
+        if (name === "escape") goBack();
+        else if (name === ":") openCommandConsole();
+        else if (name === "?") gotoScreen("help");
+        draw();
+      } else if (ui.screen === "plan") {
+        if (name === "escape") goBack();
+        else if (name === "c") openPlanIntentEditor();
+        else if (name === "f") saveDeterministicPlan();
+        else if (name === "a" && ui.planStudio?.draft) {
+          try {
+            const result = approvePlanDraft(root, ui.planStudio.draft);
+            flash(result.created ? `${result.task.id} created from the approved plan.` : `${result.task.id} already exists for this draft.`);
+            refreshSnapshot();
+          } catch (error) { ui.error = error.message; }
+        } else if (name === ":") openCommandConsole();
         draw();
       } else if (ui.screen === "compose") {
         const flow = ui.composeFlow;
         if (!flow) {
-          ui.screen = "dashboard";
+          goHome();
         } else if (name === "escape") {
           if (flow.step === "audience") flow.step = "intent";
           else if (flow.step === "preview") cancelCompose();
@@ -2218,12 +3593,12 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       } else if (ui.screen === "review") {
         const task = ui.snapshot.tasks.find((t) => t.id === ui.reviewTaskId);
         if (!task) {
-          ui.screen = "dashboard";
+          goHome();
           draw();
           return;
         }
         if (name === "escape") {
-          ui.screen = "dashboard";
+          goBack();
           ui.reviewDigit = null;
         } else if (ui.reviewDigit === "remove" && /^[1-9]$/.test(name)) {
           const index = Number(name) - 1;
@@ -2290,36 +3665,60 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         }
         draw();
       } else if (ui.screen === "queue") {
-        const items = (ui.launchPlan && ui.launchPlan.items) || [];
-        if (name === "escape") ui.screen = "dashboard";
-        else if (name === "up" || name === "k") ui.queueSelected = Math.max(0, ui.queueSelected - 1);
-        else if (name === "down" || name === "j") ui.queueSelected = Math.min(Math.max(0, items.length - 1), ui.queueSelected + 1);
-        else if (name === "d" && items[ui.queueSelected]) {
-          const victim = items[ui.queueSelected].taskId;
-          queueRemove(root, victim);
-          feedPost(root, { from: "manager", text: `${victim} removed from the execution queue.`, task: victim });
-          refreshSnapshot();
-          openLaunchPlan();
-        } else if (name === "l") ui.screen = "launch";
+        const queues = ui.snapshot.controlPlane?.queues?.items || [];
+        const selectedQueue = queues[Math.min(Math.max(0, ui.queuePageSelected || 0), Math.max(0, queues.length - 1))];
+        if (name === "escape") goBack();
+        else if (name === "up" || name === "k") ui.queuePageSelected = Math.max(0, (ui.queuePageSelected || 0) - 1);
+        else if (name === "down" || name === "j") ui.queuePageSelected = Math.min(Math.max(0, queues.length - 1), (ui.queuePageSelected || 0) + 1);
+        else if (name === "n") openQueueEditor("queue-create");
+        else if (name === "r" && selectedQueue) openQueueEditor("queue-rename", selectedQueue);
+        else if (name === "p" && selectedQueue) {
+          try { (selectedQueue.status === "paused" ? queueResume : queuePause)(root, selectedQueue.id); refreshSnapshot(); flash(`${selectedQueue.id} ${selectedQueue.status === "paused" ? "resumed" : "paused"}.`); } catch (error) { ui.error = error.message; }
+        } else if (name === "u" && selectedQueue) {
+          try { queueSetActive(root, selectedQueue.id); refreshSnapshot(); flash(`${selectedQueue.id} is now the active queue.`); } catch (error) { ui.error = error.message; }
+        } else if (name === "a" && selectedQueue) {
+          try { queueArchive(root, selectedQueue.id); refreshSnapshot(); flash(`${selectedQueue.id} archived.`); } catch (error) { ui.error = error.message; }
+        } else if (name === "l" && selectedQueue) {
+          try { queueSetActive(root, selectedQueue.id); openLaunchPlan(); gotoScreen("launch"); } catch (error) { ui.error = error.message; }
+        } else if (name === ":") openCommandConsole();
         draw();
       } else if (ui.screen === "launch") {
-        if (name === "escape") ui.screen = "dashboard";
+        if (name === "escape") goBack();
         else if (name === "r") openLaunchPlan();
         else if (name === "return" || name === "y") runQueuedLaunch();
+        else if (name === "+" || name === "=") adjustLaunchBudget(1, 0);
+        else if (name === "-") adjustLaunchBudget(-1, 0);
+        else if (name === "]") adjustLaunchBudget(0, 15);
+        else if (name === "[") adjustLaunchBudget(0, -15);
+        else if (name === "p") { ui.pauseAfterBot = !ui.pauseAfterBot; flash(`Pause after every bot ${ui.pauseAfterBot ? "enabled" : "disabled"}.`); }
         draw();
       } else if (ui.screen === "run") {
-        if (name === "escape" && !ui.running) ui.screen = "dashboard";
+        // Esc leaves the run view; a run in progress keeps running and
+        // Shift+R reopens it from anywhere.
+        if (name === "escape") goBack();
         else if (name === "r" && !ui.running) {
           refreshSnapshot();
           openLaunchPlan();
         }
+        else if (name === "v") ui.runLogMode = ui.runLogMode === "raw" ? "structured" : "raw";
+        else if (name === "b") openFeedbackEditor(ui.runCurrent?.taskId || ui.runSessionSummary?.taskId || ui.runTasks.find((entry) => entry.state === "running")?.taskId, "checkpoint");
+        else if (name === "i") openFeedbackEditor(ui.runCurrent?.taskId || ui.runSessionSummary?.taskId || ui.runTasks.find((entry) => entry.state === "running")?.taskId, "interrupt");
+        else if (name === "up" || name === "k") ui.runLogScroll = (ui.runLogScroll || 0) + 1;
+        else if (name === "down" || name === "j") ui.runLogScroll = Math.max(0, (ui.runLogScroll || 0) - 1);
+        else if (name === "pageup") ui.runLogScroll = (ui.runLogScroll || 0) + 10;
+        else if (name === "pagedown") ui.runLogScroll = Math.max(0, (ui.runLogScroll || 0) - 10);
+        else if (name === "end") ui.runLogScroll = 0;
+        else if (ui.reviewPause && name === "a" && ui.reviewResolve) ui.reviewResolve("continue");
+        else if (ui.reviewPause && name === "s" && ui.reviewResolve) ui.reviewResolve("stop");
+        else if (ui.reviewPause && name === "b") openFeedbackEditor(ui.runSessionSummary?.taskId, "checkpoint");
+        else if (ui.reviewPause && name === "i") openFeedbackEditor(ui.runSessionSummary?.taskId, "interrupt");
         draw();
       } else if (ui.screen === "providers") {
         handleProvidersKey(name);
         draw();
       } else if (ui.screen === "sessions") {
         const sessions = ui.sessions || [];
-        if (name === "escape") ui.screen = "dashboard";
+        if (name === "escape") goBack();
         else if (name === "up" || name === "k") ui.sessionsSelected = Math.max(0, ui.sessionsSelected - 1);
         else if (name === "down" || name === "j") ui.sessionsSelected = Math.min(Math.max(0, sessions.length - 1), ui.sessionsSelected + 1);
         else if (name === "return" && sessions[ui.sessionsSelected]) {
@@ -2329,14 +3728,14 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
             const rows = Math.max(4, (process.stdout.rows || 34) - 7);
             // Provider transcripts grow at the end: open at the latest output.
             ui.view = { root, taskId: s.taskId, filePath: s.file, lines, scroll: Math.max(0, lines.length - rows), error: null };
-            ui.screen = "file";
+            gotoScreen("file");
           } catch (error) {
             ui.error = error.message;
           }
         }
         draw();
       } else if (ui.screen === "logs") {
-        if (name === "escape") ui.screen = ui.logsReturn || "dashboard";
+        if (name === "escape") goBack();
         else if (name === "up" || name === "k") { ui.logsFollow = false; ui.logsScroll = (ui.logsScroll || 0) + 1; }
         else if (name === "down" || name === "j") {
           const next = (ui.logsScroll || 0) - 1;
@@ -2351,7 +3750,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         draw();
       } else if (ui.screen === "import") {
         if (name === "escape") {
-          ui.screen = "dashboard";
+          goBack();
           ui.importState = null;
         } else if (["f", "g", "a"].includes(name) && !(ui.importState && ui.importState.candidates)) {
           openImport(name);
@@ -2375,7 +3774,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         }
         draw();
       } else if (ui.screen === "file") {
-        if (name === "escape") ui.screen = "dashboard";
+        if (name === "escape") goBack();
         else if (name === "up" || name === "k") moveScroll(-1);
         else if (name === "down" || name === "j") moveScroll(1);
         else if (name === "pageup") moveScroll(-10);
@@ -2388,7 +3787,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         }
         draw();
       } else if (ui.screen === "feed") {
-        if (name === "escape") ui.screen = "dashboard";
+        if (name === "escape") goBack();
         else if (name === "up" || name === "k") moveScroll(-1);
         else if (name === "down" || name === "j") moveScroll(1);
         else if (name === "pageup") moveScroll(-10);
@@ -2396,7 +3795,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         else if (name === "r") refresh();
         draw();
       } else if (ui.screen === "help" && (name === "escape" || name === "?")) {
-        ui.screen = "dashboard";
+        goBack();
         draw();
       }
     }
@@ -2404,13 +3803,23 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     readline.emitKeypressEvents(process.stdin);
     process.stdin.setRawMode(true);
     process.stdin.resume();
+    // ConPTY may expose the final `M` of an SGR mouse packet as a synthetic
+    // Shift+M keypress as well as a data event. Mark the packet before the
+    // readline keypress listener sees it so a click can never toggle capture.
+    const markMouseProtocol = (chunk) => {
+      // Mark prefixes as well as complete packets. On Windows ConPTY the
+      // final M can be surfaced as a synthetic Shift+M keypress, and a
+      // split packet can otherwise leak digits/semicolons into the active UI.
+      if (/\x1b\[<|\x1b\[<\d+;\d+;\d+[mM]/.test(String(chunk))) ignoreMouseProtocolKey = true;
+    };
+    process.stdin.prependListener("data", markMouseProtocol);
     process.stdin.on("keypress", onKey);
     process.stdin.on("data", onMouseData);
-    process.stdout.on("resize", draw);
+    process.stdout.on("resize", onResize);
     process.once("SIGINT", close);
-    // SGR mouse wheel events make the narrow feed panel usable without
-    // forcing the user into a separate screen. They are disabled on close.
-    process.stdout.write("\x1b[?1000h\x1b[?1006h");
+    // Capture starts on for click and wheel interaction. The explicit write
+    // also clears reporting left behind by an earlier crashed TUI on toggle/exit.
+    applyMouseMode();
     ui.loading = false;
     lastSignature = signatureOf(ui.snapshot);
     draw();

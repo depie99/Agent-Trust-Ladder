@@ -15,6 +15,8 @@ import {
   renderRunScreen,
   renderQueueScreen,
   renderReviewScreen,
+  renderHelp,
+  renderFeedView,
   tailFileLines,
   mergedLogEntries,
 } from "../runtime/lib/dashboard.mjs";
@@ -89,18 +91,26 @@ const baseUi = {
   ],
   runLogName: "session-01-rowan.log",
   runLogTail: ["rowan: reading task packet", "rowan: editing src/app.ts"],
+  runLogLines: ["rowan: reading task packet", "rowan: editing src/app.ts"],
+  runLines: ["[T-001] session 1/5 · rowan · codex · gpt-5.3", "BRIEF · T-001 rowan · exit 0 · assigned → in_review"],
 };
 {
   const running = renderRunScreen(baseUi, 120, 34, true);
   assert.match(running, /RUN QUEUE/);
   assert.match(running, /Queue is running · total 1m30s/);
   assert.match(running, /QUEUE PROGRESS/);
+  assert.match(running, /STRUCTURED TIMELINE/);
+  assert.match(running, /BRIEF · T-001 rowan/);
   assert.match(running, /session 1\/5/);
   assert.match(running, /running · rowan\/codex/);
   assert.match(running, /queued · pip\/codex/);
-  assert.match(running, /SESSION LOG TAIL · session-01-rowan\.log/);
+  assert.match(running, /SESSION LOG · session-01-rowan\.log/);
   assert.match(running, /rowan: editing src\/app\.ts/, "the live log tail is on the run screen");
   assert.match(running, /L logs/, "the logs tab is reachable from the run");
+  const longLine = "provider detail that must remain readable beyond the old clipped tail — " + "x".repeat(80);
+  const complete = renderRunScreen({ ...baseUi, runLogLines: [longLine] }, 120, 34, true);
+  assert.match(complete, /old clipped tail/);
+  assert.match(complete, /x{20}/, "raw transcript content is wrapped, not discarded");
 
   const finished = renderRunScreen({
     ...baseUi,
@@ -159,6 +169,24 @@ const baseUi = {
   const text = frame.replace(/\x1b\[[0-9;]*m/g, "");
   assert.ok(!/[a-z0-9],[a-z0-9]/.test(text), "wrapped objective lines must never be comma-joined");
   assert.match(text, /without/, "the objective tail must appear on its own row");
+}
+
+// 8. Mouse interaction contract: text selection is a first-class citizen.
+//    Mouse capture used to be enabled for the whole session, which made
+//    drag-select/copy impossible everywhere in the TUI.
+{
+  const help = renderHelp(120, 40, true);
+  const helpText = help.replace(/\x1b\[[0-9;]*m/g, "");
+  assert.match(helpText, /click cards and controls/, "help states the interactive mouse default");
+  assert.match(helpText, /Shift\+M/, "help documents the wheel-panning toggle");
+  // The feed hint promises wheel scrolling because capture is interactive by default.
+  const feed = renderFeedView(snapshot, 120, 30, 0, true);
+  assert.match(feed, /scroll/, "feed keeps a keyboard fallback for scrolling");
+  // Tripwire: the enable sequence may only exist behind the ui.mouseMode
+  // toggle — never as an unconditional startup write.
+  const source = fs.readFileSync(new URL("../runtime/lib/dashboard.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /write\("\\x1b\[\?100[06]h/, "mouse capture must never be enabled unconditionally");
+  assert.ok(source.includes("\\x1b[?1000l"), "startup/close must disable mouse capture");
 }
 
 fs.rmSync(root, { recursive: true, force: true });

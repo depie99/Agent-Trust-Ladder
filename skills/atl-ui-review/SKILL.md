@@ -103,3 +103,11 @@ Return:
 - a verdict: `TRUSTWORTHY`, `CONDITIONALLY TRUSTWORTHY`, or `NOT TRUSTWORTHY` for the inspected scope.
 
 Keep four claims distinct: **implemented**, **observed**, **measured**, and **not checked**. Never fabricate captures, interactions, accessibility results, or performance measurements.
+
+## Regression lesson: control-plane 017
+
+For UI work based on a supplied artifact, the artifact is a behavioral and visual contract unless the brief explicitly says it is only inspiration. Do not substitute a legacy terminal renderer for a browser control plane, and do not treat source inspection, static render tests, or HTTP endpoint checks as proof that a user can operate the surface.
+
+For every route and selectable item, verify the full chain: canonical state → rendered identity → shared geometry/hit-test → input event → visible state change. Exercise at least one route click, two different item clicks, a click outside the list, and back navigation in the running surface. If the environment cannot replay a browser or PTY interaction, label it `NOT OBSERVED`.
+
+This project’s incident record is `.trust/specs/017-agentic-developer-control-plane/feedback-pattern.md`; use its evidence ledger and completion rule when reviewing related changes.

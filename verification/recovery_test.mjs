@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { addEvidence, createTask, emptyState, paths, saveState, transition, loadState } from "../runtime/lib/state.mjs";
-import { unblockTask, approveTask, explainTasks } from "../runtime/lib/recovery.mjs";
+import { autoRecoverBlockedTask, unblockTask, approveTask, explainTasks } from "../runtime/lib/recovery.mjs";
 import { queueIds } from "../runtime/lib/queue.mjs";
 import { wakeActions } from "../runtime/lib/render.mjs";
 
@@ -32,6 +32,24 @@ assert.equal(recovered.next_wake_at, null);
 assert.match(loadState(root).log.at(-1).detail, /recovered for rowan/);
 
 console.log("PASS: blocked task recovery clears the blocker and restores the assigned gate");
+
+// Mira may retry a transient blocker once, but must not retry a capability or
+// authority failure under the same restricted identity.
+const transientState = emptyState();
+const transientTask = createTask(transientState, { title: "Retry a transient worker failure" });
+transientTask.objective = "the worker gets one bounded retry";
+transientTask.completion_checks = ["the transient dependency is retried"];
+transientTask.assigned_worker = "rowan";
+transition(transientState, transientTask.id, "triaged", { actor: "manager", note: "packet ready" });
+transition(transientState, transientTask.id, "assigned", { actor: "manager", note: "rowan owns it" });
+transientTask.blocker = { reason: "temporary dependency", since: new Date().toISOString(), actor: "rowan" };
+transition(transientState, transientTask.id, "blocked", { actor: "rowan", note: "temporary dependency" });
+saveState(root, transientState);
+const auto = autoRecoverBlockedTask(root, transientTask.id, { maxRecoveries: 1 });
+assert.equal(auto.recovered, true, "Mira auto-recovers a transient blocker");
+assert.equal(loadState(root).tasks[transientTask.id].status, "assigned");
+assert.equal(loadState(root).tasks[transientTask.id].auto_recovery_count, 1);
+console.log("PASS: Mira retries one transient blocker through the normal assignment gate");
 
 // Review verdicts select the corresponding return gate: a requested change
 // goes back to the builder, while verification requires an approval.
@@ -109,9 +127,10 @@ transition(plainState, plainTask.id, "blocked", { actor: "rowan", note: "environ
 saveState(root, plainState);
 
 const plainRow = explainTasks(root, plainTask.id)[0];
-assert.equal(plainRow.kind, "blocked", "a non-approval blocker is classified as blocked");
-assert.match(plainRow.fix, /atl unblock/, "its fix names the unblock command");
+assert.equal(plainRow.kind, "human-action", "an access blocker is classified as human action");
+assert.match(plainRow.fix, /manager action required.*atl unblock/, "its fix names the required authority change and follow-up");
 assert.equal(plainRow.why, plainTask.blocker.reason, "the why carries the full blocker text, never truncated");
+assert.equal(autoRecoverBlockedTask(root, plainTask.id, { maxRecoveries: 1 }).kind, "human-action");
 
 // Approving an already-active task still records the word and keeps the queue honest.
 const preApproved = approveTask(root, gateTask.id, { note: "second approval is harmless" });

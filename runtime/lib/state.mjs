@@ -18,6 +18,9 @@ export class StateError extends Error {}
 export function paths(root) {
   return {
     state: path.join(root, ".trust", "manager", "state.json"),
+    queue: path.join(root, ".trust", "manager", "queue.json"),
+    notifications: path.join(root, ".trust", "manager", "notifications.jsonl"),
+    usage: path.join(root, ".trust", "manager", "usage.json"),
     inbox: path.join(root, ".trust", "manager", "inbox"),
     briefs: path.join(root, ".trust", "manager", "briefs"),
     workspaces: path.join(root, ".trust", "manager", "workspaces"),
@@ -92,6 +95,7 @@ export function createTask(state, fields) {
     assigned_worker: null,                      // pip | rowan | sage | beacon
     workspace: null,
     attempt_count: 0,
+    auto_recovery_count: 0,
     last_checkpoint: null,                      // { at, note }
     evidence: [],                               // { kind, check, result, detail, actor, at }
     blocker: null,                              // { reason, since, actor }

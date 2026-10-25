@@ -121,13 +121,30 @@ atl triage T-001          :: print Pip's bounded task packet
 atl wake                  :: see the next action by role
 atl brief --save          :: save the owner/manager brief
 atl feed --roster         :: see the team roster and event feed
-atl ui                    :: open the control room: create, edit, queue, preview, run
+atl ui                    :: open the browser-native Developer Control Plane
+atl tui                   :: open the terminal compatibility control room
+atl control-plane         :: explicit alias for the browser-native control plane
 ```
 
 (From a repo clone without installing, use `node runtime\atl-manager.mjs`
 instead of `atl`.)
 
-### The dashboard
+### Browser-native Control Plane
+
+`atl ui` is the primary operator surface. It starts a local browser Control
+Plane on `127.0.0.1`, where the owner can compose/import work, review its
+packet, place it in a persisted queue, inspect the exact provider plan, and
+explicitly confirm a bounded run. Starting the browser interface does not run
+an agent. `atl control-plane --port 4187` is the explicit alias when a fixed
+local port is useful.
+
+Read the complete browser guide in the repository at
+[`docs/control-room.html`](../docs/control-room.html): it covers the browser
+spaces, the preview-versus-confirm boundary, safe stop behavior, Codex
+subscription setup without an API key, external provider credentials, and CLI
+equivalents. Use `atl launch --dry-run` before `atl launch --confirm`.
+
+### Terminal compatibility interface
 
 `atl dashboard` is the human-facing view for a busy run. It reads the
 authoritative state and feed, then presents the portfolio counts, lifecycle
@@ -141,16 +158,19 @@ a task, `c` create, `e`/`v` edit/review, `x` add or remove the focused task
 from the queue, `u` recover a blocked task, `l` open the launch gate,
 `Enter`/`y` confirm the queued run, `r` force a refresh, `f` open the full
 feed, `Q` the execution queue with live gate states, `L` the merged logs
-stream, `PgUp`/`PgDn` or the mouse wheel scroll the feed, `?` help, `Esc`
-back, and `q` quit. A blocked task explains its recovery route in the
+stream, `PgUp`/`PgDn` scroll, `?` help, `Esc`
+  back, and `q` quit. Mouse capture is interactive by default: click cards and
+  controls, and wheel the pane beneath the pointer; `Shift+M` returns capture to
+  the terminal for native drag-selection and copy. A blocked task
+explains its recovery route in the
 selected-task panel: `u` returns it to `assigned` when a worker is known
 (otherwise `triaged`), then `x` queues it and `l` previews the run.
 Queued tasks carry a `⌁` badge — queue membership is a stored decision, never
 just focus. Run `atl dashboard`
-(or `atl ui`) for this keyboard view. Use `atl dashboard --once --plain` in
+(or `atl tui`) for this keyboard view. Use `atl dashboard --once --plain` in
 logs, CI, or a redirected terminal for a deterministic, non-interactive
-snapshot; that mode does not advertise selection controls. The `ui` command
-is an alias.
+snapshot; that mode does not advertise selection controls. The browser-native
+prototype remains the primary `atl ui` surface.
 
 The room is live: state.json and feed.jsonl are re-read about every two
 seconds (every second while a run is active), and the header shows the sync
@@ -159,6 +179,26 @@ Only changed frames are repainted, and open text editors are never
 interrupted.
 
 ### The control room: compose, review, queue, preview, launch
+
+The control-room shell now has a visible wide-terminal sidebar: Overview, New
+task, Queues, Plan Studio, Team, Runs, Logs, Alerts, Usage, Providers, and
+Help. `Tab` focuses the sidebar; arrows plus `Enter` route to a page. At
+60–79 columns ATL keeps the compact pane mode; below 60 it shows a resize
+notice instead of silently hiding evidence.
+
+Plan Studio is the SDD/TDD entry point for work written inside the TUI:
+`c` edits an intent, `f` saves a deterministic frame, and a complete
+provider-backed artifact can be approved with `a`. Provider planning is an
+explicit confirmed action; rendering a page never spends quota or starts a
+worker. The `:` console exposes the same allowlisted operations, including
+`plan frame <intent>`, `task create ...`, `queue create ...`, `why`,
+`unblock`, `feedback add`, and `launch --dry-run`.
+
+The manager surfaces five role briefs on Team (Mira, Pip, Rowan, Sage,
+Beacon), merged Logs, durable Alerts, and provider-neutral Usage. Local run
+budgets are authoritative. Remote remaining quota is shown as `unknown`
+unless a provider adapter supplies a verified value; token counts are never
+invented from local estimates.
 
 Spec 014 turns the dashboard into the room where work starts — while keeping
 `state.json` authoritative and requiring an explicit confirmation before a run:
@@ -198,7 +238,8 @@ Spec 014 turns the dashboard into the room where work starts — while keeping
   passes the same role prompt to their configured command and arguments.
 - `s` **sessions** — the provider session logs under
   `.trust/manager/overnight/<task>/`; `Enter` opens one at the latest output
-  (Home/End jump to the top/tail).
+  (Home/End jump to the top/tail). Each completed session also retains a JSON
+  completion brief with its gate transition, evidence, exit, and transcript.
 - `Q` **execution queue** — every queued task with its live gate state, role,
   provider, and model; `d` removes the highlighted task, `l` continues to the
   launch preview. The plan rebuilds itself while the screen is open.
@@ -209,14 +250,23 @@ Spec 014 turns the dashboard into the room where work starts — while keeping
   reachable from any screen — including mid-run — with `Esc` returning to
   where you were.
 
-The run screen intentionally does not stream the provider's raw prompt or
-model transcript into your terminal. It shows the bounded run's state instead:
+The run screen shows a structured timeline and a complete, wrapped transcript
+without discarding long provider lines. Press `v` to switch structured/raw
+emphasis and use the arrows, Page Up/Down, wheel, Home, and End to inspect it:
 total elapsed time, the current task with session `n/max` and its elapsed
 time, the phase, a QUEUE PROGRESS line per queued task (queued · running ·
 done · at gate · blocked · failed · skipped, with exit codes and reasons),
-and a short live tail of the active session log so the operator can see the
-provider working without leaving the run. `L` opens the full logs stream; the
-complete transcript remains available through `s` or `atl feed`.
+and the active session's complete transcript so the operator can see the
+provider working without leaving the run. Press `b` to queue feedback for the
+next role session or `i` to interrupt and restart the current session with the
+new instruction. The same operation is available from the CLI:
+
+```bat
+atl feedback add T-001 "Recheck the failure handling and explain the change" --mode checkpoint
+atl feedback add T-001 "Stop and revise the current approach" --mode interrupt
+atl feedback list T-001
+atl launch --confirm --pause-after-bot
+```
 
 The CLI mirrors every screen:
 
@@ -227,14 +277,14 @@ atl launch --dry-run      :: preview the queued run, no agent starts
 atl launch --confirm      :: run the queue: strictly sequential, one shared
                            :: time/session budget, per-role providers
 atl providers             :: your API providers (keys masked) + built-ins + per-role mapping
-atl provider templates    :: endpoint presets: zai, bigmodel, custom
-atl provider add zai --key <glm-key> --model glm-4.6
+atl provider templates    :: endpoint presets: openai, gemini, zai, anthropic, openrouter, custom
+atl provider add zai --key <glm-key> --model glm-5.3 --thinking-level medium
 atl provider use zai      :: project default (or: --role rowan for one role)
 atl provider key zai --key <new-key>
 atl provider remove zai
 atl provider models --provider codex
 atl provider set --provider codex --model gpt-5.6-luna
-atl provider set --role rowan --provider claude --model glm-4.6
+atl provider set --role rowan --provider claude --model sonnet
 atl provider clear --role rowan
 ```
 
@@ -249,18 +299,21 @@ repository or in `.trust/` state; they are masked in every listing and
 injected into the worker's environment only at spawn time.
 
 ```bat
-atl provider add zai --key <your-glm-api-key> --model glm-4.6
+atl provider add zai --key <your-glm-api-key> --model glm-5.3 --thinking-level medium
 atl provider use zai                    :: every role in this project
 atl provider use zai --role rowan       :: or just one role
 atl run T-004 --worker zai --confirm    :: or just one run
 ```
 
-The `zai` and `bigmodel` templates prefill the Anthropic-compatible and
-OpenAI-compatible endpoints; `--worker codex` switches to the coding endpoint,
+The catalog includes OpenAI/GPT, Gemini (OpenAI-compatible), Z.ai GLM 5.3,
+Anthropic Claude, OpenRouter, BigModel, and a fully editable Custom gateway.
+The `zai` and `bigmodel` templates prefill both compatible endpoint families;
+`--worker codex` selects the OpenAI-compatible coding endpoint,
 and a managed `CODEX_HOME` (`~/.atl/codex/<id>/`) carries the provider config
 so your real `~/.codex/config.toml` is never touched. In the control room the
-same flow is a form: press `p`, then `a`, pick a template, paste the key,
-enter the model, `u` to make it the project default.
+same flow is a form: open Settings → Manage providers, pick a template, choose
+the adapter/protocol, enter the endpoint, model, API key, and thinking/effort,
+Use **Use by default** to make the profile this project's default.
 
 Because a stored provider is api-key auth by definition, selecting it flips
 the session to `auth api` automatically — the subscription environment
@@ -369,8 +422,17 @@ atl approve T-005 --note "doc-only task, capped at 60 minutes and one session"
 atl launch --confirm
 ```
 
-For any other blocker, select the blocked task in `atl ui` and press `u`, or
-use the CLI equivalent:
+For a transient, non-human blocker, Mira now performs one automatic recovery
+pass during the bounded queue run and sends the task back through its normal
+assignment gate. The retry is counted and stops after the configured
+`budgets.max_auto_recoveries` limit (default `1`), so a broken approach cannot
+spin forever.
+
+For a capability or authority blocker — for example EPERM, ACL/write access,
+credentials, a missing provider, or a task that asks a worker to touch the
+active checkout — the team must not pretend a retry can fix it. The task stays
+blocked, `atl wake` routes it to the manager, and after the external gate is
+resolved the manager can select the task in `atl ui` and press `u`, or use:
 
 ```bat
 atl unblock T-001 --to assigned --note "Repository snapshot is available; retrying the bounded install checks."
@@ -500,13 +562,11 @@ atl codex bridge sync --task T-004    # import one task's context
 atl codex bridge unlink               # stop future imports; local logs remain
 ```
 
-When enabled, each completed `run`, `overnight`, or `launch` worker session
-leaves its task feed and session transcript for the bridge; `atl codex bridge
-sync` imports the new material into the linked thread — manually, or
-automatically where the runtime session hook is wired. `bridge start` creates
-an app-server-owned persistent thread named `ATL Team History`; this is the
-recommended path because it remains writable by ATL until the desktop app
-opens it. Imports are append-only and checkpointed in
+When enabled, every completed `run`, `overnight`, or `launch` worker session
+automatically imports its task feed and session transcript into the linked
+thread. `bridge start` creates an app-server-owned persistent thread named
+`ATL Team History`; this is the recommended path because it remains writable by
+ATL until the desktop app opens it. Imports are append-only and checkpointed in
 `.trust/manager/codex-bridge-state.json`, so repeated syncs do not duplicate
 old feed or transcript content.
 
@@ -568,8 +628,9 @@ atl overnight T-001 --worker codex --confirm --max-minutes 120 --max-sessions 5
 task** in priority order (urgent → high → normal → low, then task id) and
 drives each through the full role pipeline — Pip triages, Mira assigns, Rowan
 builds, Sage reviews, Beacon verifies — with real bounded sessions until a
-gate or the budget stops it. One stalled or failed task is recorded as
-blocked and the queue moves on; the run ends by saving the manager brief.
+gate or the budget stops it. A transient non-human blocker gets one bounded
+Mira recovery pass; capability and owner gates stay blocked and are routed to
+the manager. The run ends by saving the manager brief.
 
 ```powershell
 atl overnight --all --dry-run                          # preview the queue, no agent starts

@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { paths } from "./state.mjs";
+import { requiresHumanAction } from "./recovery.mjs";
 
 const AGE = (iso) => {
   if (!iso) return "?";
@@ -15,13 +16,9 @@ const AGE = (iso) => {
 
 const PRIORITY_ORDER = { urgent: 0, high: 1, normal: 2, low: 3 };
 
-function needsHumanDecision(reason = "") {
-  return /owner approval|human approval|permission to|credentials|production access|spend money|merge|deploy|external message/i.test(reason);
-}
-
 export function activeTasks(state) {
   return Object.values(state.tasks)
-    .filter((t) => !["done", "rejected"].includes(t.status))
+    .filter((t) => !["done", "rejected", "archived"].includes(t.status))
     .sort((a, b) =>
       (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2) ||
       a.id.localeCompare(b.id));
@@ -65,8 +62,8 @@ export function wakeActions(state, cfg) {
         const reason = t.blocker?.reason || "?";
         actions.push({
           task: t.id,
-          for: needsHumanDecision(reason) ? "manager" : "mira",
-          what: needsHumanDecision(reason)
+          for: requiresHumanAction(reason) ? "manager" : "mira",
+          what: requiresHumanAction(reason)
             ? `blocked: ${reason} — explicit manager decision required`
             : `blocked: ${reason} — retry timer due, re-route or escalate`,
         });

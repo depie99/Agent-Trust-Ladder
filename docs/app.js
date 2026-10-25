@@ -75,6 +75,7 @@ const SEARCH_PAGES = [
   { page: 'team.html', label: 'Team' },
   { page: 'jev.html', label: 'Jev routing' },
   { page: 'diagrams.html', label: 'Diagrams' },
+  { page: 'control-room.html', label: 'Web Control Plane' },
   { page: 'codex-history-bridge.html', label: 'Codex history bridge' },
 ];
 let searchIndexPromise = null;
