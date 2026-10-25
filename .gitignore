@@ -18,3 +18,9 @@
 
 # Local dependency install for the docs CSS build (sass devDependency).
 node_modules/
+
+# Local UI-review artifacts and broken tooling output must never be committed:
+# .edge-ui-review holds Edge browser binaries (~400MB, over GitHub's limit);
+# %T%/ is a mis-interpolated duplicate of the tree once staged by a bad tool run.
+.edge-ui-review/
+%T%/
