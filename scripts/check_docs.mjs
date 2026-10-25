@@ -79,5 +79,13 @@ else {
   if (!svg.includes("<title") || !svg.includes("<desc")) fail("diagrams/atl-web-control-plane.svg: missing accessible title/description");
 }
 
+const webControlPlanePreview = path.join(docsDir, "diagrams", "atl-web-control-plane-preview.svg");
+if (!fs.existsSync(webControlPlanePreview)) fail("diagrams/atl-web-control-plane-preview.svg missing");
+else {
+  const svg = fs.readFileSync(webControlPlanePreview, "utf8");
+  if (!/^<svg[^>]*width="\d+" height="\d+"/.test(svg)) fail("diagrams/atl-web-control-plane-preview.svg: no intrinsic width/height");
+  if (!svg.includes("<title") || !svg.includes("<desc")) fail("diagrams/atl-web-control-plane-preview.svg: missing accessible title/description");
+}
+
 if (failures) { console.log(`\n${failures} failure(s)`); process.exit(1); }
 console.log("ALL OK: tags balanced, links resolve, navs consistent, TUI images intact");

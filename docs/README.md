@@ -20,6 +20,8 @@ The [Codex history bridge](codex-history-bridge.html) documents how ATL projects
 
 The launch announcement draft is in [linkedin-launch-post.md](linkedin-launch-post.md). It is intentionally kept beside the docs site so the public story can stay aligned with the actual workflow and evidence model.
 
+The primary interface guide is [Web Control Plane](control-room.html). The visual companion set includes the [workflow visual](diagrams/atl-web-control-plane.svg) and a [sanitized browser-surface preview](diagrams/atl-web-control-plane-preview.svg). The preview is representative documentation art, not live project data.
+
 ## Diagram workflow rule
 
 Use diagrams when architecture, ownership, lifecycle, or change impact is materially easier to understand visually. Keep diagram source alongside the documentation and link it to the evidence packet. A generated diagram communicates structure; it does not prove that the runtime, deployment consumer, or external service behaves as drawn.
