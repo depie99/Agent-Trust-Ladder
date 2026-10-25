@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDashboardSnapshot, renderDashboard, resolveTaskSource } from "../runtime/lib/dashboard.mjs";
+import { createDashboardSnapshot, renderDashboard, renderPortfolio, resolveTaskSource } from "../runtime/lib/dashboard.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const snapshot = createDashboardSnapshot(root);
@@ -24,6 +24,9 @@ assert.match(renderDashboard(snapshot, { width: 120, height: 34, plain: true, se
 assert.match(renderDashboard(snapshot, { width: 120, height: 34, plain: true, feedScroll: 10 }), /FEED VIEW/);
 assert.match(renderDashboard(snapshot, { width: 120, height: 34, plain: true, interactive: false }), /SNAPSHOT/);
 assert.doesNotMatch(renderDashboard(snapshot, { width: 120, height: 34, plain: true, interactive: false }), /select/);
+const portfolioRows = renderPortfolio(snapshot, 0, 28, true);
+assert.equal(portfolioRows.length, snapshot.tasks.length * 2, "each task keeps a stable two-row hit-test footprint");
+assert.ok(portfolioRows.every((line) => line.length <= 24), "portfolio task and status rows never wrap inside the panel");
 
 const selected = snapshot.tasks.find((task) => task.id === "T-001");
 assert.ok(resolveTaskSource(root, selected), "Enter should be able to resolve the task source from the inbox");

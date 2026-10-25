@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROMPT_DIR = path.join(RUNTIME_DIR, "..", "prompts");
-const TERMINAL = new Set(["done", "rejected", "escalated", "blocked"]);
+const TERMINAL = new Set(["done", "rejected", "archived", "escalated", "blocked"]);
 
 // These variables can make Claude Code prefer API/provider billing over a
 // claude.ai subscription. They are removed only from a subscription-mode
@@ -74,11 +74,12 @@ function executable(name) {
   return process.platform === "win32" ? `${name}.cmd` : name;
 }
 
-function promptFor(role, task, root, workspace) {
+function promptFor(role, task, root, workspace, feedback = [], navigationContext = "") {
   const promptPath = path.join(PROMPT_DIR, `${role}.md`);
   const contract = fs.existsSync(promptPath) ? fs.readFileSync(promptPath, "utf8") : `Act as ATL role: ${role}.`;
   const checks = (task.completion_checks || []).map((check) => `- ${check}`).join("\n") || "- (Pip must define observable checks first)";
   const workdir = workspace || root;
+  const feedbackBlock = feedback.length ? `\n\n## Human feedback to apply before acting\n${feedback.map((item) => `- [${item.id}] ${item.prompt}`).join("\n")}\nTreat this as a new manager instruction for this bounded stage. Explain how it changed your approach and record the result in your checkpoint or handoff.\n` : "";
   return `${contract.trim()}
 
 ## Bounded ATL worker run
@@ -105,7 +106,7 @@ Hard boundaries:
 - Stop and record a blocker or escalation when required input, access, or evidence is missing.
 - Respect the task's attempt budget. A process timeout or CLI failure is not success.
 - Before exiting, record the truthful state, evidence, checkpoint, review, or handoff through ATL.
-`;
+${feedbackBlock}${navigationContext}`;
 }
 
 function expandProviderArg(value, { root, cwd, workspace, role, task, auth, provider, prompt }) {
@@ -123,9 +124,9 @@ function expandProviderArg(value, { root, cwd, workspace, role, task, auth, prov
   return String(value).replace(/\{([a-z_]+)\}/gi, (full, key) => Object.prototype.hasOwnProperty.call(tokens, key) ? String(tokens[key]) : full);
 }
 
-export function buildInvocation(worker, { root, workspace, role, task, auth = "subscription", provider = null }) {
+export function buildInvocation(worker, { root, workspace, role, task, auth = "subscription", provider = null, feedback = [], navigationContext = "" }) {
   const cwd = workspace || root;
-  const prompt = promptFor(role, task, root, workspace);
+  const prompt = promptFor(role, task, root, workspace, feedback, navigationContext);
   if (provider && Array.isArray(provider.args)) {
     const args = provider.args.map((arg) => expandProviderArg(arg, { root, cwd, workspace, role, task, auth, provider, prompt }));
     if (provider.promptArg) args.push(expandProviderArg(provider.promptArg, { root, cwd, workspace, role, task, auth, provider, prompt }));
@@ -181,6 +182,17 @@ function killProcess(child) {
   }, 2000).unref();
 }
 
+// The one worker session this process currently runs, if any. The launch
+// queue's abort path uses it to stop the live session (operator abort), so
+// the spawn/exit lifecycle below keeps it current.
+let activeChild = null;
+
+export function abortActiveWorker() {
+  if (!activeChild) return false;
+  killProcess(activeChild);
+  return true;
+}
+
 // Node ≥18.20 refuses to spawn .cmd/.bat shims directly (CVE-2024-27980,
 // spawn EINVAL). Route those through cmd.exe with verbatim, self-quoted
 // arguments. Real .exe binaries spawn directly.
@@ -196,12 +208,13 @@ function spawnPlan(command, args) {
 // Worker transcripts belong to the session log. Callers must opt in to echoing
 // provider output into their own terminal; the default keeps raw prompts,
 // retries, and provider diagnostics out of the control-room UI.
-export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeoutMs, echo = false, stdinText }) {
+export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeoutMs, echo = false, stdinText, captureStdout = false }) {
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   const log = fs.createWriteStream(logPath, { flags: "w" });
   const startedAt = new Date().toISOString();
   let timedOut = false;
   let settled = false;
+  let captured = "";
   const plan = spawnPlan(invocation.command, invocation.args);
 
   return new Promise((resolve, reject) => {
@@ -221,6 +234,7 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
       reject(error);
       return;
     }
+    activeChild = child;
 
     // Feed the prompt on stdin; ignore EPIPE if the child exits early.
     child.stdin.on("error", () => {});
@@ -229,6 +243,7 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
 
     const write = (chunk, isError = false) => {
       log.write(chunk);
+      if (captureStdout && !isError) captured += chunk.toString("utf8");
       if (echo) (isError ? process.stderr : process.stdout).write(chunk);
     };
     child.stdout.on("data", (chunk) => write(chunk));
@@ -248,11 +263,12 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
 
     child.on("close", (code, signal) => {
       clearTimeout(timer);
+      if (activeChild === child) activeChild = null;
       if (settled) return;
       settled = true;
       const finishedAt = new Date().toISOString();
       log.end();
-      resolve({ code: code ?? 1, signal, timedOut, startedAt, finishedAt, logPath });
+      resolve({ code: code ?? 1, signal, timedOut, startedAt, finishedAt, logPath, text: captured });
     });
   });
 }

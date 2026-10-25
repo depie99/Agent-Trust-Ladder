@@ -116,9 +116,11 @@ Or copy every folder under `skills/` into your agent's skills directory (`.claud
 
 Full install guide — per-agent paths, team installs, updates, troubleshooting: **[USAGE.md](USAGE.md)**
 
-### Documentation site prototype
+### Documentation and browser Control Plane
 
-The live documentation site is **[depie99.github.io/Agent-Trust-Ladder](https://depie99.github.io/Agent-Trust-Ladder/)**. Its source UI is **[docs/index.html](docs/index.html)**, including the **[Codex history bridge guide](docs/codex-history-bridge.html)**. The diagram is available as both **[HTML](docs/diagrams/atl-route.html)** and directly previewable **[SVG](docs/diagrams/atl-route.svg)**. Updates to `main` deploy through GitHub Pages Actions.
+The live documentation site is **[depie99.github.io/Agent-Trust-Ladder](https://depie99.github.io/Agent-Trust-Ladder/)**. Start with the **[Web Control Plane guide](docs/control-room.html)**: it documents the browser-native `atl ui` / `atl control-plane` interface, its task-to-run workflow, Codex subscription setup, provider boundary, and CLI equivalents. `atl tui` is a terminal compatibility surface and is intentionally not the primary documentation path while its UX is being improved.
+
+The site source is in [docs/](docs/), including the [Control Plane workflow visual](docs/diagrams/atl-web-control-plane.svg), the [Codex history bridge guide](docs/codex-history-bridge.html), and the architecture diagrams. Updates to `main` deploy through GitHub Pages Actions.
 
 ## Quick start
 
@@ -187,7 +189,7 @@ Configure exact accessible models in [`config/model-routing.json`](config/model-
 
 ### Manager mode
 
-You are the manager of the digital team. ATL gives each colleague a bounded mission, role, status, checkpoint, and evidence trail while you stay at the portfolio level: priorities, decisions, blockers, risks, and outcomes. The terminal control room (`atl ui`) is where work starts: compose or import tasks in plain language, review each packet, queue what may execute, and preview the provider plan before `atl launch --confirm` dispatches bounded sequential sessions. For unattended work, use `$atl-team` with an explicit `Complete when`, allowed/forbidden actions, workspace, checks, wake condition, stop rule, and morning brief. Time alone is never a finish condition.
+You are the manager of the digital team. ATL gives each colleague a bounded mission, role, status, checkpoint, and evidence trail while you stay at the portfolio level: priorities, decisions, blockers, risks, and outcomes. The browser-native Control Plane (`atl ui`, or the explicit `atl control-plane`) is where work starts: compose or import tasks in plain language, review each packet, queue what may execute, and preview the provider plan before `atl launch --confirm` dispatches bounded sequential sessions. The terminal compatibility surface remains available as `atl tui`, but its interaction model is not the primary public documentation path. For unattended work, use `$atl-team` with an explicit `Complete when`, allowed/forbidden actions, workspace, checks, wake condition, stop rule, and morning brief. Time alone is never a finish condition.
 
 The default roster is **Mira** (coordinator), **Pip** (triage), **Rowan** (builder), **Sage** (reviewer), and **Beacon** (verifier/night watch). They are friendly names over strict role contracts, not pretend personalities or hidden capabilities.
 

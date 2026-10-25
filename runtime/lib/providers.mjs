@@ -20,19 +20,19 @@ function candidateNames(name, platform) {
   return platform === "win32" ? [`${name}.cmd`, `${name}.exe`, `${name}.bat`, name] : [name];
 }
 
-function codexHome() {
-  return process.env.CODEX_HOME
-    || (process.platform === "win32" ? process.env.USERPROFILE && path.join(process.env.USERPROFILE, ".codex") : null)
-    || (process.env.HOME && path.join(process.env.HOME, ".codex"))
+function codexHome(env = process.env) {
+  return env.CODEX_HOME
+    || (process.platform === "win32" ? env.USERPROFILE && path.join(env.USERPROFILE, ".codex") : null)
+    || (env.HOME && path.join(env.HOME, ".codex"))
     || null;
 }
 
 // The Codex CLI's effective default is user-owned, not an ATL guess. Reading
 // this one non-secret setting lets the control room explain what an unpinned
 // Codex launch will use. An ATL project/model override still wins everywhere.
-export function localDefaultModel(name) {
+export function localDefaultModel(name, { env = process.env } = {}) {
   if (String(name || "").toLowerCase() !== "codex") return null;
-  const home = codexHome();
+  const home = codexHome(env);
   if (!home) return null;
   try {
     const text = fs.readFileSync(path.join(home, "config.toml"), "utf8");
@@ -42,9 +42,9 @@ export function localDefaultModel(name) {
   }
 }
 
-export function providerModels(name) {
+export function providerModels(name, { env = process.env } = {}) {
   if (String(name || "").toLowerCase() !== "codex") return [];
-  const home = codexHome();
+  const home = codexHome(env);
   if (!home) return [];
   try {
     const cache = JSON.parse(fs.readFileSync(path.join(home, "models_cache.json"), "utf8"));
@@ -58,6 +58,97 @@ export function providerModels(name) {
   } catch {
     return [];
   }
+}
+
+// How to connect each built-in worker: one CLI login against a subscription.
+// No API key and no `atl provider add` — that registry path is for external
+// endpoints (Z.ai, OpenRouter, Anthropic keys, custom gateways) only.
+export const BUILTIN_LOGIN = {
+  codex: {
+    label: "Codex CLI",
+    loginCommand: "codex login",
+    loginNote: "Choose Sign in with ChatGPT in the browser flow — do not choose API-key sign-in.",
+    verifyCommand: "atl launch --dry-run",
+  },
+  claude: {
+    label: "Claude Code CLI",
+    loginCommand: "claude login",
+    loginNote: "Sign in with your claude.ai subscription account in the browser flow.",
+    verifyCommand: "atl launch --dry-run",
+  },
+};
+
+function userHome(env) {
+  const home = String(env.USERPROFILE || env.HOME || "").trim();
+  return home || null;
+}
+
+// Subscription sign-in status of one built-in worker CLI, from read-only
+// filesystem evidence — no subprocess, no network, no secret in the result.
+// Same pure-local philosophy as discoverProvider: the control room explains
+// what a launch would use instead of probing it.
+export function builtinAuthStatus(name, { env = process.env } = {}) {
+  const clean = String(name || "").toLowerCase();
+  const login = BUILTIN_LOGIN[clean];
+  const signedOut = { signedIn: false, method: null, detail: login ? `not signed in — run ${login.loginCommand} to connect` : "not signed in" };
+  const home = userHome(env);
+  if (!home) return signedOut;
+  try {
+    if (clean === "codex") {
+      const auth = JSON.parse(fs.readFileSync(path.join(home, ".codex", "auth.json"), "utf8"));
+      if (auth && typeof auth === "object") {
+        if (auth.OPENAI_API_KEY) {
+          return { signedIn: true, method: "api-key", detail: "signed in with an API key — rerun codex login and pick Sign in with ChatGPT to use your plan instead" };
+        }
+        if (auth.auth_mode === "chatgpt" || auth.tokens) {
+          const refreshed = auth.last_refresh ? ` · token refreshed ${String(auth.last_refresh).slice(0, 10)}` : "";
+          return { signedIn: true, method: "chatgpt", detail: `signed in with ChatGPT${refreshed}` };
+        }
+      }
+      return signedOut;
+    }
+    if (clean === "claude") {
+      try {
+        const cred = JSON.parse(fs.readFileSync(path.join(home, ".claude", ".credentials.json"), "utf8"));
+        if (cred?.claudeAiOauth) return { signedIn: true, method: "subscription", detail: "signed in with a claude.ai subscription" };
+      } catch { /* fall through to .claude.json */ }
+      try {
+        const main = JSON.parse(fs.readFileSync(path.join(home, ".claude.json"), "utf8"));
+        if (main?.oauthAccount) return { signedIn: true, method: "subscription", detail: "signed in with a claude.ai subscription" };
+      } catch { /* still signed out */ }
+      return signedOut;
+    }
+  } catch {
+    return signedOut;
+  }
+  return signedOut;
+}
+
+// The browser-facing view of both built-in workers: install discovery,
+// subscription sign-in state, and the exact connect steps when missing.
+export function builtinProviderStatus(config = {}, { env = process.env } = {}) {
+  const profile = config.defaultWorker && config.catalog ? config : providerProfile(config, { env });
+  return KNOWN_PROVIDERS.map((name) => {
+    const login = BUILTIN_LOGIN[name];
+    const spec = providerSpec(profile, name, { env });
+    const discovered = discoverProvider(name, { command: spec.command, env });
+    const auth = builtinAuthStatus(name, { env });
+    return {
+      id: name,
+      label: login.label,
+      command: spec.command,
+      auth: spec.auth || "subscription",
+      installed: discovered.available,
+      signedIn: auth.signedIn,
+      method: auth.method,
+      detail: auth.detail,
+      defaultModel: spec.model || localDefaultModel(name, { env }),
+      loginCommand: login.loginCommand,
+      loginNote: login.loginNote,
+      verifyCommand: login.verifyCommand,
+      installHint: INSTALL_HINTS[name],
+    };
+  });
 }
 
 // Scan PATH for the provider executable. Returns { available, path, error }.
@@ -92,13 +183,13 @@ export function discoverProvider(name, { env = process.env, platform = process.p
 // in the user's provider registry (~/.atl/providers.json). Registry ids can be
 // selected exactly like built-in workers: providers.use (project default),
 // providers.by_role (per role), or --provider on the CLI.
-export function providerProfile(config = {}) {
+export function providerProfile(config = {}, { env = process.env } = {}) {
   const p = config.providers || {};
   const defaultWorker = String(p.default || "codex").toLowerCase();
   const auth = String(p.auth || "subscription").toLowerCase();
   const use = p.use ? String(p.use).toLowerCase() : null;
   const userProviders = loadUserProviders().providers;
-  const defaultModel = p.model ? String(p.model) : (defaultWorker === "codex" ? localDefaultModel("codex") : null);
+  const defaultModel = p.model ? String(p.model) : (defaultWorker === "codex" ? localDefaultModel("codex", { env }) : null);
   const byRole = {};
   for (const [role, worker] of Object.entries(p.by_role || {})) {
     byRole[String(role).toLowerCase()] = String(worker).toLowerCase();
@@ -136,7 +227,7 @@ export function providerNames(config = {}) {
   return [...new Set(names.map((name) => String(name).toLowerCase()).filter(Boolean))];
 }
 
-export function providerSpec(profile, worker) {
+export function providerSpec(profile, worker, { env = process.env } = {}) {
   const id = String(worker || "").toLowerCase();
   const entry = profile?.userProviders?.[id];
   // A registry id resolves to its underlying worker CLI for discovery, while
@@ -156,7 +247,7 @@ export function providerSpec(profile, worker) {
   return p || {
     command: id,
     args: null,
-    model: id === profile?.defaultWorker ? (profile?.defaultModel || localDefaultModel(id)) : localDefaultModel(id),
+    model: id === profile?.defaultWorker ? (profile?.defaultModel || localDefaultModel(id, { env })) : localDefaultModel(id, { env }),
     models: [],
     auth: profile?.auth || "subscription",
     unsetEnv: [],

@@ -13,6 +13,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   StateError, STATUSES, paths, emptyState, loadState, saveState,
@@ -32,20 +33,35 @@ import { bundledRoot, formatRoute, isSkillAvailable, routeTaskWithJev } from "./
 import { assertWorkerAuth, isTerminal, nextRole, queueSelect, workerEnvPolicy } from "./lib/worker.mjs";
 import { applyDeterministicRoute, composeTask, importCandidates } from "./lib/composer.mjs";
 import { queueAdd, queueClear, queueIds, queueRemove, loadQueue } from "./lib/queue.mjs";
-import { buildLaunchPlan, containmentBlock, driveTaskUntilGate, executeLaunchQueue } from "./lib/launch.mjs";
+import { buildLaunchPlan, driveTaskUntilGate, executeLaunchQueue, recoverAfterOutcome, recoverDueBlockedTasks, reconcileOvernightRun, resumeOvernightRun } from "./lib/launch.mjs";
 import { discoverProvider, localDefaultModel, providerForRole, providerModels, providerNames, providerProfile, providerSpec } from "./lib/providers.mjs";
 import {
   credentialContext, getProvider, loadUserProviders, maskKey, PROVIDER_TEMPLATES,
-  removeProvider, saveUserProviders, templateById, upsertProvider, registryPath, validateProviderEntry,
+  removeProvider, saveUserProviders, templateById, upsertProvider, registryPath, validateProviderEntry, wireMismatches,
 } from "./lib/userProviders.mjs";
 import { unblockTask, approveTask, explainTasks } from "./lib/recovery.mjs";
 import { addResourceToTask } from "./lib/resources.mjs";
 import { historySources, listHistory, readTranscript, renderHistoryList, renderTranscript, resolveHistoryRef } from "./lib/history.mjs";
+import { listFeedback, submitFeedback } from "./lib/feedback.mjs";
+import { bridgeStatus, startDedicatedBridge, syncTeamContext, updateBridgeConfig } from "./lib/codex-bridge.mjs";
+import { startControlPlaneServer } from "./lib/control-plane-server.mjs";
+import { assembleContext, buildMap, mapStatus, neighbors, queryMap } from "./lib/navigation.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
 const ROOT = process.env.ATL_PROJECT ? path.resolve(process.env.ATL_PROJECT) : process.cwd();
 const P = paths(ROOT);
+
+function openControlPlane(url) {
+  if (process.env.ATL_NO_OPEN === "1") return;
+  if (process.platform === "win32") {
+    spawn("cmd.exe", ["/c", "start", "", url], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  } else if (process.platform === "darwin") {
+    spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
+  } else {
+    spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
+  }
+}
 
 // Narration: every command speaks in the acting bot's voice.
 const say = (from, text, opts = {}) => feedPost(ROOT, { from, text, ...opts });
@@ -66,7 +82,7 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread")) continue;
+  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -87,6 +103,9 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--plain") { flags.plain = true; continue; }
   if (a === "--force") { flags.force = true; continue; }
   if (a === "--all") { flags.all = true; continue; }
+  if (a === "--pause-after-bot") { flags.pauseAfterBot = true; continue; }
+  if (a === "--no-open") { flags.noOpen = true; continue; }
+  if (a === "--json") { flags.json = true; continue; }
   pos.push(a);
 }
 
@@ -133,13 +152,43 @@ Owner gates (the human's levers, no incantations)
 Manager view
   wake                          the wake loop: what Mira should do next
   brief [--save]                Mira's manager brief
-  dashboard [--once] [--plain]  interactive control room; --once is a static snapshot (alias: ui)
+  ui [--port n]                 open the browser-native ATL control plane
+  tui [--once] [--plain]        terminal compatibility control room (alias: dashboard)
+  control-plane [--port n]      browser-native ATL control plane (aliases: ui, web)
 
 History (the agent CLIs' local chat transcripts — providers keep usage only)
   history [--source codex|zcode|all] [--n 20]
                                 the most recent Codex / ZCode CLI sessions on this machine
   history show <number|id|latest> [--n 200]
                                 print one session transcript (who asked what, what came back)
+
+Navigation (local source hints; always read source before editing)
+  map build|status [--json]     build or inspect a revision-aware local symbol map
+  map query --symbol Name       find bounded candidate definitions
+  map neighbors --symbol-id ID  show syntax-level import relationships
+  context assemble --task ID --query "..." [--max-tokens 800]
+                                create a bounded, source-reference-only context packet
+
+Research (the engineering-intelligence pipeline — research/ is the evidence store)
+  research [list] [--status pending|approved|promoted|rejected] [--priority P0|P1|P2]
+                                cumulative research records, P0 first; --status pending is the review inbox
+  research show <id>            one record: summary, sources, evidence level, decision log
+  research add <url> --title "..." --priority P1
+                                [--set kind=post --set people=a,b --set evidence=verified|second-hand|speculation]
+                                [--set atl_impact="..." --set objective="..." --set checks=one,two]
+                                file a finding; deduped by canonical url + title
+  research set <id> --set priority=P0 --set atl_impact="..."
+                                assess a captured record (whitelisted fields)
+  research approve <id>         lighter human gate before promotion (optional)
+  research promote <id>         the human gate: file the improvement task (idempotent via intake key)
+  research reject <id> --reason "..."
+  research transcript <youtube-url> [--set record=R-0003]
+                                capture a timestamped transcript (best-effort; failures are explicit)
+  research retro                scan team history for repeat-attempt / blocker / escalation patterns
+  research graph                rebuild research/graph.json (records-people-repos-concepts-tasks)
+  research status               counts by status/priority + watchlist health
+  research brief [--offline]    run the daily source sweep now (--offline re-renders from the index)
+  ready                         dependency-aware launch view: ready / waiting / stuck tasks
 
 Codex app bridge (opt-in; injects durable ATL context into one existing thread)
   codex bridge status          show the configured target thread and bridge state
@@ -153,13 +202,16 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   compose [--title "..."] "<body text>" [--check "..."]...
                                 save an immutable raw draft + create a new candidate (idempotent by content)
   queue [add <id> | remove <id> | list | clear]
-                                the persistent execution queue — separate from keyboard focus
+                                 the persistent execution queue — separate from keyboard focus
+  feedback [list | add <task-id> "prompt" --mode checkpoint|interrupt]
+                                 durable human instructions for the next or restarted bot session
   launch [--dry-run] [--confirm] [--worker id] [--model model] [--max-minutes m] [--max-sessions n]
-                                preview, then run the queued tasks sequentially with per-role providers
+                                 preview, then run the queued tasks sequentially with per-role providers
+                                 add --pause-after-bot to stop after each completed provider session
   providers                     providers, keys (masked), and per-role mapping
   provider templates            pre-filled endpoint presets (zai, bigmodel, custom)
-  provider add <id> [--template t] [--worker claude|codex] [--base-url url]
-                [--key secret | --key-env VAR] [--model model]
+  provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url]
+                [--key secret | --key-env VAR] [--model model] [--thinking-level level]
                                 store an API provider once per machine in ~/.atl/providers.json
                                 (e.g. GLM: provider add zai --key <key> --model glm-4.6)
   provider key <id> --key secret | --key-env VAR
@@ -187,6 +239,8 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   run <task-id> --worker <provider-id> [--model model] [--auth subscription|api] [--confirm]
                                 run one bounded role session
   overnight [<task-id> | --all] --worker <provider-id> [--model model] [--auth subscription|api] --confirm
+  overnight status              inspect the durable overnight ledger; starts nothing
+  overnight recover --confirm   resume only untouched tasks after an interrupted runner
                                 run bounded role sessions until a gate or budget stops it;
                                 with --all, take the whole active queue in priority order,
                                 block stalled tasks and move on, end with a saved brief
@@ -273,7 +327,13 @@ function defaultConfig() {
     version: 1,
     inbox_dir: ".trust/manager/inbox",
     briefs_dir: ".trust/manager/briefs",
-    budgets: { max_attempts: 3, stale_after_hours: 24, max_active_tasks: 5 },
+    budgets: { max_attempts: 3, max_auto_recoveries: 1, stale_after_hours: 24, max_active_tasks: 5 },
+    navigation: {
+      mode: "off",
+      max_tokens: 800,
+      build_on_launch: true,
+      note: "off preserves existing prompts. Set on only after checking map coverage; map entries are navigation hints, never source authority.",
+    },
     routines: [],
     providers: {
       default: "codex",
@@ -426,6 +486,9 @@ async function runQueueLoop({ overnight }) {
   const opts = parseWorkerFlags({ overnight });
   const budget = { sessions: 0, maxSessions: opts.maxSessions, deadline: Date.now() + opts.maxMinutes * 60 * 1000 };
 
+  if (!opts.dryRun) {
+    recoverDueBlockedTasks(ROOT, { dryRun: false, maxRecoveries: Number(loadConfig().budgets?.max_auto_recoveries ?? 1) });
+  }
   const state = loadState(ROOT);
   const queue = queueSelect(Object.values(state.tasks));
   console.log(`${opts.dryRun ? "Previewing" : "Starting"} overnight queue run — ${queue.length} active task(s)`);
@@ -440,6 +503,7 @@ async function runQueueLoop({ overnight }) {
     console.log("Queue is empty. Drop task files into the inbox, then: atl intake");
     return;
   }
+  const runnableQueue = queue;
   for (const t of queue) {
     const role = nextRole(t) || "-";
     console.log(`  ${t.id}  [${t.priority || "normal"}]  ${t.status} -> ${role}  ${t.title}`);
@@ -450,7 +514,9 @@ async function runQueueLoop({ overnight }) {
   }
 
   const results = [];
-  for (const queued of queue) {
+  const pending = [...runnableQueue];
+  while (pending.length) {
+    const queued = pending.shift();
     if (budget.sessions >= budget.maxSessions || Date.now() >= budget.deadline) {
       results.push({ id: queued.id, status: "queued", reason: budget.sessions >= budget.maxSessions ? "not reached: session budget exhausted" : "not reached: time budget exhausted" });
       continue;
@@ -468,13 +534,12 @@ async function runQueueLoop({ overnight }) {
       resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
     }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
     results.push({ id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason });
-    if (outcome.failed || outcome.stalled) {
-      // Autonomy means moving on: record the blocker honestly, take the next task.
-      const s = loadState(ROOT);
-      if (containmentBlock(s, fresh.id, outcome.reason)) {
-        saveState(ROOT, s);
-        say("runner", `${fresh.id} blocked by the runner: ${outcome.reason}. taking the next task.`, { task: fresh.id });
-      }
+    const recovery = recoverAfterOutcome(ROOT, fresh.id, outcome, {
+      maxRecoveries: Number(loadConfig().budgets?.max_auto_recoveries ?? 1),
+    });
+    if (recovery.recovered) {
+      pending.push(loadState(ROOT).tasks[fresh.id]);
+      results.push({ id: fresh.id, status: "requeued", reason: "Mira auto-recovered a non-human blocker" });
     }
   }
 
@@ -551,7 +616,7 @@ function printProviders(cfg) {
     const p = providerForRole(profile, role);
     console.log(`  ${role.padEnd(7)} ${p.worker} · ${p.model || "provider default"} · auth ${p.auth}  (${p.source})`);
   }
-  console.log("\nAdd a provider:   atl provider add zai --key <glm-api-key> --model glm-4.6");
+  console.log("\nAdd a provider:   atl provider add zai --key <glm-api-key> --model glm-5.3 --thinking-level medium");
   console.log("Use it here:      atl provider use zai   (or per role: atl provider use zai --role rowan)");
   console.log("Other commands:   provider key · provider remove · provider templates · atl ui → p");
 }
@@ -842,6 +907,23 @@ async function main() {
       return;
     }
 
+    case "feedback": {
+      const sub = pos[0] || "list";
+      if (sub === "list") {
+        console.log(JSON.stringify(listFeedback(ROOT, { taskId: pos[1] || null }), null, 2));
+      } else if (sub === "add") {
+        const taskId = pos[1];
+        const prompt = pos.slice(2).join(" ").trim();
+        if (!taskId || !prompt) throw new StateError('feedback add needs a task id and quoted prompt');
+        const item = submitFeedback(ROOT, { taskId, prompt, mode: String(flags.mode || "checkpoint"), role: flags.role || null });
+        say("manager", `feedback queued for ${taskId} (${item.mode}) — the next applicable bot will receive it.`, { task: taskId, detail: item.id });
+        console.log(JSON.stringify(item, null, 2));
+      } else {
+        throw new StateError("feedback subcommands: list [task-id] | add <task-id> \"prompt\" [--mode checkpoint|interrupt]");
+      }
+      return;
+    }
+
     case "launch": {
       const opts = parseWorkerFlags({ overnight: true });
       const launchOverrides = {};
@@ -864,6 +946,13 @@ async function main() {
       if (flags.model) overrides.model = opts.provider.model;
       const { results, budget } = await executeLaunchQueue(ROOT, {
         maxMinutes: opts.maxMinutes, maxSessions: opts.maxSessions, confirm: true, providerDefaults: overrides,
+        onSession: syncBridgeSession,
+        pauseAfterSession: flags.pauseAfterBot === true,
+        onReview: async (summary) => {
+          console.log(`\nPaused after ${summary.taskId}/${summary.role}. Review the brief and press Enter in the controlling TTY to continue.`);
+          if (!process.stdin.isTTY) return "continue";
+          return new Promise((resolve) => process.stdin.once("data", () => resolve("continue")));
+        },
       });
       console.log(`\nQueue run finished after ${budget.sessions} session(s). Results:`);
       for (const r of results) console.log(`  ${String(r.id).padEnd(6)} ${String(r.status).padEnd(12)} ${r.reason}`);
@@ -901,10 +990,10 @@ async function main() {
           console.log(`             claude → ${t.baseUrl.claude || "(you supply the endpoint)"}`);
           console.log(`             codex  → ${t.baseUrl.codex || "(you supply the endpoint)"}`);
         }
-        console.log("\nUse one: atl provider add zai --key <api-key> --model glm-4.6   (--template is implied by the id)");
+        console.log("\nUse one: atl provider add zai --key <api-key> --model glm-5.3 --thinking-level medium   (--template is implied by the id)");
       } else if (sub === "add") {
         const id = pos[1];
-        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex] [--base-url url] [--key secret | --key-env VAR] [--model model]");
+        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url] [--key secret | --key-env VAR] [--model model] [--thinking-level level]");
         const template = templateById(flags.template || (templateById(id) ? id : "custom"));
         const worker = String(flags.worker || template.worker || "claude").toLowerCase();
         if (!["claude", "codex"].includes(worker)) throw new StateError("--worker must be claude or codex");
@@ -919,14 +1008,19 @@ async function main() {
           throw new StateError("a base URL is required for custom providers: --base-url https://your-endpoint/api/anthropic");
         }
         const registry = loadUserProviders();
-        const entry = upsertProvider(registry, id, {
-          label: template.id === "custom" ? id : template.label,
-          worker,
-          base_url: String(base),
-          api_key: key,
-          model: flags.model ? String(flags.model) : (template.models[0] || ""),
-          models: template.models,
-        });
+         const entry = upsertProvider(registry, id, {
+           label: template.id === "custom" ? id : template.label,
+           protocol: flags.protocol || template.protocol || "custom",
+           worker,
+           base_url: String(base),
+           api_key: key,
+           model: flags.model ? String(flags.model) : (template.models[0] || ""),
+           models: template.models,
+           thinking_level: flags["thinking-level"] || flags.thinking || "",
+           thinking_levels: template.thinkingLevels,
+         });
+        const wireProblems = wireMismatches(entry.worker, entry.base_url);
+        if (wireProblems.length) throw new StateError(`refusing to save "${entry.id}": ${wireProblems.join("; ")}`);
         saveUserProviders(registry);
         console.log(`Saved provider "${entry.id}" in ${registryPath()}`);
         console.log(`  worker: ${entry.worker}   model: ${entry.model || "(none)"}   key: ${maskKey(entry.api_key)}`);
@@ -1248,8 +1342,28 @@ async function main() {
     }
 
     case "dashboard":
-    case "ui": {
+    case "tui": {
       await runDashboard(ROOT, { once: flags.once === true, plain: flags.plain === true });
+      return;
+    }
+
+    case "ui":
+    case "control-plane":
+    case "web": {
+      const host = String(flags.host || "127.0.0.1");
+      const port = Number(flags.port || 0);
+      if (!Number.isInteger(port) || port < 0 || port > 65535) throw new StateError("--port must be an integer from 0 to 65535");
+      const running = await startControlPlaneServer(ROOT, { host, port });
+      console.log(`ATL browser control plane: ${running.url}`);
+      console.log("Live state and commands are served from this project. Press Ctrl+C to stop.");
+      if (!flags.noOpen) openControlPlane(running.url);
+      await new Promise((resolve) => {
+        const stop = () => {
+          running.server.close(() => resolve());
+        };
+        process.once("SIGINT", stop);
+        process.once("SIGTERM", stop);
+      });
       return;
     }
 
@@ -1345,6 +1459,34 @@ async function main() {
       return;
     }
 
+    case "map": {
+      const sub = pos[0] || "status";
+      let result;
+      if (sub === "build") { buildMap(ROOT); result = mapStatus(ROOT); }
+      else if (sub === "status") result = mapStatus(ROOT);
+      else if (sub === "query") {
+        const symbol = flags.symbol || pos[1];
+        if (!symbol) throw new StateError("map query needs --symbol Name");
+        result = queryMap(ROOT, symbol, Number(flags.limit) || 20);
+      } else if (sub === "neighbors") {
+        const symbolId = flags["symbol-id"] || pos[1];
+        if (!symbolId) throw new StateError("map neighbors needs --symbol-id ID");
+        result = neighbors(ROOT, symbolId, Number(flags.limit) || 20);
+      } else throw new StateError("map commands: build | status | query --symbol Name | neighbors --symbol-id ID");
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    case "context": {
+      if (pos[0] !== "assemble") throw new StateError("context commands: assemble --task ID --query text [--max-tokens 800]");
+      const task = flags.task ? loadState(ROOT).tasks[flags.task] : null;
+      const query = flags.query || pos.slice(1).join(" ") || `${task?.title || ""} ${task?.objective || ""}`;
+      if (!query.trim()) throw new StateError("context assemble needs --query text or --task ID");
+      const result = assembleContext(ROOT, { taskId: flags.task || "ad-hoc", query, maxTokens: Number(flags["max-tokens"]) || 800, constraints: task?.completion_checks || [] });
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
     case "routines": {
       const cfg = loadConfig();
       const routines = cfg.routines || [];
@@ -1394,6 +1536,131 @@ async function main() {
       throw new StateError(`Unknown memory command "${subcommand}". Use status, recall, remember, learn, or forget.`);
     }
 
+    case "ready": {
+      const { analyzeReadiness, renderReadiness } = await import("./lib/dependencies.mjs");
+      console.log(renderReadiness(analyzeReadiness(loadState(ROOT))));
+      return;
+    }
+
+    case "research": {
+      const R = await import("./lib/research.mjs");
+      const sub = pos[0] || "list";
+      const rest = pos.slice(1);
+      const id = rest[0] && !String(rest[0]).startsWith("--") ? rest[0] : null;
+      const splitList = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boolean);
+      if (sub === "list" || sub === "inbox") {
+        const rows = R.listRecords(ROOT, {
+          status: flags.status || null,
+          priority: flags.priority || null,
+          kind: flags.set.kind || null,
+          person: flags.set.person || null,
+          concept: flags.set.concept || null,
+        });
+        console.log(R.renderRecordList(rows));
+        return;
+      }
+      if (sub === "show") {
+        if (!id) throw new StateError("research show needs a record id (e.g. R-0001)");
+        const rec = R.readRecord(ROOT, id);
+        if (!rec) throw new StateError(`no research record ${id}`);
+        console.log(R.renderRecord(rec));
+        return;
+      }
+      if (sub === "add") {
+        const url = rest.find((a) => !String(a).startsWith("--"));
+        const rec = R.createRecord(ROOT, {
+          title: flags.title,
+          priority: flags.priority || "P2",
+          kind: flags.set.kind || "post",
+          people: splitList(flags.set.people),
+          concepts: splitList(flags.set.concepts),
+          sources: url ? [url] : [],
+          repos: splitList(flags.set.repos),
+          evidence: flags.set.evidence || "second-hand",
+          atl_impact: flags.set.atl_impact || "",
+          objective: flags.set.objective || "",
+          checks: splitList(flags.set.checks),
+          published: flags.set.published || null,
+          body: flags.set.body || "",
+        });
+        console.log(`Filed ${rec.fields.id} — ${rec.fields.title}`);
+        console.log(`Assess it: atl research set ${rec.fields.id} --set priority=P1 --set atl_impact="..."`);
+        return;
+      }
+      if (sub === "set") {
+        if (!id) throw new StateError("research set needs a record id");
+        const rec = R.patchRecord(ROOT, id, flags.set, { actor: actorOf() });
+        console.log(`Updated ${rec.fields.id}: ${rec.fields.title}`);
+        return;
+      }
+      if (sub === "approve") {
+        const rec = R.setRecordStatus(ROOT, id, "approved", { actor: actorOf(), note: flags.note[0] || "" });
+        console.log(`${rec.fields.id} approved — promote it with: atl research promote ${rec.fields.id}`);
+        return;
+      }
+      if (sub === "reject") {
+        if (!flags.reason) throw new StateError("rejecting research needs --reason \"...\" (the decision log keeps it)");
+        const rec = R.setRecordStatus(ROOT, id, "rejected", { actor: actorOf(), note: flags.reason });
+        console.log(`${rec.fields.id} rejected: ${flags.reason}`);
+        return;
+      }
+      if (sub === "promote") {
+        const result = R.promoteRecord(ROOT, id, { actor: actorOf(), note: flags.note[0] || "" });
+        if (result.already) console.log(`${id} was already promoted as ${result.taskId}`);
+        else console.log(`Promoted ${id} → task ${result.taskId} (status: new). Pip will triage it.`);
+        return;
+      }
+      if (sub === "transcript") {
+        const url = rest.find((a) => !String(a).startsWith("--"));
+        if (!url) throw new StateError("research transcript needs a YouTube url");
+        const data = await R.fetchYoutubeTranscript(url);
+        const saved = R.saveTranscript(ROOT, data, { recordId: flags.set.record || null });
+        console.log(`Transcript saved: ${saved.markdown} (${saved.cues} cues, ${data.language}${data.auto ? ", auto-generated" : ""})`);
+        return;
+      }
+      if (sub === "retro") {
+        const findings = R.scanRetros(ROOT);
+        if (!findings.length) {
+          console.log("No retrospective patterns found — no repeat attempts, recurring blockers, or escalations in state.");
+          return;
+        }
+        let filed = 0, dup = 0;
+        for (const f of findings) {
+          try {
+            const rec = R.fileRetroFinding(ROOT, f);
+            console.log(`filed ${rec.fields.id} — ${f.title}`);
+            filed++;
+          } catch (err) {
+            if (err.existingId) { dup++; console.log(`known: ${err.existingId} — ${f.title}`); }
+            else throw err;
+          }
+        }
+        console.log(`${filed} filed, ${dup} already known. Review with: atl research list --status pending`);
+        return;
+      }
+      if (sub === "graph") {
+        const graph = R.exportGraph(ROOT);
+        console.log(`graph.json: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+        return;
+      }
+      if (sub === "status") {
+        console.log(JSON.stringify(R.researchStatus(ROOT), null, 2));
+        return;
+      }
+      if (sub === "brief") {
+        const intel = await import("../scripts/intel-brief.mjs");
+        const offline = rest.includes("--offline") || String(flags.set.offline) === "true";
+        const scan = offline
+          ? { perSource: [{ id: "(offline)", type: "—", status: "ok", note: "index re-render only", items: 0 }], filed: [], skipped: 0, ran_at: new Date().toISOString() }
+          : await intel.runBriefScan(ROOT);
+        const file = intel.writeBrief(ROOT, scan, { offline });
+        console.log(`Brief written: ${file}`);
+        for (const s of scan.perSource) console.log(`  ${s.status.padEnd(7)} ${s.id} — ${s.note}`);
+        return;
+      }
+      throw new StateError('research subcommands: (list) | inbox | show <id> | add <url> | set <id> | approve <id> | promote <id> | reject <id> | transcript <url> | retro | graph | status | brief');
+    }
+
     case "show-me": {
       const content = buildShowMe(ROOT, { taskId: pos[0] || null });
       if (flags.save) console.log(`Saved: ${saveShowMe(ROOT, content, { taskId: pos[0] || null })}`);
@@ -1415,7 +1682,16 @@ async function main() {
     }
 
     case "overnight": {
-      if (flags.all === true) {
+      if (pos[0] === "status") {
+        console.log(JSON.stringify(reconcileOvernightRun(ROOT), null, 2));
+      } else if (pos[0] === "recover") {
+        const resumed = await resumeOvernightRun(ROOT, {
+          confirm: flags.confirm === true || flags.confirm === "true",
+          maxMinutes: Number(flags["max-minutes"] || 120),
+          maxSessions: Number(flags["max-sessions"] || 5),
+        });
+        console.log(JSON.stringify(resumed, null, 2));
+      } else if (flags.all === true) {
         await runQueueLoop({ overnight: true });
       } else {
         await runWorkerLoop(pos[0], { overnight: true });
@@ -1494,4 +1770,3 @@ main().catch((err) => {
   console.error(`error: ${err.message}`);
   process.exitCode = 1;
 });
-import { bridgeStatus, startDedicatedBridge, syncTeamContext, updateBridgeConfig } from "./lib/codex-bridge.mjs";

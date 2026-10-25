@@ -99,10 +99,13 @@ cd your-project
 atl init                 # scaffolds config + .trust/manager in THIS project
 # drop tasks into .trust/manager/inbox/*.md (or wire GitHub issues / Azure Boards in config/manager.json)
 atl intake               # new tasks appear, narrated by the bots
-atl ui                   # the control room: c compose · i import · v review · x queue · l launch · Q queue · L logs (auto-refreshes ~2s)
+atl ui                   # browser-native ATL Control Plane (primary interface)
+atl control-plane        # explicit alias for the browser-native interface
+atl tui                  # terminal compatibility surface; not the primary docs path
 atl launch --dry-run     # preview the queued run (provider, role, workspace, budget per task)
 atl launch --confirm     # start it: sequential, bounded, per-role providers (codex/claude CLI)
 atl why                  # the full "why" behind every blocked/waiting task + the exact fix command
+                         # queue runs auto-retry one transient blocker; EPERM/ACL/owner gates go to the manager
 atl approve <id>         # owner gate in one word: record your approval, clear the blocker, queue it
 atl feed --roster        # watch the team work
 atl history              # the Codex + ZCode CLI chat transcripts on this machine (providers keep usage only, never conversations)
@@ -122,16 +125,27 @@ is [Codex history bridge](docs/codex-history-bridge.html).
 **Run the team on an API provider (e.g. Z.ai GLM) — one minute, no env vars:** store the provider once per machine, then select it per project. The key lives in `~/.atl/providers.json` (outside every repo, masked everywhere, injected into worker sessions only at spawn):
 
 ~~~bash
-atl provider add zai --key <your-glm-api-key> --model glm-4.6   # zai/bigmodel templates prefill the endpoint
+atl provider add zai --key <your-glm-api-key> --model glm-5.3 --thinking-level medium   # preset pre-fills the OpenAI-compatible endpoint
 atl provider use zai            # this project's default (or: --role rowan for one role)
-atl launch --dry-run            # shows: claude · glm-4.6 · auth api (user provider "zai")
+atl launch --dry-run            # shows: codex · glm-5.3 · auth api (user provider "zai")
 ~~~
 
-In the control room (`atl ui`), press **p**: the providers page lists your providers and **a** opens the same setup as a form — template, name, CLI (claude/codex), base URL, pasted key, model. `u` makes a provider the project default. For a single run on a stored provider: `atl run <id> --worker zai --confirm`.
+In the browser control room (`atl ui`), open **Settings → Manage providers**: the manager lists ready/setup-needed profiles and **Add a provider** exposes preset, provider id, display name, adapter, wire protocol, base URL, model, API key, and thinking/effort. Presets cover OpenAI/GPT, Gemini, Z.ai GLM, Anthropic, OpenRouter, and Custom; enter any exact model id for other gateways. `u`/**Use by default** makes a provider the project default. For a single run on a stored provider: `atl run <id> --worker zai --confirm`.
+
+**Use your ChatGPT Codex subscription — no API key:** Codex is already a built-in provider. Sign the Codex CLI into the same ChatGPT account, then inspect the browser/CLI launch preview. Do not add `codex` to the API-provider registry.
+
+~~~powershell
+codex login
+codex login status
+atl providers
+atl launch --dry-run
+~~~
+
+The [Web Control Plane guide](docs/control-room.html) is the complete browser walkthrough: spaces, examples, preview/confirm boundary, safe stop behavior, and CLI reference. `atl tui` remains available as a terminal compatibility interface but is intentionally not the primary documentation route while its UX is under improvement.
 
 To put an agent behind a bot, open a session in the target project and paste the matching prompt from `~/.atl/runtime/prompts/` — the runner enforces the role contract no matter which agent is behind it. The installer auto-detects Codex CLI and Claude Code and installs the prompts as native slash commands (`/atl-mira`, `/atl-pip`, `/atl-rowan`, `/atl-sage`, `/atl-beacon`); the ATL *skills* install into Codex via `npx skills add depie99/Agent-Trust-Ladder -a codex` (Option A above). Update: re-run the installer. Uninstall: delete `~/.atl`, the wired prompt files (`~/.codex/prompts/atl-*.md`, `~/.claude/commands/atl-*.md`), and remove `~/.atl` from PATH. Full guide: [runtime/README.md](runtime/README.md).
 
-**Overnight and token boundary:** `atl init`, `show`, `wake`, `brief`, `feed`, and `validate` are local state operations. They do not spend model tokens. The named roles are not background processes: an AI session must remain open for model work to continue. ATL's bounded local runner uses `codex exec` or `claude -p`; it does not yet use `claude --cloud`. An open laptop alone will not make the bots work overnight. For Claude subscription usage, authenticate with `claude login` using the Pro/Max account, open Claude Code and confirm `/status`, then use `--auth subscription`; ATL removes known API/provider environment variables from the child and never falls back to API mode. Use `--auth api` only intentionally. Keep unattended work in an isolated workspace with explicit allowed/forbidden actions and a stop rule; do not permit unattended merge, deploy, policy, spending, or external messaging. Start the morning with `atl wake`, `atl brief --save`, `atl feed`, and an independent review. Jev and Mem0 graph memory are opt-in and may add network/model cost.
+**Overnight and token boundary:** `atl init`, `show`, `wake`, `brief`, `feed`, and `validate` are local state operations. They do not spend model tokens. ATL's bounded local runner uses `codex exec` or `claude -p`; it does not yet use `claude --cloud`. A confirmed queue run writes a durable ledger at `.trust/manager/overnight/run.json`; use `atl overnight status` to inspect it. If the runner dies, it records the in-flight provider task as interrupted and excludes it from recovery. After inspection, `atl overnight recover --confirm` can continue only untouched tasks from the last durable boundary. It never replays an in-flight provider session or bypasses a human gate. A Windows Task Scheduler command plan is available to integrations, but ATL does not install scheduled tasks itself. For Claude subscription usage, authenticate with `claude login` using the Pro/Max account, open Claude Code and confirm `/status`, then use `--auth subscription`; ATL removes known API/provider environment variables from the child and never falls back to API mode. Use `--auth api` only intentionally. Keep unattended work in an isolated workspace with explicit allowed/forbidden actions and a stop rule; do not permit unattended merge, deploy, policy, spending, or external messaging. Start the morning with `atl wake`, `atl brief --save`, `atl feed`, and an independent review. Jev and Mem0 graph memory are opt-in and may add network/model cost.
 
 ## 3. Use
 

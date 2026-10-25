@@ -7,6 +7,12 @@
     "stale_after_hours": 24,
     "max_active_tasks": 5
   },
+  "navigation": {
+    "mode": "off",
+    "max_tokens": 800,
+    "build_on_launch": true,
+    "note": "off preserves existing prompts. Set on only after checking map coverage for the target repository; map entries are navigation hints, never source authority."
+  },
   "routines": [],
   "routines_note": "demo routines (readme-doc-fixes, perf-regressions) removed 2026-10-21 for the clean first run; they overrode explicit @priority in inbox files at intake. Re-add deliberately, and decide whether explicit file metadata should win over a keyword routine.",
   "providers": {
@@ -17,6 +23,15 @@
     "catalog": {},
     "note": "spec 014 launch boundary: per-role override, e.g. \"by_role\": { \"sage\": \"claude\" }; custom CLIs/models live under catalog. Discovery validates PATH before any preview/launch; a missing executable blocks the run with an actionable message.",
     "model_by_role": {}
+  },
+  "codex_bridge": {
+    "enabled": true,
+    "thread_id": "01a16468-ce63-7800-bbed-521ca441371c",
+    "mode": "dedicated",
+    "fallback": "new-thread",
+    "include_feed": true,
+    "include_session_transcripts": true,
+    "note": "opt-in app-server bridge; link one explicit Codex thread before enabling"
   },
   "memory": {
     "provider": "none",

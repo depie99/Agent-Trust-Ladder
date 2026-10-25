@@ -52,3 +52,9 @@ A plan exists (or the user asked for a bounded fix within the stated dose). If t
 Stop instead of improvising when: intent is ambiguous or conflicting; authority is missing (credentials, production, spend, publication, irreversible deletion); a required verifier is missing or unreliable; budgets are exhausted; protected work is at risk. Report: facts, evidence so far, the exact decision needed, a recommended safe default, and what can still proceed safely.
 
 End with: per-task states, evidence collected so far, suggested next mode (`verify`).
+
+## UI implementation gate
+
+When a task changes an interactive surface, source edits and static tests are not sufficient evidence. Reinstall or restart the executable surface, replay the reported input against the running TUI or browser, and verify the visible target identity and route after the event. Keep renderer, hit-test, and regression tests on one geometry/state model. Record any browser or PTY interaction that was not actually replayed as `NOT OBSERVED`.
+
+For the control-plane work, read `.trust/specs/017-agentic-developer-control-plane/feedback-pattern.md` before claiming completion. Its completion rule is binding for the reported route/tab/selection defects.

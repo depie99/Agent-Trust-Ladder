@@ -69,5 +69,15 @@ for (const name of ["tui-dashboard", "tui-compose", "tui-review", "tui-queue", "
   if (!/^<svg[^>]*width="\d+" height="\d+"/.test(svg)) fail(`diagrams/${name}.svg: no intrinsic width/height`);
 }
 
+// Browser Control Plane visual is source-owned SVG and must remain directly
+// previewable by GitHub Pages, just like the generated terminal figures.
+const webControlPlane = path.join(docsDir, "diagrams", "atl-web-control-plane.svg");
+if (!fs.existsSync(webControlPlane)) fail("diagrams/atl-web-control-plane.svg missing");
+else {
+  const svg = fs.readFileSync(webControlPlane, "utf8");
+  if (!/^<svg[^>]*width="\d+" height="\d+"/.test(svg)) fail("diagrams/atl-web-control-plane.svg: no intrinsic width/height");
+  if (!svg.includes("<title") || !svg.includes("<desc")) fail("diagrams/atl-web-control-plane.svg: missing accessible title/description");
+}
+
 if (failures) { console.log(`\n${failures} failure(s)`); process.exit(1); }
 console.log("ALL OK: tags balanced, links resolve, navs consistent, TUI images intact");

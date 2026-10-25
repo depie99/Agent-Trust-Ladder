@@ -1,0 +1,36 @@
+<svg width="1200" height="640" viewBox="0 0 1200 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">ATL Control Plane workflow and browser spaces</title>
+  <desc id="desc">A browser Control Plane with eight spaces guides an owner from a task draft through review, queue, preview, explicit confirmation, bounded run, and evidence or recovery. Preview and confirmation are separate gates.</desc>
+  <rect width="1200" height="640" rx="24" fill="#0d0e14"/>
+  <rect x="32" y="32" width="1136" height="576" rx="18" fill="#14151f" stroke="#323449"/>
+  <rect x="32" y="32" width="258" height="576" rx="18" fill="#10111a"/>
+  <text x="64" y="86" fill="#f0eff8" font-family="ui-monospace, monospace" font-size="24" font-weight="700">ATL / CONTROL</text>
+  <text x="64" y="112" fill="#8c8da2" font-family="ui-monospace, monospace" font-size="13">local browser interface</text>
+  <g font-family="ui-monospace, monospace" font-size="14">
+    <rect x="52" y="145" width="218" height="35" rx="7" fill="#1a3a31"/><text x="74" y="168" fill="#61e0b2">Overview</text>
+    <text x="74" y="214" fill="#c8c7d4">Tasks</text><text x="74" y="252" fill="#c8c7d4">Plan Studio</text>
+    <text x="74" y="290" fill="#c8c7d4">Queues</text><text x="74" y="328" fill="#c8c7d4">Team</text>
+    <text x="74" y="366" fill="#c8c7d4">Activity &amp; logs</text><text x="74" y="404" fill="#c8c7d4">Usage</text>
+    <text x="74" y="442" fill="#c8c7d4">Settings / providers</text>
+  </g>
+  <text x="330" y="86" fill="#8c8da2" font-family="ui-monospace, monospace" font-size="13">OWNER WORKFLOW</text>
+  <g font-family="ui-monospace, monospace" text-anchor="middle">
+    <g><rect x="330" y="130" width="132" height="76" rx="10" fill="#1c1e2b" stroke="#565872"/><text x="396" y="161" fill="#f0eff8" font-size="14" font-weight="700">1. Draft</text><text x="396" y="184" fill="#9c9db0" font-size="11">task or import</text></g>
+    <path d="M462 168h38" stroke="#777a91" stroke-width="2"/><path d="M494 162l12 6-12 6" fill="#777a91"/>
+    <g><rect x="510" y="130" width="132" height="76" rx="10" fill="#1c1e2b" stroke="#565872"/><text x="576" y="161" fill="#f0eff8" font-size="14" font-weight="700">2. Review</text><text x="576" y="184" fill="#9c9db0" font-size="11">objective + checks</text></g>
+    <path d="M642 168h38" stroke="#777a91" stroke-width="2"/><path d="M674 162l12 6-12 6" fill="#777a91"/>
+    <g><rect x="690" y="130" width="132" height="76" rx="10" fill="#1c1e2b" stroke="#565872"/><text x="756" y="161" fill="#f0eff8" font-size="14" font-weight="700">3. Queue</text><text x="756" y="184" fill="#9c9db0" font-size="11">stored selection</text></g>
+    <path d="M822 168h38" stroke="#777a91" stroke-width="2"/><path d="M854 162l12 6-12 6" fill="#777a91"/>
+    <g><rect x="870" y="130" width="132" height="76" rx="10" fill="#172c38" stroke="#59aeca"/><text x="936" y="161" fill="#b6e3fa" font-size="14" font-weight="700">4. Preview</text><text x="936" y="184" fill="#9fc4d6" font-size="11">no execution</text></g>
+  </g>
+  <path d="M936 207v59" stroke="#777a91" stroke-width="2"/><path d="M930 260l6 12 6-12" fill="#777a91"/>
+  <g font-family="ui-monospace, monospace" text-anchor="middle">
+    <rect x="836" y="280" width="200" height="76" rx="10" fill="#3b2d16" stroke="#e0ae55"/><text x="936" y="311" fill="#f7cd7b" font-size="14" font-weight="700">5. Confirm</text><text x="936" y="334" fill="#e2c58f" font-size="11">explicit owner action</text>
+    <path d="M936 357v53" stroke="#777a91" stroke-width="2"/><path d="M930 404l6 12 6-12" fill="#777a91"/>
+    <rect x="836" y="424" width="200" height="76" rx="10" fill="#1a3a31" stroke="#61e0b2"/><text x="936" y="455" fill="#7ee8c0" font-size="14" font-weight="700">6. Bounded run</text><text x="936" y="478" fill="#a9d6c5" font-size="11">budget + safe stop</text>
+  </g>
+  <path d="M836 462H698" stroke="#777a91" stroke-width="2"/><path d="M704 456l-12 6 12 6" fill="#777a91"/>
+  <g font-family="ui-monospace, monospace" text-anchor="middle"><rect x="486" y="424" width="194" height="76" rx="10" fill="#202036" stroke="#a990e9"/><text x="583" y="455" fill="#d3c4ff" font-size="14" font-weight="700">Evidence / recovery</text><text x="583" y="478" fill="#b9adda" font-size="11">logs, results, blockers</text></g>
+  <rect x="330" y="538" width="706" height="42" rx="8" fill="#111c1b" stroke="#376a5b"/>
+  <text x="683" y="564" text-anchor="middle" fill="#8ee8c6" font-family="ui-monospace, monospace" font-size="12">127.0.0.1 only · ATL state remains local · provider execution happens only after confirmation</text>
+</svg>

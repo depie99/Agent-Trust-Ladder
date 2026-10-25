@@ -14,7 +14,7 @@ It also documents **manager mode**: the human stays at the portfolio level while
 
 The Jev guide is available as [Markdown](jev.md) and a [published documentation page](jev.html). It documents the optional `route --smart` and `triage --smart` commands, prompt shape, confidence thresholds, deterministic fallback, setup, and token policy.
 
-The terminal Control Room guide is available as [Control Room](control-room.html). It documents the interactive compose/import/review/queue/launch path, the provider registry for Codex, Claude, GLM/ZCode-style CLIs, and the [Control Room visual](diagrams/atl-control-room.svg).
+The primary interface guide is [Web Control Plane](control-room.html). It documents `atl ui` / `atl control-plane`, browser spaces, compose/review/queue/preview/confirm behavior, Codex subscription setup, API-provider boundaries, safe stop behavior, and the [Control Plane workflow visual](diagrams/atl-web-control-plane.svg). The terminal TUI remains a compatibility surface and is intentionally not the primary guide while its UX is under improvement.
 
 The [Codex history bridge](codex-history-bridge.html) documents how ATL projects its authoritative local feed and provider transcripts into Codex history, including the token-free app-server path, writer-lock rollover, idempotent checkpoints, and the explicit queue path for a normal visible turn. Its [architecture SVG](diagrams/codex-history-bridge.svg) and rendered Codex surface preview make the connection and display boundary concrete.
 

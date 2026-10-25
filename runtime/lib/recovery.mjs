@@ -8,6 +8,14 @@ import { queueAdd, queueIds } from "./queue.mjs";
 const WORKERS = new Set(["pip", "rowan", "sage", "beacon"]);
 const ACTIVE_STATUSES = new Set(["new", "triaged", "assigned", "in_progress", "in_review", "verifying", "blocked", "escalated"]);
 const APPROVAL_RE = /\bapprov/i;
+// These blockers describe an authority or capability that the bounded team
+// cannot manufacture by retrying. Keep them explicit so Mira does not turn a
+// useful escalation into an infinite retry loop.
+const HUMAN_ACTION_RE = /owner|human approval|permission|access|acl|eperm|read[- ]only|write access|credentials?|authenticate|login|not found on path|install (it|the)|owner-capable|active checkout|main checkout|index\.lock|git .*denied|merge|deploy|push|spend|external message/i;
+
+export function requiresHumanAction(reason = "") {
+  return HUMAN_ACTION_RE.test(String(reason));
+}
 
 function proposedWorker(task) {
   const candidate = task.assigned_worker || task.proposed_worker;
@@ -43,6 +51,46 @@ export function unblockTask(root, taskId, { to, note = "blocker resolved" } = {}
   task.updated_at = new Date().toISOString();
   saveState(root, state);
   return { task, from, to: task.status, worker: task.assigned_worker || null, note };
+}
+
+// Mira's bounded recovery action. It only retries a blocked task when the
+// recorded reason is plausibly transient and a retry timer is due. Human-owned
+// gates and capability failures stay blocked and are surfaced to the manager.
+export function autoRecoverBlockedTask(root, taskId, { note = "retrying after an automatic recovery pass", maxRecoveries = 1, now = new Date() } = {}) {
+  const state = loadState(root);
+  const task = state.tasks[taskId];
+  if (!task) throw new Error(`Unknown task ${taskId}`);
+  if (task.status !== "blocked") return { recovered: false, kind: "not-blocked", task };
+
+  const reason = typeof task.blocker === "string" ? task.blocker : task.blocker?.reason || "";
+  if (requiresHumanAction(reason)) {
+    return { recovered: false, kind: "human-action", reason, task };
+  }
+
+  const due = task.next_wake_at ? new Date(task.next_wake_at) : null;
+  if (due && !Number.isNaN(due.getTime()) && due > now) {
+    return { recovered: false, kind: "waiting", reason, task, due: due.toISOString() };
+  }
+
+  const count = Number(task.auto_recovery_count || 0);
+  if (count >= Math.max(0, Number(maxRecoveries) || 0)) {
+    return { recovered: false, kind: "budget-exhausted", reason, task, count };
+  }
+
+  const result = unblockTask(root, taskId, { note });
+  const after = loadState(root);
+  const recovered = after.tasks[taskId];
+  recovered.auto_recovery_count = count + 1;
+  recovered.updated_at = new Date().toISOString();
+  after.log.push({
+    at: new Date().toISOString(),
+    task: taskId,
+    actor: "mira",
+    event: "auto_recover",
+    detail: `${note}; previous blocker: ${reason || "(none recorded)"}`,
+  });
+  saveState(root, after);
+  return { recovered: true, kind: "recovered", task: recovered, count: recovered.auto_recovery_count, result };
 }
 
 // The owner gate, exercised from the CLI: the human says one word, the runtime
@@ -83,12 +131,15 @@ export function explainTasks(root, taskId) {
     switch (t.status) {
       case "blocked": {
         const approvalGate = APPROVAL_RE.test(blockerText);
+        const humanAction = requiresHumanAction(blockerText);
         return {
           ...base,
-          kind: approvalGate ? "owner-approval" : "blocked",
+          kind: approvalGate ? "owner-approval" : humanAction ? "human-action" : "blocked",
           why: blockerText || "blocked without a recorded reason — ask the blocking role to re-state it",
           fix: approvalGate
             ? `atl approve ${t.id} --note "why you approve"`
+            : humanAction
+              ? `manager action required: resolve the access/authority gate, then atl unblock ${t.id} --to assigned --note "gate resolved"`
             : `atl unblock ${t.id} --note "how the blocker is resolved"`,
         };
       }

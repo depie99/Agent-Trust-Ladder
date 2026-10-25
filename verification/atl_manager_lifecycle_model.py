@@ -18,18 +18,21 @@ CONTRACT_PATH = Path(__file__).resolve().parents[1] / "config" / "manager-state-
 
 EXPECTED_STATUSES = (
     "new", "triaged", "assigned", "in_progress", "in_review",
-    "verifying", "done", "blocked", "rejected", "escalated",
+    "verifying", "done", "blocked", "rejected", "escalated", "archived",
 )
 
 EXPECTED_TRANSITIONS = {
     "new->triaged": {"actors": ["pip"], "requires": ["objective", "completion_checks"]},
     "new->rejected": {"actors": ["pip"], "requires": []},
+    "new->archived": {"actors": ["manager"], "requires": []},
     "new->blocked": {"actors": ["pip"], "requires": ["blocker"]},
     "triaged->assigned": {"actors": ["mira"], "requires": ["assigned_worker"]},
     "triaged->rejected": {"actors": ["mira"], "requires": []},
+    "triaged->archived": {"actors": ["manager"], "requires": []},
     "triaged->blocked": {"actors": ["mira"], "requires": ["blocker"]},
     "assigned->in_progress": {"actors": ["rowan", "pip", "sage", "beacon"], "requires": []},
     "assigned->blocked": {"actors": ["rowan", "mira"], "requires": ["blocker"]},
+    "assigned->archived": {"actors": ["manager"], "requires": []},
     "in_progress->in_review": {"actors": ["rowan", "pip", "sage", "beacon"], "requires": ["workspace", "evidence"]},
     "in_progress->blocked": {"actors": ["rowan"], "requires": ["blocker"]},
     "in_review->verifying": {"actors": ["sage"], "requires": ["review_approved"]},
@@ -39,7 +42,12 @@ EXPECTED_TRANSITIONS = {
     "verifying->in_progress": {"actors": ["beacon"], "requires": []},
     "verifying->escalated": {"actors": ["beacon"], "requires": ["blocker"]},
     "blocked->triaged": {"actors": ["mira", "pip"], "requires": []},
+    "blocked->archived": {"actors": ["manager"], "requires": []},
+    "rejected->archived": {"actors": ["manager"], "requires": []},
     "escalated->triaged": {"actors": ["mira"], "requires": []},
+    "escalated->archived": {"actors": ["manager"], "requires": []},
+    "done->archived": {"actors": ["manager"], "requires": []},
+    "archived->new": {"actors": ["manager"], "requires": []},
 }
 
 
