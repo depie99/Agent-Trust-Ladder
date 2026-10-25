@@ -6,7 +6,19 @@
     <meta name="description" content="A practical guide to optional Jev smart routing in the Agent Trust Ladder." />
     <title>ATL Docs — Jev smart routing</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
+    <meta name="theme-color" content="#0b0b10" />
+    <script>
+      // Theme no-flash: apply the stored (or system-preferred) theme before first paint.
+      (function () {
+        try {
+          var stored = localStorage.getItem("atl-theme");
+          if (stored === "light" || (!stored && window.matchMedia("(prefers-color-scheme: light)").matches)) {
+            document.documentElement.classList.add("light");
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="site-page">
     <a class="skip-link" href="#main-content">Skip to content</a>
@@ -30,7 +42,7 @@
         <div class="sidebar-footer"><div class="status-dot"><i></i>Evidence-first mode</div><p>Smallest trustworthy route.<br />Clear proof at every gate.</p></div>
       </aside>
       <main id="main-content">
-        <header class="topbar"><div class="crumbs"><a href="index.html">ATL</a><b>/</b><span class="current">Jev routing</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme">☼</button><button class="search-button" id="search-open" aria-label="Open search"><span>⌕</span> Search <kbd>⌘ K</kbd></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder" aria-label="Open the GitHub repository">GitHub <span>↗</span></a></div></header>
+        <header class="topbar"><div class="crumbs"><a href="index.html">ATL</a><b>/</b><span class="current">Jev routing</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme" aria-pressed="false"></button><button class="search-button" id="search-open" aria-label="Open search"><span>⌕</span> Search <kbd>⌘ K</kbd></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder" aria-label="Open the GitHub repository">GitHub <span>↗</span></a></div></header>
         <div class="content-wrap">
           <section class="page-hero">
             <span class="eyebrow"><span class="pulse"></span> OPTIONAL DECISION AID</span>
@@ -147,6 +159,6 @@ $env:TYPESAFE_API_KEY</code></pre></div>
       </main>
     </div>
     <dialog id="search-dialog"><form method="dialog"><div class="search-modal"><input id="search-input" type="search" placeholder="Search ATL docs…" aria-label="Search ATL docs" /><button value="close" aria-label="Close search">Esc</button><p>Try “verify”, “contracts”, “tech docs”, or “production”.</p><div id="search-results" class="search-results" aria-live="polite"></div></div></form></dialog>
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
   </body>
 </html>

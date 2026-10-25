@@ -1,0 +1,81 @@
+// Dark theme (default). Every value is the exact color the docs site shipped
+// with, so dark rendering is byte-for-byte preserved from styles.css v6.
+//
+// Token groups:
+//   surfaces  — page, cards, raised panels, code insets, chips, hover fills
+//   text      — primary/secondary/tertiary ink + text on accent fills
+//   lines     — hairlines, hover borders, decorative callout edges
+//   brand     — the four accent hues, tuned per theme for text contrast
+//   tints     — brand-tinted fills: badge/chip (tint), icon chip (chip),
+//               flow node (node), callout surface (callout), soft gradient
+//               stops (grad), message surfaces (msg), decorative edges (edge)
+//   effects   — shadows and overlay washes
+//
+// Every token MUST exist in both theme maps — _tokens.scss fails the build
+// otherwise. When adding a token, add it to _light.scss in the same change.
+
+$theme: (
+  // surfaces
+  "bg": #0b0b10,
+  "panel": #12131a,
+  "panel2": #171821,
+  "inset": #0d0e14,
+  "kbd": #1d1e27,
+  "hover": #191922,
+  "btn-ghost": #242432,
+  "result-bg": #121321,
+  // text
+  "ink": #f5f5f7,
+  "muted": #9698a8,
+  "faint": #6f7181,
+  "crumb": #454755,
+  "code-ink": #c9c5ed,
+  "quote-ink": #d4d1f1,
+  "msg-ink": #d8d4f5,
+  "on-accent": #0b0b10,
+  "on-mint": #07120f,
+  // lines
+  "line": #242530,
+  "line-strong": #56596c,
+  "edge-callout": #3b3563,
+  "edge-violet": #4c467a,
+  "edge-mint": #477f73,
+  "edge-amber": #80633a,
+  "edge-coral": #76524c,
+  "flow-border": #554e89,
+  "preview-edge": #3a3b48,
+  "terminal-edge": #26273a,
+  // brand
+  "violet": #9b8cff,
+  "mint": #5fe0c2,
+  "amber": #f4c67e,
+  "coral": #fa8f83,
+  // violet tints
+  "tint-violet": #262142,
+  "chip-violet": #1c1930,
+  "node-violet": #1a1830,
+  "callout-violet": #181530,
+  "grad-soft": #1b1930,
+  "grad-tilt": #17152a,
+  "grad-deep": #101016,
+  "flow-glow": #1c1b2d,
+  "msg-context": #15132a,
+  // mint tints
+  "tint-mint": #12342e,
+  "chip-mint": #102724,
+  "node-mint": #112622,
+  "check-mint": #153a32,
+  "callout-mint": #0f2621,
+  "msg-mint": #10201d,
+  // amber tints
+  "tint-amber": #392c18,
+  "chip-amber": #2b2115,
+  "callout-amber": #211b12,
+  "warn-amber": #241c10,
+  // coral tints
+  "tint-coral": #3b211f,
+  // effects
+  "shadow": #000,
+  "backdrop": #000b,
+  "preview-shadow": #0005,
+);

@@ -1,0 +1,20 @@
+// Sidebar grid/flex fix. Comments below are load-bearing: they explain why
+// the desktop sidebar must stay in the layout grid.
+
+/* Keep the desktop sidebar in the grid. A fixed grid item is removed from
+   layout, which leaves the main column in the 250px sidebar track. */
+@media(min-width:901px){
+  .sidebar{position:sticky;grid-column:1;grid-row:1;top:0}
+  main{grid-column:2;grid-row:1;min-width:0}
+}
+
+/* Use an explicit flex shell so the content column cannot collapse to the
+   sidebar track in hosted browsers or cached older layouts. */
+.app-shell{display:flex;align-items:stretch}
+.sidebar{flex:0 0 250px}
+main{flex:1 1 auto;min-width:0}
+@media(max-width:900px){
+  .app-shell{display:block}
+  .sidebar{flex:initial}
+  main{width:100%}
+}
