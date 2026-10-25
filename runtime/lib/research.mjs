@@ -15,6 +15,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { paths, loadState, saveState, createTask, logEvent } from "./state.mjs";
 import { post as feedPost } from "./feed.mjs";
+import { addClaim } from "./brain.mjs";
 
 export const RESEARCH_VERSION = 1;
 export const RECORD_STATUSES = ["pending", "approved", "promoted", "rejected"];
@@ -273,6 +274,16 @@ export function createRecord(root, fields, { force = false } = {}) {
     ? String(fields.body).trim() + "\n"
     : defaultBody(record);
   fs.writeFileSync(recordFile(p, id), renderRecordMarkdown(record, body));
+  addClaim(root, {
+    text: record.atl_impact || record.title,
+    subject: (record.concepts || [])[0] || record.title,
+    source_id: record.id,
+    source_uri: (record.sources || [])[0] || null,
+    source_content: body,
+    status: record.evidence === "verified" ? "VERIFIED" : record.evidence === "second-hand" ? "PARTIAL" : "UNKNOWN",
+    project: "atl",
+    owner: "knowledge-review",
+  });
   index.records[id] = summarizeRecord(record);
   for (const k of keys) index.dedup[k] = id;
   saveIndex(root, index);

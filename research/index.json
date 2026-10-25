@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-22T18:56:55.237Z",
+  "last_brief_at": null,
+  "records": {
+    "R-0001": {
+      "id": "R-0001",
+      "title": "Skills v1.3 — /implement-spec, /retro, glossary.md (tickets as dependency graph)",
+      "kind": "changelog",
+      "priority": "P0",
+      "status": "pending",
+      "evidence": "verified",
+      "published": "2026-10-01",
+      "captured": "2026-10-22T18:56:55.223Z",
+      "updated": "2026-10-22T18:56:55.223Z",
+      "people": [
+        "mattpocock"
+      ],
+      "concepts": [
+        "agent-skills",
+        "spec-driven-development",
+        "dependency-graph",
+        "worktrees",
+        "retrospectives",
+        "code-review"
+      ],
+      "sources": [
+        "https://www.aihero.dev/skills/skills-changelog-v13-implement-spec-pr-retro-and-glossary-md",
+        "https://github.com/mattpocock/skills"
+      ],
+      "repos": [
+        "github.com/mattpocock/skills"
+      ],
+      "tickets": [],
+      "transcript": null,
+      "atl_impact": "Replace simple FIFO team assignment with dependency-aware scheduling, isolated execution worktrees, integration validation, and retrospective improvements.",
+      "dedup": [
+        "url:fad123351364aa0d9ad1",
+        "title:348b5d08c605f7166313"
+      ]
+    },
+    "R-0002": {
+      "id": "R-0002",
+      "title": "Lauren Tan — pstack /create-formal-verification-skill (TLA+, Kani for agent code)",
+      "kind": "post",
+      "priority": "P0",
+      "status": "pending",
+      "evidence": "second-hand",
+      "published": "2026-10-18",
+      "captured": "2026-10-22T18:56:55.228Z",
+      "updated": "2026-10-22T18:56:55.228Z",
+      "people": [
+        "poteto"
+      ],
+      "concepts": [
+        "formal-verification",
+        "tla-plus",
+        "kani",
+        "invariants",
+        "agent-skills",
+        "concurrency"
+      ],
+      "sources": [
+        "https://twiscan.com/en/x/poteto"
+      ],
+      "repos": [],
+      "tickets": [],
+      "transcript": null,
+      "atl_impact": "Add explicit invariant checks for queue state, agent ownership, retries, concurrency, and crash recovery.",
+      "dedup": [
+        "url:a46d70e0c69a27fb6b42",
+        "title:0c5c6b9406d721becb9a"
+      ]
+    },
+    "R-0003": {
+      "id": "R-0003",
+      "title": "Matt Pocock × Lauren Tan — high-velocity software factories (interview)",
+      "kind": "interview",
+      "priority": "P0",
+      "status": "pending",
+      "evidence": "second-hand",
+      "published": "2026-10-02",
+      "captured": "2026-10-22T18:56:55.232Z",
+      "updated": "2026-10-22T18:56:55.232Z",
+      "people": [
+        "mattpocock",
+        "poteto"
+      ],
+      "concepts": [
+        "agent-supervision",
+        "high-throughput",
+        "software-factory",
+        "human-control",
+        "code-review"
+      ],
+      "sources": [
+        "https://www.youtube.com/watch?v=MN9dGgmLyso",
+        "https://postgrok.com/sources/2026-10-05-youtube-poteto-software-factory"
+      ],
+      "repos": [],
+      "tickets": [],
+      "transcript": null,
+      "atl_impact": "Research practical mechanisms for supervising a high-throughput agent team without losing test quality, architectural coherence, or human control.",
+      "dedup": [
+        "url:38315d0c3adfdc5727c9",
+        "title:6781870c5be671f47e57"
+      ]
+    },
+    "R-0004": {
+      "id": "R-0004",
+      "title": "Grok Bot — persistent agent teammates (own computer, memory, approval escalation)",
+      "kind": "announcement",
+      "priority": "P1",
+      "status": "pending",
+      "evidence": "verified",
+      "published": "2026-08-11",
+      "captured": "2026-10-22T18:56:55.235Z",
+      "updated": "2026-10-22T18:56:55.235Z",
+      "people": [],
+      "concepts": [
+        "persistent-agents",
+        "memory",
+        "approval-escalation",
+        "resumable-jobs",
+        "team-identity"
+      ],
+      "sources": [
+        "https://x.ai/news/introducing-grok-bot"
+      ],
+      "repos": [],
+      "tickets": [],
+      "transcript": null,
+      "atl_impact": "Persistent agent identities, resumable jobs, human approval requests, and more capable team-member pages in the TUI.",
+      "dedup": [
+        "url:61f8622f16d38d847e83",
+        "title:038a43c568825fc1ba3e"
+      ]
+    }
+  },
+  "dedup": {
+    "url:fad123351364aa0d9ad1": "R-0001",
+    "title:348b5d08c605f7166313": "R-0001",
+    "url:a46d70e0c69a27fb6b42": "R-0002",
+    "title:0c5c6b9406d721becb9a": "R-0002",
+    "url:38315d0c3adfdc5727c9": "R-0003",
+    "title:6781870c5be671f47e57": "R-0003",
+    "url:61f8622f16d38d847e83": "R-0004",
+    "title:038a43c568825fc1ba3e": "R-0004"
+  },
+  "stats": {
+    "total": 4,
+    "byStatus": {
+      "pending": 4
+    },
+    "byPriority": {
+      "P0": 3,
+      "P1": 1
+    }
+  }
+}

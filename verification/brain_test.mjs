@@ -1,0 +1,23 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { addClaim, buildContextPack, listClaims, saveContextPack, brainPaths } from "../runtime/lib/brain.mjs";
+import { createRecord } from "../runtime/lib/research.mjs";
+
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-brain-"));
+const first = addClaim(root, { text: "leases prevent duplicate runs", subject: "leases", source_id: "raw-1", source_content: "source one", status: "VERIFIED", checked_at: "2026-10-25T00:00:00Z" });
+assert.equal(first.duplicate, false);
+assert.equal(addClaim(root, { text: "leases prevent duplicate runs", subject: "leases", source_id: "raw-1", source_content: "source one" }).duplicate, true);
+const conflict = addClaim(root, { text: "leases are advisory only", subject: "leases", source_id: "raw-2", source_content: "source two", status: "PARTIAL" });
+assert.equal(conflict.claim.status, "CONFLICTED");
+assert.equal(listClaims(root, { status: "CONFLICTED" }).length, 2);
+const pack = buildContextPack(root, { query: "leases", maxClaims: 1 });
+assert.equal(pack.claims.length, 1);
+const file = saveContextPack(root, pack, "task-T-001");
+assert.equal(file, path.join(brainPaths(root).contexts, "task-T-001.json"));
+const record = createRecord(root, { title: "Research-backed lease policy", priority: "P0", evidence: "verified", concepts: ["research-policy"], sources: ["https://example.test/source"], atl_impact: "Use leases to prevent duplicate runs", body: "The source documents the lease policy." });
+assert.equal(record.fields.id, "R-0001");
+assert.ok(listClaims(root).some((claim) => claim.source_id === "R-0001" && claim.status === "VERIFIED"), "research records become evidence claims");
+fs.rmSync(root, { recursive: true, force: true });
+console.log("PASS: evidence-linked brain deduplicates, flags conflicts, and emits bounded context packs");

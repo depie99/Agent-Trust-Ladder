@@ -19,6 +19,7 @@ import { pendingFeedback, markFeedback } from "./feedback.mjs";
 import { autoRecoverBlockedTask, requiresHumanAction } from "./recovery.mjs";
 import { recordUsage, checkUsageThresholds } from "./usage.mjs";
 import { assembleContext, buildMap, renderNavigationContext } from "./navigation.mjs";
+import { buildContextPack } from "./brain.mjs";
 
 const say = (root, from, text, opts = {}) => feedPost(root, { from, text, ...opts });
 
@@ -355,8 +356,9 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     let invocation = null;
     if (role && disc?.available) {
       try {
+        const brainContext = buildContextPack(root, { query: `${task.title} ${task.objective || ""}`, subjects: task.brain_subjects || [], maxClaims: 12 });
         invocation = buildInvocation(provider.worker, {
-            root, workspace: task.workspace || root, role, task, auth: provider.auth, provider: resolvedSpec,
+            root, workspace: task.workspace || root, role, task: { ...task, brain_context: brainContext }, auth: provider.auth, provider: resolvedSpec,
         });
       } catch (error) {
         blockers.push(error.message);
@@ -374,6 +376,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
       command: invocation ? commandPreview(invocation) : null,
       sessionLogs: `.trust/manager/overnight/${task.id}/session-NN-${role || "-"}.log`,
       containment: CONTAINMENT_RULES,
+      brainContext: invocation ? buildContextPack(root, { query: `${task.title} ${task.objective || ""}`, subjects: task.brain_subjects || [], maxClaims: 12 }) : null,
       blockers,
     });
   }

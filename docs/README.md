@@ -22,6 +22,8 @@ The launch announcement draft is in [linkedin-launch-post.md](linkedin-launch-po
 
 The primary interface guide is [Web Control Plane](control-room.html). The visual companion set includes the [workflow visual](diagrams/atl-web-control-plane.svg) and a [sanitized browser-surface preview](diagrams/atl-web-control-plane-preview.svg). The preview is representative documentation art, not live project data.
 
+ATL also keeps an evidence-linked project brain under `.trust/manager/brain/`. Claims retain source identifiers and revisions, duplicate imports are idempotent, conflicting claims are surfaced instead of overwritten, and bounded context packs can be rebuilt for a task. This is an execution aid, not a replacement for the human approval and verification gates.
+
 ## Diagram workflow rule
 
 Use diagrams when architecture, ownership, lifecycle, or change impact is materially easier to understand visually. Keep diagram source alongside the documentation and link it to the evidence packet. A generated diagram communicates structure; it does not prove that the runtime, deployment consumer, or external service behaves as drawn.

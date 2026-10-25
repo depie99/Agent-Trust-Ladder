@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "updated_at": "2026-10-22T00:00:00.000Z",
+  "sources": [
+    {
+      "id": "mattpocock-skills-releases",
+      "type": "github_releases",
+      "repo": "mattpocock/skills",
+      "people": ["mattpocock"],
+      "priority": "P1",
+      "evidence": "verified",
+      "enabled": true
+    },
+    {
+      "id": "aihero-skills-changelog",
+      "type": "page",
+      "url": "https://www.aihero.dev/skills/skills-changelog-v13-implement-spec-pr-retro-and-glossary-md",
+      "people": ["mattpocock"],
+      "priority": "P1",
+      "enabled": true
+    },
+    {
+      "id": "poteto-pstack-releases",
+      "type": "github_releases",
+      "repo": "poteto/pstack",
+      "people": ["poteto"],
+      "priority": "P0",
+      "evidence": "verified",
+      "enabled": true
+    },
+    {
+      "id": "poteto-x-archive",
+      "type": "page",
+      "url": "https://twiscan.com/en/x/poteto",
+      "people": ["poteto"],
+      "priority": "P1",
+      "evidence": "second-hand",
+      "enabled": true
+    },
+    {
+      "id": "mattpocock-youtube",
+      "type": "youtube_channel",
+      "handle": "mattpocock",
+      "people": ["mattpocock"],
+      "priority": "P1",
+      "enabled": true
+    },
+    {
+      "id": "xai-news",
+      "type": "page",
+      "url": "https://x.ai/news",
+      "priority": "P2",
+      "enabled": true
+    },
+    {
+      "id": "shirosignal-x",
+      "type": "rss",
+      "url": "",
+      "people": ["shirosignal"],
+      "priority": "P1",
+      "requires_auth": true,
+      "enabled": true
+    }
+  ]
+}

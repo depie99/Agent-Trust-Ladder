@@ -46,6 +46,7 @@ import { listFeedback, submitFeedback } from "./lib/feedback.mjs";
 import { bridgeStatus, startDedicatedBridge, syncTeamContext, updateBridgeConfig } from "./lib/codex-bridge.mjs";
 import { startControlPlaneServer } from "./lib/control-plane-server.mjs";
 import { assembleContext, buildMap, mapStatus, neighbors, queryMap } from "./lib/navigation.mjs";
+import { addClaim, buildContextPack, listClaims, saveContextPack } from "./lib/brain.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
@@ -82,7 +83,7 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query")) continue;
+  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -1540,6 +1541,34 @@ async function main() {
       const { analyzeReadiness, renderReadiness } = await import("./lib/dependencies.mjs");
       console.log(renderReadiness(analyzeReadiness(loadState(ROOT))));
       return;
+    }
+
+    case "brain": {
+      const sub = pos[0] || "list";
+      if (sub === "claim") {
+        const result = addClaim(ROOT, {
+          ...flags.set,
+          subject: flags.subject || flags.set.subject || null,
+          status: flags.set.status || "UNKNOWN",
+          source_id: flags.set.source_id,
+          source_uri: flags.set.source_uri || null,
+          source_content: flags.set.source_content,
+        });
+        console.log(`${result.duplicate ? "Known" : "Recorded"} ${result.claim.claim_id} (${result.claim.status})`);
+        if (result.conflicts?.length) console.log(`Conflicts: ${result.conflicts.join(", ")}`);
+        return;
+      }
+      if (sub === "list") {
+        console.log(JSON.stringify(listClaims(ROOT, { subject: flags.subject || null, status: flags.set.status || null }), null, 2));
+        return;
+      }
+      if (sub === "context") {
+        const pack = buildContextPack(ROOT, { query: flags.query || "", subjects: flags.subject ? [flags.subject] : [], maxClaims: Number(flags.maxClaims || 20) });
+        if (flags.save) console.log(`Saved: ${saveContextPack(ROOT, pack, String(flags.save))}`);
+        console.log(JSON.stringify(pack, null, 2));
+        return;
+      }
+      throw new StateError("brain subcommands: claim | list | context");
     }
 
     case "research": {

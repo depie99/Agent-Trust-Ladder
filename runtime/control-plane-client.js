@@ -3,6 +3,20 @@
 
   const $ = (selector) => document.querySelector(selector);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  const taskLayoutStyle = document.createElement("style");
+  taskLayoutStyle.textContent = `
+    .tableitem.task-row { grid-template-columns:minmax(0,1fr) max-content minmax(118px,auto); align-items:start; }
+    .tableitem.task-row > :first-child, .task-row .bar > div { min-width:0; }
+    .task-row > :first-child > .bar { flex-wrap:nowrap; align-items:flex-start; }
+    .task-row .task-progress { min-width:180px; }
+    @media (max-width:760px) {
+      .tableitem.task-row { grid-template-columns:minmax(0,1fr) max-content; gap:10px; }
+      .tableitem.task-row > :last-child { display:block; grid-column:1 / -1; min-width:0; }
+      .task-row > :last-child > .bar { justify-content:flex-start; }
+      .task-row .task-progress { min-width:0; }
+    }
+  `;
+  document.head.append(taskLayoutStyle);
   const routes = [
     ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"],
     ["team", "♙", "Agent Team"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
@@ -34,7 +48,9 @@
   let studioRejectedResponse = null;
   let studioStartedAt = null;
   let studioElapsedTimer = null;
+  let studioAttachments = [];
   const selectedQueues = new Set();
+  const selectedTasks = new Set();
   // Provider manager modal state (never holds key material — keys travel
   // once, from the password input straight into POST /api/providers).
   let pmTemplates = [];
@@ -93,6 +109,11 @@
   function studioProgressPanel() {
     if (!studioBusy) return "";
     return `<div class="notice" role="status" aria-live="polite" aria-atomic="true" data-studio-status style="margin-bottom:14px;border-color:var(--accent)"><div class="row between"><b class="green">⟳ Model plan request in progress</b><span class="pill green" data-studio-elapsed>${escapeHtml(studioElapsedLabel())}</span></div><p class="sub" style="margin-top:8px">Request sent to ${escapeHtml((studioProviders || []).find((provider) => provider.id === studioProvider)?.label || "the selected provider")}. Waiting for its response; this page will update with editable task cards when the schema validates.</p><p class="muted tiny" style="margin-top:7px">Bounded to one planning session and 15 minutes. Your existing draft remains unchanged while this runs.</p></div>`;
+  }
+  function studioContext() {
+    if (!studioAttachments.length) return studioGoal;
+    const refs = studioAttachments.map((file) => file.text ? `\n\n--- Attached text: ${file.name} ---\n${file.text.slice(0, 50000)}` : `\n\n[Attached visual reference: ${file.name} (${file.type}, ${file.size} bytes). Inspect this reference in the Plan Studio UI.]`).join("");
+    return `${studioGoal}${refs}`;
   }
 
   async function loadProviders(force = false) {
@@ -210,13 +231,44 @@
     return `<section class="panel pad space"><div class="row between"><div><h2>Queue execution</h2><p class="sub">${escapeHtml(runLabel)} · ${escapeHtml(currentRun.status || "idle")}</p></div>${badge(currentRun.status || "idle")}</div><div class="terminal" style="max-height:320px;overflow:auto">${escapeHtml(lines.join("\n") || "No run started. Preview the queue before confirmation.")}</div>${currentRun.status === "running" ? `<div class="actionrow">${btn("Stop safely", "run-stop", "danger")}</div>` : ""}</section>`;
   }
 
+  function taskProgress(status) {
+    if (status === "done") return 100;
+    if (status === "in_progress") return 55;
+    if (["in_review", "verifying"].includes(status)) return 78;
+    if (status === "blocked") return 35;
+    return 0;
+  }
+
+  function workerLabel(task) {
+    const worker = String(task.assigned_worker || task.proposed_worker || "").toLowerCase();
+    return WORKER_ROLES.includes(worker) ? statusLabel(worker) : "Unassigned";
+  }
+
+  function lifecycleDiagram(task) {
+    const steps = [["new", "Created"], ["triaged", "Queued"], ["assigned", "Assigned"], ["in_progress", "Running"], ["in_review", "Review"], ["verifying", "Verify"], ["done", "Done"]];
+    const current = Math.max(0, steps.findIndex(([status]) => status === task.rawStatus));
+    return `<div class="flow" aria-label="Task lifecycle">${steps.map(([status, label], index) => `<span class="step ${index === current ? "current" : ""}">${index < current || task.rawStatus === "done" ? "✓" : index === current ? "●" : "○"} ${label}</span>`).join("")}</div>`;
+  }
+
+  function taskOutcome(task) {
+    const evidence = task.evidence || [];
+    const checks = evidence.filter((item) => item.kind === "check");
+    const passed = checks.filter((item) => item.result === "pass").length;
+    const failed = checks.filter((item) => item.result === "fail").length;
+    const last = evidence.at(-1);
+    return { passed, failed, total: checks.length, summary: task.lastCheckpoint?.note || last?.detail || (task.rawStatus === "done" ? "Completed with no outcome summary recorded." : "No outcome recorded yet.") };
+  }
+
   function derived() {
     const queueByTask = new Map();
     for (const queue of snapshot.queues?.items || []) for (const item of queue.items || []) queueByTask.set(item.id, queue.name || queue.id);
     const tasks = Object.values(snapshot.state?.tasks || {}).map((task) => ({
       id: task.id, title: task.title, desc: task.objective || "", status: statusLabel(task.status), rawStatus: task.status,
-      agent: task.assigned_worker || task.proposed_worker || "Unassigned", priority: statusLabel(task.priority || "normal"),
+      agent: workerLabel(task), priority: statusLabel(task.priority || "normal"),
       queue: queueByTask.get(task.id) || "Unqueued", block: task.blocker?.reason || "", archived: task.status === "archived",
+      stage: task.last_checkpoint?.note || statusLabel(task.status), progress: taskProgress(task.status),
+      logs: (snapshot.state?.log_tail || []).filter((entry) => entry.task === task.id).slice(-8),
+      evidence: task.evidence || [], lastCheckpoint: task.last_checkpoint || null, workspace: task.workspace || null,
     })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
     const queues = (snapshot.queues?.items || []).map((queue) => ({ ...queue, label: queue.name || queue.id }));
     const agents = (snapshot.team || []).map((agent) => [
@@ -231,7 +283,13 @@
     return { tasks, queues, agents, events };
   }
 
-  const taskRow = (task) => `<div class="tableitem" data-task="${escapeHtml(task.id)}"><div><b class="truncate" style="display:block">${escapeHtml(task.title)}</b><div class="muted tiny">${escapeHtml(task.id)} · ${escapeHtml(task.queue)}</div></div>${badge(task.status)}<div class="muted tiny">${escapeHtml(task.agent)}</div></div>`;
+  const taskRowActions = (task) => {
+    if (["in_progress", "in_review", "verifying"].includes(task.rawStatus)) return currentRun.status === "running" ? btn("Stop", "run-stop", "sm danger") : btn("Logs", `task-detail:${task.id}`, "sm");
+    if (task.rawStatus === "blocked") return btn("Unblock", `unblock:${task.id}`, "sm") + btn("Logs", `task-detail:${task.id}`, "sm");
+    if (["done", "archived"].includes(task.rawStatus)) return btn("Logs", `task-detail:${task.id}`, "sm") + btn("Delete", `task-delete:${task.id}`, "sm danger");
+    return btn("Run", `run-task:${task.id}`, "sm primary") + btn("More", `task-actions:${task.id}`, "sm");
+  };
+  const taskRow = (task) => { const outcome = taskOutcome(task); return `<div class="tableitem task-row" data-task="${escapeHtml(task.id)}"><div class="bar" style="align-self:start"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><div><b class="truncate" style="display:block">${task.rawStatus === "in_progress" ? '<span class="running-mark" aria-label="running"></span>' : task.rawStatus === "done" ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.title)}</b><div class="muted tiny">${escapeHtml(task.id)} · ${escapeHtml(task.queue)} · ${escapeHtml(task.stage)}</div><div class="task-progress"><div class="row between muted"><span>${task.rawStatus === "done" ? `Accomplished · ${outcome.passed}/${outcome.total} checks passed` : `Lifecycle progress · ${task.progress}%`}</span><b>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</b></div>${meter(task.progress, task.rawStatus === "done" ? "var(--accent)" : undefined)}</div></div></div>${badge(task.status)}<div><div class="muted tiny" style="margin-bottom:7px">${escapeHtml(task.agent)}</div><div class="bar" style="gap:5px">${taskRowActions(task)}</div></div></div>`; };
   const eventRow = (event) => `<div class="event"><span class="muted tiny" style="white-space:nowrap">${escapeHtml(event[0])}</span><div>${badge(event[1])} <span class="muted">${escapeHtml(event[2])}</span><div style="margin-top:5px">${escapeHtml(event[3])}</div></div></div>`;
   const stat = (name, value, detail) => `<div class="panel stat"><small>${name}</small><strong>${value}</strong><div class="muted tiny">${detail}</div></div>`;
 
@@ -248,11 +306,21 @@
     },
     tasks: () => {
       const { tasks } = derived();
-      const queueTasks = tasks.filter((task) => !task.archived && (queueFilter === "All" || task.queue === queueFilter));
+      const allTasks = tasks.filter((task) => !task.archived);
+      const queueTasks = allTasks.filter((task) => queueFilter === "All" || task.queue === queueFilter);
       const visible = queueTasks.filter((task) => (filter === "All" || task.status === filter) && [task.title, task.id, task.agent, task.desc].join(" ").toLowerCase().includes(query.toLowerCase()));
       const queueOptions = [...new Set(tasks.map((task) => task.queue).filter((queue) => queue !== "Unqueued"))];
-      return head("WORKSPACE / TASKS", "Task management", "Author, prioritize, assign and inspect work without leaving the UI.", btn("+ Create task", "new", "primary"))
-        + `<div class="panel"><div class="pad"><div class="bar"><input style="flex:1;min-width:180px" class="input" id="taskSearch" placeholder="Search tasks..." value="${escapeHtml(query)}"><select id="queueSelect" class="input" style="width:165px"><option>All</option>${queueOptions.map((queue) => `<option ${queue === queueFilter ? "selected" : ""}>${escapeHtml(queue)}</option>`).join("")}</select></div><div class="bar" style="margin-top:13px">${["All", "Queued", "Running", "Blocked", "Review", "Done"].map((status) => btn(`${status} ${status === "All" ? queueTasks.length : queueTasks.filter((task) => task.status === status).length}`, `filter:${status}`, `sm ${filter === status ? "primary" : ""}`)).join("")}</div></div>${visible.map(taskRow).join("") || '<div class="pad muted">No matching tasks.</div>'}</div>`;
+      const scoped = queueFilter !== "All";
+      const selectedQueue = derived().queues.find((queue) => queue.label === queueFilter);
+      const taskPageActions = btn("+ Create task", "new", "primary") + (selectedQueue?.id === "default" ? btn("Clear Default queue", "queue-clear:default", "danger") : "");
+      const bulkToolbar = `<div class="bar" style="margin-top:13px"><span class="muted tiny">${selectedTasks.size} selected</span>${btn("Select visible", "tasks-select-visible", "sm")}${selectedTasks.size ? btn("Clear selection", "tasks-clear-selection", "sm") + btn(`Archive ${selectedTasks.size}`, "tasks-archive-selected", "sm danger") : ""}</div>`;
+      const countLabel = (status) => {
+        const scopedCount = status === "All" ? queueTasks.length : queueTasks.filter((task) => task.status === status).length;
+        const totalCount = status === "All" ? allTasks.length : allTasks.filter((task) => task.status === status).length;
+        return scoped ? `${status} ${scopedCount} / ${totalCount}` : `${status} ${totalCount}`;
+      };
+      return head("WORKSPACE / TASKS", "Task management", "Author, prioritize, assign and inspect work without leaving the UI.", taskPageActions)
+        + `<div class="panel"><div class="pad"><div class="bar"><input style="flex:1;min-width:180px" class="input" id="taskSearch" placeholder="Search tasks..." value="${escapeHtml(query)}"><select id="queueSelect" class="input" style="width:165px"><option>All</option>${queueOptions.map((queue) => `<option ${queue === queueFilter ? "selected" : ""}>${escapeHtml(queue)}</option>`).join("")}</select></div>${scoped ? `<div class="notice" style="margin-top:13px;padding:10px"><div class="row between"><span>Showing queue <b>${escapeHtml(queueFilter)}</b>. Counts are <b>this queue / all queues</b>.</span>${btn("Show all queues", "queue:All", "sm")}</div></div>` : ""}<div class="bar" style="margin-top:13px">${["All", "Queued", "Running", "Blocked", "Review", "Done"].map((status) => btn(countLabel(status), `filter:${status}`, `sm ${filter === status ? "primary" : ""}`)).join("")}</div>${bulkToolbar}</div>${visible.map(taskRow).join("") || '<div class="pad muted">No matching tasks in this scope.</div>'}</div>`;
     },
     studio: () => {
       const providers = studioProviders || [];
@@ -284,7 +352,7 @@
       // provider: a dead disabled click teaches nothing, while the generate
       // guard turns the same click into an actionable notice.
       return head("WORKSPACE / PLANNING", "Plan Studio", "Local draft or one bounded model plan → edit task cards → approve a Plan Queue → confirm a run.", btn(generateLabel, "generate", `primary ${studioBusy ? "disabled" : ""}`))
-        + '<div class="grid two"><section class="panel pad"><h2>01 / Your objective</h2><p class="sub" style="margin:9px 0 14px">Describe the outcome, constraints, and acceptance behavior. Generation never queues or executes work.</p><div class="field"><label class="label" for="goal">Goal and constraints</label><textarea id="goal" class="input" rows="10" placeholder="Describe the bounded change you want ATL to plan and verify.">' + escapeHtml(studioGoal) + '</textarea></div><div class="bar" style="margin-top:10px">' + btn("Clear form", "studio-clear", `sm ${studioBusy ? "disabled" : ""}`) + '<span class="muted tiny">resets the objective, generation mode, and the plan preview below — notices and any open card editor are cleared too. Queued or approved work stays.</span></div><div class="field" style="margin-top:13px"><label class="label">ATL skill route</label><div class="bar">' + ["atl-frame", "atl-specify", "atl-plan", "atl-implement", "atl-verify"].map((skill) => `<span class="pill violet">◇ ${skill}</span>`).join("") + '</div></div></section>'
+        + '<div class="grid two"><section class="panel pad"><h2>01 / Your objective</h2><p class="sub" style="margin:9px 0 14px">Describe the outcome, constraints, and acceptance behavior. Generation never queues or executes work.</p><div class="field"><label class="label" for="goal">Goal and constraints</label><textarea id="goal" class="input" rows="10" placeholder="Describe the bounded change you want ATL to plan and verify.">' + escapeHtml(studioGoal) + '</textarea></div><div class="field"><label class="label" for="studioFiles">Reference files and images</label><input id="studioFiles" class="input" type="file" multiple accept="image/*,.txt,.md,.json,.yaml,.yml,.csv,.log,.pdf"><p class="muted tiny" style="margin-top:6px">Text files are included in the planning context. Images are previewed and recorded as references; current providers are text-only.</p><div class="bar" style="margin-top:8px;align-items:stretch">${studioAttachments.length ? studioAttachments.map((file, index) => `<div class="planout" style="margin:0;padding:8px;min-width:180px;max-width:260px"><div class="row between"><b class="truncate">${escapeHtml(file.name)}</b>${btn("×", `studio-file-remove:${index}`, "sm ghost")}</div><span class="muted tiny">${escapeHtml(file.type || "file")} · ${Math.ceil(file.size / 1024)} KB${file.text ? " · text included" : " · visual reference"}</span>${file.preview ? `<img src="${file.preview}" alt="Preview of ${escapeHtml(file.name)}" style="display:block;max-width:100%;max-height:90px;margin-top:7px;border-radius:5px">` : ""}</div>`).join("") : '<span class="muted tiny">No references attached.</span>'}</div></div><div class="bar" style="margin-top:10px">' + btn("Clear form", "studio-clear", `sm ${studioBusy ? "disabled" : ""}`) + '<span class="muted tiny">resets the objective, attachments, generation mode, and plan preview. Queued or approved work stays.</span></div><div class="field" style="margin-top:13px"><label class="label">ATL skill route</label><div class="bar">' + ["atl-frame", "atl-specify", "atl-plan", "atl-implement", "atl-verify"].map((skill) => `<span class="pill violet">◇ ${skill}</span>`).join("") + '</div></div></section>'
         + card("02 / Generation mode", `<div class="pad"><div class="bar">${btn("Local preview", "mode:local", `sm ${studioMode === "local" ? "primary" : ""}`)}${btn("Generate with model", "mode:model", `sm ${studioMode === "model" ? "primary" : ""}`)}</div>${modeBody}${noticeLine}</div>`)
         + '</div><div class="space">' + card("03 / Full plan preview — editable task cards", `<div class="pad" id="planOutput" ${studioBusy ? 'aria-busy="true"' : ''}>${studioProgressPanel()}${rejectedPlanPreview(studioRejectedResponse)}${planPreview(currentDraft)}</div>`) + '</div>';
     },
@@ -294,7 +362,13 @@
       const queueCards = queues.map((queue) => {
         const itemCount = (queue.items || []).length;
         const active = queue.id === snapshot.queues?.active_queue;
-        return `<section class="panel pad" data-queue="${escapeHtml(queue.id)}" role="button" tabindex="0" aria-label="Open ${escapeHtml(queue.label)} queue" style="text-align:left;cursor:pointer"><div class="row between"><div class="bar"><input type="checkbox" data-qsel="${escapeHtml(queue.id)}" ${selectedQueues.has(queue.id) ? "checked" : ""} aria-label="Select ${escapeHtml(queue.label)} for a multi-queue run"><h2 style="font-size:16px">${escapeHtml(queue.label)}${queue.plan_draft_id ? ' <span class="pill violet">plan queue</span>' : ""}</h2></div>${badge(queue.status)}</div><p class="sub">${active ? "Active queue · " : ""}${queue.plan_draft_id ? "Approved plan workstream · " : ""}${itemCount} task${itemCount === 1 ? "" : "s"} · open to review or manage</p>${meter(itemCount ? 50 : 0)}</section>`;
+        const queueTaskIds = new Set((queue.items || []).map((item) => item.id || item.taskId));
+        const queueTasks = tasks.filter((task) => queueTaskIds.has(task.id));
+        const running = queueTasks.filter((task) => task.rawStatus === "in_progress").length;
+        const progress = queueTasks.length ? Math.round(queueTasks.reduce((sum, task) => sum + task.progress, 0) / queueTasks.length) : 0;
+        const latestLog = queueTasks.flatMap((task) => task.logs.map((log) => ({ ...log, taskId: task.id }))).at(-1);
+        const queueAction = queue.id === "default" ? btn("Clear", "queue-clear:default", "sm danger") : btn("Delete", `queue-delete:${queue.id}`, "sm danger");
+        return `<section class="panel pad" data-queue="${escapeHtml(queue.id)}" role="button" tabindex="0" aria-label="Open ${escapeHtml(queue.label)} queue" style="text-align:left;cursor:pointer"><div class="row between"><div class="bar"><input type="checkbox" data-qsel="${escapeHtml(queue.id)}" ${selectedQueues.has(queue.id) ? "checked" : ""} aria-label="Select ${escapeHtml(queue.label)} for a multi-queue run"><h2 style="font-size:16px">${escapeHtml(queue.label)}${queue.plan_draft_id ? ' <span class="pill violet">plan queue</span>' : ""}</h2></div><div class="bar">${badge(running ? "Running" : queue.status)}${queueAction}</div></div><p class="sub">${active ? "Active queue · " : ""}${queue.plan_draft_id ? "Approved plan workstream · " : ""}${itemCount} task${itemCount === 1 ? "" : "s"} · ${progress}% complete${running ? ` · ${running} running` : ""}</p>${meter(progress)}<div class="row between muted tiny" style="margin-top:8px"><span>${latestLog ? `${escapeHtml(latestLog.taskId)} · ${escapeHtml(latestLog.detail || latestLog.note || latestLog.event || "latest activity")}` : "No task logs yet"}</span><span>${queueTasks.reduce((sum, task) => sum + task.logs.length, 0)} logs</span></div>${running ? `<div class="running-line"><span class="running-mark"></span>Live execution · open queue for task logs</div>` : ""}</section>`;
       }).join("") || '<div class="pad muted">No queues found.</div>';
       return head("OPERATIONS / DISPATCH", "Multi-queue manager", "Open a queue to review, manage, or preview it. Every run remains explicitly confirmed.", btn("+ New queue", "newqueue", "primary") + (selectedQueues.size ? btn(selectedLabel, "run-confirm-multi") : ""))
         + `<div class="grid three">${stat("Global concurrency", "1", "Conservative default")}${stat("Runnable", tasks.filter((task) => task.rawStatus === "triaged" || task.rawStatus === "assigned").length, "Pending dependency checks")}${stat("Paused / blocked", tasks.filter((task) => ["paused", "blocked"].includes(task.rawStatus)).length, "Require intervention")}</div><p class="muted tiny space">Select queue checkboxes for one shared-budget run; open a queue card for its individual actions.</p><div class="grid two space">${queueCards}</div>${runPanel()}`;
@@ -483,15 +557,30 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const existingQueue = queues.find((queue) => queue.label === task?.queue)?.id;
     const defaultQueue = existingQueue || snapshot.queues?.active_queue || queues[0]?.id || "";
     popup(task ? `Edit ${escapeHtml(task.id)}` : "New ATL task", `<div class="field"><label class="label">Task title</label><input class="input" id="fTitle" value="${escapeHtml(task?.title || "")}" placeholder="Describe the task"></div><div class="field"><label class="label">Objective and acceptance criteria</label><textarea class="input" id="fDesc">${escapeHtml(task?.desc || "")}</textarea></div><div class="grid two"><div class="field"><label class="label">Queue</label><select class="input" id="fQueue"><option value="">Unqueued</option>${queues.map((queue) => `<option ${queue.id === defaultQueue ? "selected" : ""} value="${escapeHtml(queue.id)}">${escapeHtml(queue.label)}</option>`).join("")}</select></div><div class="field"><label class="label">Priority</label><select class="input" id="fPriority">${[["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]].map((row) => `<option value="${row[0]}" ${row[1] === task?.priority ? "selected" : ""}>${row[1]}</option>`).join("")}</select></div></div><p class="sub">New tasks are added to the active queue by default. Queue membership does not start execution.</p>`, btn("Cancel", "close") + btn(task ? "Save task" : "Create task", `save:${task?.id || ""}`, "primary")); $("#fTitle")?.focus(); }
-  function taskDetail(task) { popup(`${escapeHtml(task.id)} / Task details`, `<div class="bar">${badge(task.status)}${badge(task.priority)}<span class="muted">${escapeHtml(task.queue)} · ${escapeHtml(task.agent)}</span></div><h2 style="font-size:18px;margin:17px 0">${escapeHtml(task.title)}</h2><p>${escapeHtml(task.desc)}</p>${task.block ? `<div class="notice"><b class="red">BLOCKER</b><p>${escapeHtml(task.block)}</p></div>` : ""}<div class="lined muted tiny">Skill path: atl-plan → atl-implement → verification</div>`, btn("Edit task", `edit:${task.id}`, "primary") + btn("More actions", `task-actions:${task.id}`)); }
+  function taskDetail(task) {
+    const logs = task.logs.length ? task.logs.map((entry) => `${entry.at ? new Date(entry.at).toLocaleTimeString() : "--:--:--"}  ${entry.event || "INFO"}  ${entry.detail || entry.note || "state changed"}`).join("\n") : "No task-specific logs recorded yet.";
+    const outcome = taskOutcome(task);
+    const outcomePanel = task.rawStatus === "done"
+      ? `<div class="notice" style="margin-top:14px;border-color:var(--accent)"><b class="green">✓ Accomplished</b><p>${escapeHtml(outcome.summary)}</p><div class="bar"><span class="pill green">${outcome.passed} passed</span>${outcome.failed ? `<span class="pill red">${outcome.failed} failed</span>` : ""}<span class="pill">${outcome.total} checks</span></div></div>`
+      : `<div class="notice" style="margin-top:14px"><b>${task.rawStatus === "in_progress" ? '<span class="running-mark"></span>Running now' : "Current stage"}</b><p class="sub">${escapeHtml(task.stage)}</p></div>`;
+    popup(`${escapeHtml(task.id)} / Task details`, `<div class="bar">${badge(task.status)}${badge(task.priority)}<span class="muted">${escapeHtml(task.queue)} · ${escapeHtml(task.agent)}</span></div><h2 style="font-size:18px;margin:17px 0">${escapeHtml(task.title)}</h2><p>${escapeHtml(task.desc)}</p>${lifecycleDiagram(task)}<div class="task-progress"><div class="row between"><b>${task.rawStatus === "done" ? "Completed" : "Lifecycle progress"}</b><b>${task.progress}%</b></div>${meter(task.progress)}</div>${outcomePanel}${task.block ? `<div class="notice" style="margin-top:14px"><b class="red">BLOCKER</b><p>${escapeHtml(task.block)}</p></div>` : ""}<h3 style="margin:18px 0 8px">Latest task activity</h3><pre class="terminal" style="max-height:230px;white-space:pre-wrap">${escapeHtml(logs)}</pre>`, btn("Diagram", `task-diagram:${task.id}`) + btn("Edit task", `edit:${task.id}`) + btn("Actions", `task-actions:${task.id}`, "primary"));
+  }
+
+  function taskDiagram(task) {
+    const outcome = taskOutcome(task);
+    const flow = `flowchart LR\n  A[Request] --> B[${task.agent}]\n  B --> C[${task.status}]\n  C --> D[${outcome.passed}/${outcome.total} checks passed]\n  D --> E[Outcome recorded]`;
+    const model = `erDiagram\n  TASK ||--o{ LOG_EVENT : records\n  TASK ||--o{ EVIDENCE : proves\n  TASK }o--|| QUEUE : belongs_to\n  TASK }o--o| WORKSPACE : changes_in\n  TASK {\n    string id\n    string status\n    string assigned_worker\n    int attempt_count\n  }`;
+    popupWide(`${escapeHtml(task.id)} / Change diagrams`, `<p class="sub">The lifecycle picture is derived from persisted task state. Mermaid source documents the underlying relationships; it communicates structure, not proof.</p><h3>What happened</h3>${lifecycleDiagram(task)}<div class="notice" style="margin-top:12px"><b>${escapeHtml(outcome.summary)}</b><p class="sub">${outcome.passed}/${outcome.total} checks passed · ${task.logs.length} recent events · ${escapeHtml(task.workspace || "no workspace recorded")}</p></div><h3 style="margin-top:18px">Change-flow Mermaid</h3><pre class="terminal" style="min-height:0;white-space:pre-wrap">${escapeHtml(flow)}</pre><h3 style="margin-top:18px">Task data model · Mermaid ER</h3><pre class="terminal" style="min-height:0;white-space:pre-wrap">${escapeHtml(model)}</pre>`, btn("Back to task", `task-detail:${task.id}`, "primary") + btn("Close", "close"));
+  }
   function taskActions(task) {
-    const runnable = !["done", "archived"].includes(task.rawStatus);
+    const runnable = !["done", "archived", "in_progress", "in_review", "verifying"].includes(task.rawStatus);
     popup(`${escapeHtml(task.id)} / More actions`, '<p class="sub">Planning and running always show their review step before work starts. Deletion archives the task so it can be restored from the CLI.</p>', btn("Back", `task-detail:${task.id}`) + (task.rawStatus === "blocked" ? btn("Unblock", `unblock:${task.id}`) : "") + btn("Plan task", `plan:${task.id}`) + (runnable ? btn("Review task run", `run-task:${task.id}`, "primary") : "") + btn("Delete task", `task-delete:${task.id}`, "danger"));
   }
   function queueDetail(queue) {
     const itemCount = (queue.items || []).length;
     const isActive = queue.id === snapshot.queues?.active_queue;
-    popup(`${escapeHtml(queue.label)} / Queue`, `<div class="bar">${badge(queue.status)}${isActive ? '<span class="pill green">active</span>' : ""}${queue.plan_draft_id ? '<span class="pill violet">plan queue</span>' : ""}</div><p style="margin-top:14px"><b>${itemCount}</b> queued task${itemCount === 1 ? "" : "s"}. Preview before any run; confirmation is still required.</p><p class="sub">${queue.id === "default" ? "The default queue cannot be deleted, but it can be reset safely." : "Deleting a named queue archives its board entry and keeps its tasks in the portfolio."}</p>`, btn("Review run", `run-confirm:${queue.id}`, "primary") + btn("View tasks", `queue:${encodeURIComponent(queue.label)}`) + btn("Queue actions", `queue-actions:${queue.id}`));
+    const isRunning = currentRun.status === "running" && (currentRun.queueId === queue.id || currentRun.queueId === queue.label || (currentRun.queueIds || []).includes(queue.id));
+    popup(`${escapeHtml(queue.label)} / Queue`, `<div class="bar">${badge(isRunning ? "Running" : queue.status)}${isActive ? '<span class="pill green">active</span>' : ""}${queue.plan_draft_id ? '<span class="pill violet">plan queue</span>' : ""}</div><p style="margin-top:14px"><b>${itemCount}</b> queued task${itemCount === 1 ? "" : "s"}. ${isRunning ? "Execution is active; progress and logs update on the Queues page." : "Preview before any run; confirmation is still required."}</p><p class="sub">${queue.id === "default" ? "The default queue cannot be deleted, but it can be reset safely." : "Deleting a named queue archives its board entry and keeps its tasks in the portfolio."}</p>`, (isRunning ? btn("Stop safely", "run-stop", "danger") : btn("Review run", `run-confirm:${queue.id}`, "primary")) + btn("View tasks", `queue:${encodeURIComponent(queue.label)}`) + btn("Queue actions", `queue-actions:${queue.id}`));
   }
   function queueActions(queue) {
     const isDefault = queue.id === "default";
@@ -557,6 +646,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "blockers") { filter = "Blocked"; queueFilter = "All"; page = "tasks"; render(); return; }
     if (value.startsWith("edit:")) return taskForm(derived().tasks.find((task) => task.id === value.slice(5)));
     if (value.startsWith("task-detail:")) { const task = derived().tasks.find((item) => item.id === value.slice(12)); if (task) taskDetail(task); return; }
+    if (value.startsWith("task-diagram:")) { const task = derived().tasks.find((item) => item.id === value.slice(13)); if (task) taskDiagram(task); return; }
     if (value.startsWith("task-actions:")) { const task = derived().tasks.find((item) => item.id === value.slice(13)); if (task) taskActions(task); return; }
     if (value.startsWith("task-delete:")) {
       const id = value.slice(12);
@@ -565,12 +655,37 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       return;
     }
     if (value.startsWith("task-delete-confirm:")) return mutation(`task archive ${value.slice(20)} --note "deleted from browser control plane"`, "tasks");
+    if (value === "tasks-select-visible") {
+      const { tasks } = derived();
+      for (const task of tasks) if (!task.archived && (queueFilter === "All" || task.queue === queueFilter) && (filter === "All" || task.status === filter) && [task.title, task.id, task.agent, task.desc].join(" ").toLowerCase().includes(query.toLowerCase())) selectedTasks.add(task.id);
+      render();
+      return;
+    }
+    if (value === "tasks-clear-selection") { selectedTasks.clear(); render(); return; }
+    if (value === "tasks-archive-selected") {
+      const ids = [...selectedTasks];
+      popup(`Archive ${ids.length} task(s)?`, `<p>This removes the selected tasks from active lists and queues, but keeps them recoverable as archived records.</p><p class="sub">Running, review, and verification tasks are skipped for safety.</p>`, btn("Cancel", "close") + btn(`Archive ${ids.length}`, "tasks-archive-confirm", "danger"));
+      return;
+    }
+    if (value === "tasks-archive-confirm") {
+      const ids = [...selectedTasks];
+      close();
+      for (const id of ids) {
+        const task = derived().tasks.find((item) => item.id === id);
+        if (task && !["in_progress", "in_review", "verifying"].includes(task.rawStatus)) await apiCommand(`task archive ${id} --note "bulk archived from browser control plane"`);
+      }
+      selectedTasks.clear();
+      await refresh(false);
+      render();
+      return;
+    }
     if (value.startsWith("archive:")) return mutation(`task archive ${value.slice(8)} --note "archived from browser control plane"`, "tasks");
     if (value.startsWith("unblock:")) return mutation(`unblock ${value.slice(8)} --note "manager recovered from browser control plane"`, "tasks");
     if (value.startsWith("plan:")) { close(); page = "studio"; render(); const goal = $("#goal"); if (goal) goal.value = derived().tasks.find((task) => task.id === value.slice(5))?.desc || ""; return; }
     if (value === "mode:local" || value === "mode:model") { studioMode = value.slice(5); studioNotice = ""; if (studioMode === "model") await loadProviders(true); render(); return; }
     if (value === "studio-clear") {
       studioGoal = "";
+      studioAttachments = [];
       studioMode = "local";
       studioProvider = "";
       studioModel = "";
@@ -728,10 +843,11 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       if (output) output.innerHTML = studioProgressPanel();
       render();
       try {
-        const result = await planApi("/api/plan/generate", { intent: goal, provider: selected.id, model: studioModel || null, thinking_level: studioThinking || null, confirm: true });
+        const result = await planApi("/api/plan/generate", { intent: studioContext(), provider: selected.id, model: studioModel || null, thinking_level: studioThinking || null, confirm: true });
         currentDraft = result.draft; studioBusy = false; stopStudioProgress();
         // The objective's job is done once the plan exists — reset the form.
         studioGoal = "";
+        studioAttachments = [];
         studioErrorLog = null; studioRejectedResponse = null;
         closeCardEditor();
         studioNotice = `Model plan ready — ${result.draft.label?.label || "provider plan"}. Edit the task cards below before approving.`;
@@ -749,6 +865,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const result = await apiCommand(`plan generate "${goal.replaceAll('"', '\\"')}"`);
       currentDraft = result.draft; studioBusy = false;
       studioGoal = "";
+      studioAttachments = [];
       closeCardEditor();
       studioNotice = "Local structural draft generated (deterministic — not model output). Task cards are editable below.";
     } catch (error) { studioBusy = false; studioNotice = `Error: ${error.message}`; }
@@ -853,6 +970,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       render();
       return;
     }
+    if (value.startsWith("studio-file-remove:")) { studioAttachments.splice(Number(value.slice(19)), 1); render(); return; }
     if (value.startsWith("card-up:") || value.startsWith("card-down:")) {
       if (!currentDraft) return;
       const id = value.slice(value.indexOf(":") + 1);
@@ -974,12 +1092,13 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   document.addEventListener("click", (event) => {
     const pageButton = event.target.closest("[data-page]");
     if (pageButton) { openPage(pageButton.dataset.page); return; }
+    if (event.target.closest("[data-tsel]")) return;
+    const actionButton = event.target.closest("[data-action]");
+    if (actionButton) { void action(actionButton.dataset.action); return; }
     const taskButton = event.target.closest("[data-task]");
     if (taskButton) { const task = derived().tasks.find((item) => item.id === taskButton.dataset.task); if (task) taskDetail(task); return; }
     const queueCard = event.target.closest("[data-queue]");
     if (queueCard && !event.target.closest("[data-qsel], [data-action]")) { const queue = derived().queues.find((item) => item.id === queueCard.dataset.queue); if (queue) queueDetail(queue); return; }
-    const actionButton = event.target.closest("[data-action]");
-    if (actionButton) { void action(actionButton.dataset.action); return; }
     if (event.target.id === "overlay") close();
   }, true);
   document.addEventListener("input", (event) => {
@@ -1022,6 +1141,20 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.id === "taskSearch") { query = event.target.value; const cursor = event.target.selectionStart; render(); const input = $("#taskSearch"); input?.focus(); input?.setSelectionRange(cursor, cursor); }
   }, true);
   document.addEventListener("change", (event) => {
+    if (event.target.id === "studioFiles") {
+      const files = [...(event.target.files || [])].slice(0, 8);
+      studioAttachments = files.map((file) => ({ name: file.name, type: file.type || "application/octet-stream", size: file.size, text: null, preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null }));
+      files.forEach((file, index) => {
+        if (file.type.startsWith("text/") || /\.(md|json|ya?ml|csv|log)$/i.test(file.name)) {
+          const reader = new FileReader();
+          reader.onload = () => { if (studioAttachments[index]) studioAttachments[index].text = String(reader.result || ""); render(); };
+          reader.readAsText(file.slice(0, 1024 * 1024));
+        }
+      });
+      render();
+      return;
+    }
+    if (event.target.dataset?.tsel) { if (event.target.checked) selectedTasks.add(event.target.dataset.tsel); else selectedTasks.delete(event.target.dataset.tsel); render(); return; }
     if (event.target.id === "queueSelect") { queueFilter = event.target.value; render(); return; }
     if (event.target.id === "providerSelect") {
       studioProvider = event.target.value;
