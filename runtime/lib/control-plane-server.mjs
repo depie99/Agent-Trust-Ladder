@@ -495,7 +495,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       if (req.method === "POST" && url.pathname === "/api/supervisor") {
         const payload = JSON.parse(await readBody(req) || "{}"); let result;
         if (payload.action === "register-project" || payload.action === "register") result = registerProject(String(payload.root || root), payload.project || { name: payload.name, maxConcurrent: payload.maxConcurrent });
-        else if (payload.action === "remove" || payload.action === "remove-project") result = removeProject(String(payload.id || ""), { force: false });
+        else if (["remove", "remove-project", "delete", "delete-project"].includes(payload.action)) result = removeProject(String(payload.id || payload.project_id || ""), { force: false });
         else if (payload.action === "defaults") result = setSupervisorDefaults(payload.defaults || {});
         else { json(res, 400, { ok: false, error: "unknown supervisor action" }); return; }
         json(res, 200, { ok: true, result, supervisor: supervisorSnapshot() }); return;
