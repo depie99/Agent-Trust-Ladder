@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-10-26T08:10:01.819Z",
+  "updated_at": "2026-10-26T09:33:19.967Z",
   "snapshots": [
     {
       "version": 1,
@@ -662,6 +662,168 @@
       "used": {
         "sessions": 1,
         "elapsed_ms": 28566
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T08:23:48.523Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 51701
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T09:28:34.182Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 66579
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T09:29:05.251Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 31045
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T09:29:41.152Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 35879
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T09:30:26.435Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 45262
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T09:31:33.878Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 67416
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T09:32:09.764Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 35849
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T09:32:46.553Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 36755
+      },
+      "remaining": null,
+      "reset_at": null,
+      "detail": "local session observed; remote provider quota is not exposed by this adapter",
+      "estimate": null
+    },
+    {
+      "version": 1,
+      "captured_at": "2026-10-26T09:33:19.967Z",
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "source": "atl-session",
+      "status": "observed",
+      "confidence": "high",
+      "window": null,
+      "used": {
+        "sessions": 1,
+        "elapsed_ms": 33379
       },
       "remaining": null,
       "reset_at": null,
