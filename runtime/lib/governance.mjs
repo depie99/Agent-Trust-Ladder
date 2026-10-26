@@ -21,25 +21,29 @@ export function approveClaim(root, claimId, { actor = "manager", note = "" } = {
 }
 
 export function validateSkill(skill) {
-  const required = ["id", "version", "input_contract", "validation", "approval_boundary", "rollback", "fixtures"];
+  const required = ["id", "version", "input_contract", "validation", "approval_boundary", "rollback", "fixtures", "capabilities"];
   const missing = required.filter((key) => !skill?.[key] || (Array.isArray(skill[key]) && skill[key].length === 0));
-  return { level: missing.length ? "bronze" : skill.gold_verified ? "gold" : "silver", valid: missing.length === 0, missing };
+  const evidence = skill?.validation_evidence;
+  const independentlyReviewed = evidence?.independent_review?.verdict === "approve";
+  const observed = Array.isArray(evidence?.runs) && evidence.runs.some((run) => run.result === "pass" && run.artifact_hash);
+  const level = missing.length ? "bronze" : observed && independentlyReviewed ? "gold" : "silver";
+  return { level, valid: missing.length === 0, missing, observed, independentlyReviewed };
 }
 
 export function promoteSkill(root, skill, { actor = "manager" } = {}) {
-  const check = validateSkill(skill); if (!check.valid || check.level !== "gold") throw new Error(`skill requires Gold validation: ${check.missing.join(", ") || "gold_verified=true"}`);
+  const check = validateSkill(skill); if (!check.valid || check.level !== "gold") throw new Error(`skill requires observed validation and independent approval: ${check.missing.join(", ") || "missing evidence"}`);
   const store = read(root, "skills.json", { version: 1, skills: [] });
   if (!store.skills.some((s) => s.id === skill.id && s.version === skill.version)) store.skills.push({ ...skill, approved_by: actor, approved_at: new Date().toISOString() });
   write(root, "skills.json", store); return store.skills.find((s) => s.id === skill.id && s.version === skill.version);
 }
 
 export function registerRoutine(root, routine, { actor = "manager" } = {}) {
-  if (!routine.id || !routine.skill_id || !routine.schedule || !routine.idempotency_key || !Number.isInteger(routine.retry_limit)) throw new Error("routine requires id, skill_id, schedule, idempotency_key, and integer retry_limit");
+  if (!routine.id || !routine.project || !routine.skill_id || !routine.schedule || !routine.idempotency_key || !Number.isInteger(routine.retry_limit)) throw new Error("routine requires id, project, skill_id, schedule, idempotency_key, and integer retry_limit");
   const skills = read(root, "skills.json", { version: 1, skills: [] });
   const skill = skills.skills.find((s) => s.id === routine.skill_id && s.version === routine.skill_version);
   if (!skill) throw new Error("routine requires an approved skill version");
   const store = read(root, "routines.json", { version: 1, routines: [] });
-  const item = { ...routine, enabled: false, approval_gate: "manager", registered_by: actor, registered_at: new Date().toISOString() };
+  const item = { ...routine, enabled: false, approval_gate: "manager", timezone: routine.timezone || "Asia/Tehran", retry_limit: Math.min(2, Math.max(0, routine.retry_limit)), registered_by: actor, registered_at: new Date().toISOString() };
   const index = store.routines.findIndex((r) => r.id === routine.id); if (index >= 0) store.routines[index] = item; else store.routines.push(item); write(root, "routines.json", store); return item;
 }
 

@@ -9,6 +9,11 @@ import { CONTRACTS } from "./roles.mjs";
 import { readOvernightRun } from "./launch.mjs";
 import { listClaims, sourceStatus } from "./brain.mjs";
 import { listRoutines, listSkills, staleClaims } from "./governance.mjs";
+import { approvalSnapshot } from "./approvals.mjs";
+import { supervisorSnapshot } from "./supervisor.mjs";
+import { reconcileLeases } from "./leases.mjs";
+import { listBackups } from "./backup.mjs";
+import { listRoutineRuns, schedulerStatus } from "./routines.mjs";
 
 export const CONTROL_PLANE_VERSION = 1;
 
@@ -159,5 +164,11 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
       routines: listRoutines(root),
       defaults: { freshness_days: 30, approval_owner: "manager", routines_enabled_by_default: false },
     },
+    approvals: approvalSnapshot(root),
+    supervisor: supervisorSnapshot(),
+    leases: reconcileLeases(root),
+    backups: listBackups(root),
+    routine_runs: listRoutineRuns(root),
+    scheduler: schedulerStatus(root),
   };
 }

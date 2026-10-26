@@ -21,6 +21,8 @@ import { recordUsage, checkUsageThresholds } from "./usage.mjs";
 import { assembleContext, buildMap, renderNavigationContext } from "./navigation.mjs";
 import { buildContextPack } from "./brain.mjs";
 import { probeUiReviewRuntime, uiReviewPrompt } from "./ui-review-runtime.mjs";
+import { createWorkerCredential } from "./session-auth.mjs";
+import { acquireLease, heartbeatLease, releaseLease } from "./leases.mjs";
 
 const say = (root, from, text, opts = {}) => feedPost(root, { from, text, ...opts });
 
@@ -80,6 +82,15 @@ export function containmentBlock(state, taskId, reason) {
 function maxAutoRecoveries(root) {
   const configured = readManagerConfig(root).budgets?.max_auto_recoveries;
   return Number.isFinite(Number(configured)) ? Math.max(0, Number(configured)) : 1;
+}
+
+// Plan Studio records a directed task chain. A task with unfinished
+// prerequisites is waiting for work, not blocked on the owner. Keep that
+// distinction at the scheduler boundary so a high-priority review cannot run
+// before the implementation it is meant to inspect.
+function unmetDependencies(state, task) {
+  return (Array.isArray(task?.plan_depends_on) ? task.plan_depends_on : [])
+    .filter((id) => state.tasks[id]?.status !== "done");
 }
 
 // Recover only the kind of blocked work that the team can safely retry. This
@@ -158,7 +169,7 @@ function workspaceConfig(root, cfg) {
 //   - a provider preflight runs before every spawn: a missing executable
 //     starts no agent and returns an actionable `blockedLaunch` outcome.
 export async function driveTaskUntilGate(root, taskId, budget, {
-  overnight, dryRun, worker, auth, envPolicy, resolveWorker, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false,
+  overnight, dryRun, worker, auth, envPolicy, resolveWorker, lease = null, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false,
 }) {
   const report = typeof onProgress === "function" ? onProgress : console.log;
   const runDir = path.join(root, ".trust", "manager", "overnight", taskId);
@@ -261,8 +272,11 @@ export async function driveTaskUntilGate(root, taskId, budget, {
 
     let result;
     try {
+      const workerCredential = createWorkerCredential({ project: path.resolve(root), task: taskId, role, run: budget.runId || "local", generation: lease?.generation || task.attempt_count || 0, leaseId: lease?.id || null, leaseKey: lease?.key || null });
       result = await runInvocation(invocation, {
-        env: { ATL_PROJECT: root, ...credentialEnv },
+        // Workers get the task workspace and a scoped, expiring identity. The
+        // manager root is deliberately not added to their tool sandbox.
+        env: { ATL_PROJECT: root, ATL_WORKER_CREDENTIAL: JSON.stringify(workerCredential), ...credentialEnv },
         unsetEnv: useEnvPolicy.unset,
         logPath,
         timeoutMs,
@@ -365,6 +379,8 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     const resolvedSpec = spec ? { ...spec, model: resolvedProvider.model } : spec;
     const disc = role ? discover(provider.worker, { command: spec.command }) : null;
     const blockers = [];
+    const unmet = unmetDependencies(state, task);
+    if (unmet.length) blockers.push(`waiting for prerequisite${unmet.length === 1 ? "" : "s"}: ${unmet.join(", ")}`);
     if (!role) blockers.push(`no worker role is defined for status ${task.status}`);
     if (disc && !disc.available) blockers.push(disc.error);
     if (provider.userProvider) blockers.push(...validateProviderEntry(provider.userProvider));
@@ -664,9 +680,22 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       writeRunMeta(root, { cursor: results.length, currentTaskId: null, results });
       continue;
     }
+    const unmet = unmetDependencies(loadState(root), fresh);
+    if (unmet.length) {
+      const reason = `waiting for prerequisite${unmet.length === 1 ? "" : "s"}: ${unmet.join(", ")}`;
+      results.push({ id: fresh.id, status: "queued", reason, waiting: true });
+      writeRunMeta(root, { cursor: results.length, currentTaskId: null, results });
+      onProgress(`${fresh.id}: ${reason}`);
+      continue;
+    }
     say(root, "runner", `launch queue: taking ${fresh.id} — ${fresh.title}`, { task: fresh.id });
+    let lease;
+    try { lease = acquireLease(root, { project: path.resolve(root), task: fresh.id, role: fresh.assigned_worker || "rowan", run: runId || "preview" }); }
+    catch (error) { results.push({ id: fresh.id, status: "queued", reason: error.message, lease: false }); onProgress(`${fresh.id}: ${error.message}`); continue; }
+    const leaseHeartbeat = setInterval(() => { try { heartbeatLease(root, lease); } catch { /* expiry is surfaced at the next mutation */ } }, 5000);
     let outcome = await driveTaskUntilGate(root, fresh.id, budget, {
       overnight: true,
+      lease,
       dryRun,
       onProgress,
       onSession,
@@ -682,10 +711,12 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
         return { ...resolved, provider: { ...providerSpec(profile, resolved.worker), model: resolved.model } };
       },
     }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
+    clearInterval(leaseHeartbeat);
+    try { heartbeatLease(root, lease); } catch (error) { outcome = { status: "blocked", reason: `lease fencing failed: ${error.message}`, failed: true }; }
     if (outcome.interrupted && (budget.taskSessions.get(fresh.id) || 0) < budget.maxSessions && Date.now() < budget.deadline) {
       say(root, "runner", `${fresh.id} restarting its gate with the pending human feedback.`, { task: fresh.id });
       outcome = await driveTaskUntilGate(root, fresh.id, budget, {
-        overnight: true, dryRun, onProgress, onSession, pauseAfterSession, onReview, echo,
+        overnight: true, dryRun, lease, onProgress, onSession, pauseAfterSession, onReview, echo,
         resolveWorker: (role) => {
           const profile = providerProfile(readManagerConfig(root));
           if (providerDefaults.worker) profile.defaultWorker = String(providerDefaults.worker).toLowerCase();
@@ -708,6 +739,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       pending.push(loadState(root).tasks[fresh.id]);
       results.push({ id: fresh.id, status: "requeued", reason: "Mira auto-recovered a non-human blocker" });
     }
+    releaseLease(root, lease);
   }
   writeRunMeta(root, {
     status: runAbortRequested ? "aborted" : (results.some((entry) => entry.paused) ? "paused" : "finished"),

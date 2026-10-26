@@ -17,7 +17,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   StateError, STATUSES, paths, emptyState, loadState, saveState,
-  createTask, logEvent, transition, addEvidence,
+  createTask, logEvent, transition, addEvidence, reviseTaskPacket,
 } from "./lib/state.mjs";
 import { contractFor, renderRole, ROLE_SLOT } from "./lib/roles.mjs";
 import { IntakeError, ghCliAuthenticated, normalizeGitHubRepo, probeGitHubRepo, runIntake } from "./lib/intake.mjs";
@@ -48,6 +48,10 @@ import { startControlPlaneServer } from "./lib/control-plane-server.mjs";
 import { assembleContext, buildMap, mapStatus, neighbors, queryMap } from "./lib/navigation.mjs";
 import { addClaim, archiveSource, buildContextPack, listClaims, saveContextPack, sourceStatus } from "./lib/brain.mjs";
 import { approveClaim, listRoutines, listSkills, promoteSkill, registerRoutine, staleClaims, validateSkill } from "./lib/governance.mjs";
+import { registerProject, setSupervisorDefaults, supervisorSnapshot } from "./lib/supervisor.mjs";
+import { validateWorkerCredential } from "./lib/session-auth.mjs";
+import { leaseAllows } from "./lib/leases.mjs";
+import { createBackup, listBackups, restoreBackup } from "./lib/backup.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
@@ -119,6 +123,12 @@ Install once with scripts\\install-atl.cmd (or install-atl.sh) and use: atl <com
 
 Setup
   init                          create .trust/manager/ scaffold + config
+  projects register             register this local repository with the ATL supervisor
+  projects list                 list locally registered repositories
+  projects concurrency <1..5>  set the bounded shared provider-session cap
+  backup create [--label name] create a recoverable project snapshot
+  backup list                  list project snapshots
+  backup restore <id>          restore a snapshot (requires no active run)
 
 Intake (pulls new work in)
   intake [--source file|github|azure|all]
@@ -259,10 +269,18 @@ const need = (id) => {
 };
 
 const actorOf = () => flags.actor || "manager";
-const knownActor = () => {
+const knownActor = (taskId = null) => {
   const a = actorOf();
   const known = ["mira", "pip", "rowan", "sage", "beacon", "manager"];
   if (!known.includes(a)) throw new StateError(`--actor must be one of ${known.join(", ")}`);
+  if (a !== "manager" && !process.env.ATL_WORKER_CREDENTIAL) throw new StateError("role actor mutations require a scoped ATL_WORKER_CREDENTIAL; --actor alone is not authorization");
+  if (process.env.ATL_WORKER_CREDENTIAL) {
+    let credential;
+    try { credential = JSON.parse(process.env.ATL_WORKER_CREDENTIAL); } catch { throw new StateError("invalid scoped worker credential"); }
+    if (a === "manager" || (taskId && credential.task !== taskId) || !validateWorkerCredential(credential, { project: path.resolve(ROOT), task: credential.task, role: a, run: credential.run, generation: credential.generation }) || !credential.lease_id || !leaseAllows(ROOT, { key: credential.lease_key, id: credential.lease_id, generation: credential.generation })) {
+      throw new StateError("scoped worker credential cannot impersonate this actor");
+    }
+  }
   return a;
 };
 
@@ -1105,12 +1123,13 @@ async function main() {
 
     case "update": {
       const { state, task } = need(pos[0]);
-      const actor = knownActor();
+      const actor = knownActor(task.id);
       const contract = actor !== "manager" ? contractFor(actor) : null;
 
       if (task.status === "new" && actor && !["pip", "manager", "mira"].includes(actor)) {
         throw new StateError(`${task.id}: only Pip (or the manager) may shape a task in triage`);
       }
+      let packetChanged = false;
       for (const [k, v] of Object.entries(flags.set)) {
         const writable = contract ? contract.may_write : null;
         const base = k.split(".")[0];
@@ -1118,23 +1137,27 @@ async function main() {
           throw new StateError(`${actor} may not write "${base}" (allowed: ${writable.join(", ")})`);
         }
         task[base] = v;
+        if (["objective", "completion_checks", "priority", "risk", "resources", "dependencies"].includes(base)) packetChanged = true;
       }
       if (flags.objective) {
         if (contract && !contract.may_write.includes("objective")) throw new StateError(`${actor} may not write objective`);
         task.objective = flags.objective;
+        packetChanged = true;
       }
       for (const c of flags.check) {
         if (contract && !contract.may_write.includes("completion_checks")) throw new StateError(`${actor} may not write completion_checks`);
-        if (!task.completion_checks.includes(c)) task.completion_checks.push(c);
+        if (!task.completion_checks.includes(c)) { task.completion_checks.push(c); packetChanged = true; }
       }
       if (flags.priority) {
         if (contract && !contract.may_write.includes("priority")) throw new StateError(`${actor} may not write priority`);
         task.priority = flags.priority;
+        packetChanged = true;
       }
       if (flags.risk) {
         if (contract && !contract.may_write.includes("risk")) throw new StateError(`${actor} may not write risk`);
         task.risk = flags.risk === "risky" ? "risky" : "normal";
         task.review_required = task.review_required || task.risk === "risky";
+        packetChanged = true;
       }
       if (flags.to) {
         if (actor !== "mira" && actor !== "manager") throw new StateError("only Mira (or the manager) assigns workers; use: assign");
@@ -1163,6 +1186,7 @@ async function main() {
         addEvidence(state, task.id, { kind: "note", detail: n }, actor);
         say(actor, n, { task: task.id });
       }
+      if (packetChanged) reviseTaskPacket(state, task.id, { actor, reason: "task packet fields changed" });
       if (Object.keys(flags.set).length || flags.objective || flags.check.length || flags.pass.length || flags.fail.length || flags.review.length || flags.note.length || flags.priority || flags.risk || flags.to || flags.checkpoint) {
         task.updated_at = new Date().toISOString();
         logEvent(state, { task: task.id, actor, event: "update", detail: JSON.stringify({ set: Object.keys(flags.set), checks: flags.check.length, pass: flags.pass.length, fail: flags.fail.length, reviews: flags.review.length }) });
@@ -1176,7 +1200,7 @@ async function main() {
       const { state, task } = need(pos[0]);
       const to = pos[1];
       const from = task.status;
-      const actor = knownActor();
+      const actor = knownActor(task.id);
       transition(state, task.id, to, { actor, note: flags.note?.[0] });
       narrateMove(task, from, to, actor, flags.note?.[0]);
       if (to === "triaged" && task.auto_route && task.assigned_worker) {
@@ -1204,7 +1228,7 @@ async function main() {
         throw new StateError(`--to must be one of pip, rowan, sage, beacon`);
       }
       task.assigned_worker = worker;
-      transition(state, task.id, "assigned", { actor: knownActor(), note: `assigned to ${worker}` });
+      transition(state, task.id, "assigned", { actor: knownActor(task.id), note: `assigned to ${worker}` });
       narrateMove(task, "triaged", "assigned", actorOf(), `assigned to ${worker}`);
       saveState(ROOT, state);
       console.log(renderTask(task));
@@ -1235,7 +1259,7 @@ async function main() {
       const from = task.status;
       task.blocker = { reason: flags.reason, since: new Date().toISOString(), actor: actorOf() };
       task.next_wake_at = resolveWake(flags["wake-in"]);
-      transition(state, task.id, "blocked", { actor: knownActor(), note: flags.reason });
+      transition(state, task.id, "blocked", { actor: knownActor(task.id), note: flags.reason });
       narrateMove(task, from, "blocked", actorOf(), flags.reason);
       saveState(ROOT, state);
       console.log(renderTask(task));
@@ -1311,7 +1335,7 @@ async function main() {
       if (!flags.reason) throw new StateError(`escalate needs --reason "..."`);
       const from = task.status;
       task.blocker = { reason: flags.reason, since: new Date().toISOString(), actor: actorOf() };
-      transition(state, task.id, "escalated", { actor: knownActor(), note: flags.reason });
+      transition(state, task.id, "escalated", { actor: knownActor(task.id), note: flags.reason });
       narrateMove(task, from, "escalated", actorOf(), flags.reason);
       saveState(ROOT, state);
       console.log(renderTask(task));
@@ -1356,14 +1380,23 @@ async function main() {
 
     case "ui-refresh":
       flags.noOpen = false;
-      // Deliberately falls through to the same source-backed server startup.
+      // When invoked from an ATL project, serve that project's checked-in
+      // runtime assets so an installed CLI can refresh its UI from source.
+      // Without this, ui-refresh only restarted the stale installed artifact.
+      {
+        const projectRuntime = path.join(ROOT, "runtime");
+        flags.assetRoot = fs.existsSync(path.join(projectRuntime, "control-plane.html"))
+          && fs.existsSync(path.join(projectRuntime, "control-plane-client.js"))
+          ? projectRuntime
+          : null;
+      }
     case "ui":
     case "control-plane":
     case "web": {
       const host = String(flags.host || "127.0.0.1");
       const port = Number(flags.port || 0);
       if (!Number.isInteger(port) || port < 0 || port > 65535) throw new StateError("--port must be an integer from 0 to 65535");
-      const running = await startControlPlaneServer(ROOT, { host, port });
+      const running = await startControlPlaneServer(ROOT, { host, port, ...(flags.assetRoot ? { assetRoot: flags.assetRoot } : {}) });
       console.log(`ATL browser control plane: ${running.url}`);
       console.log("Live state and commands are served from this project. Press Ctrl+C to stop.");
       if (!flags.noOpen) openControlPlane(running.url);
@@ -1768,6 +1801,28 @@ async function main() {
         return;
       }
       console.log(renderRole(name, routing));
+      return;
+    }
+
+    case "projects": {
+      const sub = pos[0] || "list";
+      if (sub === "register") {
+        const project = registerProject(ROOT, { name: flags.title || path.basename(ROOT), maxConcurrent: Number(flags.set.maxConcurrent || 1) });
+        console.log(`Registered ${project.name} as ${project.id}`);
+      } else if (sub === "list") {
+        console.log(JSON.stringify(supervisorSnapshot(), null, 2));
+      } else if (sub === "concurrency") {
+        console.log(JSON.stringify(setSupervisorDefaults({ maxConcurrent: Number(pos[1]) }), null, 2));
+      } else throw new StateError("projects: register | list | concurrency <1..5>");
+      return;
+    }
+
+    case "backup": {
+      const sub = pos[0] || "list";
+      if (sub === "create") console.log(JSON.stringify(createBackup(ROOT, { label: flags.label || "manual" }), null, 2));
+      else if (sub === "list") console.log(JSON.stringify(listBackups(ROOT), null, 2));
+      else if (sub === "restore") console.log(JSON.stringify(restoreBackup(ROOT, pos[1]), null, 2));
+      else throw new StateError("backup: create | list | restore <id>");
       return;
     }
 

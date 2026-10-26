@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { acquireLease, heartbeatLease, leaseAllows, reconcileLeases, releaseLease } from "../runtime/lib/leases.mjs";
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-leases-"));
+const first = acquireLease(root, { project: "p", task: "T-1", role: "rowan", run: "R-1", ttlMs: 1000 });
+assert.equal(leaseAllows(root, first), true); assert.throws(() => acquireLease(root, { project: "p", task: "T-1", role: "sage", run: "R-2" }), /active lease/);
+heartbeatLease(root, first); assert.equal(releaseLease(root, first), true); const second = acquireLease(root, { project: "p", task: "T-1", role: "sage", run: "R-2" });
+assert.ok(second.generation > first.generation); assert.throws(() => heartbeatLease(root, first), /stale lease/); assert.equal(reconcileLeases(root).expired.length, 0);
+fs.rmSync(root, { recursive: true, force: true }); console.log("PASS: lease generation fencing, heartbeat, release, and stale-writer rejection");
