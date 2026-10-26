@@ -88,7 +88,7 @@ function promptFor(role, task, root, workspace, feedback = [], navigationContext
 You are one stage in an explicit, unattended ATL run. Do not invent a later stage.
 Use the ATL runner for every state, evidence, checkpoint, assignment, block, or
 escalation change. The absolute ATL runner path is available in ATL_BIN. Invoke
-it as 'node "$env:ATL_BIN"' on Windows or 'node "$ATL_BIN"' on POSIX; do not
+it as 'node $env:ATL_BIN' on Windows or 'node $ATL_BIN' on POSIX; do not
 rely on PATH or an installed shell alias;
 the project root is '${root}'.
 
