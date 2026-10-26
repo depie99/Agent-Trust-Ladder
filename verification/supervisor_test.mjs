@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-supervisor-home-"));
+process.env.ATL_HOME = home;
+const { registerProject, selectProjects, setSupervisorDefaults, supervisorSnapshot } = await import("../runtime/lib/supervisor.mjs");
+const project = fs.mkdtempSync(path.join(os.tmpdir(), "atl-supervisor-project-"));
+const first = registerProject(project, { name: "first" });
+assert.equal(registerProject(project).id, first.id, "registration is idempotent by canonical root");
+assert.equal(setSupervisorDefaults({ maxConcurrent: 2 }).defaults.maxConcurrent, 2);
+assert.throws(() => setSupervisorDefaults({ maxConcurrent: 6 }), /1 to 5/);
+assert.deepEqual(selectProjects([{ id: "a", eligible: true }, { id: "b", eligible: true }], { cursor: 1 }).map((p) => p.id), ["b", "a"]);
+assert.equal(supervisorSnapshot().projects.length, 1);
+fs.rmSync(home, { recursive: true, force: true }); fs.rmSync(project, { recursive: true, force: true });
+console.log("PASS: supervisor keeps project-local state and bounded shared defaults");

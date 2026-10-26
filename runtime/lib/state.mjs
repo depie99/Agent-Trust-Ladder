@@ -37,6 +37,7 @@ export function emptyState() {
     updated_at: new Date().toISOString(),
     tasks: {},
     seq: 0,
+    revision: 0,
     log: [],
   };
 }
@@ -55,10 +56,13 @@ export function loadState(root) {
   return state;
 }
 
-export function saveState(root, state) {
+export function saveState(root, state, { expectedRevision = null } = {}) {
   const p = paths(root).state;
+  const current = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : null;
+  if (expectedRevision != null && (current?.revision || 0) !== expectedRevision) throw new StateError(`state revision conflict: expected ${expectedRevision}, found ${current?.revision || 0}`);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   state.updated_at = new Date().toISOString();
+  state.revision = (current?.revision || state.revision || 0) + 1;
   if (state.log.length > 500) state.log = state.log.slice(-500);
   const tmp = p + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n");
@@ -84,6 +88,8 @@ export function createTask(state, fields) {
     source: fields.source || { type: "manual" },
     resources: Array.isArray(fields.resources) ? fields.resources : [],
     objective: "",
+    packet_revision: 1,
+    packet_approved_revision: null,
     completion_checks: [],
     priority: fields.priority || "normal",      // low | normal | high | urgent
     risk: fields.risk || "normal",              // normal | risky
@@ -136,13 +142,13 @@ function fail(required, task) {
       throw new StateError(`${task.id}: --reason "..." is required to block a task`);
     if (r === "all_checks_pass") {
       const missing = (task.completion_checks || []).filter(
-        (c) => !task.evidence.some((e) => e.kind === "check" && e.check === c && e.result === "pass")
+        (c) => !task.evidence.some((e) => e.kind === "check" && e.check === c && e.result === "pass" && (e.packet_revision || 1) === (task.packet_revision || 1))
       );
       if (missing.length > 0)
         throw new StateError(
           `${task.id}: cannot finish, these checks have no passing evidence: ${missing.join(" | ")}`
         );
-      if ((task.review_required || false) && !task.evidence.some((e) => e.kind === "review" && e.result === "approve"))
+      if ((task.review_required || false) && !task.evidence.some((e) => e.kind === "review" && e.result === "approve" && (e.packet_revision || 1) === (task.packet_revision || 1)))
         throw new StateError(`${task.id}: review_required is set but no approved review exists`);
     }
   }
@@ -190,8 +196,22 @@ export function addEvidence(state, taskId, entry, actor) {
   }
   task.evidence.push({
     kind: entry.kind, check: entry.check || null, result: entry.result || null,
-    detail: entry.detail || "", actor, at: new Date().toISOString(),
+    detail: entry.detail || "", actor, at: new Date().toISOString(), packet_revision: task.packet_revision || 1,
+    code_revision: entry.code_revision || null, session_id: entry.session_id || null,
+    command: entry.command || null, exit_code: entry.exit_code ?? null, artifact_hash: entry.artifact_hash || null,
   });
   task.updated_at = new Date().toISOString();
   logEvent(state, { task: taskId, actor, event: `evidence:${entry.kind}`, detail: entry.detail || entry.check || "" });
+}
+
+// A changed task contract invalidates evidence tied to an older contract.
+// Evidence is retained for audit; gates only consider the current revision.
+export function reviseTaskPacket(state, taskId, { actor = "manager", reason = "task packet changed" } = {}) {
+  const task = state.tasks[taskId];
+  if (!task) throw new StateError(`Unknown task ${taskId}`);
+  task.packet_revision = (task.packet_revision || 1) + 1;
+  task.packet_approved_revision = null;
+  task.updated_at = new Date().toISOString();
+  logEvent(state, { task: taskId, actor, event: "packet-revised", detail: `${reason}; revision=${task.packet_revision}` });
+  return task;
 }

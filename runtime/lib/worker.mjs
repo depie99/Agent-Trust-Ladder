@@ -148,7 +148,6 @@ export function buildInvocation(worker, { root, workspace, role, task, auth = "s
         "exec",
         ...(provider?.model ? ["--model", provider.model] : []),
         "--cd", cwd,
-        "--add-dir", root,
         "--sandbox", "workspace-write",
         "--ephemeral",
         "-",
@@ -163,7 +162,6 @@ export function buildInvocation(worker, { root, workspace, role, task, auth = "s
       args: [
         "-p",
         ...(provider?.model ? ["--model", provider.model] : []),
-        "--add-dir", root,
         "--add-dir", cwd,
         "--permission-mode", "acceptEdits",
         "--permission-prompts", "none",
@@ -187,11 +185,11 @@ function killProcess(child) {
 // The one worker session this process currently runs, if any. The launch
 // queue's abort path uses it to stop the live session (operator abort), so
 // the spawn/exit lifecycle below keeps it current.
-let activeChild = null;
+const activeChildren = new Set();
 
 export function abortActiveWorker() {
-  if (!activeChild) return false;
-  killProcess(activeChild);
+  if (!activeChildren.size) return false;
+  for (const child of activeChildren) killProcess(child);
   return true;
 }
 
@@ -236,7 +234,7 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
       reject(error);
       return;
     }
-    activeChild = child;
+    activeChildren.add(child);
 
     // Feed the prompt on stdin; ignore EPIPE if the child exits early.
     child.stdin.on("error", () => {});
@@ -265,7 +263,7 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
 
     child.on("close", (code, signal) => {
       clearTimeout(timer);
-      if (activeChild === child) activeChild = null;
+      activeChildren.delete(child);
       if (settled) return;
       settled = true;
       const finishedAt = new Date().toISOString();

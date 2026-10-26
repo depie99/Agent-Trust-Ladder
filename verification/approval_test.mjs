@@ -1,0 +1,23 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { authorizeAction, decideProposal, proposeAction, revokeGrant } from "../runtime/lib/approvals.mjs";
+
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-approvals-"));
+const action = { project: "project-a", task: "T-001", operation: "draft-pr", target: "main", args: { branch: "task/T-001" }, revision: 2, policyVersion: 1 };
+assert.equal(authorizeAction(root, action).allowed, false, "an action is denied until exact approval exists");
+const proposal = proposeAction(root, action);
+decideProposal(root, proposal.id, "allow-once", { expiresInSeconds: 60 });
+assert.equal(authorizeAction(root, action).allowed, true, "exact approved action can execute once");
+assert.equal(authorizeAction(root, action).allowed, false, "single-use approval cannot be replayed");
+const second = proposeAction(root, { ...action, revision: 3 });
+decideProposal(root, second.id, "allow-once", { expiresInSeconds: 60 });
+assert.equal(authorizeAction(root, action).allowed, false, "code revision changes invalidate approval");
+const third = proposeAction(root, action);
+decideProposal(root, third.id, "allow-once", { expiresInSeconds: 60 });
+const grant = JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "approvals.json"), "utf8")).grants.at(-1);
+revokeGrant(root, grant.id);
+assert.equal(authorizeAction(root, action).allowed, false, "revocation blocks an unconsumed grant");
+fs.rmSync(root, { recursive: true, force: true });
+console.log("PASS: exact approvals bind revision, are single-use, and revoke safely");

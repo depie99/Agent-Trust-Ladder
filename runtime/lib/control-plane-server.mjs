@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createControlPlaneSnapshot } from "./control-plane.mjs";
 import { dispatchTuiCommand } from "./command-console.mjs";
-import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, readOvernightRun, readRunLock, requestRunAbort } from "./launch.mjs";
+import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, reconcileOvernightRun, readRunLock, requestRunAbort } from "./launch.mjs";
 import { addProposal, addProposalFeedback, editProposal, loadPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider } from "./plan-studio.mjs";
 import { invokePlanningProvider } from "./plan-model.mjs";
 import { builtinProviderStatus } from "./providers.mjs";
@@ -12,6 +12,14 @@ import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLA
 import { paths } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
 import { approveClaim, promoteSkill, registerRoutine, validateSkill } from "./governance.mjs";
+import { approvalSnapshot, authorizeAction, decideProposal, proposeAction, recordActionOutcome, revokeGrant } from "./approvals.mjs";
+import { registerProject, setSupervisorDefaults, supervisorSnapshot } from "./supervisor.mjs";
+import { createBackup, listBackups, previewRestore, restoreBackup } from "./backup.mjs";
+import { listRoutineRuns, recoverScheduler, runRoutine, schedulerStatus, schedulerTick } from "./routines.mjs";
+import { buildDispatchPlan } from "./dispatcher.mjs";
+import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
+import { ensureOwnerSession, ownerSessionCookie, validateOwnerSession } from "./session-auth.mjs";
+import { approveDraftPr, createDeliveryPacket, listDeliveryPackets } from "./delivery.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_PLANE_FILE = path.join(RUNTIME_DIR, "..", "control-plane.html");
@@ -46,8 +54,8 @@ function escapeText(value) {
   return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
 
-function sendHtml(res, root) {
-  const source = fs.readFileSync(CONTROL_PLANE_FILE, "utf8");
+function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE)) {
+  const source = fs.readFileSync(path.join(assetRoot, "control-plane.html"), "utf8");
   // The downloaded artifact contains its own demo controller. The live ATL
   // client is the single controller for the served surface; leaving both
   // document listeners active makes route clicks race and can make Tasks
@@ -64,17 +72,20 @@ function sendHtml(res, root) {
   bodyText = bodyText
     .replace("<span>● Interactive mock · No provider calls, skill execution or real ATL actions</span>", `<span>● Live · connected to ${escapeText(path.basename(root))}</span>`)
     .replace('<span class="pill hotkey">INTERACTIVE DEMO</span>', '<span class="pill hotkey">LIVE</span>');
+  const session = ensureOwnerSession(root);
+  bodyText = bodyText.replace("</head>", `<meta name="atl-csrf" content="${escapeText(session.csrf)}"></head>`);
   const body = Buffer.from(bodyText, "utf8");
   res.writeHead(200, {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
     "content-length": body.length,
+    "set-cookie": ownerSessionCookie(session.token),
   });
   res.end(body);
 }
 
-function sendJavascript(res) {
-  const body = fs.readFileSync(path.join(RUNTIME_DIR, "..", "control-plane-client.js"));
+function sendJavascript(res, assetRoot = path.dirname(CONTROL_PLANE_FILE)) {
+  const body = fs.readFileSync(path.join(assetRoot, "control-plane-client.js"));
   res.writeHead(200, {
     "content-type": "text/javascript; charset=utf-8",
     "cache-control": "no-store",
@@ -420,9 +431,13 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
   return json(res, 404, { ok: false, error: "not found" });
 }
 
-export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch } = {}) {
+export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE) } = {}) {
+  if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) throw new Error("control plane only supports loopback hosts");
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch };
-  const durable = readOvernightRun(root);
+  // A browser server can start after its runner has died. Reconcile the
+  // durable run ledger before projecting it, otherwise the UI can show a
+  // permanently-running task/progress bar with no live provider process.
+  const durable = reconcileOvernightRun(root).run;
   const run = durable ? {
     status: durable.status || "idle",
     queueId: durable.queueId || null,
@@ -436,21 +451,71 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     resumableTaskIds: durable.resumableTaskIds || [],
     error: durable.error || null,
   } : { status: "idle", queueId: null, taskIds: null, queueIds: null, startedAt: null, finishedAt: null, progress: [], results: [], error: null };
+  const streams = new Set();
+  const streamTimer = setInterval(() => { for (const stream of streams) { try { const snapshot = createControlPlaneSnapshot(root); stream.res.write(`event: snapshot\ndata: ${JSON.stringify({ cursor: snapshot.state?.log?.length || 0, snapshot })}\n\n`); } catch { streams.delete(stream); } } }, 2000);
+  streamTimer.unref?.();
   return http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url || "/", `http://${host}`);
+      // A browser may only mutate this loopback service from its own origin.
+      // Command-line clients have no Origin header and remain supported.
+      if (!["GET", "HEAD", "OPTIONS"].includes(req.method || "GET") && req.headers.origin) {
+        const expected = `http://${req.headers.host}`;
+        if (req.headers.origin !== expected) { json(res, 403, { ok: false, error: "cross-origin control-plane mutation refused" }); return; }
+        const token = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length);
+        if (!validateOwnerSession(root, decodeURIComponent(token || ""), String(req.headers["x-atl-csrf"] || ""))) { json(res, 403, { ok: false, error: "owner session or CSRF token is invalid" }); return; }
+      }
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-        sendHtml(res, root);
+        sendHtml(res, root, assetRoot);
         return;
       }
       if (req.method === "GET" && url.pathname === "/control-plane-client.js") {
-        sendJavascript(res);
+        sendJavascript(res, assetRoot);
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/snapshot") {
         json(res, 200, createControlPlaneSnapshot(root));
         return;
       }
+      if (req.method === "GET" && url.pathname === "/api/events") {
+        const snapshot = createControlPlaneSnapshot(root); res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache", connection: "keep-alive" });
+        res.write(`event: snapshot\ndata: ${JSON.stringify({ cursor: Number(url.searchParams.get("cursor") || 0), snapshot })}\n\n`);
+        const stream = { res }; streams.add(stream); req.on("close", () => streams.delete(stream)); return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/approvals") { json(res, 200, approvalSnapshot(root)); return; }
+      if (req.method === "POST" && url.pathname === "/api/approvals") {
+        const payload = JSON.parse(await readBody(req) || "{}"); let result;
+        if (payload.action === "propose") result = proposeAction(root, payload.proposal || {}, { principal: "owner" });
+        else if (payload.action === "decide") result = decideProposal(root, String(payload.proposal_id || ""), payload.decision, { principal: "owner", expiresInSeconds: Number(payload.expires_in_seconds || 600) });
+        else if (payload.action === "revoke") result = revokeGrant(root, String(payload.grant_id || ""), { principal: "owner" });
+        else { json(res, 400, { ok: false, error: "unknown approval action" }); return; }
+        json(res, 200, { ok: true, result, approvals: approvalSnapshot(root) }); return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/supervisor") { json(res, 200, supervisorSnapshot()); return; }
+      if (req.method === "POST" && url.pathname === "/api/supervisor") {
+        const payload = JSON.parse(await readBody(req) || "{}"); let result;
+        if (payload.action === "register-project" || payload.action === "register") result = registerProject(String(payload.root || root), payload.project || { name: payload.name, maxConcurrent: payload.maxConcurrent });
+        else if (payload.action === "defaults") result = setSupervisorDefaults(payload.defaults || {});
+        else { json(res, 400, { ok: false, error: "unknown supervisor action" }); return; }
+        json(res, 200, { ok: true, result, supervisor: supervisorSnapshot() }); return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/backups") { json(res, 200, { backups: listBackups(root) }); return; }
+      if (req.method === "GET" && url.pathname === "/api/backups/preview") { json(res, 200, { ok: true, preview: previewRestore(root, String(url.searchParams.get("id") || "")) }); return; }
+      if (req.method === "POST" && url.pathname === "/api/backups") { const payload = JSON.parse(await readBody(req) || "{}"); const result = payload.action === "restore" ? restoreBackup(root, String(payload.id || payload.backup_id || "")) : createBackup(root, { label: String(payload.label || "manual") }); json(res, 200, { ok: true, result, backups: listBackups(root) }); return; }
+      if (req.method === "GET" && url.pathname === "/api/delivery") { json(res, 200, { packets: listDeliveryPackets(root) }); return; }
+      if (req.method === "POST" && url.pathname === "/api/delivery") { const payload = JSON.parse(await readBody(req) || "{}"); const result = payload.action === "approve-draft-pr" ? approveDraftPr(root, payload.packet_id, payload) : createDeliveryPacket(root, payload.task_id, payload); json(res, 200, { ok: true, result, packets: listDeliveryPackets(root) }); return; }
+      if (req.method === "GET" && url.pathname === "/api/routines/runs") { json(res, 200, { runs: listRoutineRuns(root), scheduler: schedulerStatus(root) }); return; }
+      if (req.method === "POST" && url.pathname === "/api/routines/run") { const payload = JSON.parse(await readBody(req) || "{}"); const result = runRoutine(root, String(payload.id || ""), { sourceFingerprint: String(payload.source_fingerprint || "manual"), dryRun: payload.dry_run !== false }); json(res, 200, { ok: true, result }); return; }
+      if (req.method === "POST" && url.pathname === "/api/routines/tick") { const payload = JSON.parse(await readBody(req) || "{}"); const result = schedulerTick(root, { now: payload.now ? new Date(payload.now) : new Date(), event: payload.event || null, sourceFingerprint: payload.source_fingerprint || null }); json(res, 200, { ok: true, result }); return; }
+      if (req.method === "POST" && url.pathname === "/api/routines/recover") { json(res, 200, { ok: true, scheduler: recoverScheduler(root) }); return; }
+      if (req.method === "GET" && url.pathname === "/api/dispatch/preview") { const supervisor = supervisorSnapshot(); const projects = supervisor.projects.map((project) => ({ ...project, eligible: true })); json(res, 200, { ok: true, plan: buildDispatchPlan(projects, { maxConcurrent: supervisor.defaults.maxConcurrent }) }); return; }
+      if (req.method === "POST" && url.pathname === "/api/supervisor/run") {
+        const payload = JSON.parse(await readBody(req) || "{}"); const supervisor = supervisorSnapshot();
+        if (payload.confirm !== true) { json(res, 400, { ok: false, error: "supervisor execution requires explicit confirmation" }); return; }
+        executeSupervisor(root, { projects: supervisor.projects, maxMinutes: Number(payload.max_minutes || 120), maxSessions: Number(payload.max_sessions || 8), onProgress: () => {} }).catch(() => {});
+        json(res, 202, { ok: true, status: "running", cap: supervisor.defaults.maxConcurrent }); return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/supervisor/stop") { requestSupervisorStop(); json(res, 202, { ok: true, status: "stopping" }); return; }
       if (req.method === "POST" && url.pathname === "/api/usage/refresh") {
         const registry = loadUserProviders();
         const entries = Object.values(registry.providers || {}).filter((entry) => entry?.api_key && entry?.base_url);
@@ -510,6 +575,19 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           json(res, 400, { ok: false, error: "queue execution requires explicit confirmation" });
           return;
         }
+        const action = { project: path.resolve(root), task: null, operation: "run.queue", target: payload.queueId || "selected", args: { taskIds: payload.taskIds || null, queueIds: payload.queueIds || null }, revision: createControlPlaneSnapshot(root).state.revision, policyVersion: 1 };
+        let approval = authorizeAction(root, action);
+        if (!approval.allowed) {
+          // Browser confirmation proposes the exact action. The owner must
+          // decide in Approval Center before any provider starts.
+          const proposal = proposeAction(root, action, { principal: "owner" });
+          if (req.headers.origin) { json(res, 202, { ok: true, approvalRequired: true, proposal, error: "owner approval required before execution" }); return; }
+          // Legacy non-browser callers retain the explicit CLI confirmation
+          // boundary; browser actions always use the visible approval flow.
+          decideProposal(root, proposal.id, "allow-once", { principal: "owner" });
+          approval = authorizeAction(root, action);
+          if (!approval.allowed) { json(res, 403, { ok: false, error: approval.reason, proposal }); return; }
+        }
         if (run.status === "running") {
           json(res, 409, { ok: false, error: "a queue run is already active", run });
           return;
@@ -546,8 +624,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           maxSessions: Number(payload.maxSessions || defaultSessions),
           onProgress: (line) => { run.progress.push(String(line)); run.progress = run.progress.slice(-200); },
         }).then((outcome) => {
+          recordActionOutcome(root, action, outcome);
           Object.assign(run, { status: "complete", finishedAt: new Date().toISOString(), results: outcome.results || [], reason: outcome.reason || null });
         }).catch((error) => {
+          recordActionOutcome(root, action, { status: "failed", reason: error.message, failed: true });
           Object.assign(run, { status: "failed", finishedAt: new Date().toISOString(), error: error.message });
         });
         json(res, 202, { ok: true, run });
@@ -590,8 +670,8 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   });
 }
 
-export async function startControlPlaneServer(root, { host = "127.0.0.1", port = 0, planningInvoke = null, usageFetch = globalThis.fetch } = {}) {
-  const server = createControlPlaneServer(root, { host, planningInvoke, usageFetch });
+export async function startControlPlaneServer(root, { host = "127.0.0.1", port = 0, planningInvoke = null, usageFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE) } = {}) {
+  const server = createControlPlaneServer(root, { host, planningInvoke, usageFetch, assetRoot });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen({ host, port }, resolve);
