@@ -4,6 +4,9 @@
 
 import { loadState, saveState, transition, addEvidence } from "./state.mjs";
 import { queueAdd, queueIds } from "./queue.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { reconcileLeases } from "./leases.mjs";
 
 const WORKERS = new Set(["pip", "rowan", "sage", "beacon"]);
 const ACTIVE_STATUSES = new Set(["new", "triaged", "assigned", "in_progress", "in_review", "verifying", "blocked", "escalated"]);
@@ -181,4 +184,11 @@ export function explainTasks(root, taskId) {
         return { ...base, kind: "unknown", why: `status ${t.status}`, fix: "" };
     }
   });
+}
+
+export function reconcileRuntime(root) {
+  const leases = reconcileLeases(root);
+  const dir = path.join(root, ".trust", "manager", "journal"); const journals = [];
+  if (fs.existsSync(dir)) for (const name of fs.readdirSync(dir)) if (name.endsWith(".json")) { const file = path.join(dir, name); try { const entry = JSON.parse(fs.readFileSync(file, "utf8")); if (["prepared", "committing"].includes(entry.status)) { entry.status = "reconcile_required"; entry.reconciled_at = new Date().toISOString(); fs.writeFileSync(file, JSON.stringify(entry, null, 2) + "\n"); } journals.push(entry); } catch { journals.push({ file: name, status: "unreadable" }); } }
+  return { leases, journals, ready: journals.every((entry) => entry.status !== "unreadable") };
 }
