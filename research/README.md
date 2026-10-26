@@ -73,6 +73,8 @@ The pipeline never silently invents content: a source that could not be
 fetched is reported as failed in the brief, and transcripts that could not
 be downloaded are recorded as gaps instead of approximations.
 
+Research records also archive their record body as content-addressed raw bytes under `.trust/manager/brain/raw/<sha256>/content`. `sources.json` records the source revision and intake result, while `events.jsonl` preserves intake events. Replaying an unchanged source is idempotent; source failures remain explicit and are not reported as unchanged.
+
 ## The pipeline
 
 1. **Capture** — `scripts/intel-brief.mjs` (daily schedule) checks every

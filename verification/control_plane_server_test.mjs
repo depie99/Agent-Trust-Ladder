@@ -4,10 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
+import { addClaim } from "../runtime/lib/brain.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-control-plane-server-"));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
 saveState(root, emptyState());
+const pendingClaim = addClaim(root, { text: "Control Plane approval test", source_id: "source-ui", source_content: "evidence" }).claim;
 const running = await startControlPlaneServer(root);
 try {
   const html = await fetch(running.url).then((response) => response.text());
@@ -40,6 +42,13 @@ try {
   assert.match(client, /Save connection/, "sidebar provider modal exposes one save path for current connection settings");
   assert.match(client, /data-pm-current-thinking/, "sidebar provider modal exposes current-provider thinking/effort");
   assert.match(client, /data-pm-current-key/, "sidebar provider modal exposes safe API-key replacement");
+  assert.match(client, /class="task-controls"/, "task rows group status, ownership, and actions in one control region");
+  assert.match(client, /class="task-owner-label">Assigned to/, "task ownership is explicitly labelled");
+  assert.match(client, /class="task-actions"/, "task actions have a distinct visual group");
+  assert.match(client, /Evidence & Automation/, "Control Plane exposes the Knowledge workspace");
+  assert.match(client, /brain-approve:/, "claim approval is available in the primary UI");
+  assert.match(client, /brain-skill-form/, "skill validation and promotion are available in the primary UI");
+  assert.match(client, /brain-routine-form/, "routine registration is available in the primary UI");
 
   const health = await fetch(`${running.url}api/health`).then((response) => response.json());
   assert.equal(health.ok, true, "control-plane health is available");
@@ -52,6 +61,9 @@ try {
   assert.deepEqual(updatedNavigation.navigation, { mode: "on", max_tokens: 1200, build_on_launch: true }, "browser saves validated navigation settings atomically");
   const snapshot = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
   assert.equal(snapshot.version, 1, "browser receives the versioned ATL snapshot");
+  assert.equal(snapshot.brain.claims.length, 1, "browser snapshot includes evidence-linked claims");
+  const approved = await fetch(`${running.url}api/brain`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "approve-claim", claim_id: pendingClaim.claim_id, note: "UI test" }) }).then((response) => response.json());
+  assert.equal(approved.result.status, "VERIFIED", "browser manager can approve a non-conflicted claim");
   const command = await fetch(`${running.url}api/command`, {
     method: "POST",
     headers: { "content-type": "application/json" },

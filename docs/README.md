@@ -22,7 +22,11 @@ The launch announcement draft is in [linkedin-launch-post.md](linkedin-launch-po
 
 The primary interface guide is [Web Control Plane](control-room.html). The visual companion set includes the [workflow visual](diagrams/atl-web-control-plane.svg) and a [sanitized browser-surface preview](diagrams/atl-web-control-plane-preview.svg). The preview is representative documentation art, not live project data.
 
-ATL also keeps an evidence-linked project brain under `.trust/manager/brain/`. Claims retain source identifiers and revisions, duplicate imports are idempotent, conflicting claims are surfaced instead of overwritten, and bounded context packs can be rebuilt for a task. This is an execution aid, not a replacement for the human approval and verification gates.
+ATL also keeps an evidence-linked project brain under `.trust/manager/brain/`. Claims retain source identifiers and revisions, duplicate imports are idempotent, conflicting claims are surfaced instead of overwritten, and bounded context packs can be rebuilt for a task. Raw source bytes are content-addressed under `brain/raw/`, intake metadata is recorded in `sources.json`, and append-only intake events are written to `events.jsonl`. Inspect them with `atl brain status`. This is an execution aid, not a replacement for the human approval and verification gates.
+
+The browser Control Plane is the primary interface for this workflow. Its **Knowledge** workspace shows source and claim counts, 30-day freshness status, manager claim approvals, Gold skill promotion, and approval-gated routine registration. Routine registration never enables execution; task evidence and explicit run confirmation remain authoritative.
+
+The complete explanation is [The ATL Brain — Evidence that survives the session](brain.html), covering the source-to-worker flow, implementation layout, Control Plane operations, CLI equivalents, safety boundaries, and current limits.
 
 ## Diagram workflow rule
 

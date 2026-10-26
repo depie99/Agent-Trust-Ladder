@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="The ATL Brain: source-linked knowledge, provenance, freshness, approvals, skills, and bounded routines." />
+    <title>The ATL Brain — Evidence that survives the session</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="styles.css?v=7" />
+    <meta name="theme-color" content="#0b0b10" />
+    <script>(function(){try{var s=localStorage.getItem("atl-theme");if(s==="light"||(!s&&matchMedia("(prefers-color-scheme: light)").matches))document.documentElement.classList.add("light")}catch(e){}})();</script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Documentation navigation">
+        <a class="brand brand-link" href="index.html"><div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div><div><strong>ATL</strong><small>Agent Trust Ladder</small></div></a>
+        <div class="sidebar-caption">Documentation</div>
+        <nav class="nav-list">
+          <a class="nav-item" href="index.html"><span>⌂</span>Overview</a>
+          <a class="nav-item" href="control-room.html"><span>▣</span>Control Room</a>
+          <a class="nav-item active" href="brain.html" aria-current="page"><span>◈</span>ATL Brain</a>
+          <a class="nav-item" href="reference.html"><span>⌘</span>Reference</a>
+          <a class="nav-item" href="guides.html"><span>¤</span>Guides</a>
+        </nav>
+        <div class="sidebar-footer"><div class="status-dot"><i></i>Evidence-first mode</div><p>Knowledge is advisory.<br />Proof remains authoritative.</p></div>
+      </aside>
+      <main id="main-content">
+        <header class="topbar"><div class="crumbs"><span>ATL</span><b>/</b><span class="current">The Brain</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme" aria-pressed="false"></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder">GitHub ↗</a></div></header>
+        <div class="content-wrap">
+          <section class="hero" id="overview">
+            <div class="eyebrow"><span class="pulse"></span> PERSISTENT ENGINEERING KNOWLEDGE</div>
+            <h1>The ATL Brain:<br /><em>evidence that survives.</em></h1>
+            <p class="hero-copy">The Brain gives ATL durable project memory without turning memory into authority. It preserves sources, links claims to revisions, surfaces disagreement and staleness, and supplies bounded context to workers.</p>
+            <div class="hero-actions"><a class="button primary" href="control-room.html">Open the Control Room ↗</a><a class="button secondary" href="#flow">See the flow →</a></div>
+            <div class="hero-note"><span>◈</span> The manager approves knowledge. Workers use it. ATL still requires observed evidence.</div>
+          </section>
+
+          <section class="stats-grid" aria-label="Brain principles"><div class="stat-card"><span class="stat-icon violet">◉</span><div><strong>1</strong><span>source of truth</span></div><small>raw evidence remains available</small></div><div class="stat-card"><span class="stat-icon mint">↔</span><div><strong>0</strong><span>silent conflicts</span></div><small>disagreement stays visible</small></div><div class="stat-card"><span class="stat-icon amber">30</span><div><strong>days</strong><span>default freshness</span></div><small>stale claims need review</small></div></section>
+
+          <section class="section-block" id="why"><div class="section-heading"><div><span class="section-kicker">WHY IT EXISTS</span><h2>Context is useful. Context is not proof.</h2></div></div><div class="guide-grid"><article class="guide-card"><span class="guide-number">01</span><div><h3>Sessions end; evidence should not.</h3><p>Research records, source bytes, revisions, claims, and decisions remain available after an agent restart or context compaction.</p></div></article><article class="guide-card"><span class="guide-number mint-number">02</span><div><h3>Interpretations can disagree.</h3><p>ATL preserves both claims and marks the subject conflicted instead of overwriting one interpretation with the other.</p></div></article><article class="guide-card"><span class="guide-number amber-number">03</span><div><h3>Workers need bounded context.</h3><p>Each launch receives only a task-scoped context pack with claim IDs, statuses, source IDs, revisions, and checked times.</p></div></article></div></section>
+
+          <section class="section-block" id="flow"><div class="section-heading"><div><span class="section-kicker">THE FLOW</span><h2>From source to safe worker context.</h2></div><span class="section-note">Every arrow has a durable artifact.</span></div><div class="workflow-card"><div class="flow-diagram" aria-label="Source, archive, claim, review, context, worker"><div class="flow-node"><b>01</b><strong>Source</strong><small>URL, file, record</small></div><div class="flow-node"><b>02</b><strong>Archive</strong><small>bytes + SHA-256</small></div><div class="flow-node"><b>03</b><strong>Claim</strong><small>status + provenance</small></div><div class="flow-node"><b>04</b><strong>Review</strong><small>freshness + approval</small></div><div class="flow-node last"><b>05</b><strong>Context</strong><small>bounded worker pack</small></div></div><div class="workflow-copy"><span class="mini-label">AUTHORITATIVE BOUNDARY</span><h3>Brain context informs work.<br /><span>ATL evidence closes it.</span></h3><p>A claim marked UNKNOWN, PARTIAL, CONFLICTED, or stale can guide investigation, but it cannot satisfy a completion check. Only an observed task evidence entry can do that.</p></div></div></section>
+
+          <section class="split-section" id="implementation"><div class="evidence-panel"><span class="section-kicker">IMPLEMENTED STORE</span><h2>Small, inspectable,<br /><em>rebuildable.</em></h2><p>The current store is project-local and file-based. Writes use atomic replacement; source snapshots are content-addressed; duplicate replay is idempotent.</p><div class="quote">“.trust/manager/brain/” is the runtime home.</div></div><div class="ledger-panel"><div class="panel-title"><span>STORE LAYOUT</span><span class="live-chip"><i></i> LOCAL</span></div><div class="ledger-row"><span class="check">✓</span><div><strong>raw/&lt;sha256&gt;/content</strong><small>original source bytes</small></div><b class="proven">RETAINED</b></div><div class="ledger-row"><span class="check">✓</span><div><strong>sources.json</strong><small>revision, URI, result, observed time</small></div><b class="proven">LINKED</b></div><div class="ledger-row"><span class="check">✓</span><div><strong>claims.json</strong><small>claim status and provenance</small></div><b class="proven">ATOMIC</b></div><div class="ledger-row"><span class="check">✓</span><div><strong>events.jsonl</strong><small>append-only intake history</small></div><b class="proven">AUDITABLE</b></div></div></section>
+
+          <section class="section-block" id="control-plane"><div class="section-heading"><div><span class="section-kicker">PRIMARY INTERFACE</span><h2>Use the Knowledge workspace.</h2></div><a href="control-room.html">Control Room guide →</a></div><div class="example-grid"><article class="example-card"><div class="example-meta"><span class="badge core">SOURCES</span><span>Observe</span></div><h3>Source and freshness status</h3><p>See source counts, intake outcomes, raw revisions, stale claims, and explicit failures. “Unavailable” is never rendered as “unchanged.”</p></article><article class="example-card"><div class="example-meta"><span class="badge review">APPROVALS</span><span>Manager gate</span></div><h3>Approve a claim</h3><p>Review the source-linked claim and approve it from the browser. Conflicted claims cannot be approved until the conflict is resolved.</p></article><article class="example-card"><div class="example-meta"><span class="badge docs">PROMOTION</span><span>Bounded automation</span></div><h3>Promote skills and routines</h3><p>Validate a skill, require Gold evidence and fixtures, then register a routine. Routines remain disabled by default.</p></article></div></section>
+
+          <section class="section-block" id="cli"><div class="section-heading"><div><span class="section-kicker">CLI REFERENCE</span><h2>Terminal equivalents.</h2></div></div><div class="code-card"><b><span>inspect sources and claims</span><button class="copy-code" type="button">Copy</button></b><pre>atl brain status
+atl brain list
+atl brain stale
+atl brain approve &lt;claim-id&gt;</pre></div><div class="code-card" style="margin-top:14px"><b><span>govern the next level</span></b><pre>atl brain skill validate --set id=summary --set version=1.0.0
+atl brain skill promote --set id=summary --set version=1.0.0 --set gold_verified=true --set fixtures=f1
+atl brain routine register --set id=daily --set skill_id=summary --set skill_version=1.0.0 --set schedule=daily --set idempotency_key=daily+source --set retry_limit=2</pre></div></section>
+
+          <section class="callout-panel" id="limits"><div><span class="section-kicker">HONEST LIMITS</span><h2>What is deliberately not automatic.</h2><p>The current Brain does not send messages, deploy, spend money, change policy, or enable routines on its own. Provider quota remains unknown unless provider telemetry directly proves it. Browser context is advisory, not a security boundary.</p></div><a class="button secondary" href="reference.html#evidence">Read the evidence model →</a></section>
+          <footer id="footer"><span>ATL Docs</span><span>Evidence first · Context aware · Human gated</span><a href="https://github.com/depie99/Agent-Trust-Ladder">View repository →</a></footer>
+        </div>
+      </main>
+    </div>
+    <script src="app.js?v=7"></script>
+  </body>
+</html>

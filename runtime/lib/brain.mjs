@@ -8,7 +8,7 @@ export const CLAIM_STATUSES = ["VERIFIED", "PARTIAL", "UNKNOWN", "CONFLICTED", "
 
 export function brainPaths(root) {
   const dir = path.join(root, ".trust", "manager", "brain");
-  return { dir, claims: path.join(dir, "claims.json"), contexts: path.join(dir, "contexts") };
+  return { dir, claims: path.join(dir, "claims.json"), contexts: path.join(dir, "contexts"), raw: path.join(dir, "raw"), sources: path.join(dir, "sources.json"), events: path.join(dir, "events.jsonl") };
 }
 
 function digest(value) {
@@ -30,12 +30,73 @@ function save(root, store) {
   fs.renameSync(tmp, p.claims);
 }
 
+function loadSources(root) {
+  const p = brainPaths(root);
+  if (!fs.existsSync(p.sources)) return { version: 1, sources: [], revision: 0 };
+  return JSON.parse(fs.readFileSync(p.sources, "utf8"));
+}
+
+function saveSources(root, store, expectedRevision = null) {
+  const p = brainPaths(root);
+  const current = loadSources(root);
+  if (expectedRevision != null && current.revision !== expectedRevision) {
+    const error = new Error(`source snapshot conflict: expected revision ${expectedRevision}, found ${current.revision}`);
+    error.code = "SOURCE_REVISION_CONFLICT";
+    throw error;
+  }
+  fs.mkdirSync(p.dir, { recursive: true });
+  store.revision = (current.revision || 0) + 1;
+  store.updated_at = new Date().toISOString();
+  const tmp = `${p.sources}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(store, null, 2) + "\n");
+  fs.renameSync(tmp, p.sources);
+  return store;
+}
+
+function appendEvent(root, event) {
+  const p = brainPaths(root);
+  fs.mkdirSync(p.dir, { recursive: true });
+  fs.appendFileSync(p.events, JSON.stringify({ at: new Date().toISOString(), ...event }) + "\n");
+}
+
+export function archiveSource(root, { sourceId, uri = null, content, result = "ok", error = null, observedAt = new Date().toISOString(), expectedRevision = null }) {
+  if (!sourceId) throw new Error("source archive requires sourceId");
+  if (content == null && result === "ok") throw new Error("successful source archive requires content");
+  const bytes = content == null ? null : Buffer.from(String(content), "utf8");
+  const revision = bytes ? digest(bytes) : null;
+  const store = loadSources(root);
+  const existing = store.sources.find((source) => source.id === sourceId && source.revision === revision && source.result === result);
+  if (existing) return { source: existing, duplicate: true };
+  if (expectedRevision != null && store.revision !== expectedRevision) {
+    const error = new Error(`source snapshot conflict: expected revision ${expectedRevision}, found ${store.revision}`);
+    error.code = "SOURCE_REVISION_CONFLICT";
+    throw error;
+  }
+  if (bytes) {
+    const rawDir = path.join(brainPaths(root).raw, revision);
+    fs.mkdirSync(rawDir, { recursive: true });
+    const rawFile = path.join(rawDir, "content");
+    if (!fs.existsSync(rawFile)) fs.writeFileSync(rawFile, bytes);
+  }
+  const source = { id: sourceId, uri, revision, observed_at: observedAt, result, error, raw_path: revision ? `.trust/manager/brain/raw/${revision}/content` : null };
+  saveSources(root, { ...store, sources: [...store.sources, source] }, store.revision);
+  appendEvent(root, { type: "source_intake", source_id: sourceId, revision, result, error });
+  return { source, duplicate: false };
+}
+
+export function sourceStatus(root) {
+  const store = loadSources(root);
+  const byResult = {};
+  for (const source of store.sources) byResult[source.result] = (byResult[source.result] || 0) + 1;
+  return { revision: store.revision || 0, total: store.sources.length, by_result: byResult, sources: store.sources };
+}
+
 export function addClaim(root, input) {
   if (!input.text || !input.source_id) throw new Error("claim requires text and source_id");
   const status = input.status || "UNKNOWN";
   if (!CLAIM_STATUSES.includes(status)) throw new Error(`unknown claim status: ${status}`);
   const store = load(root);
-  const sourceRevision = input.source_revision || (input.source_content != null ? digest(input.source_content) : null);
+  const sourceRevision = input.source_revision || (input.source_content != null ? digest(Buffer.from(String(input.source_content), "utf8")) : null);
   if (!sourceRevision) throw new Error("claim requires source_revision or source_content");
   const source = { id: input.source_id, uri: input.source_uri || null, revision: sourceRevision };
   const existing = store.claims.find((c) => c.text === input.text && c.source_id === input.source_id && c.source_revision === sourceRevision);

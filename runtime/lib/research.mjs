@@ -15,7 +15,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { paths, loadState, saveState, createTask, logEvent } from "./state.mjs";
 import { post as feedPost } from "./feed.mjs";
-import { addClaim } from "./brain.mjs";
+import { addClaim, archiveSource } from "./brain.mjs";
 
 export const RESEARCH_VERSION = 1;
 export const RECORD_STATUSES = ["pending", "approved", "promoted", "rejected"];
@@ -274,6 +274,11 @@ export function createRecord(root, fields, { force = false } = {}) {
     ? String(fields.body).trim() + "\n"
     : defaultBody(record);
   fs.writeFileSync(recordFile(p, id), renderRecordMarkdown(record, body));
+  archiveSource(root, {
+    sourceId: record.id,
+    uri: (record.sources || [])[0] || null,
+    content: body,
+  });
   addClaim(root, {
     text: record.atl_impact || record.title,
     subject: (record.concepts || [])[0] || record.title,

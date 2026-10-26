@@ -50,6 +50,8 @@ assert.equal(snapshot.version, 1, "control-plane version is explicit");
 assert.equal(snapshot.queues.items.length, 1, "snapshot exposes active queues");
 assert.equal(snapshot.notifications.items.length, 1, "snapshot exposes notification history");
 assert.equal(snapshot.usage.latest.provider, "codex", "snapshot exposes latest usage");
+assert.equal(snapshot.brain.defaults.freshness_days, 30, "snapshot exposes conservative knowledge defaults");
+assert.deepEqual(snapshot.brain.claims, [], "snapshot exposes the empty knowledge state");
 
 fs.rmSync(root, { recursive: true, force: true });
 console.log("PASS: control-plane contracts — queue migration, named queues, notifications, usage, snapshot");

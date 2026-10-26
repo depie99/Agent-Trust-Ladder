@@ -11,6 +11,7 @@ import { builtinProviderStatus } from "./providers.mjs";
 import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLATES, providerChoices, removeProvider, requireReadyProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
 import { paths } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
+import { approveClaim, promoteSkill, registerRoutine, validateSkill } from "./governance.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_PLANE_FILE = path.join(RUNTIME_DIR, "..", "control-plane.html");
@@ -450,6 +451,17 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           adapter: providerUsageAdapter(entry, { fetchImpl: seam.usageFetch }),
         })));
         json(res, 200, { ok: true, refreshed, snapshot: createControlPlaneSnapshot(root) });
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/brain") {
+        const payload = JSON.parse(await readBody(req) || "{}");
+        let result;
+        if (payload.action === "approve-claim") result = approveClaim(root, String(payload.claim_id || ""), { actor: "manager", note: String(payload.note || "") });
+        else if (payload.action === "validate-skill") result = validateSkill(payload.skill || {});
+        else if (payload.action === "promote-skill") result = promoteSkill(root, payload.skill || {}, { actor: "manager" });
+        else if (payload.action === "register-routine") result = registerRoutine(root, payload.routine || {}, { actor: "manager" });
+        else { json(res, 400, { ok: false, error: "unknown brain action" }); return; }
+        json(res, 200, { ok: true, result, snapshot: createControlPlaneSnapshot(root) });
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/command") {
