@@ -26,6 +26,8 @@ ATL also keeps an evidence-linked project brain under `.trust/manager/brain/`. C
 
 The browser Control Plane is the primary interface for this workflow. Its **Knowledge** workspace shows source and claim counts, 30-day freshness status, manager claim approvals, Gold skill promotion, and approval-gated routine registration. Routine registration never enables execution; task evidence and explicit run confirmation remain authoritative.
 
+The [Team Interfaces guide](team-interfaces.html) keeps the terminal TUI and browser Control Plane separate, with independent commands, screenshots, navigation, and use cases. `atl tui` / `atl dashboard` are terminal surfaces; `atl ui` / `atl control-plane` are browser surfaces.
+
 The complete explanation is [The ATL Brain — Evidence that survives the session](brain.html), covering the source-to-worker flow, implementation layout, Control Plane operations, CLI equivalents, safety boundaries, and current limits.
 
 ## Diagram workflow rule
