@@ -46,7 +46,8 @@ import { listFeedback, submitFeedback } from "./lib/feedback.mjs";
 import { bridgeStatus, startDedicatedBridge, syncTeamContext, updateBridgeConfig } from "./lib/codex-bridge.mjs";
 import { startControlPlaneServer } from "./lib/control-plane-server.mjs";
 import { assembleContext, buildMap, mapStatus, neighbors, queryMap } from "./lib/navigation.mjs";
-import { addClaim, buildContextPack, listClaims, saveContextPack } from "./lib/brain.mjs";
+import { addClaim, archiveSource, buildContextPack, listClaims, saveContextPack, sourceStatus } from "./lib/brain.mjs";
+import { approveClaim, listRoutines, listSkills, promoteSkill, registerRoutine, staleClaims, validateSkill } from "./lib/governance.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
@@ -154,6 +155,7 @@ Manager view
   wake                          the wake loop: what Mira should do next
   brief [--save]                Mira's manager brief
   ui [--port n]                 open the browser-native ATL control plane
+  ui-refresh [--port n]         restart the browser UI from current source
   tui [--once] [--plain]        terminal compatibility control room (alias: dashboard)
   control-plane [--port n]      browser-native ATL control plane (aliases: ui, web)
 
@@ -1348,6 +1350,9 @@ async function main() {
       return;
     }
 
+    case "ui-refresh":
+      flags.noOpen = false;
+      // Deliberately falls through to the same source-backed server startup.
     case "ui":
     case "control-plane":
     case "web": {
@@ -1558,6 +1563,29 @@ async function main() {
         if (result.conflicts?.length) console.log(`Conflicts: ${result.conflicts.join(", ")}`);
         return;
       }
+      if (sub === "source") {
+        const sourceId = flags.set.source_id || pos[1];
+        const content = flags.set.source_content;
+        const result = archiveSource(ROOT, { sourceId, uri: flags.set.source_uri || null, content, result: flags.set.result || "ok", error: flags.set.error || null });
+        console.log(`${result.duplicate ? "Known" : "Archived"} source ${result.source.id} (${result.source.result})${result.source.revision ? ` ${result.source.revision}` : ""}`);
+        return;
+      }
+      if (sub === "status") {
+        console.log(JSON.stringify(sourceStatus(ROOT), null, 2));
+        return;
+      }
+      if (sub === "stale") { console.log(JSON.stringify(staleClaims(ROOT, { maxAgeDays: Number(flags.set.days || 30) }), null, 2)); return; }
+      if (sub === "approve") { console.log(JSON.stringify(approveClaim(ROOT, pos[1], { note: flags.note[0] || "" }), null, 2)); return; }
+      if (sub === "skill") {
+        const skill = flags.set;
+        if (pos[1] === "validate") { console.log(JSON.stringify(validateSkill(skill), null, 2)); return; }
+        if (pos[1] === "promote") { console.log(JSON.stringify(promoteSkill(ROOT, { ...skill, gold_verified: String(skill.gold_verified) === "true", fixtures: String(skill.fixtures || "").split(",").filter(Boolean), validation: skill.validation || "deterministic" }), null, 2)); return; }
+        console.log(JSON.stringify(listSkills(ROOT), null, 2)); return;
+      }
+      if (sub === "routine") {
+        if (pos[1] === "register") { console.log(JSON.stringify(registerRoutine(ROOT, { ...flags.set, retry_limit: Number(flags.set.retry_limit), enabled: false }), null, 2)); return; }
+        console.log(JSON.stringify(listRoutines(ROOT), null, 2)); return;
+      }
       if (sub === "list") {
         console.log(JSON.stringify(listClaims(ROOT, { subject: flags.subject || null, status: flags.set.status || null }), null, 2));
         return;
@@ -1568,7 +1596,7 @@ async function main() {
         console.log(JSON.stringify(pack, null, 2));
         return;
       }
-      throw new StateError("brain subcommands: claim | list | context");
+      throw new StateError("brain subcommands: source | status | claim | list | context | stale | approve | skill | routine");
     }
 
     case "research": {

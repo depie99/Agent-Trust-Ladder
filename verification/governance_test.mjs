@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { addClaim } from "../runtime/lib/brain.mjs";
+import { approveClaim, promoteSkill, registerRoutine, staleClaims, validateSkill } from "../runtime/lib/governance.mjs";
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-governance-"));
+const claim = addClaim(root, { text: "old fact", source_id: "s1", source_content: "x", observed_at: "2020-01-01T00:00:00Z" }).claim;
+assert.equal(staleClaims(root, { now: Date.parse("2026-01-01T00:00:00Z") }).length, 1);
+assert.equal(approveClaim(root, claim.claim_id).status, "VERIFIED");
+const skill = { id: "summary", version: "1.0.0", input_contract: "research", validation: "fixtures", approval_boundary: "manager", rollback: "disable", fixtures: ["f1"], gold_verified: true };
+assert.equal(validateSkill(skill).level, "gold");
+promoteSkill(root, skill);
+const routine = registerRoutine(root, { id: "daily", skill_id: "summary", skill_version: "1.0.0", schedule: "daily", idempotency_key: "daily+source", retry_limit: 2 });
+assert.equal(routine.enabled, false);
+fs.rmSync(root, { recursive: true, force: true });
+console.log("PASS: freshness, manager approval, Gold skill promotion, and disabled routines");

@@ -7,6 +7,8 @@ import { loadUsage, latestUsage } from "./usage.mjs";
 import { pendingFeedback } from "./feedback.mjs";
 import { CONTRACTS } from "./roles.mjs";
 import { readOvernightRun } from "./launch.mjs";
+import { listClaims, sourceStatus } from "./brain.mjs";
+import { listRoutines, listSkills, staleClaims } from "./governance.mjs";
 
 export const CONTROL_PLANE_VERSION = 1;
 
@@ -149,5 +151,13 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
     },
     overnight: readOvernightRun(root),
     team: teamRoles(root, state, queues, latestRoleSessions(root), brief),
+    brain: {
+      sources: sourceStatus(root),
+      claims: listClaims(root),
+      stale: staleClaims(root, { maxAgeDays: 30 }),
+      skills: listSkills(root),
+      routines: listRoutines(root),
+      defaults: { freshness_days: 30, approval_owner: "manager", routines_enabled_by_default: false },
+    },
   };
 }

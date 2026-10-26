@@ -3,27 +3,70 @@
 
   const $ = (selector) => document.querySelector(selector);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  const attachmentMarkup = () => {
+    if (!studioAttachments.length) return '<span class="muted tiny">No references attached.</span>';
+    return studioAttachments.map((file, index) => {
+      const preview = file.preview
+        ? `<img src="${escapeHtml(file.preview)}" alt="Preview of ${escapeHtml(file.name)}" class="attachment-preview">`
+        : "";
+      const kind = file.text ? "text included" : "visual reference";
+      return `<div class="planout attachment-card"><div class="row between"><b class="truncate">${escapeHtml(file.name)}</b>${btn("Remove", `studio-file-remove:${index}`, "sm ghost")}</div><span class="muted tiny">${escapeHtml(file.type || "application/octet-stream")} · ${Math.ceil(file.size / 1024)} KB · ${kind}</span>${preview}</div>`;
+    }).join("");
+  };
   const taskLayoutStyle = document.createElement("style");
   taskLayoutStyle.textContent = `
-    .tableitem.task-row { grid-template-columns:minmax(0,1fr) max-content minmax(118px,auto); align-items:start; }
-    .tableitem.task-row > :first-child, .task-row .bar > div { min-width:0; }
-    .task-row > :first-child > .bar { flex-wrap:nowrap; align-items:flex-start; }
+    .tableitem.task-row { grid-template-columns:minmax(0,1fr) minmax(220px,auto); align-items:center; gap:20px; overflow:hidden; }
+    .task-main { display:grid; grid-template-columns:20px minmax(0,1fr); gap:9px; min-width:0; align-items:start; }
+    .task-main-copy { min-width:0; overflow:hidden; }
+    .task-main-copy > b { display:block; max-width:100%; }
+    .task-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; justify-self:end; min-width:220px; }
+    .task-control-meta { display:flex; align-items:center; justify-content:flex-end; gap:9px; min-width:0; }
+    .task-owner { display:grid; gap:1px; min-width:64px; }
+    .task-owner-label { color:var(--muted); font-size:9px; letter-spacing:.08em; text-transform:uppercase; }
+    .task-owner-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; font-weight:600; }
+    .task-actions { display:flex; flex-wrap:nowrap; gap:7px; justify-content:flex-end; }
     .task-row .task-progress { min-width:180px; }
+    .attachment-list { flex-wrap:wrap; }
+    .attachment-card { margin:0; padding:8px; min-width:180px; max-width:260px; flex:1 1 180px; }
+    .attachment-preview { display:block; width:100%; max-height:120px; object-fit:contain; margin-top:8px; border-radius:5px; background:var(--field-bg); }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    .status-icon { display:inline-grid; place-items:center; width:24px; height:24px; border:1px solid currentColor; border-radius:50%; font-size:12px; font-weight:800; line-height:1; flex:0 0 auto; }
+    .status-icon.red { color:var(--red); background:color-mix(in srgb, var(--red) 12%, transparent); }
+    .status-icon.amber { color:var(--amber); background:color-mix(in srgb, var(--amber) 12%, transparent); }
+    .status-icon.green { color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); }
+    .status-icon.blue { color:var(--blue); background:color-mix(in srgb, var(--blue) 12%, transparent); }
+    .status-icon.violet { color:var(--violet); background:color-mix(in srgb, var(--violet) 12%, transparent); }
+    .diagram-story { display:grid; gap:0; }
+    .diagram-story-step { position:relative; display:grid; grid-template-columns:36px minmax(0,1fr); gap:12px; padding:10px 0 24px; }
+    .diagram-story-step:last-child { padding-bottom:0; }
+    .diagram-node { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:var(--accent); color:#071016; font-weight:800; font-size:11px; }
+    .diagram-story-step .sub { margin:4px 0 0; }
+    .diagram-arrow { position:absolute; left:11px; bottom:3px; color:var(--muted); font-size:16px; }
+    .diagram-relationships { display:grid; gap:9px; }
+    .diagram-relationship { display:grid; grid-template-columns:max-content 22px minmax(0,1fr); gap:8px; align-items:center; padding:10px; border:1px solid var(--border); border-radius:7px; }
+    .diagram-connector { color:var(--accent); text-align:center; }
+    .task-row .btn { min-height:32px; padding:6px 11px; border-radius:8px; font-weight:700; }
+    .task-row .btn.primary { box-shadow:0 2px 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+    @media (max-width:760px) { .diagram-relationship { grid-template-columns:1fr; gap:4px; } .diagram-connector { display:none; } }
     @media (max-width:760px) {
-      .tableitem.task-row { grid-template-columns:minmax(0,1fr) max-content; gap:10px; }
-      .tableitem.task-row > :last-child { display:block; grid-column:1 / -1; min-width:0; }
-      .task-row > :last-child > .bar { justify-content:flex-start; }
+      .tableitem.task-row { grid-template-columns:minmax(0,1fr); gap:12px; padding:13px 14px; }
+      .task-controls { display:flex; width:100%; min-width:0; justify-self:stretch; justify-content:space-between; gap:12px; }
+      .task-control-meta { justify-content:flex-start; }
+      .task-owner { min-width:0; }
       .task-row .task-progress { min-width:0; }
+      .task-row .task-progress .row { flex-wrap:wrap; gap:4px 8px; }
+      .task-row .task-progress .row b { margin-left:auto; }
+      .task-row .btn { min-height:34px; padding:7px 12px; font-size:12px; border-radius:8px; }
     }
   `;
   document.head.append(taskLayoutStyle);
   const routes = [
     ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"],
-    ["team", "♙", "Agent Team"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
+    ["team", "♙", "Agent Team"], ["brain", "◈", "Knowledge"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
   ];
   const fallback = {
     state: { tasks: {}, log_tail: [] }, queues: { active_queue: "default", items: [] }, notifications: { unread: 0, items: [] },
-    usage: { snapshots: [], latest: null }, team: [],
+    usage: { snapshots: [], latest: null }, team: [], brain: { sources: { total: 0, by_result: {}, sources: [] }, claims: [], stale: [], skills: [], routines: [] },
   };
   let snapshot = fallback;
   let page = "overview";
@@ -160,7 +203,7 @@
   function badge(value) {
     const label = statusLabel(value);
     const token = { Blocked: "red", High: "amber", Running: "green", Done: "green", Queued: "blue", Review: "violet", InProgress: "green", InReview: "violet", PASS: "green", VERIFY: "violet", INFO: "blue", Idle: "blue", Unknown: "amber" }[label] || "";
-    return `<span class="pill ${token}">${escapeHtml(label)}</span>`;
+    return `<span class="pill status-badge ${token}" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
   }
   const btn = (text, action, cls = "") => `<button class="btn ${cls}" data-action="${escapeHtml(action)}"${cls.includes("disabled") ? ' disabled aria-disabled="true"' : ""}>${text}</button>`;
   const head = (label, title, subtitle, buttons = "") => `<div class="pagehead"><div><div class="eyebrow">${label}</div><h1>${title}</h1><p class="sub">${subtitle}</p></div><div class="bar">${buttons}</div></div>`;
@@ -289,7 +332,7 @@
     if (["done", "archived"].includes(task.rawStatus)) return btn("Logs", `task-detail:${task.id}`, "sm") + btn("Delete", `task-delete:${task.id}`, "sm danger");
     return btn("Run", `run-task:${task.id}`, "sm primary") + btn("More", `task-actions:${task.id}`, "sm");
   };
-  const taskRow = (task) => { const outcome = taskOutcome(task); return `<div class="tableitem task-row" data-task="${escapeHtml(task.id)}"><div class="bar" style="align-self:start"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><div><b class="truncate" style="display:block">${task.rawStatus === "in_progress" ? '<span class="running-mark" aria-label="running"></span>' : task.rawStatus === "done" ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.title)}</b><div class="muted tiny">${escapeHtml(task.id)} · ${escapeHtml(task.queue)} · ${escapeHtml(task.stage)}</div><div class="task-progress"><div class="row between muted"><span>${task.rawStatus === "done" ? `Accomplished · ${outcome.passed}/${outcome.total} checks passed` : `Lifecycle progress · ${task.progress}%`}</span><b>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</b></div>${meter(task.progress, task.rawStatus === "done" ? "var(--accent)" : undefined)}</div></div></div>${badge(task.status)}<div><div class="muted tiny" style="margin-bottom:7px">${escapeHtml(task.agent)}</div><div class="bar" style="gap:5px">${taskRowActions(task)}</div></div></div>`; };
+  const taskRow = (task) => { const outcome = taskOutcome(task); return `<div class="tableitem task-row" data-task="${escapeHtml(task.id)}"><div class="task-main"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><div class="task-main-copy"><b class="truncate">${task.rawStatus === "in_progress" ? '<span class="running-mark" aria-label="running"></span>' : task.rawStatus === "done" ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.title)}</b><div class="muted tiny">${escapeHtml(task.id)} · ${escapeHtml(task.queue)} · ${escapeHtml(task.stage)}</div><div class="task-progress"><div class="row between muted"><span>${task.rawStatus === "done" ? `Accomplished · ${outcome.passed}/${outcome.total} checks passed` : `Lifecycle progress · ${task.progress}%`}</span><b>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</b></div>${meter(task.progress, task.rawStatus === "done" ? "var(--accent)" : undefined)}</div></div></div><div class="task-controls"><div class="task-control-meta">${badge(task.status)}<span class="task-owner"><span class="task-owner-label">Assigned to</span><span class="task-owner-name">${escapeHtml(task.agent)}</span></span></div><div class="task-actions">${taskRowActions(task)}</div></div></div>`; };
   const eventRow = (event) => `<div class="event"><span class="muted tiny" style="white-space:nowrap">${escapeHtml(event[0])}</span><div>${badge(event[1])} <span class="muted">${escapeHtml(event[2])}</span><div style="margin-top:5px">${escapeHtml(event[3])}</div></div></div>`;
   const stat = (name, value, detail) => `<div class="panel stat"><small>${name}</small><strong>${value}</strong><div class="muted tiny">${detail}</div></div>`;
 
@@ -352,7 +395,7 @@
       // provider: a dead disabled click teaches nothing, while the generate
       // guard turns the same click into an actionable notice.
       return head("WORKSPACE / PLANNING", "Plan Studio", "Local draft or one bounded model plan → edit task cards → approve a Plan Queue → confirm a run.", btn(generateLabel, "generate", `primary ${studioBusy ? "disabled" : ""}`))
-        + '<div class="grid two"><section class="panel pad"><h2>01 / Your objective</h2><p class="sub" style="margin:9px 0 14px">Describe the outcome, constraints, and acceptance behavior. Generation never queues or executes work.</p><div class="field"><label class="label" for="goal">Goal and constraints</label><textarea id="goal" class="input" rows="10" placeholder="Describe the bounded change you want ATL to plan and verify.">' + escapeHtml(studioGoal) + '</textarea></div><div class="field"><label class="label" for="studioFiles">Reference files and images</label><input id="studioFiles" class="input" type="file" multiple accept="image/*,.txt,.md,.json,.yaml,.yml,.csv,.log,.pdf"><p class="muted tiny" style="margin-top:6px">Text files are included in the planning context. Images are previewed and recorded as references; current providers are text-only.</p><div class="bar" style="margin-top:8px;align-items:stretch">${studioAttachments.length ? studioAttachments.map((file, index) => `<div class="planout" style="margin:0;padding:8px;min-width:180px;max-width:260px"><div class="row between"><b class="truncate">${escapeHtml(file.name)}</b>${btn("×", `studio-file-remove:${index}`, "sm ghost")}</div><span class="muted tiny">${escapeHtml(file.type || "file")} · ${Math.ceil(file.size / 1024)} KB${file.text ? " · text included" : " · visual reference"}</span>${file.preview ? `<img src="${file.preview}" alt="Preview of ${escapeHtml(file.name)}" style="display:block;max-width:100%;max-height:90px;margin-top:7px;border-radius:5px">` : ""}</div>`).join("") : '<span class="muted tiny">No references attached.</span>'}</div></div><div class="bar" style="margin-top:10px">' + btn("Clear form", "studio-clear", `sm ${studioBusy ? "disabled" : ""}`) + '<span class="muted tiny">resets the objective, attachments, generation mode, and plan preview. Queued or approved work stays.</span></div><div class="field" style="margin-top:13px"><label class="label">ATL skill route</label><div class="bar">' + ["atl-frame", "atl-specify", "atl-plan", "atl-implement", "atl-verify"].map((skill) => `<span class="pill violet">◇ ${skill}</span>`).join("") + '</div></div></section>'
+        + '<div class="grid two"><section class="panel pad"><h2>01 / Your objective</h2><p class="sub" style="margin:9px 0 14px">Describe the outcome, constraints, and acceptance behavior. Generation never queues or executes work.</p><div class="field"><label class="label" for="goal">Goal and constraints</label><textarea id="goal" class="input" rows="10" placeholder="Describe the bounded change you want ATL to plan and verify.">' + escapeHtml(studioGoal) + '</textarea></div><div class="field"><label class="label" for="studioFiles">Reference files and images</label><input id="studioFiles" class="input" type="file" multiple accept="image/*,.txt,.md,.json,.yaml,.yml,.csv,.log,.pdf"><p class="muted tiny" style="margin-top:6px">Text files are included in the planning context. Images are previewed and recorded as references; current providers are text-only.</p><div class="bar attachment-list" style="margin-top:8px;align-items:stretch">' + attachmentMarkup() + '</div></div><div class="bar" style="margin-top:10px">' + btn("Clear form", "studio-clear", `sm ${studioBusy ? "disabled" : ""}`) + '<span class="muted tiny">resets the objective, attachments, generation mode, and plan preview. Queued or approved work stays.</span></div><div class="field" style="margin-top:13px"><label class="label">ATL skill route</label><div class="bar">' + ["atl-frame", "atl-specify", "atl-plan", "atl-implement", "atl-verify"].map((skill) => `<span class="pill violet">◇ ${skill}</span>`).join("") + '</div></div></section>'
         + card("02 / Generation mode", `<div class="pad"><div class="bar">${btn("Local preview", "mode:local", `sm ${studioMode === "local" ? "primary" : ""}`)}${btn("Generate with model", "mode:model", `sm ${studioMode === "model" ? "primary" : ""}`)}</div>${modeBody}${noticeLine}</div>`)
         + '</div><div class="space">' + card("03 / Full plan preview — editable task cards", `<div class="pad" id="planOutput" ${studioBusy ? 'aria-busy="true"' : ''}>${studioProgressPanel()}${rejectedPlanPreview(studioRejectedResponse)}${planPreview(currentDraft)}</div>`) + '</div>';
     },
@@ -393,6 +436,15 @@
         + '</div>'
         + card("Keyboard reference", '<div class="pad">' + [["Ctrl / Cmd K", "Command palette"], ["N", "New task"], ["1–8", "Navigate pages"], ["Enter", "Run ATL command"], ["Esc", "Dismiss dialog"]].map((row) => `<div class="event between" style="justify-content:space-between"><span class="key">${row[0]}</span><span class="muted">${row[1]}</span></div>`).join("") + '</div>', "", "space");
     },
+  };
+
+  panels.brain = () => {
+    const brain = snapshot.brain || fallback.brain;
+    const claims = brain.claims || [], stale = brain.stale || [], skills = brain.skills || [], routines = brain.routines || [];
+    const claimRows = claims.map((claim) => `<div class="event between" style="justify-content:space-between;gap:12px"><div>${badge(claim.status)} <b>${escapeHtml(claim.text)}</b><div class="muted tiny">${escapeHtml(claim.claim_id)} · source ${escapeHtml(claim.source_id)} · checked ${escapeHtml(claim.checked_at ? new Date(claim.checked_at).toLocaleString() : "never")}</div></div>${["UNKNOWN", "PARTIAL"].includes(claim.status) ? btn("Approve", `brain-approve:${claim.claim_id}`, "sm primary") : ""}</div>`).join("") || '<span class="muted">No claims recorded yet.</span>';
+    const skillRows = skills.map((skill) => `<div class="event between"><span><b>${escapeHtml(skill.id)}</b> <span class="muted">v${escapeHtml(skill.version)}</span></span>${badge("Gold")}</div>`).join("") || '<span class="muted">No promoted skills.</span>';
+    const routineRows = routines.map((routine) => `<div class="event between"><span><b>${escapeHtml(routine.id)}</b><span class="muted tiny"> · ${escapeHtml(routine.skill_id)} · ${escapeHtml(routine.schedule)}</span></span>${badge(routine.enabled ? "Enabled" : "Approval gated")}</div>`).join("") || '<span class="muted">No routines registered.</span>';
+    return head("WORKSPACE / KNOWLEDGE", "Evidence & Automation", "Review source-linked claims, approve knowledge, validate skills, and register approval-gated routines.", btn("Refresh", "refresh")) + `<div class="grid four">${stat("Sources", brain.sources?.total || 0, "Content-addressed records")}${stat("Claims", claims.length, "Source-linked assertions")}${stat("Stale", stale.length, "30-day default")}${stat("Routines", routines.length, "Disabled until approved")}</div><div class="grid twocol space">${card("Claims & freshness", `<div class="pad">${claimRows}</div>`)}${card("Gold skills", `<div class="pad">${skillRows}<div class="bar" style="margin-top:12px">${btn("Validate / promote skill", "brain-skill-form", "sm primary")}</div></div>`)}</div><div class="grid twocol space">${card("Approval-gated routines", `<div class="pad">${routineRows}<div class="bar" style="margin-top:12px">${btn("Register routine", "brain-routine-form", "sm primary")}</div></div>`)}${card("Safety boundary", '<div class="pad"><div class="event between"><span>Approval owner</span><b>Manager</b></div><div class="event between"><span>Skill scheduling</span><b>Gold only</b></div><div class="event between"><span>Routine default</span><b>Disabled</b></div><p class="muted tiny">Knowledge remains advisory. Task evidence and explicit run confirmation stay authoritative.</p></div>')}</div>`;
   };
 
   function nav() {
@@ -572,6 +624,29 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const model = `erDiagram\n  TASK ||--o{ LOG_EVENT : records\n  TASK ||--o{ EVIDENCE : proves\n  TASK }o--|| QUEUE : belongs_to\n  TASK }o--o| WORKSPACE : changes_in\n  TASK {\n    string id\n    string status\n    string assigned_worker\n    int attempt_count\n  }`;
     popupWide(`${escapeHtml(task.id)} / Change diagrams`, `<p class="sub">The lifecycle picture is derived from persisted task state. Mermaid source documents the underlying relationships; it communicates structure, not proof.</p><h3>What happened</h3>${lifecycleDiagram(task)}<div class="notice" style="margin-top:12px"><b>${escapeHtml(outcome.summary)}</b><p class="sub">${outcome.passed}/${outcome.total} checks passed · ${task.logs.length} recent events · ${escapeHtml(task.workspace || "no workspace recorded")}</p></div><h3 style="margin-top:18px">Change-flow Mermaid</h3><pre class="terminal" style="min-height:0;white-space:pre-wrap">${escapeHtml(flow)}</pre><h3 style="margin-top:18px">Task data model · Mermaid ER</h3><pre class="terminal" style="min-height:0;white-space:pre-wrap">${escapeHtml(model)}</pre>`, btn("Back to task", `task-detail:${task.id}`, "primary") + btn("Close", "close"));
   }
+  // Plain-language replacement for the legacy raw-Mermaid diagram view.
+  function taskDiagram(task) {
+    const outcome = taskOutcome(task);
+    const checksLabel = outcome.total ? `${outcome.passed}/${outcome.total} checks passed` : "No checks recorded";
+    const story = [
+      ["01", "Request received", `The task ${task.id} entered ATL as “${task.title}”.`],
+      ["02", task.agent === "Unassigned" ? "Waiting for an owner" : `Worked by ${task.agent}`, task.agent === "Unassigned" ? "No worker is assigned yet." : "The assigned worker handled the change in an isolated workspace."],
+      ["03", `Reached ${task.status}`, task.rawStatus === "done" ? "The lifecycle reached its terminal Done state." : "The task is currently at this lifecycle stage."],
+      ["04", checksLabel, outcome.total ? "Completion evidence is recorded against the task." : "Add completion checks and evidence to make the outcome verifiable."],
+      ["05", "Outcome recorded", outcome.summary],
+    ];
+    const storyMarkup = `<div class="diagram-story" aria-label="Task change flow">${story.map(([number, title, detail], index) => `<div class="diagram-story-step"><div class="diagram-node">${number}</div><div><b>${escapeHtml(title)}</b><p class="sub">${escapeHtml(detail)}</p></div>${index < story.length - 1 ? '<span class="diagram-arrow" aria-hidden="true">↓</span>' : ''}</div>`).join("")}</div>`;
+    const relationships = [
+      ["Task", "The central record: status, owner, queue, attempts, and objective."],
+      ["Evidence", `${outcome.total ? `${outcome.total} completion check${outcome.total === 1 ? "" : "s"} linked to this task.` : "No completion checks are linked yet."}`],
+      ["Activity logs", `${task.logs.length} recent event${task.logs.length === 1 ? "" : "s"} narrate state changes and worker activity.`],
+      ["Queue", `${task.queue} determines the workstream and dispatch context.`],
+      ["Workspace", task.workspace ? "An isolated workspace contains the change." : "No workspace path is recorded."],
+    ];
+    const relationshipMarkup = `<div class="diagram-relationships">${relationships.map(([title, detail]) => `<div class="diagram-relationship"><span class="pill blue">${escapeHtml(title)}</span><span class="diagram-connector" aria-hidden="true">→</span><span class="sub">${escapeHtml(detail)}</span></div>`).join("")}</div>`;
+    popupWide(`${escapeHtml(task.id)} / Understand this task`, `<p class="sub">This view explains the task in plain language: what happened and which records support it.</p><h3>What happened</h3>${storyMarkup}<div class="notice" style="margin-top:14px"><b class="green">Current outcome</b><p>${escapeHtml(outcome.summary)}</p><div class="bar"><span class="pill green">${escapeHtml(checksLabel)}</span><span class="pill">${task.logs.length} recent log${task.logs.length === 1 ? "" : "s"}</span><span class="pill">${escapeHtml(task.queue)}</span></div></div><h3 style="margin-top:22px">What is connected to this task?</h3><p class="sub">These records explain the task and make its result auditable.</p>${relationshipMarkup}`, btn("Back to task", `task-detail:${task.id}`, "primary") + btn("Close", "close"));
+  }
+
   function taskActions(task) {
     const runnable = !["done", "archived", "in_progress", "in_review", "verifying"].includes(task.rawStatus);
     popup(`${escapeHtml(task.id)} / More actions`, '<p class="sub">Planning and running always show their review step before work starts. Deletion archives the task so it can be restored from the CLI.</p>', btn("Back", `task-detail:${task.id}`) + (task.rawStatus === "blocked" ? btn("Unblock", `unblock:${task.id}`) : "") + btn("Plan task", `plan:${task.id}`) + (runnable ? btn("Review task run", `run-task:${task.id}`, "primary") : "") + btn("Delete task", `task-delete:${task.id}`, "danger"));
@@ -634,6 +709,18 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
   async function mutation(command, after = page) { close(); await runCommand(command); await refresh(false); page = after; render(); }
   async function action(value) {
+    const brainMutation = async (body) => {
+      const response = await fetch("/api/brain", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "knowledge action failed");
+      if (result.snapshot) snapshot = result.snapshot;
+      page = "brain"; render(); return result.result;
+    };
+    if (value.startsWith("brain-approve:")) { try { await brainMutation({ action: "approve-claim", claim_id: value.slice(14), note: "Approved in Control Plane" }); } catch (error) { popup("Approval refused", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
+    if (value === "brain-skill-form") { popup("Validate and promote Gold skill", '<div class="grid two"><label class="label">Skill id<input id="brainSkillId" class="input"></label><label class="label">Version<input id="brainSkillVersion" class="input" value="1.0.0"></label></div><label class="label">Input contract<input id="brainSkillInput" class="input"></label><label class="label">Regression fixtures (comma-separated)<input id="brainSkillFixtures" class="input"></label><div class="notice"><b>Gold gate</b><p class="sub">Promotion requires validation, approval boundary, rollback, fixtures, and explicit manager confirmation.</p></div>', btn("Cancel", "close") + btn("Promote Gold skill", "brain-skill-save", "primary")); return; }
+    if (value === "brain-skill-save") { try { await brainMutation({ action: "promote-skill", skill: { id: $("#brainSkillId")?.value.trim(), version: $("#brainSkillVersion")?.value.trim(), input_contract: $("#brainSkillInput")?.value.trim(), validation: "deterministic fixtures", approval_boundary: "manager", rollback: "disable skill", fixtures: ($("#brainSkillFixtures")?.value || "").split(",").map((item) => item.trim()).filter(Boolean), gold_verified: true } }); close(); } catch (error) { popup("Skill promotion refused", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
+    if (value === "brain-routine-form") { const options = (snapshot.brain?.skills || []).map((skill) => `<option value="${escapeHtml(`${skill.id}@${skill.version}`)}">${escapeHtml(skill.id)} · ${escapeHtml(skill.version)}</option>`).join(""); popup("Register approval-gated routine", `<label class="label">Routine id<input id="brainRoutineId" class="input"></label><label class="label">Approved Gold skill<select id="brainRoutineSkill" class="input">${options}</select></label><label class="label">Schedule<input id="brainRoutineSchedule" class="input" placeholder="daily 09:00"></label><label class="label">Idempotency key<input id="brainRoutineKey" class="input" placeholder="routine+source+revision"></label><label class="label">Retry limit<input id="brainRoutineRetries" type="number" min="0" max="5" class="input" value="2"></label><div class="notice"><b>Registration does not enable execution.</b><p class="sub">The routine remains disabled until a separate manager approval gate exists.</p></div>`, btn("Cancel", "close") + btn("Register disabled routine", "brain-routine-save", "primary")); return; }
+    if (value === "brain-routine-save") { try { const [skill_id, skill_version] = ($("#brainRoutineSkill")?.value || "@").split("@"); await brainMutation({ action: "register-routine", routine: { id: $("#brainRoutineId")?.value.trim(), skill_id, skill_version, schedule: $("#brainRoutineSchedule")?.value.trim(), idempotency_key: $("#brainRoutineKey")?.value.trim(), retry_limit: Number($("#brainRoutineRetries")?.value || 0) } }); close(); } catch (error) { popup("Routine registration refused", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
     if (value === "close") return close();
     if (value === "new") return taskForm();
     if (value.startsWith("save:")) return saveTask(value.slice(5));
@@ -1203,7 +1290,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.matches("input,textarea,select") || event.altKey || event.ctrlKey || event.metaKey) return;
     if (cardDraft) return;
     if (event.key.toLowerCase() === "n") { taskForm(); return; }
-    const number = Number(event.key); if (number >= 1 && number <= 8) { openPage(routes[number - 1][0]); }
+    const number = Number(event.key); if (number >= 1 && number <= 9) { openPage(routes[number - 1][0]); }
   }, true);
   $("#searchBtn").onclick = () => palette();
   $("#newBtn").onclick = () => taskForm();
