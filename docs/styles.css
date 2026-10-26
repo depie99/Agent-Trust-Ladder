@@ -2711,3 +2711,27 @@ section[id], div[id] {
     grid-template-columns: 1fr;
   }
 }
+/* Theme-aware diagram figures: dark source plus a generated light variant
+   (scripts/make-diagram-light-variants.mjs). Both imgs ship; CSS picks one
+   per theme, so the swap is flash-free and works without JS. */
+.themesvg {
+  display: block;
+}
+
+.themesvg img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.themesvg .fig-light {
+  display: none;
+}
+
+html.light .themesvg .fig-light {
+  display: block;
+}
+
+html.light .themesvg .fig-dark {
+  display: none;
+}
