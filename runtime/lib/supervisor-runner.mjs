@@ -6,6 +6,8 @@ import { executeLaunchQueue, requestRunAbort } from "./launch.mjs";
 import { supervisorSnapshot } from "./supervisor.mjs";
 import { reconcileLeases } from "./leases.mjs";
 import { reconcileRuntime } from "./recovery.mjs";
+import { scheduledBackup } from "./backup.mjs";
+import { schedulerTick } from "./routines.mjs";
 
 let stopRequested = false;
 export function requestSupervisorStop() { stopRequested = true; requestRunAbort(); }
@@ -18,6 +20,8 @@ export async function executeSupervisor(root, { projects = null, maxMinutes = 12
   const globalCap = Math.min(5, Math.max(1, Number(config.defaults?.maxConcurrent || 2))); const active = new Map(); const results = [];
   const started = Date.now();
   while (!stopRequested && Date.now() - started < maxMinutes * 60 * 1000) {
+    try { scheduledBackup(root, { intervalHours: 24, retention: 10 }); } catch { /* backup failure remains visible through supervisor logs */ }
+    try { schedulerTick(root, { now: new Date() }); } catch { /* routine failures are durable run records */ }
     reconcileLeasesForProjects(registered);
     const plan = buildDispatchPlan(registered, { active: [...active.values()].map((x) => ({ project: x.project, task: x.task })), maxConcurrent: globalCap, now: Date.now() });
     const available = plan.filter((item) => !active.has(`${item.project}:${item.task}`));
