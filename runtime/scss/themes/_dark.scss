@@ -1,0 +1,76 @@
+// Dark theme (default) for the ATL Control Plane app. Every value is the
+// exact color the app shipped with, so dark rendering is preserved verbatim.
+//
+// Token groups:
+//   surfaces — page, sidebar, panels, buttons, pills, fields, terminal,
+//              dialog, command dock, avatar, notice, mobile bar, hover fills
+//   text     — primary/secondary ink plus text on accent fills
+//   lines    — borders and hairlines per surface family
+//   brand    — the five status hues, tuned per theme for text contrast
+//   effects  — modal backdrop, dialog shadow, pulse fade
+//
+// Every token MUST exist in both theme maps — _tokens.scss fails the build
+// otherwise. When adding a token, add it to _light.scss in the same change.
+//
+// Note: --on-accent unifies the two shipped on-accent darks (#09231b for the
+// primary button, #0b231d for the brand chip) into one value; the 2-unit
+// difference was invisible.
+
+$theme: (
+  // surfaces
+  "bg": #0b1018,
+  "side": #0c131d,
+  "pane": #121b28,
+  "raised": #192535,
+  "chip": #172335,
+  "btn-bg": #1b293a,
+  "btn-bg-hover": #24374c,
+  "pill-bg": #1a2b3e,
+  "field-bg": #0c1520,
+  "step-on-bg": #16342d,
+  "term-bg": #080e17,
+  "dialog-bg": #152131,
+  "dock-bg": #0d1520,
+  "avatar-bg": #1b3b36,
+  "notice-bg": #282319,
+  "mobile-bg": #111b29,
+  "row-hover": #1a2b3b,
+  "nav-on": #20352f,
+  "track": #2b3a4d,
+  // text
+  "text": #e4ecf7,
+  "muted": #8b9bb0,
+  "faint": #7689a5,
+  "nav-ink": #a9b8cd,
+  "btn-ink": #dbe6f5,
+  "label-ink": #a0b0c8,
+  "step-ink": #abbbd0,
+  "term-ink": #c9d8eb,
+  "kbd-ink": #7790a6,
+  "on-accent": #09231b,
+  // lines
+  "border": #29384b,
+  "row-line": #273347,
+  "btn-edge": #3b4c63,
+  "btn-edge-hover": #6d879d,
+  "pill-edge": #3b4d63,
+  "key-edge": #455773,
+  "field-edge": #40516a,
+  "step-on-edge": #398c76,
+  "term-edge": #314459,
+  "dialog-edge": #536781,
+  "dock-edge": #34445c,
+  "avatar-edge": #3c7f70,
+  "notice-edge": #635036,
+  "plan-edge": #526482,
+  // brand
+  "accent": #4fe1b6,
+  "red": #fb8792,
+  "amber": #f3c073,
+  "blue": #90b4fa,
+  "violet": #bea9ff,
+  // effects
+  "backdrop": #03070bda,
+  "dialog-shadow": #0009,
+  "accent-fade": #4fe1b600,
+);
