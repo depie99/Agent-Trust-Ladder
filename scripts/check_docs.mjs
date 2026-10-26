@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const docsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "docs");
-const PAGES = ["index.html", "skills.html", "guides.html", "control-room.html", "team.html", "jev.html", "reference.html", "diagrams.html", "codex-history-bridge.html"];
+const PAGES = ["index.html", "skills.html", "guides.html", "control-room.html", "brain.html", "team.html", "team-interfaces.html", "jev.html", "reference.html", "diagrams.html", "codex-history-bridge.html"];
 const PAIRED = ["section", "div", "figure", "figcaption", "aside", "nav", "main", "header", "footer", "table", "button", "a", "pre", "code", "b", "span", "h1", "h2", "h3", "dialog", "form", "article"];
 let failures = 0;
 const fail = (message) => { failures += 1; console.log("FAIL:", message); };
@@ -55,7 +55,7 @@ for (const page of PAGES) {
     .find((links) => links.includes("team.html"));
   if (!navOrder) { fail(`${page}: documentation nav not found`); }
   else {
-    const expected = ["skills.html", "guides.html", "control-room.html", "team.html", "jev.html", "reference.html", "diagrams.html"];
+    const expected = ["skills.html", "guides.html", "control-room.html", "brain.html", "team.html", "team-interfaces.html", "jev.html", "reference.html", "diagrams.html"];
     const docNav = navOrder.filter((l) => expected.includes(l));
     if (JSON.stringify(docNav) !== JSON.stringify(expected)) fail(`${page}: doc nav is ${docNav.join(",")}`);
   }
