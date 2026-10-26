@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
+      - run: npm ci
+      - run: npx playwright install chromium
       - run: node --check runtime/atl-manager.mjs
       - run: node verification/approval_test.mjs
       - run: node verification/owner_session_approval_test.mjs
@@ -32,6 +34,7 @@ jobs:
       - run: node verification/concurrent_worker_test.mjs
       - run: node verification/control_plane_server_test.mjs
       - run: node verification/control_plane_task_run_test.mjs
+      - run: node verification/e2e/full_operation_test.mjs
       - run: node verification/multi_queue_test.mjs
       - run: node verification/brain_test.mjs
       - run: node verification/brain_recovery_test.mjs
