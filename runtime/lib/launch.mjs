@@ -276,7 +276,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       result = await runInvocation(invocation, {
         // Workers get the task workspace and a scoped, expiring identity. The
         // manager root is deliberately not added to their tool sandbox.
-        env: { ATL_PROJECT: root, ATL_WORKER_CREDENTIAL: JSON.stringify(workerCredential), ...credentialEnv },
+        env: { ATL_PROJECT: root, ATL_WORKER_CREDENTIAL: JSON.stringify(workerCredential), ...(useEnvPolicy.set || {}), ...credentialEnv },
         unsetEnv: useEnvPolicy.unset,
         logPath,
         timeoutMs,

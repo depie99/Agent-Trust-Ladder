@@ -13,7 +13,7 @@ import { paths } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
 import { approveClaim, promoteSkill, registerRoutine, validateSkill } from "./governance.mjs";
 import { approvalSnapshot, authorizeAction, decideProposal, proposeAction, recordActionOutcome, revokeGrant } from "./approvals.mjs";
-import { registerProject, setSupervisorDefaults, supervisorSnapshot } from "./supervisor.mjs";
+import { registerProject, removeProject, setSupervisorDefaults, supervisorSnapshot } from "./supervisor.mjs";
 import { createBackup, listBackups, previewRestore, restoreBackup } from "./backup.mjs";
 import { listRoutineRuns, recoverScheduler, runRoutine, schedulerStatus, schedulerTick } from "./routines.mjs";
 import { buildDispatchPlan } from "./dispatcher.mjs";
@@ -495,6 +495,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       if (req.method === "POST" && url.pathname === "/api/supervisor") {
         const payload = JSON.parse(await readBody(req) || "{}"); let result;
         if (payload.action === "register-project" || payload.action === "register") result = registerProject(String(payload.root || root), payload.project || { name: payload.name, maxConcurrent: payload.maxConcurrent });
+        else if (payload.action === "remove" || payload.action === "remove-project") result = removeProject(String(payload.id || ""), { force: false });
         else if (payload.action === "defaults") result = setSupervisorDefaults(payload.defaults || {});
         else { json(res, 400, { ok: false, error: "unknown supervisor action" }); return; }
         json(res, 200, { ok: true, result, supervisor: supervisorSnapshot() }); return;

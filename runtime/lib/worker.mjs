@@ -5,8 +5,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROMPT_DIR = path.join(RUNTIME_DIR, "..", "prompts");
@@ -62,11 +62,12 @@ export function assertWorkerAuth(worker, auth = "subscription") {
 export function workerEnvPolicy(worker, auth = "subscription", env = process.env) {
   assertWorkerAuth(worker, auth);
   if (worker !== "claude" || auth !== "subscription") {
-    return { unset: [], stripped: [] };
+    return { unset: [], stripped: [], set: { ATL_BIN: fileURLToPath(new URL("../atl-manager.mjs", import.meta.url)) } };
   }
   return {
     unset: [...CLAUDE_SUBSCRIPTION_UNSET_ENV],
     stripped: CLAUDE_SUBSCRIPTION_UNSET_ENV.filter((key) => Boolean(env[key])),
+    set: { ATL_BIN: fileURLToPath(new URL("../atl-manager.mjs", import.meta.url)) },
   };
 }
 
@@ -86,7 +87,9 @@ function promptFor(role, task, root, workspace, feedback = [], navigationContext
 
 You are one stage in an explicit, unattended ATL run. Do not invent a later stage.
 Use the ATL runner for every state, evidence, checkpoint, assignment, block, or
-escalation change. The runner is available as 'atl' in the target project;
+escalation change. The absolute ATL runner path is available in ATL_BIN. Invoke
+it as 'node "$env:ATL_BIN"' on Windows or 'node "$ATL_BIN"' on POSIX; do not
+rely on PATH or an installed shell alias;
 the project root is '${root}'.
 
 Task: ${task.id} — ${task.title}
