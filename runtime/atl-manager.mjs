@@ -330,7 +330,7 @@ function defaultConfig() {
     version: 1,
     inbox_dir: ".trust/manager/inbox",
     briefs_dir: ".trust/manager/briefs",
-    budgets: { max_attempts: 3, max_auto_recoveries: 1, stale_after_hours: 24, max_active_tasks: 5 },
+    budgets: { max_attempts: 3, max_auto_recoveries: 3, stale_after_hours: 24, max_active_tasks: 5 },
     navigation: {
       mode: "off",
       max_tokens: 800,
@@ -433,7 +433,11 @@ function parseWorkerFlags({ overnight }) {
     ...(regEntry ? { userProvider: { id: selectedId, ...regEntry } } : {}),
   };
   const maxMinutes = Number(flags["max-minutes"] || (overnight ? 120 : 60));
-  const maxSessions = Number(flags["max-sessions"] || (overnight ? 5 : 1));
+  // Overnight runs must have room for the normal Rowan -> Sage -> Rowan ->
+  // Sage -> Beacon relay. Five sessions starves the next stage as soon as a
+  // reviewer requests one repair pass, so use a bounded eight-session default;
+  // operators can still choose a smaller or larger budget explicitly.
+  const maxSessions = Number(flags["max-sessions"] || (overnight ? 8 : 1));
   if (!Number.isFinite(maxMinutes) || maxMinutes <= 0 || maxMinutes > 24 * 60) {
     throw new StateError(`--max-minutes must be between 1 and ${24 * 60}`);
   }

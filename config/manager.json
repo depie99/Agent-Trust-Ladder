@@ -4,6 +4,7 @@
   "briefs_dir": ".trust/manager/briefs",
   "budgets": {
     "max_attempts": 3,
+    "max_auto_recoveries": 3,
     "stale_after_hours": 24,
     "max_active_tasks": 5
   },
@@ -75,6 +76,9 @@
     "repos": {
       "shahryarjb/temp_mishka_cms": {
         "path": ""
+      },
+      "depie99/Agent-Trust-Ladder": {
+        "path": "../Agentic-Trust-Ladder-cleanup"
       }
     },
     "note": "put a local clone path in repos.<owner/name>.path to get cheap git worktrees instead of fresh clones"

@@ -99,6 +99,22 @@ When a new identifier or payload shape replaces an existing one, preserve old ca
 
 Do not equate committed or merged with behaviorally verified. Do not declare success until the original user-visible failure is re-observed as fixed, or explicitly marked unverified. Static checks alone yield a partial verdict for a runtime contract bug.
 
+## UI misunderstanding recovery gate
+
+For UI work, a rejected fix is new diagnostic evidence. If the user says the same visible problem remains, supplies a second screenshot showing the same concern, or continues describing hierarchy/clarity while the agent is changing spacing, icons, colors, or breakpoints, stop incremental cosmetic edits.
+
+Before another implementation loop:
+
+1. restate the observed user-visible failure and the intended reading order;
+2. verify the route, actual viewport/container size, state, theme, zoom, and source served by the running application;
+3. distinguish source-edited, installed, served, rendered, and visually verified evidence;
+4. identify the responsible layer: content, component markup, layout primitive, style/token, interaction state, data model, or build/serve boundary;
+5. reconsider the component structure after two cosmetic attempts or one repeated user rejection;
+6. re-observe the original state and viewport before claiming success;
+7. mark the result conditional when rendered evidence is unavailable.
+
+Do not treat passing syntax, DOM-string, or functional tests as proof of visual comprehension. Do not follow an exploratory user suggestion such as “use an icon” literally unless it improves the stated task and hierarchy. In this repository, use [the UI repair misunderstanding guide](../../problems/enhancements/ui-repair-misunderstanding-recovery.md) for the full incident pattern, responsive matrix, source-parity protocol, and definition of done.
+
 ## Contract-to-runtime evidence gate
 
 Apply this gate whenever a change crosses configuration, build, packaging, deployment, or an external service. A genuinely local-only UI or logic change with no such boundary does not need this deployment gate, though its ordinary behavioral checks still apply.

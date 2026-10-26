@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createControlPlaneSnapshot } from "./control-plane.mjs";
 import { dispatchTuiCommand } from "./command-console.mjs";
-import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, readRunLock, requestRunAbort } from "./launch.mjs";
+import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, readOvernightRun, readRunLock, requestRunAbort } from "./launch.mjs";
 import { addProposal, addProposalFeedback, editProposal, loadPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider } from "./plan-studio.mjs";
 import { invokePlanningProvider } from "./plan-model.mjs";
 import { builtinProviderStatus } from "./providers.mjs";
@@ -88,7 +88,7 @@ function previewLines(preview) {
     `Dry run · ${preview.queueName || "ad-hoc task run"} · ${preview.items.length} task(s) · ${preview.readyCount} ready · ${preview.blockedCount} blocked`,
     preview.runGate
       ? `Run gate: ${preview.runGate.active ? `ACTIVE (${preview.runGate.queueId})` : "free"} · global concurrency ${preview.globalMaxConcurrent} · budget ${preview.budget.maxMinutes}m/${preview.budget.maxSessions} sessions`
-      : `Budget ${preview.budget.maxMinutes}m/${preview.budget.maxSessions} sessions · strictly sequential · stops at every human gate`,
+      : `Budget ${preview.budget.maxMinutes}m overall · ${preview.budget.maxSessions} sessions per task · strictly sequential · stops at every human gate`,
   ];
   for (const skip of preview.skipped || []) lines.push(`  queue ${skip.id}: ${skip.reason}`);
   for (const item of preview.items) {
@@ -97,7 +97,7 @@ function previewLines(preview) {
   return lines;
 }
 
-function resolvePreview(root, { taskIds = null, queueId = null, queueIds = null, maxMinutes = 120, maxSessions = 5 } = {}) {
+function resolvePreview(root, { taskIds = null, queueId = null, queueIds = null, maxMinutes = 120, maxSessions = 8 } = {}) {
   if (Array.isArray(taskIds) && taskIds.length) {
     const state = createControlPlaneSnapshot(root).state?.tasks || {};
     const unknown = taskIds.filter((id) => !state[id] || state[id].status === "archived");
@@ -422,7 +422,20 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
 
 export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch } = {}) {
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch };
-  const run = { status: "idle", queueId: null, taskIds: null, queueIds: null, startedAt: null, finishedAt: null, progress: [], results: [], error: null };
+  const durable = readOvernightRun(root);
+  const run = durable ? {
+    status: durable.status || "idle",
+    queueId: durable.queueId || null,
+    taskIds: durable.taskOrder || null,
+    queueIds: durable.queueIds || null,
+    startedAt: durable.startedAt || null,
+    finishedAt: durable.endedAt || null,
+    progress: [],
+    results: durable.results || [],
+    reason: durable.reason || null,
+    resumableTaskIds: durable.resumableTaskIds || [],
+    error: durable.error || null,
+  } : { status: "idle", queueId: null, taskIds: null, queueIds: null, startedAt: null, finishedAt: null, progress: [], results: [], error: null };
   return http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url || "/", `http://${host}`);
@@ -482,7 +495,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           queueId: payload.queueId || null,
           queueIds: Array.isArray(payload.queueIds) ? payload.queueIds.map((id) => String(id)) : null,
           maxMinutes: Number(payload.maxMinutes || 120),
-          maxSessions: Number(payload.maxSessions || 5),
+          maxSessions: Number(payload.maxSessions || 8),
         });
         if (resolved.error) {
           json(res, 400, { ok: false, error: resolved.error });
@@ -520,8 +533,9 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           runQueueLabel = resolved.preview.queueId;
         }
         // Per-task runs default to the CLI one-shot budget (1 session); the
-        // whole-queue default stays 5. Multi-queue runs share ONE budget.
-        const defaultSessions = taskIds ? 1 : 5;
+        // A queue owns its complete bounded relay; multi-queue runs share one
+        // budget across their selected queues.
+        const defaultSessions = 8;
         Object.assign(run, { status: "running", queueId: runQueueLabel, taskIds, queueIds, startedAt: new Date().toISOString(), finishedAt: null, progress: [], results: [], error: null, reason: null });
         executeLaunchQueue(root, {
           confirm: true,

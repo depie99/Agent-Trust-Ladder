@@ -126,9 +126,9 @@ function expandProviderArg(value, { root, cwd, workspace, role, task, auth, prov
   return String(value).replace(/\{([a-z_]+)\}/gi, (full, key) => Object.prototype.hasOwnProperty.call(tokens, key) ? String(tokens[key]) : full);
 }
 
-export function buildInvocation(worker, { root, workspace, role, task, auth = "subscription", provider = null, feedback = [], navigationContext = "" }) {
+export function buildInvocation(worker, { root, workspace, role, task, auth = "subscription", provider = null, feedback = [], navigationContext = "", uiReviewRuntime = null }) {
   const cwd = workspace || root;
-  const prompt = promptFor(role, task, root, workspace, feedback, navigationContext);
+  const prompt = promptFor(role, task, root, workspace, feedback, navigationContext) + (uiReviewRuntime?.prompt || "");
   if (provider && Array.isArray(provider.args)) {
     const args = provider.args.map((arg) => expandProviderArg(arg, { root, cwd, workspace, role, task, auth, provider, prompt }));
     if (provider.promptArg) args.push(expandProviderArg(provider.promptArg, { root, cwd, workspace, role, task, auth, provider, prompt }));

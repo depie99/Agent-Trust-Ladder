@@ -29,7 +29,7 @@ function defaultQueue(id = DEFAULT_QUEUE_ID, name = "Default") {
     id,
     name,
     status: "idle",
-    policy: { maxMinutes: 120, maxSessions: 5, maxConcurrent: 1 },
+    policy: { maxMinutes: 120, maxSessions: 8, maxConcurrent: 1 },
     provider: null,
     items: [],
     created_at: at,

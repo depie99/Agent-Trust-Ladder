@@ -1,0 +1,142 @@
+Claude Code doesn't recognize the model "glm-5.3-flash", so it assumes a context window of 200k tokens. Update Claude Code, or see https://code.claude.com/docs/en/model-config#correct-the-window-for-a-gateway-or-custom-model-id to set the window.
+[claude-code:unrecognized_model] {"model":"glm-5.3-flash","query_source":"sdk"}
+{
+  "title": "Add Farsi/Persian (fa-IR) localization with RTL layout to the ATL browser Control Plane",
+  "objective": "Make the Control Plane UI (runtime/control-plane.html + runtime/control-plane-client.js) fully usable in Farsi with a right-to-left layout: every visible string resolves through an en/fa catalog, the document element switches lang/dir from a persisted toggle without a flash of wrong direction, the compiled SCSS layout mirrors correctly in both light and dark themes, and mixed-direction content (Latin paths, IDs, timestamps inside Farsi sentences) stays legible. English remains the default; the existing verification suites are updated in the same change so the string extraction never silently breaks them.",
+  "constraints": [
+    "Scope is the browser Control Plane surface only (runtime/control-plane.html, runtime/control-plane-client.js, runtime/scss/*, its server routes in runtime/lib/control-plane-server.mjs); no docs-site (docs/scss), terminal/TUI, or API payload translation.",
+    "Keep the single self-contained HTML artifact: the stylesheet stays compiled from runtime/scss via npm run ui:css and inlined; no CDN fonts or external locale libraries.",
+    "English stays the default locale; Farsi is an explicit, persisted user choice following the existing atl-cp-theme localStorage + head-bootstrap pattern already in runtime/control-plane.html:1.",
+    "Translation is a UI string layer only; API JSON responses and server-generated state stay unchanged.",
+    "Persisted-choice bootstrapping must set html lang and dir before first paint, mirroring the existing theme script, to avoid wrong-direction flash.",
+    "Any verification assertion on literal UI text (verification/control_plane_server_test.mjs currently matches /Run active queue/, /Save connection/, /Review selected/, etc.) must be updated in the same change that extracts the string.",
+    "No new stages beyond string catalog, language toggle/bootstrap, RTL stylesheet, bidi handling for dynamic content, server route for the catalog asset, and verification updates."
+  ],
+  "risks": [
+    "verification/control_plane_server_test.mjs asserts on dozens of literal English strings in the served HTML and client JS; translating or keying those strings will fail the suite unless the assertions are migrated to stable selectors or catalog keys in lockstep.",
+    "runtime/scss/_app.scss and the inline <style> in control-plane.html use physical directional properties (left/right offsets, text-align); an RTL pass that misses rules yields mirrored-but-broken layouts, and a naive [dir=rtl] override set will drift from the SCSS source because CSS is compiled and inlined.",
+    "Mixed bidi content is the top correctness risk: Farsi UI text containing Latin file paths, task IDs, and h23 timestamps can scramble reading order unless dynamic containers get dir=auto or unicode-bidi isolation.",
+    "Default system font stacks may render Persian glyph shaping poorly on some platforms; bundling a Persian webfont would bloat the self-contained artifact, so the fallback stack choice must be tested rather than assumed.",
+    "Forgetting npm run ui:css after SCSS edits leaves stale inlined CSS; npm run ui:css:check exists and must gate every SCSS-touching step.",
+    "toLocaleTimeString call sites (runtime/control-plane-client.js:323, runtime/lib/dashboard.mjs precedent of memoized Intl formatters) currently follow the host locale; per-UI-locale formatting must be decided explicitly or dates will disagree with the selected language.",
+    "The Plan Studio in-progress objective and provider-modal strings are stateful in control-plane-client.js; replacing literals during extraction can regress behaviors the suite pins (e.g. let studioGoal preservation), so extraction must be mechanical and selector-preserving."
+  ],
+  "completion_checks": [
+    "Served / HTML contains a pre-paint bootstrap that reads the persisted language and sets html lang and dir; with no saved choice it renders en/ltr exactly as before.",
+    "Every visible Control Plane string in control-plane.html and control-plane-client.js resolves through an en/fa catalog with no missing keys in either locale.",
+    "The RTL layout is implemented with logical CSS properties in runtime/scss plus only targeted [dir=rtl] exceptions, and the inlined CSS in control-plane.html is fresh per npm run ui:css:check.",
+    "Dynamic content containers (task titles, log lines, paths, timestamps) carry bidirectional isolation so Latin fragments inside Farsi text keep reading order.",
+    "verification/control_plane_server_test.mjs asserts the lang/dir toggle, catalog presence in served assets, and en-default behavior, and the suite runs green.",
+    "A rendered-artifact review in fa/rtl and en/ltr across desktop and mobile widths in light and dark themes records observed PASS/FAIL per surface with repairs applied for failures."
+  ],
+  "acceptance_examples": [
+    {
+      "given": "a workspace opened with no saved language preference",
+      "when": "the Control Plane loads at /",
+      "then": "the document element has lang=en and dir=ltr, all visible strings are English, and behavior is identical to the pre-change artifact"
+    },
+    {
+      "given": "the user selects the Farsi option in the sidebar settings",
+      "when": "the page is reloaded",
+      "then": "the pre-paint bootstrap applies lang=fa and dir=rtl before first paint with no wrong-direction flash, the choice persists in localStorage under the atl-cp-lang key, and visible UI text renders in Farsi from the catalog"
+    },
+    {
+      "given": "Farsi/RTL is active in the light theme and in the dark theme",
+      "when": "the sidebar, topbar, task rows, and Plan Studio pane are viewed at desktop and mobile widths",
+      "then": "the layout mirrors (navigation on the right, text aligned to the inline start, progress and status meters flowing right-to-left) with no clipped, overlapping, or double-mirrored elements in either theme"
+    },
+    {
+      "given": "a Farsi UI sentence that embeds a Latin file path, task ID, or timestamp",
+      "when": "the string renders in task titles, log lines, or evidence lists",
+      "then": "the Latin fragment displays left-to-right and isolated by unicode-bidi, and the surrounding Farsi sentence keeps its right-to-left reading order"
+    },
+    {
+      "given": "a task title or queue entry typed in Persian script",
+      "when": "it renders anywhere in the Control Plane",
+      "then": "glyphs join correctly under the chosen font fallback stack and long unbroken tokens ellipsize instead of overflowing their row"
+    },
+    {
+      "given": "the updated verification suite",
+      "when": "node verification/control_plane_server_test.mjs runs",
+      "then": "assertions cover the en/ltr default, the fa/rtl toggle, catalog presence in the served HTML and client asset, and the pre-change structural expectations that were migrated off literal English strings"
+    }
+  ],
+  "selected_skills": [
+    "atl",
+    "atl-ui-review"
+  ],
+  "proposed_worker": {
+    "name": "control-plane-i18n",
+    "scope": "Browser Control Plane localization only: string catalog extraction, fa-IR translations, lang/dir bootstrap and toggle, RTL logical-property restyling of runtime/scss, bidi handling for dynamic content, the catalog asset route in runtime/lib/control-plane-server.mjs, and updates to verification/control_plane_server_test.mjs. No docs-site styling, terminal runtime, API payload, or workflow-gate changes; escalates to the user for translation review of user-facing Farsi copy before completion."
+  },
+  "implementation_steps": [
+    {
+      "step": "Inventory every user-visible literal in runtime/control-plane.html and runtime/control-plane-client.js and create a keyed en/fa catalog module (runtime/control-plane-i18n.js) with stable ids and a missing-key lookup fallback to English; keep ids stable so test assertions can key off them.",
+      "files": [
+        "runtime/control-plane-i18n.js",
+        "runtime/control-plane.html",
+        "runtime/control-plane-client.js"
+      ],
+      "verify": "node --check runtime/control-plane-i18n.js and grep the client for remaining un-keyed literals from the inventory; catalog exposes en and fa maps with identical key sets (asserted in the server test)"
+    },
+    {
+      "step": "Route all render paths in the client through the catalog lookup (t(key) helper), replacing hardcoded strings while preserving existing structural selectors, class names, and stateful behaviors the suite pins (data-page, task-controls, studio state variables).",
+      "files": [
+        "runtime/control-plane-client.js"
+      ],
+      "verify": "node --check runtime/control-plane-client.js and diff confirms only literal-to-lookup replacements around the pinned selectors; verification suite still matches structural assertions"
+    },
+    {
+      "step": "Add the language bootstrap and toggle: a pre-paint head script mirroring the atl-cp-theme pattern (localStorage key atl-cp-lang) that sets html lang=fa dir=rtl when fa is saved or chosen, plus a sidebar language control that persists and re-renders strings without reload where feasible.",
+      "files": [
+        "runtime/control-plane.html",
+        "runtime/control-plane-client.js"
+      ],
+      "verify": "fetch the served / artifact and assert the bootstrap script, atl-cp-lang key, and toggle control are present; with no saved key the document stays lang=en dir=ltr"
+    },
+    {
+      "step": "Convert directional physical properties in runtime/scss/_app.scss and _tokens.scss to logical equivalents (margin-inline/padding-inline, inset-inline, text-align start/end, border-inline), add targeted [dir=rtl] rules only where logical properties cannot express the intent, and rebuild the inlined CSS.",
+      "files": [
+        "runtime/scss/_app.scss",
+        "runtime/scss/_tokens.scss",
+        "runtime/control-plane.html"
+      ],
+      "verify": "npm run ui:css then npm run ui:css:check reports fresh; grep runtime/scss for leftover margin-left/padding-left/text-align left/right and justify each remaining hit as [dir=rtl]-scoped or intentional"
+    },
+    {
+      "step": "Handle mixed-direction dynamic content: apply dir=auto or unicode-bidi isolate classes to task titles, log lines, path/evidence fragments, and timestamp cells; extend the font-family stack with Persian-appropriate system fallbacks (no webfont download); decide per-UI-locale number/date formatting for toLocaleTimeString call sites.",
+      "files": [
+        "runtime/control-plane-client.js",
+        "runtime/scss/_app.scss",
+        "runtime/control-plane.html"
+      ],
+      "verify": "npm run ui:css:check; rendered inspection shows a Latin path embedded in a Farsi log line keeping LTR isolation and correct RTL sentence order"
+    },
+    {
+      "step": "Serve the new catalog asset from the control plane server (route beside /control-plane-client.js in runtime/lib/control-plane-server.mjs) and migrate verification/control_plane_server_test.mjs assertions that matched literal English strings to catalog keys/structural selectors, adding assertions for lang/dir toggle, fa catalog presence, and en-default behavior.",
+      "files": [
+        "runtime/lib/control-plane-server.mjs",
+        "verification/control_plane_server_test.mjs"
+      ],
+      "verify": "node verification/control_plane_server_test.mjs completes with all assertions passing, including the new lang/dir and catalog assertions"
+    },
+    {
+      "step": "Run the atl-ui-review skill against the real rendered artifact in fa/rtl and en/ltr at desktop and mobile viewports in both themes, exercising keyboard navigation and the demanding components (Plan Studio, task rows, provider modal); repair only observed RTL/localization defects found, then re-run the checks.",
+      "files": [
+        "runtime/scss/_app.scss",
+        "runtime/control-plane-client.js",
+        "runtime/control-plane.html"
+      ],
+      "verify": "Recorded PASS/FAIL/NOT OBSERVED entries per inspected surface and locale, with each FAIL either repaired or explicitly deferred; final npm run ui:css:check and node verification/control_plane_server_test.mjs rerun clean"
+    }
+  ],
+  "verifier_commands": [
+    "npm run ui:css:check",
+    "node verification/control_plane_server_test.mjs",
+    "node --check runtime/control-plane-client.js",
+    "node --check runtime/lib/control-plane-server.mjs",
+    "node --check runtime/control-plane-i18n.js",
+    "rg -n 'margin-left|margin-right|padding-left|padding-right|text-align:\\s*(left|right)' runtime/scss",
+    "rg -n 'atl-cp-lang' runtime/control-plane.html runtime/control-plane-client.js"
+  ]
+}

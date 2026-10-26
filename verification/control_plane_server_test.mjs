@@ -42,6 +42,8 @@ try {
   assert.match(client, /Save connection/, "sidebar provider modal exposes one save path for current connection settings");
   assert.match(client, /data-pm-current-thinking/, "sidebar provider modal exposes current-provider thinking/effort");
   assert.match(client, /data-pm-current-key/, "sidebar provider modal exposes safe API-key replacement");
+  assert.match(client, /Keep the source objective and references visible/, "Plan Studio preserves the prompt after generation");
+  assert.match(client, /value === "studio-clear"/, "Plan Studio retains an explicit user-controlled clear action");
   assert.match(client, /class="task-controls"/, "task rows group status, ownership, and actions in one control region");
   assert.match(client, /class="task-owner-label">Assigned to/, "task ownership is explicitly labelled");
   assert.match(client, /class="task-actions"/, "task actions have a distinct visual group");

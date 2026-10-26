@@ -1,0 +1,358 @@
+{
+  "schema": 1,
+  "stage": "plan",
+  "artifact": {
+    "title": "The ATL Brain, Documented — Evidence-Gated Guidance Page for Spec 019 (Evidence-Linked Second Brain)",
+    "objective": "Ship a complete guidance page at docs/brain.html (titled 'The ATL Brain — Evidence that survives the session', served via the existing GitHub Pages docs site rather than a separate blog) that explains what was implemented from Spec 019: what improved and what was added relative to the pre-019 baseline, how the source→archive→claim→review→context→worker flow works, why each gate exists, and the honest limits — with every behavioral claim on the page cross-checked against runtime/lib/brain.mjs, runtime/lib/research.mjs, runtime/lib/governance.mjs, the atl CLI, the Control Plane, and the brain/governance/recovery verification tests before the page is declared done.",
+    "constraints": [
+      "Documentation-only scope: no changes to runtime behavior, task state machine, approval gates, or verification role; bounded to Spec 019's intent-gate authorization.",
+      "The page must frame Brain knowledge as advisory context only — it can never satisfy a completion check, approval, authorization, or source-freshness proof.",
+      "No reliability or production claims beyond what the verification tests actually demonstrate; the supplied research article stays design input, not evidence.",
+      "Every CLI command, store path, claim status, and default shown on the page must match the implementation exactly (e.g. archiveSource/addClaim/buildContextPack in runtime/lib/brain.mjs, brainPaths layout, CLAIM_STATUSES).",
+      "Page must use the existing docs shell: sidebar nav with active state, theme toggle, shared styles.css (bump ?v= if SCSS changes), and light/dark safe markup matching docs/control-room.html conventions.",
+      "The docs page on GitHub Pages is the chosen publication surface; do not fabricate or duplicate a separate blog post elsewhere.",
+      "Do not claim any check passed inside the page or the plan; evidence statements must cite the specific test or code path that backs them."
+    ],
+    "risks": [
+      "Doc drift: the page lists CLI commands or store fields that diverge from the implementation (e.g. documented 'atl brain status/stale/approve' vs actually registered subcommands), teaching operators commands that fail.",
+      "Overclaiming: copy that presents conflicted/unknown/stale claim handling, freshness defaults (the '30 days' stat), or routine governance as proven production behavior when only regression tests cover them.",
+      "Stale assets: styles.css not rebuilt after any SCSS token change, or the ?v= cache-buster not bumped, so the new page renders unstyled in the deployed Pages site.",
+      "Navigation breakage: docs/index.html or docs/README.md links missing or pointing at wrong anchors; sidebar active state inconsistent with other pages.",
+      "Tone/regression risk: editing shared docs shell markup could break layout or theme toggle on other pages if copy is pasted with page-specific structure.",
+      "Spec-scope creep: the page drifting into documenting Slices B–D futures (skill/routine registries) as if already shipped, contradicting the intent gate that authorized Slice A."
+    ],
+    "completion_checks": [
+      "node verification/brain_test.mjs exits 0, confirming store behavior described on the page still holds.",
+      "node verification/brain_recovery_test.mjs exits 0, confirming crash/replay/failure narratives on the page match tested recovery behavior.",
+      "node verification/governance_test.mjs exits 0, confirming skill/routine governance copy matches tested behavior.",
+      "npm run docs:css:check exits 0, confirming built CSS matches SCSS for the new page markup.",
+      "Grep audit confirms every 'atl brain ...' command string on docs/brain.html appears as a registered command in runtime/atl-manager.mjs, and every documented path (raw/<sha256>/, sources.json, claims.json, events.jsonl) appears in brainPaths output.",
+      "docs/index.html and docs/README.md both link the Brain page; all internal hrefs on the page resolve to existing files/anchors; sidebar marks brain.html active.",
+      "A claim-by-claim review finds no sentence asserting Brain knowledge satisfies completion checks, approves actions, sends messages, deploys, spends, or proves provider quota."
+    ],
+    "acceptance_examples": [
+      {
+        "given": "docs/brain.html rendered for a reader",
+        "when": "the reader copies each CLI snippet from the CLI REFERENCE section into a terminal",
+        "then": "every command resolves to a subcommand actually implemented in runtime/atl-manager.mjs, with flags and store paths matching the implementation"
+      },
+      {
+        "given": "the FLOW and IMPLEMENTED STORE sections describe intake, replay idempotency, crash recovery, and conflict handling",
+        "when": "each described behavior is cross-checked against verification/brain_recovery_test.mjs and verification/brain_test.mjs",
+        "then": "each behavior maps to at least one named test case, and no described behavior lacks a backing test or code path"
+      },
+      {
+        "given": "the STORE LAYOUT panel documents raw/<sha256>/content, sources.json, claims.json, and events.jsonl",
+        "when": "brainPaths(root) from runtime/lib/brain.mjs is inspected",
+        "then": "the documented layout matches the implementation exactly, including the content-addressed raw directory approved for Slice A"
+      },
+      {
+        "given": "the page and docs/README.md describe the Brain as advisory context",
+        "when": "a reviewer scans all copy for authority language",
+        "then": "no statement implies Brain claims satisfy completion checks, human approval, authorization, or freshness proof, and the UNKNOWN/PARTIAL/CONFLICTED advisory boundary is stated verbatim in spirit"
+      },
+      {
+        "given": "the page references the pre-019 baseline",
+        "when": "the 'what improved / what added' comparison is reviewed against the Spec 019 'Current baseline' section",
+        "then": "baseline items are not re-advertised as new, and genuinely new Slice A work (raw archive, transactional checkpoints, failure records, audit events, recovery tests) is attributed correctly"
+      },
+      {
+        "given": "docs/index.html, docs/README.md, and the sidebar nav",
+        "when": "the page ships",
+        "then": "all three reference the Brain page consistently, the sidebar marks brain.html with aria-current=\"page\", and every internal link on the page resolves"
+      },
+      {
+        "given": "any SCSS edit made for the page",
+        "when": "npm run docs:css:check and npm run docs:diagrams:check run",
+        "then": "both exit 0 with the rebuilt docs/styles.css and cache-buster committed"
+      }
+    ],
+    "selected_skills": [
+      "agent-trust-ladder",
+      "atl-beacon"
+    ],
+    "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+    "implementation_steps": [
+      {
+        "step": "Inventory the implemented Brain surface: exports and store layout in runtime/lib/brain.mjs (CLAIM_STATUSES, brainPaths, archiveSource, addClaim, listClaims, buildContextPack, saveContextPack), research linkage in runtime/lib/research.mjs, governance in runtime/lib/governance.mjs, registered atl brain subcommands in runtime/atl-manager.mjs, and Control Plane brain endpoints — and map each to its backing test in verification/brain_test.mjs, brain_recovery_test.mjs, and governance_test.mjs.",
+        "files": [
+          "runtime/lib/brain.mjs",
+          "runtime/lib/research.mjs",
+          "runtime/lib/governance.mjs",
+          "runtime/atl-manager.mjs",
+          "runtime/lib/control-plane-server.mjs",
+          "verification/brain_test.mjs",
+          "verification/brain_recovery_test.mjs",
+          "verification/governance_test.mjs"
+        ],
+        "verify": "Grep the inventory table's every entry against its cited source file and confirm each behavior row names an existing test or export before any prose is written."
+      },
+      {
+        "step": "Audit the existing docs/brain.html draft against the inventory: verify each documented CLI command, store path, status label, freshness default, and Control Plane capability; list divergences (including anything describing Slice B–D work as shipped) and record the pre-019 baseline from Spec 019 for the before/after framing.",
+        "files": [
+          "docs/brain.html",
+          ".trust/specs/019-evidence-linked-second-brain/spec.md",
+          "docs/README.md"
+        ],
+        "verify": "Produce the divergence list and confirm every page claim either matches the inventory or is flagged for correction; no page edit happens before this list exists."
+      },
+      {
+        "step": "Complete the page's guidance content: WHY IT EXISTS (reason), THE FLOW (source→archive→claim→review→context→worker with the authoritative-boundary note), IMPLEMENTED STORE (layout, atomic writes, idempotent replay), what improved vs what added relative to the pre-019 baseline, Control Plane + CLI equivalents, and HONEST LIMITS — correcting every divergence from the audit.",
+        "files": [
+          "docs/brain.html"
+        ],
+        "verify": "Re-run the audit greps from step 2 against the edited page and confirm zero unresolved divergences and zero authority-language violations."
+      },
+      {
+        "step": "Wire navigation and discoverability: docs/index.html link/card for the Brain page, the docs/README.md explanation line, and confirm the sidebar marks brain.html active with aria-current=\"page\"; keep markup consistent with docs/control-room.html so theme toggle and layout are untouched elsewhere.",
+        "files": [
+          "docs/index.html",
+          "docs/README.md",
+          "docs/brain.html"
+        ],
+        "verify": "Grep index.html and README.md for the brain.html link, and confirm every internal href on brain.html resolves to an existing file or in-page anchor."
+      },
+      {
+        "step": "Rebuild docs assets if any SCSS was touched or is out of date: run sass via npm run docs:css, bump the styles.css?v= cache-buster in brain.html (and only pages whose markup changed), keeping light/dark rendering safe for new sections.",
+        "files": [
+          "docs/scss/styles.scss",
+          "docs/styles.css",
+          "docs/brain.html"
+        ],
+        "verify": "npm run docs:css:check and npm run docs:diagrams:check both exit 0 with no uncommitted generated drift."
+      },
+      {
+        "step": "Run the full evidence gate for the page's claims: execute the brain, recovery, governance, and control-plane verification tests, attach the outcomes as the evidence trail for the doc, and fix any page sentence contradicted by a test result — recording results without marking anything passed until each command exits 0.",
+        "files": [
+          "docs/brain.html",
+          "docs/README.md",
+          "verification/brain_test.mjs",
+          "verification/brain_recovery_test.mjs",
+          "verification/governance_test.mjs",
+          "verification/control_plane_contract_test.mjs",
+          "verification/control_plane_server_test.mjs"
+        ],
+        "verify": "All listed verifier_commands exit 0 in one final run after the last page edit; any failure loops back to the audit step before the page is reported done."
+      }
+    ],
+    "verifier_commands": [
+      "node verification/brain_test.mjs",
+      "node verification/brain_recovery_test.mjs",
+      "node verification/governance_test.mjs",
+      "node verification/control_plane_contract_test.mjs",
+      "node verification/control_plane_server_test.mjs",
+      "npm run docs:css:check",
+      "npm run docs:diagrams:check"
+    ],
+    "task_proposals": [
+      {
+        "id": "p1",
+        "title": "Inventory the implemented Brain surface: exports and store layout in runtime/lib/brain.mjs (CLAIM_STATUSES, brainPaths, archiveSource, addClaim, listClaims, buildContextPack, saveContextPack), research linkage in runtime/lib/research.mjs, g",
+        "objective": "Inventory the implemented Brain surface: exports and store layout in runtime/lib/brain.mjs (CLAIM_STATUSES, brainPaths, archiveSource, addClaim, listClaims, buildContextPack, saveContextPack), research linkage in runtime/lib/research.mjs, governance in runtime/lib/governance.mjs, registered atl brain subcommands in runtime/atl-manager.mjs, and Control Plane brain endpoints — and map each to its backing test in verification/brain_test.mjs, brain_recovery_test.mjs, and governance_test.mjs.",
+        "completion_checks": [
+          "Grep the inventory table's every entry against its cited source file and confirm each behavior row names an existing test or export before any prose is written."
+        ],
+        "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-beacon"
+        ],
+        "depends_on": [],
+        "files": [
+          "runtime/lib/brain.mjs",
+          "runtime/lib/research.mjs",
+          "runtime/lib/governance.mjs",
+          "runtime/atl-manager.mjs",
+          "runtime/lib/control-plane-server.mjs",
+          "verification/brain_test.mjs",
+          "verification/brain_recovery_test.mjs",
+          "verification/governance_test.mjs"
+        ],
+        "verify": "Grep the inventory table's every entry against its cited source file and confirm each behavior row names an existing test or export before any prose is written.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-beacon"
+          ]
+        }
+      },
+      {
+        "id": "p2",
+        "title": "Audit the existing docs/brain.html draft against the inventory: verify each documented CLI command, store path, status label, freshness default, and Control Plane capability; list divergences (including anything describing Slice B–D work as",
+        "objective": "Audit the existing docs/brain.html draft against the inventory: verify each documented CLI command, store path, status label, freshness default, and Control Plane capability; list divergences (including anything describing Slice B–D work as shipped) and record the pre-019 baseline from Spec 019 for the before/after framing.",
+        "completion_checks": [
+          "Produce the divergence list and confirm every page claim either matches the inventory or is flagged for correction; no page edit happens before this list exists."
+        ],
+        "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-beacon"
+        ],
+        "depends_on": [
+          "p1"
+        ],
+        "files": [
+          "docs/brain.html",
+          ".trust/specs/019-evidence-linked-second-brain/spec.md",
+          "docs/README.md"
+        ],
+        "verify": "Produce the divergence list and confirm every page claim either matches the inventory or is flagged for correction; no page edit happens before this list exists.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-beacon"
+          ]
+        }
+      },
+      {
+        "id": "p3",
+        "title": "Complete the page's guidance content: WHY IT EXISTS (reason), THE FLOW (source→archive→claim→review→context→worker with the authoritative-boundary note), IMPLEMENTED STORE (layout, atomic writes, idempotent replay), what improved vs what ad",
+        "objective": "Complete the page's guidance content: WHY IT EXISTS (reason), THE FLOW (source→archive→claim→review→context→worker with the authoritative-boundary note), IMPLEMENTED STORE (layout, atomic writes, idempotent replay), what improved vs what added relative to the pre-019 baseline, Control Plane + CLI equivalents, and HONEST LIMITS — correcting every divergence from the audit.",
+        "completion_checks": [
+          "Re-run the audit greps from step 2 against the edited page and confirm zero unresolved divergences and zero authority-language violations."
+        ],
+        "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-beacon"
+        ],
+        "depends_on": [
+          "p2"
+        ],
+        "files": [
+          "docs/brain.html"
+        ],
+        "verify": "Re-run the audit greps from step 2 against the edited page and confirm zero unresolved divergences and zero authority-language violations.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-beacon"
+          ]
+        }
+      },
+      {
+        "id": "p4",
+        "title": "Wire navigation and discoverability: docs/index.html link/card for the Brain page, the docs/README.md explanation line, and confirm the sidebar marks brain.html active with aria-current=\"page\"; keep markup consistent with docs/control-room.",
+        "objective": "Wire navigation and discoverability: docs/index.html link/card for the Brain page, the docs/README.md explanation line, and confirm the sidebar marks brain.html active with aria-current=\"page\"; keep markup consistent with docs/control-room.html so theme toggle and layout are untouched elsewhere.",
+        "completion_checks": [
+          "Grep index.html and README.md for the brain.html link, and confirm every internal href on brain.html resolves to an existing file or in-page anchor."
+        ],
+        "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-beacon"
+        ],
+        "depends_on": [
+          "p3"
+        ],
+        "files": [
+          "docs/index.html",
+          "docs/README.md",
+          "docs/brain.html"
+        ],
+        "verify": "Grep index.html and README.md for the brain.html link, and confirm every internal href on brain.html resolves to an existing file or in-page anchor.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-beacon"
+          ]
+        }
+      },
+      {
+        "id": "p5",
+        "title": "Rebuild docs assets if any SCSS was touched or is out of date: run sass via npm run docs:css, bump the styles.css?v= cache-buster in brain.html (and only pages whose markup changed), keeping light/dark rendering safe for new sections.",
+        "objective": "Rebuild docs assets if any SCSS was touched or is out of date: run sass via npm run docs:css, bump the styles.css?v= cache-buster in brain.html (and only pages whose markup changed), keeping light/dark rendering safe for new sections.",
+        "completion_checks": [
+          "npm run docs:css:check and npm run docs:diagrams:check both exit 0 with no uncommitted generated drift."
+        ],
+        "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-beacon"
+        ],
+        "depends_on": [
+          "p4"
+        ],
+        "files": [
+          "docs/scss/styles.scss",
+          "docs/styles.css",
+          "docs/brain.html"
+        ],
+        "verify": "npm run docs:css:check and npm run docs:diagrams:check both exit 0 with no uncommitted generated drift.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-beacon"
+          ]
+        }
+      },
+      {
+        "id": "p6",
+        "title": "Run the full evidence gate for the page's claims: execute the brain, recovery, governance, and control-plane verification tests, attach the outcomes as the evidence trail for the doc, and fix any page sentence contradicted by a test result ",
+        "objective": "Run the full evidence gate for the page's claims: execute the brain, recovery, governance, and control-plane verification tests, attach the outcomes as the evidence trail for the doc, and fix any page sentence contradicted by a test result — recording results without marking anything passed until each command exits 0.",
+        "completion_checks": [
+          "All listed verifier_commands exit 0 in one final run after the last page edit; any failure loops back to the audit step before the page is reported done."
+        ],
+        "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+        "selected_skills": [
+          "agent-trust-ladder",
+          "atl-beacon"
+        ],
+        "depends_on": [
+          "p5"
+        ],
+        "files": [
+          "docs/brain.html",
+          "docs/README.md",
+          "verification/brain_test.mjs",
+          "verification/brain_recovery_test.mjs",
+          "verification/governance_test.mjs",
+          "verification/control_plane_contract_test.mjs",
+          "verification/control_plane_server_test.mjs"
+        ],
+        "verify": "All listed verifier_commands exit 0 in one final run after the last page edit; any failure loops back to the audit step before the page is reported done.",
+        "revision": 1,
+        "source": "model",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "atl-beacon (verifier/night-watch agent) — the deliverable is an evidence-backed report of what was implemented, which matches the verifier role; implementation follows the ATL SDD/TDD loop under the existing intent gate",
+          "selected_skills": [
+            "agent-trust-ladder",
+            "atl-beacon"
+          ]
+        }
+      }
+    ]
+  },
+  "saved_at": "2026-10-26T05:51:34.690Z",
+  "provider": "solico-glm",
+  "model": null,
+  "role": "pip",
+  "generated_via": "custom-invoke"
+}

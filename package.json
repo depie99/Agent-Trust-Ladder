@@ -2,7 +2,7 @@
   "name": "@depie99/atl",
   "version": "0.1.1",
   "description": "Evidence-gated autonomous engineering workflow, browser Control Plane, and team runtime",
-  "homepage": "https://depie99.github.io/Agent-Trust-Ladder/control-room.html",
+  "homepage": "https://depie99.github.io/Agent-Trust-Ladder/team-interfaces.html",
   "repository": {
     "type": "git",
     "url": "https://github.com/depie99/Agent-Trust-Ladder.git"
@@ -41,6 +41,7 @@
     "registry": "https://npm.pkg.github.com"
   },
   "devDependencies": {
+    "playwright": "^1.64.1",
     "sass": "^1.106.1"
   }
 }
