@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">ATL Codex history bridge architecture</title>
+  <desc id="desc">ATL keeps the local feed and provider transcripts authoritative, builds incremental context, and projects it into a dedicated Codex thread through app-server injection or into an exact open chat through the explicit queue transport.</desc>
+  <defs>
+    <marker id="arrow-violet" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#6753e8"/></marker>
+    <marker id="arrow-mint" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#0a7d66"/></marker>
+    <marker id="arrow-amber" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#9a6709"/></marker>
+    <style>
+      .bg{fill:#f4f3f7}.panel{fill:#f0eff5;stroke:#c9c7d9;stroke-width:1}.source{fill:#e8e2fb;stroke:#a99ee8}.bridge{fill:#d9f2ea;stroke:#9fd4c4}.surface{fill:#fcf3dc;stroke:#d9b97a}.title{fill:#191726;font:700 24px system-ui,sans-serif}.label{fill:#191726;font:700 16px system-ui,sans-serif}.small{fill:#55576b;font:12px ui-monospace,monospace}.muted{fill:#8a889e;font:11px ui-monospace,monospace}.violet{stroke:#6753e8;stroke-width:2;fill:none;marker-end:url(#arrow-violet)}.mint{stroke:#0a7d66;stroke-width:2;fill:none;marker-end:url(#arrow-mint)}.amber{stroke:#9a6709;stroke-width:2;fill:none;stroke-dasharray:7 6;marker-end:url(#arrow-amber)}.boundary{stroke:#6b6d7c;stroke-width:1;stroke-dasharray:5 6;fill:none}.legend{fill:#5d5b72;font:11px system-ui,sans-serif}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="520" rx="18"/>
+  <text class="title" x="42" y="48">One authoritative source · two Codex surfaces</text>
+  <text class="small" x="42" y="72">The bridge projects new evidence; it never replaces ATL state or silently starts a model turn.</text>
+
+  <rect class="boundary" x="30" y="105" width="300" height="290" rx="14"/>
+  <text class="muted" x="50" y="132">ATL LOCAL AUTHORITY</text>
+  <rect class="panel source" x="52" y="158" width="256" height="78" rx="10"/>
+  <text class="label" x="72" y="187">Team feed</text>
+  <text class="small" x="72" y="209">.trust/manager/feed.jsonl</text>
+  <rect class="panel source" x="52" y="260" width="256" height="78" rx="10"/>
+  <text class="label" x="72" y="289">Provider transcripts</text>
+  <text class="small" x="72" y="311">overnight/&lt;task&gt;/*.log</text>
+  <text class="muted" x="52" y="372">durable · inspectable · replayable</text>
+
+  <rect class="boundary" x="390" y="105" width="360" height="290" rx="14"/>
+  <text class="muted" x="410" y="132">ATL CODEX BRIDGE</text>
+  <rect class="panel bridge" x="412" y="158" width="316" height="78" rx="10"/>
+  <text class="label" x="432" y="187">Context builder</text>
+  <text class="small" x="432" y="209">feed + session log → ATL context item</text>
+  <rect class="panel bridge" x="412" y="260" width="316" height="78" rx="10"/>
+  <text class="label" x="432" y="289">Checkpoint</text>
+  <text class="small" x="432" y="311">new material only · no duplicates</text>
+  <text class="muted" x="412" y="372">app-server over stdio · writer-safe rollover</text>
+
+  <rect class="boundary" x="810" y="105" width="360" height="290" rx="14"/>
+  <text class="muted" x="830" y="132">CODEX PROVIDER SURFACES</text>
+  <rect class="panel surface" x="832" y="158" width="316" height="78" rx="10"/>
+  <text class="label" x="852" y="187">Dedicated history thread</text>
+  <text class="small" x="852" y="209">inject_items · 0-token projection</text>
+  <rect class="panel surface" x="832" y="260" width="316" height="78" rx="10"/>
+  <text class="label" x="852" y="289">Exact open chat</text>
+  <text class="small" x="852" y="311">queue · visible user turn · usage applies</text>
+  <text class="muted" x="832" y="372">desktop ownership may force a new thread</text>
+
+  <path class="violet" d="M308 197H412"/>
+  <path class="violet" d="M308 299H412"/>
+  <path class="mint" d="M570 236V260"/>
+  <path class="mint" d="M728 197H832"/>
+  <path class="amber" d="M728 299H832"/>
+
+  <rect class="panel" x="42" y="432" width="1110" height="52" rx="10"/>
+  <circle cx="70" cy="458" r="5" fill="#6753e8"/><text class="legend" x="84" y="462">feed / transcript → token-free context projection</text>
+  <circle cx="430" cy="458" r="5" fill="#0a7d66"/><text class="legend" x="444" y="462">persistent Codex history → model-visible context</text>
+  <circle cx="785" cy="458" r="5" fill="#9a6709"/><text class="legend" x="799" y="462">explicit queue → normal visible turn</text>
+</svg>
