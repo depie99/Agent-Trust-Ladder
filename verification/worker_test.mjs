@@ -28,19 +28,22 @@ assert.equal(queueSelect([{ id: "T-001", status: "rejected" }]).length, 0);
 assert.equal(queueSelect(undefined).length, 0);
 
 assert.doesNotThrow(() => assertWorkerAuth("claude", "subscription"));
+const subscriptionPolicy = workerEnvPolicy("claude", "subscription", { ANTHROPIC_API_KEY: "present", ANTHROPIC_BASE_URL: "gateway" });
 assert.deepEqual(
-  workerEnvPolicy("claude", "subscription", { ANTHROPIC_API_KEY: "present", ANTHROPIC_BASE_URL: "gateway" }),
-  { unset: [
+  subscriptionPolicy.unset,
+  [
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
     "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_PROJECT_ID",
     "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
     "CLAUDE_CODE_SKIP_BEDROCK_AUTH", "CLAUDE_CODE_SKIP_VERTEX_AUTH",
-  ], stripped: ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"] }
+  ]
 );
-assert.deepEqual(
-  workerEnvPolicy("claude", "api", { ANTHROPIC_API_KEY: "present" }),
-  { unset: [], stripped: [] }
-);
+assert.deepEqual(subscriptionPolicy.stripped, ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"]);
+assert.match(subscriptionPolicy.set.ATL_BIN, /runtime[\\/]atl-manager\.mjs$/);
+const apiPolicy = workerEnvPolicy("claude", "api", { ANTHROPIC_API_KEY: "present" });
+assert.deepEqual(apiPolicy.unset, []);
+assert.deepEqual(apiPolicy.stripped, []);
+assert.match(apiPolicy.set.ATL_BIN, /runtime[\\/]atl-manager\.mjs$/);
 assert.doesNotThrow(() => assertWorkerAuth("codex", "subscription"));
 assert.throws(() => assertWorkerAuth("claude", "unknown"), /subscription or api/);
 
