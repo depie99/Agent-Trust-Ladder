@@ -19,6 +19,13 @@ try {
   fs.writeFileSync(path.join(root, "README.md"), "current dirty project\n");
   fs.mkdirSync(path.join(root, "runtime", "lib"), { recursive: true });
   fs.writeFileSync(path.join(root, "runtime", "lib", "new.mjs"), "export const current = true;\n");
+  // Manager state may be tracked in an existing checkout and can contain
+  // dirty archive entries/gitlinks. It must never poison the project patch.
+  fs.mkdirSync(path.join(root, ".trust", "manager", "workspace-archive"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".trust", "manager", "workspace-archive", "stale.txt"), "old\n");
+  git(["add", ".trust/manager/workspace-archive/stale.txt"]);
+  git(["commit", "-qm", "manager archive fixture"]);
+  fs.writeFileSync(path.join(root, ".trust", "manager", "workspace-archive", "stale.txt"), "dirty archive\n");
 
   const task = { id: "T-001", title: "Use the current project", objective: "preserve the active project snapshot", source: { type: "file" } };
   const workspace = ensureWorkspace(root, {}, task);

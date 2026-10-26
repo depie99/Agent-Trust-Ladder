@@ -20,6 +20,7 @@ import { autoRecoverBlockedTask, requiresHumanAction } from "./recovery.mjs";
 import { recordUsage, checkUsageThresholds } from "./usage.mjs";
 import { assembleContext, buildMap, renderNavigationContext } from "./navigation.mjs";
 import { buildContextPack } from "./brain.mjs";
+import { probeUiReviewRuntime, uiReviewPrompt } from "./ui-review-runtime.mjs";
 
 const say = (root, from, text, opts = {}) => feedPost(root, { from, text, ...opts });
 
@@ -161,7 +162,8 @@ export async function driveTaskUntilGate(root, taskId, budget, {
 }) {
   const report = typeof onProgress === "function" ? onProgress : console.log;
   const runDir = path.join(root, ".trust", "manager", "overnight", taskId);
-  while (budget.sessions < budget.maxSessions && Date.now() < budget.deadline) {
+  const taskSessions = () => budget.taskSessions?.get(taskId) || 0;
+  while (taskSessions() < budget.maxSessions && Date.now() < budget.deadline) {
     if (runAbortRequested) return { status: (loadState(root).tasks[taskId] || {}).status, reason: "run aborted by operator", aborted: true };
     const state = loadState(root);
     const task = state.tasks[taskId];
@@ -213,6 +215,18 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       }
     }
 
+    let uiReviewRuntime = null;
+    const isUiReview = role === "sage" && JSON.stringify(task).toLowerCase().includes("ui-review");
+    if (isUiReview) {
+      const probe = probeUiReviewRuntime(root, workspace || root);
+      if (!probe.available) {
+        return { status: task.status, reason: probe.reason, failed: true, blockedLaunch: true, blocker: "browser_probe_failed", resumable: true, nextRole: role };
+      }
+      uiReviewRuntime = { ...probe, prompt: uiReviewPrompt(probe) };
+      logEvent(state, { task: task.id, actor: "runner", event: "browser_probe", detail: `available; browser=${probe.browserExecutable}; evidence=${probe.evidenceDir}` });
+      saveState(root, state);
+    }
+
     const feedback = pendingFeedback(root, { taskId, role });
     const navigation = readManagerConfig(root).navigation || {};
     let navigationContext = "";
@@ -224,8 +238,9 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       if (navigation.build_on_launch !== false) buildMap(mapRoot);
       navigationContext = renderNavigationContext(assembleContext(mapRoot, { taskId, query: `${task.title} ${task.objective || ""}`, maxTokens: Number(navigation.max_tokens) || 800, constraints: task.completion_checks || [] }));
     }
-    const invocation = buildInvocation(useWorker, { root, workspace, role, task, auth: useAuth, provider: useProvider, feedback, navigationContext });
+    const invocation = buildInvocation(useWorker, { root, workspace, role, task, auth: useAuth, provider: useProvider, feedback, navigationContext, uiReviewRuntime });
     budget.sessions += 1;
+    if (budget.taskSessions) budget.taskSessions.set(taskId, taskSessions() + 1);
     const logPath = path.join(runDir, `session-${String(budget.sessions).padStart(2, "0")}-${role}.log`);
     const remainingMs = Math.max(1000, budget.deadline - Date.now());
     const timeoutMs = remainingMs;
@@ -310,8 +325,8 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     if (!overnight) return { status: nextTask.status, reason: "one-shot session complete" };
   }
   const finalTask = loadState(root).tasks[taskId];
-  if (budget.sessions >= budget.maxSessions) return { status: finalTask?.status, reason: "session budget reached" };
-  return { status: finalTask?.status, reason: "time budget reached" };
+  if (taskSessions() >= budget.maxSessions) return { status: finalTask?.status, reason: `task session budget reached; next role: ${finalTask ? nextRole(finalTask) || "human gate" : "unknown"}`, resumable: true, nextRole: finalTask ? nextRole(finalTask) : null };
+  return { status: finalTask?.status, reason: "overall time budget reached; task can resume", resumable: true, nextRole: finalTask ? nextRole(finalTask) : null };
 }
 
 // ---------- launch plan (the preview contract)
@@ -330,7 +345,7 @@ const CONTAINMENT_RULES = [
 // Build the full preview for a set of queued task ids. Pure: starts nothing.
 // `discover` is injectable so verification can prove the blocked-launch
 // contract (acceptance D) without depending on the host's installed CLIs.
-export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions = 5, providerDefaults = {}, discover = discoverProvider, preserveOrder = false } = {}) {
+export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions = 8, providerDefaults = {}, discover = discoverProvider, preserveOrder = false } = {}) {
   const state = loadState(root);
   const profile = providerProfile(readManagerConfig(root));
   if (providerDefaults.worker) profile.defaultWorker = String(providerDefaults.worker).toLowerCase();
@@ -389,7 +404,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     items,
     readyCount: items.filter((i) => i.blockers.length === 0).length,
     blockedCount: items.filter((i) => i.blockers.length > 0).length,
-    confirmCommand: `atl launch --confirm${providerDefaults.worker ? ` --worker ${providerDefaults.worker}` : ""}${providerDefaults.model ? ` --model ${providerDefaults.model}` : ""}${providerDefaults.auth ? ` --auth ${providerDefaults.auth}` : ""}${maxMinutes !== 120 ? ` --max-minutes ${maxMinutes}` : ""}${maxSessions !== 5 ? ` --max-sessions ${maxSessions}` : ""}`,
+    confirmCommand: `atl launch --confirm${providerDefaults.worker ? ` --worker ${providerDefaults.worker}` : ""}${providerDefaults.model ? ` --model ${providerDefaults.model}` : ""}${providerDefaults.auth ? ` --auth ${providerDefaults.auth}` : ""}${maxMinutes !== 120 ? ` --max-minutes ${maxMinutes}` : ""}${maxSessions !== 8 ? ` --max-sessions ${maxSessions}` : ""}`,
   };
 }
 
@@ -493,7 +508,7 @@ export function reconcileOvernightRun(root) {
 
 // Pure multi-queue preview: what would launch from a named queue right now.
 // Starts nothing, mutates nothing, and reports the run gate honestly.
-export function queueDryRun(root, { queueId = null, maxMinutes = 120, maxSessions = 5, providerDefaults = {} } = {}) {
+export function queueDryRun(root, { queueId = null, maxMinutes = 120, maxSessions = 8, providerDefaults = {} } = {}) {
   const queue = loadQueue(root, queueId);
   const lock = readRunLock(root);
   const plan = buildLaunchPlan(root, { taskIds: queue.items.map((item) => item.id), maxMinutes, maxSessions, providerDefaults });
@@ -549,7 +564,7 @@ export function mergeQueues(root, queueIds) {
   };
 }
 
-export function multiQueueDryRun(root, { queueIds, maxMinutes = 120, maxSessions = 5, providerDefaults = {} } = {}) {
+export function multiQueueDryRun(root, { queueIds, maxMinutes = 120, maxSessions = 8, providerDefaults = {} } = {}) {
   const merged = mergeQueues(root, queueIds);
   const lock = readRunLock(root);
   const plan = buildLaunchPlan(root, { taskIds: merged.items.map((item) => item.id), maxMinutes, maxSessions, providerDefaults, preserveOrder: true });
@@ -576,7 +591,7 @@ export function multiQueueDryRun(root, { queueIds, maxMinutes = 120, maxSessions
 // gates remain blocked and are surfaced to the manager. Ends with a saved brief.
 // `taskIds` (browser per-task run) bypasses the queue book and runs exactly
 // those tasks under the same budget, gates, and narration.
-export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions = 5, dryRun = false, confirm = false, providerDefaults = {}, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false, queueId = null, queueIds = null, taskIds = null } = {}) {
+export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions = 8, dryRun = false, confirm = false, providerDefaults = {}, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false, queueId = null, queueIds = null, taskIds = null } = {}) {
   let merged = null;
   const queue = Array.isArray(taskIds) && taskIds.length
     ? { queue_id: null, name: "ad-hoc task run", status: "active", items: taskIds.map((id) => ({ id })) }
@@ -608,7 +623,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
   }
   runAbortRequested = false;
   sessionInterruptRequested = false;
-  const budget = { sessions: 0, maxSessions, deadline: Date.now() + maxMinutes * 60 * 1000 };
+  const budget = { sessions: 0, maxSessions, taskSessions: new Map(), deadline: Date.now() + maxMinutes * 60 * 1000 };
   const runStartedAt = Date.now();
   const runId = dryRun ? null : beginQueueRun(root, queue.queue_id);
   writeRunMeta(root, {
@@ -625,7 +640,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
     currentTaskId: null,
     resumableTaskIds: [],
     pauseAfterSession,
-    budget: { maxMinutes, maxSessions },
+    budget: { maxMinutes, maxSessions, scope: "per-task sessions; overall time limit" },
   });
   try {
     const results = [];
@@ -638,8 +653,8 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       writeRunMeta(root, { cursor: results.length, currentTaskId: null, results });
       continue;
     }
-    if (budget.sessions >= budget.maxSessions || Date.now() >= budget.deadline) {
-      results.push({ id: queued.id, status: "queued", reason: budget.sessions >= budget.maxSessions ? "not reached: session budget exhausted" : "not reached: time budget exhausted" });
+    if (Date.now() >= budget.deadline) {
+      results.push({ id: queued.id, status: "queued", reason: "not reached: overall time budget exhausted", resumable: true });
       writeRunMeta(root, { cursor: results.length, currentTaskId: null, results });
       continue;
     }
@@ -667,7 +682,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
         return { ...resolved, provider: { ...providerSpec(profile, resolved.worker), model: resolved.model } };
       },
     }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
-    if (outcome.interrupted && budget.sessions < budget.maxSessions && Date.now() < budget.deadline) {
+    if (outcome.interrupted && (budget.taskSessions.get(fresh.id) || 0) < budget.maxSessions && Date.now() < budget.deadline) {
       say(root, "runner", `${fresh.id} restarting its gate with the pending human feedback.`, { task: fresh.id });
       outcome = await driveTaskUntilGate(root, fresh.id, budget, {
         overnight: true, dryRun, onProgress, onSession, pauseAfterSession, onReview, echo,
@@ -681,7 +696,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
         },
       }).catch((error) => ({ status: "unknown", reason: `worker could not restart: ${error.message}`, failed: true }));
     }
-    results.push({ id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason });
+    results.push({ id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason, resumable: Boolean(outcome.resumable), nextRole: outcome.nextRole || null, paused: Boolean(outcome.paused), aborted: Boolean(outcome.aborted), blocker: outcome.blocker || null });
     writeRunMeta(root, { heartbeatAt: new Date().toISOString(), cursor: results.length, currentTaskId: null, results });
     if (outcome.aborted) {
       // Keep iterating: the runAbortRequested check at the top of the loop
@@ -695,10 +710,11 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
     }
   }
   writeRunMeta(root, {
-    status: runAbortRequested ? "aborted" : "finished",
+    status: runAbortRequested ? "aborted" : (results.some((entry) => entry.paused) ? "paused" : "finished"),
     endedAt: new Date().toISOString(),
+    reason: runAbortRequested ? "operator stopped the run" : (results.find((entry) => entry.resumable)?.reason || "queue run complete"),
     currentTaskId: null,
-    resumableTaskIds: [],
+    resumableTaskIds: results.filter((entry) => entry.resumable).map((entry) => entry.id),
     results,
   });
   // Threshold watch: near-exhaustion or exhaustion at run end posts a
@@ -720,7 +736,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
 // Recovery remains an owner action.  The caller must inspect the interrupted
 // task and explicitly confirm before the runner touches only the tasks whose
 // prior boundary was durable and whose session never began.
-export async function resumeOvernightRun(root, { confirm = false, maxMinutes = 120, maxSessions = 5, providerDefaults = {}, onProgress = console.log } = {}) {
+export async function resumeOvernightRun(root, { confirm = false, maxMinutes = 120, maxSessions = 8, providerDefaults = {}, onProgress = console.log } = {}) {
   if (!confirm) throw new Error("overnight recovery requires explicit confirmation");
   const reconciliation = reconcileOvernightRun(root);
   if (reconciliation.state !== "interrupted") throw new Error(`overnight recovery is unavailable while run state is ${reconciliation.state}`);

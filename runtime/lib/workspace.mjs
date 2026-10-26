@@ -95,7 +95,11 @@ function archiveStaleWorkspace(root, wsRoot, dir, taskId) {
 
 function copyDirtySnapshot(root, dir) {
   // Tracked edits (staged or unstaged) are applied on top of the same HEAD.
-  const patch = git(["diff", "--binary", "HEAD"], root);
+  // Manager runtime state is deliberately excluded. Some historical
+  // workspace archives are tracked as dirty gitlinks; including them in a
+  // binary patch makes `git apply` interpret the archive directory as a patch
+  // and blocks every otherwise-valid snapshot workspace.
+  const patch = git(["diff", "--binary", "HEAD", "--", ".", ":!.trust/manager/"], root);
   if (patch) {
     const patchPath = path.join(path.dirname(dir), `.atl-${path.basename(dir)}-${Date.now()}.patch`);
     try {

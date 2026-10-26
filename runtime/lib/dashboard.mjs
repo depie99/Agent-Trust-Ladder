@@ -1268,7 +1268,7 @@ export function renderUsageScreen(snapshot, ui, width, height, plain) {
   const plane = snapshot.controlPlane || snapshot;
   const latest = plane.usage?.latest;
   const lines = [paint("Usage and capacity · local budgets are authoritative; provider quota may be unknown", "muted", plain), ""];
-  const budget = ui.launchBudget || { maxMinutes: 120, maxSessions: 5 };
+  const budget = ui.launchBudget || { maxMinutes: 120, maxSessions: 8 };
   lines.push(`${paint("LOCAL RUN BUDGET", "violet", plain)}  ${budget.maxMinutes} minutes · ${budget.maxSessions} sessions · explicit launch policy`);
   lines.push(`${paint("OBSERVED USAGE", "mint", plain)}  ${latest ? `${latest.provider || "provider"} · ${latest.model || "model"} · ${latest.status} · ${latest.source}` : "no provider snapshot recorded yet"}`);
   if (latest) {
@@ -1973,7 +1973,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       tasksSelected: 0,
       importState: null,
       launchPlan: null,
-       launchBudget: { maxMinutes: 120, maxSessions: 5 },
+       launchBudget: { maxMinutes: 120, maxSessions: 8 },
        pauseAfterBot: false,
       queueSelected: 0,
       queuePageSelected: 0,
@@ -2139,7 +2139,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     // so a 4-task run at the default 5 sessions starves. +/− moves sessions,
     // [ ] moves minutes; the plan and confirm command rebuild each change.
     const adjustLaunchBudget = (deltaSessions, deltaMinutes) => {
-      const budget = ui.launchBudget || { maxMinutes: 120, maxSessions: 5 };
+      const budget = ui.launchBudget || { maxMinutes: 120, maxSessions: 8 };
       budget.maxSessions = Math.min(20, Math.max(1, budget.maxSessions + deltaSessions));
       budget.maxMinutes = Math.min(1440, Math.max(15, budget.maxMinutes + deltaMinutes));
       ui.launchBudget = budget;

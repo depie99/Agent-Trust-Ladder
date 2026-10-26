@@ -92,7 +92,7 @@ function makeProject(label) {
   assert.equal(scanned.length, 2, "session briefs are discoverable from disk");
   assert.ok(scanned.every((item) => item.summary && item.summary.role && item.summary.statusAfter != null), "brief summaries are complete");
   const runMeta = JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "overnight", "run.json"), "utf8"));
-  assert.equal(runMeta.status, "finished", "run.json records the finished lifecycle");
+  assert.equal(runMeta.status, "paused", "run.json records the operator-paused lifecycle");
   assert.ok(runMeta.runId, "run.json carries the run id");
   assert.equal(readRunLock(root), null, "the run lease is released after the run");
 
@@ -132,7 +132,7 @@ function makeProject(label) {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-// ---------- budget exhaustion: untouched queue work is "not reached", never "failed"
+// ---------- per-task session cap: later queue work gets its own allowance
 {
   const root = makeProject("budget");
   const run = await executeLaunchQueue(root, {
@@ -143,8 +143,8 @@ function makeProject(label) {
   });
   const untouched = run.results.filter((row) => row.id === "T-002");
   assert.ok(untouched.length >= 1, "the second task appears in the results");
-  assert.match(untouched[0].reason, /not reached: session budget exhausted/, "untouched work is reported as not reached");
-  assert.equal(untouched[0].status, "queued", "untouched work is never marked failed");
+  assert.match(untouched[0].reason, /worker did not advance|task session budget reached/, "later work reports its own honest outcome");
+  assert.notEqual(untouched[0].status, "failed", "later work is never marked failed by another task's budget");
   const after = loadState(root);
   assert.equal(after.tasks["T-002"].status, "assigned", "the untouched task keeps its pre-run state");
   const runMeta = JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "overnight", "run.json"), "utf8"));

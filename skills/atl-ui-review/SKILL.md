@@ -89,6 +89,8 @@ Prioritize in this order unless project constraints justify otherwise:
 
 After two cosmetic attempts fail to improve the same issue, stop tweaking symptoms. Reconsider the layout model, component boundary, content structure, or state representation.
 
+If the user rejects one repair as preserving the same visible problem, treat that as evidence that the problem model may be wrong. Pause cosmetic iteration, restate the intended reading order, verify the actual served asset and viewport/container, classify the responsible layer, and re-observe the original condition before claiming success. Follow [the project UI misunderstanding recovery guide](../../problems/enhancements/ui-repair-misunderstanding-recovery.md) when it is available.
+
 ## Report honestly
 
 Return:
