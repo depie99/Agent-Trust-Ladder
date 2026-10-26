@@ -5,6 +5,7 @@ import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeLaunchQueue, requestRunAbort } from "./launch.mjs";
 import { supervisorSnapshot } from "./supervisor.mjs";
 import { reconcileLeases } from "./leases.mjs";
+import { reconcileRuntime } from "./recovery.mjs";
 
 let stopRequested = false;
 export function requestSupervisorStop() { stopRequested = true; requestRunAbort(); }
@@ -12,6 +13,7 @@ export function clearSupervisorStop() { stopRequested = false; }
 export function supervisorRunning() { return !stopRequested; }
 
 export async function executeSupervisor(root, { projects = null, maxMinutes = 120, maxSessions = 8, onProgress = console.log, launch = executeLaunchQueue } = {}) {
+  const recovery = reconcileRuntime(root); if (!recovery.ready) throw new Error("runtime recovery is incomplete; inspect journal records before accepting new work");
   clearSupervisorStop(); const config = supervisorSnapshot(); const registered = (projects || config.projects).map((p) => ({ ...p, eligible: true }));
   const globalCap = Math.min(5, Math.max(1, Number(config.defaults?.maxConcurrent || 2))); const active = new Map(); const results = [];
   const started = Date.now();
