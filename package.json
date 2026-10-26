@@ -10,7 +10,9 @@
   "type": "module",
   "scripts": {
     "docs:css": "sass --no-source-map docs/scss/styles.scss docs/styles.css",
-    "docs:css:check": "node scripts/check-docs-css.mjs"
+    "docs:css:check": "node scripts/check-docs-css.mjs",
+    "ui:css": "node scripts/build-control-plane-css.mjs",
+    "ui:css:check": "node scripts/build-control-plane-css.mjs --check"
   },
   "bin": {
     "atl": "runtime/atl-manager.mjs"

@@ -1,0 +1,49 @@
+// Theme token emitter — the single source of colored truth for the ATL
+// Control Plane UI.
+//
+// Architecture (mirrors docs/scss):
+//   themes/_dark.scss + themes/_light.scss → two complete token maps
+//   _tokens.scss (this file)               → emits them as CSS custom props
+//   the app partial                        → var(--token) only
+//
+// The compiled CSS is INLINED into runtime/control-plane.html by
+// scripts/build-control-plane-css.mjs (npm run ui:css) so the app stays a
+// single self-contained file at runtime. Theme switching is runtime CSS:
+// a no-flash <head> script in the html applies the stored (atl-cp-theme in
+// localStorage) or system-preferred theme by toggling `light` on <html>.
+//
+// The two maps are checked for key parity right here: adding a token to one
+// theme and not the other is a compile error, not a silent gap.
+
+@use "sass:map";
+@use "sass:meta";
+@use "themes/dark" as dark;
+@use "themes/light" as light;
+
+@each $name in map.keys(dark.$theme) {
+  @if not map.has-key(light.$theme, $name) {
+    @error "token --#{$name} exists in _dark.scss but not in _light.scss — light mode would be unspecified";
+  }
+}
+
+@each $name in map.keys(light.$theme) {
+  @if not map.has-key(dark.$theme, $name) {
+    @error "token --#{$name} exists in _light.scss but not in _dark.scss — dark theme would drift";
+  }
+}
+
+@mixin emit($theme) {
+  @each $name, $value in $theme {
+    --#{$name}: #{meta.inspect($value)};
+  }
+}
+
+:root {
+  color-scheme: dark;
+  @include emit(dark.$theme);
+}
+
+html.light {
+  color-scheme: light;
+  @include emit(light.$theme);
+}
