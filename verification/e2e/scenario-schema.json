@@ -1,0 +1,1 @@
+{"type":"object","required":["version","run_id","started_at","scenarios","failures","status"],"properties":{"version":{"type":"integer"},"run_id":{"type":"string"},"started_at":{"type":"string"},"finished_at":{"type":["string","null"]},"status":{"enum":["pass","fail"]},"scenarios":{"type":"array"},"failures":{"type":"array"}}}
