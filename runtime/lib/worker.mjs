@@ -92,6 +92,11 @@ it as 'node $env:ATL_BIN' on Windows or 'node $ATL_BIN' on POSIX; do not
 rely on PATH or an installed shell alias;
 the project root is '${root}'.
 
+Never invoke 'launch', 'run', 'overnight', or any command that starts another
+provider session. You already are the bounded provider session. Record your
+own findings with the task update, move, evidence, checkpoint, block, or
+escalate commands only.
+
 Task: ${task.id} — ${task.title}
 Current status: ${task.status}
 Objective: ${task.objective || task.objective_hint || "(not yet bounded)"}
