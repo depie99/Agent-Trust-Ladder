@@ -64,3 +64,12 @@ section[id],div[id]{scroll-margin-top:96px}
 .terminal-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
 .terminal-grid .terminal-figure{margin:0}
 @media (max-width:1080px){.terminal-grid{grid-template-columns:1fr}}
+
+/* Theme-aware diagram figures: dark source plus a generated light variant
+   (scripts/make-diagram-light-variants.mjs). Both imgs ship; CSS picks one
+   per theme, so the swap is flash-free and works without JS. */
+.themesvg{display:block}
+.themesvg img{width:100%;height:auto;display:block}
+.themesvg .fig-light{display:none}
+html.light .themesvg .fig-light{display:block}
+html.light .themesvg .fig-dark{display:none}
