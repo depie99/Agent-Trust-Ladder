@@ -14,6 +14,26 @@ import { supervisorSnapshot } from "./supervisor.mjs";
 import { reconcileLeases } from "./leases.mjs";
 import { listBackups } from "./backup.mjs";
 import { listRoutineRuns, schedulerStatus } from "./routines.mjs";
+import { bundledRoot } from "./skill-router.mjs";
+
+// Inventory only: installed skill metadata is not promotion evidence.
+function installedSkills(root) {
+  const found = new Map();
+  for (const base of [path.join(root, ".agents", "skills"), path.join(root, "skills"), path.join(bundledRoot(), "skills")]) {
+    let dirs;
+    try { dirs = fs.readdirSync(base, { withFileTypes: true }); } catch { continue; }
+    for (const dir of dirs) {
+      if (!dir.isDirectory() || found.has(dir.name)) continue;
+      try {
+        const text = fs.readFileSync(path.join(base, dir.name, "SKILL.md"), "utf8");
+        const frontmatter = text.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
+        const description = frontmatter?.[1].match(/^description:\s*(.+)$/m)?.[1]?.trim() || "No description provided.";
+        found.set(dir.name, { id: dir.name, description, project_installed: base === path.join(root, ".agents", "skills") });
+      } catch { /* No readable skill manifest. */ }
+    }
+  }
+  return [...found.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
 
 export const CONTROL_PLANE_VERSION = 1;
 
@@ -162,6 +182,7 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
       claims: listClaims(root),
       stale: staleClaims(root, { maxAgeDays: 30 }),
       skills: listSkills(root),
+      installed_skills: installedSkills(root),
       routines: listRoutines(root),
       defaults: { freshness_days: 30, approval_owner: "manager", routines_enabled_by_default: false },
     },

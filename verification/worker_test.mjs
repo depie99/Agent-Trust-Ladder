@@ -105,6 +105,12 @@ assert.equal(codex.args[codex.args.length - 1], "-");
 assert.ok(!codex.args.includes("never"), "codex exec has no --ask-for-approval flag");
 assert.equal(codex.cwd, "C:\\project\\.trust\\manager\\workspaces\\T-TEST");
 assert.match(codex.prompt, /Bounded ATL worker run/);
+const gap = buildInvocation("gapgpt", { root: "C:\\project", role: "rowan", task });
+if (process.platform === "win32") {
+  assert.ok(gap.args.includes('default_permissions=":workspace"'));
+  assert.ok(gap.args.includes('windows.sandbox="unelevated"'));
+} else assert.ok(gap.args.includes("workspace-write"));
+assert.match(gap.prompt, /scoped channel does not support 'brief --save'/);
 
 const repair = buildInvocation("codex", {
   root: "C:\\project", role: "rowan",
@@ -146,6 +152,8 @@ const shimResult = await runInvocation(
 );
 assert.equal(shimResult.code, 0, `shim exited ${shimResult.code}: ${fs.readFileSync(shimLog, "utf8").slice(0, 400)}`);
 assert.ok(fs.readFileSync(out, "utf8").includes("stdin rides to the worker"), "prompt was not delivered on stdin");
+const sandboxFailure = await runInvocation({ command: process.execPath, args: ["-e", "console.error('Sandbox required but unavailable: sandbox is enabled but the Windows sandbox is not active on this session'); process.exit(1)"], cwd: shimDir }, { logPath: path.join(shimDir, "sandbox.log"), timeoutMs: 10000 });
+assert.equal(sandboxFailure.providerFailure?.kind, "provider-sandbox-unavailable");
 fs.rmSync(shimDir, { recursive: true, force: true });
 
 console.log("worker tests passed");

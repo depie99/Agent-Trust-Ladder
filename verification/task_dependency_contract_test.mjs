@@ -6,10 +6,14 @@ import { generateLocalPlan, validatePlanArtifact, approvePlanDraft, savePlanDraf
 import { queueSelect, buildInvocation, runInvocation } from "../runtime/lib/worker.mjs";
 import { emptyState, saveState, loadState, reviseTaskPacket } from "../runtime/lib/state.mjs";
 import { autoRecoverBlockedTask } from "../runtime/lib/recovery.mjs";
-import { executeLaunchQueue } from "../runtime/lib/launch.mjs";
+import { executeLaunchQueue, stalledHandoffFailure } from "../runtime/lib/launch.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-dependency-contract-"));
 try {
+  assert.equal(stalledHandoffFailure("error: EPERM: operation not permitted, open 'D:\\p\\.trust\\manager\\state.json.tmp'\n").cause, "manager-state-access");
+  assert.equal(stalledHandoffFailure("error: scoped worker credential cannot impersonate this actor\n").cause, "worker-credential");
+  assert.equal(stalledHandoffFailure("error: EPERM: operation not permitted, open 'D:\\p\\workspace\\file.txt'\n"), null);
+  assert.equal(stalledHandoffFailure("The documentation mentions scoped worker credential cannot impersonate this actor."), null);
   saveState(root, emptyState());
   const plan = generateLocalPlan("Dependency regression");
   const cycle = structuredClone(plan);

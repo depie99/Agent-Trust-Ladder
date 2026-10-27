@@ -26,6 +26,11 @@ try {
   const view = describeChanges(f.task, record, { limit: 2 });
   assert.equal(view.status, "blocked"); assert.equal(view.files.length, 2); assert.equal(view.next_cursor, 2);
   assert.deepEqual(view.evidence.map((e) => e.freshness), ["current", "stale", "unknown"]);
+  f.task.evidence.push({ kind: "note", packet_revision: 2 }, { kind: "check", code_revision: baseline.revision }, { kind: "note", packet_revision: 1 }, { kind: "note", invalidated: true, packet_revision: 2 });
+  const partial = describeChanges(f.task, record).evidence.slice(3);
+  assert.deepEqual(partial.map((e) => e.freshness), ["stale", "stale", "unknown", "invalidated"]);
+  assert.deepEqual(partial[0].revision_match, { packet: "different", code: "missing" });
+  assert.deepEqual(partial[1].revision_match, { packet: "missing", code: "different" });
   assert.ok(view.attention.some((item) => item.code === "blocked")); assert.ok(view.attention.some((item) => item.code === "review_missing"));
   const modeOutput = structuredClone(baseline); modeOutput.modes["inherited.txt"] = "100755"; modeOutput.revision = digest(JSON.stringify({ files: modeOutput.files, modes: modeOutput.modes }));
   assert.equal(compareSnapshots(baseline, modeOutput)[0].kind, "mode_changed");

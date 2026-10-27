@@ -31,9 +31,15 @@ jobs:
       - run: node verification/dispatcher_test.mjs
       - run: node verification/governance_test.mjs
       - run: node verification/worker_test.mjs
+      - run: node verification/worker_channel_test.mjs
+      - run: node verification/worker_channel_launch_test.mjs
+      - run: node verification/ui_refresh_runtime_test.mjs
       - run: node verification/concurrent_worker_test.mjs
       - run: node verification/control_plane_server_test.mjs
       - run: node verification/control_plane_task_run_test.mjs
+      - run: node verification/control_plane_approval_clarity_test.mjs
+      - run: node verification/task_changes_ui_test.mjs
+      - run: node verification/package_smoke_test.mjs
       - run: node verification/e2e/full_operation_test.mjs
       - run: node verification/multi_queue_test.mjs
       - run: node verification/brain_test.mjs

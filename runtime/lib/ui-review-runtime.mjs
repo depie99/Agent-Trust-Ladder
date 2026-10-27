@@ -26,7 +26,7 @@ export function probeUiReviewRuntime(root, workspace = root) {
     playwrightRoot,
     browserExecutable: browser,
     workspace,
-    evidenceDir: path.join(workspace, ".trust", "manager", "evidence", "ui-review"),
+    evidenceDir: path.join(workspace, ".atl-evidence", "ui-review"),
     reason: available ? null : `browser runtime unavailable: ${!playwrightRoot ? "Playwright is not resolvable from the workspace/project" : "no Chrome, Edge, or configured browser executable"}`,
   };
 }

@@ -88,7 +88,8 @@ assert.match(center, /Approval is permission/);
 
 // The multi-queue branch must show the approval, not assume a run started.
 const multiStart = source.indexOf('    if (value.startsWith("run-start-multi:"))');
-const multiEnd = source.indexOf('\n    if (value.startsWith("run-task:"))', multiStart);
+const multiEnd = source.indexOf('\n    if (value.startsWith("task-budget:"))', multiStart);
+assert.ok(multiStart >= 0 && multiEnd > multiStart, 'multi-queue action boundaries exist');
 vm.runInContext(`async function testMulti(value) { ${source.slice(multiStart, multiEnd)} }`, scope);
 scope.fetch = async () => ({ ok: true, json: async () => ({ approvalRequired: true, proposal: queueRequest }) });
 await scope.testMulti(`run-start-multi:${encodeURIComponent(JSON.stringify(['persian']))}`);

@@ -20,7 +20,7 @@ await page.goto(url, { waitUntil: "domcontentloaded" });
 await page.locator('[data-page="studio"]').first().click();
 await page.getByRole("button", { name: /Generate local/i }).click();
 await page.locator('[data-page="projects"]').first().click();
-await page.getByRole("button", { name: /Register repository/i }).click();
+await page.getByRole("button", { name: /Register repository/i }).first().click();
 await page.locator("#projectRoot").fill(root);
 await page.locator("#projectName").fill("E2E Project");
 await page.getByRole("button", { name: "Register", exact: true }).click();
