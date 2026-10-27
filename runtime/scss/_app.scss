@@ -168,6 +168,7 @@ textarea.input{resize:vertical;min-height:110px}
 .review-evidence summary { cursor: pointer; }
 .review-evidence pre, .review-record { white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }
 .review-model { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 15px; border: 1px solid var(--border); border-radius: 8px; }
+.review-model-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
 .review-table-wrap { overflow-x: auto; max-height: 38vh; }
 .review-table { width: 100%; border-collapse: collapse; text-align: start; }
 .review-table caption { text-align: start; font-weight: 700; padding-block: 12px; }

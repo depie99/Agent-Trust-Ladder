@@ -79,7 +79,12 @@ export function captureChangeReview(root, task, { takeSnapshot = snapshot } = {}
   validate(record, task);
   fs.mkdirSync(directory, { recursive: true });
   const temporary = safePath(directory, `${id}-${crypto.randomUUID()}.tmp`);
-  try { fs.writeFileSync(temporary, JSON.stringify(record, null, 2) + "\n", { flag: "wx" }); fs.renameSync(temporary, existing); }
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(record, null, 2) + "\n", { flag: "wx" });
+    // Publish without replacing a concurrently published capture of the same ID.
+    try { fs.linkSync(temporary, existing); }
+    catch (error) { if (error.code === "EEXIST") return readChangeReview(root, task, id); throw error; }
+  }
   finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
   return record;
 }
