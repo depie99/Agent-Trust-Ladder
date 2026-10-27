@@ -18,7 +18,7 @@ import { unblockTask } from "./recovery.mjs";
 import { addResourceToTask } from "./resources.mjs";
 import { submitFeedback } from "./feedback.mjs";
 import { intakeFromFiles, intakeFromAzure, intakeFromGitHub } from "./intake.mjs";
-import { discoverProvider, providerForRole, providerNames, providerProfile, providerSpec } from "./providers.mjs";
+import { discoverProvider, providerForRole, providerModels, providerNames, providerProfile, providerSpec } from "./providers.mjs";
 import { loadUserProviders, maskKey, PROVIDER_TEMPLATES, removeProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
 import { layoutFor } from "./tui-layout.mjs";
 import { dispatchTuiCommand, TUI_COMMANDS } from "./command-console.mjs";
@@ -1867,17 +1867,20 @@ export function renderProvidersScreen(snapshot, ui, width, height, plain) {
       lines.push(`    ${paint(truncate(entry.base_url || "(no base URL)", Math.max(10, inner - 4)), "faint", plain)}`);
     });
     lines.push("", paint("Built-in workers (subscription auth — no key stored):", "muted", plain));
-    for (const name of ["codex", "claude"]) {
+    for (const [builtinIndex, name] of ["codex", "claude"].entries()) {
       const spec = providerSpec(snapshot.providerProfile, name);
       const disc = discoverProvider(name, { command: spec.command });
-      lines.push(`  ${disc.available ? paint("✓", "mint", plain) : paint("×", "coral", plain)} ${paint(name.padEnd(12), "ink", plain)} ${paint(truncate(`${disc.available ? disc.path : disc.error}`, Math.max(10, inner - 18)), disc.available ? "muted" : "coral", plain)}`);
+      const index = entries.length + builtinIndex;
+      const mark = index === (ui.providerSelected || 0) ? paint("▸", "coral", plain) : " ";
+      const model = spec.model || "CLI default";
+      lines.push(`${mark} ${disc.available ? paint("✓", "mint", plain) : paint("×", "coral", plain)} ${paint(name.padEnd(12), "ink", plain)} ${paint(model, "violet", plain)} ${paint(truncate(`· ${disc.available ? disc.path : disc.error}`, Math.max(10, inner - 34)), disc.available ? "muted" : "coral", plain)}`);
     }
     lines.push("", paint("Per-role mapping (config/manager.json → providers):", "muted", plain));
     for (const role of ["pip", "mira", "rowan", "sage", "beacon"]) {
       const p = providerForRole(snapshot.providerProfile, role);
       lines.push(`  ${paint(role.padEnd(7), "ink", plain)} ${paint(`${p.worker} · ${p.model || "provider default"}`, "violet", plain)} ${paint(`· auth ${p.auth} · (${p.source})`, "faint", plain)}`);
     }
-    lines.push("", paint("a add provider · u use highlighted here · d delete highlighted · r re-check · Esc back", "muted", plain));
+    lines.push("", paint("a add provider · u use highlighted · m change its model · d delete custom provider · r re-check · Esc back", "muted", plain));
   }
   return panel("PROVIDERS", lines, width, height, { accent: "violet", plain }).join("\n");
 }
@@ -2405,6 +2408,24 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
       } else if (e.field === "model") {
         flow.fields.model = text;
         flow.step = "confirm";
+      } else if (e.field === "project-model") {
+        const target = e.providerId;
+        if (!text) { ui.error = "A model id is required."; return; }
+        if (e.builtin) {
+          const cfg = configSafe(root);
+          cfg.providers = cfg.providers || {};
+          cfg.providers.use = target;
+          cfg.providers.model = text;
+          writeManagerConfig(root, cfg);
+        } else {
+          const registry = loadUserProviders();
+          const provider = registry.providers?.[target];
+          if (!provider) { ui.error = `Provider \"${target}\" no longer exists.`; return; }
+          upsertProvider(registry, target, { ...provider, model: text });
+          saveUserProviders(registry);
+        }
+        flash(`Model for \"${target}\" is now \"${text}\".`);
+        refreshSnapshot();
       }
     };
 
@@ -2414,7 +2435,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         cfg.providers = cfg.providers || {};
         cfg.providers.use = id;
         writeManagerConfig(root, cfg);
-        feedPost(root, { from: "manager", text: `project default provider → "${id}" (API key from ~/.atl/providers.json, injected at spawn).` });
+        feedPost(root, { from: "manager", text: `project default provider → "${id}".` });
         flash(`"${id}" is now this project's default provider — l / launch / run will use it.`);
         refreshSnapshot();
       } catch (error) {
@@ -2510,12 +2531,25 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         return;
       }
       const entries = Object.values(ui.snapshot.userProviders || {});
+      const selectable = [...entries, ...["codex", "claude"].map((id) => ({ id, builtin: true }))];
       if (name === "escape") goBack();
       else if (name === "r") refresh();
       else if (name === "a") openProviderWizard();
       else if (name === "up" || name === "k") ui.providerSelected = Math.max(0, ui.providerSelected - 1);
-      else if (name === "down" || name === "j") ui.providerSelected = Math.min(Math.max(0, entries.length - 1), ui.providerSelected + 1);
-      else if (name === "u" && entries[ui.providerSelected || 0]) setProjectProvider(entries[ui.providerSelected || 0].id);
+      else if (name === "down" || name === "j") ui.providerSelected = Math.min(Math.max(0, selectable.length - 1), ui.providerSelected + 1);
+      else if (name === "u" && selectable[ui.providerSelected || 0]) setProjectProvider(selectable[ui.providerSelected || 0].id);
+      else if (name === "m" && selectable[ui.providerSelected || 0]) {
+        const selected = selectable[ui.providerSelected || 0];
+        const spec = providerSpec(ui.snapshot.providerProfile, selected.id);
+        const known = selected.builtin ? providerModels(selected.id).map((model) => model.id) : (spec.models || []);
+        openProviderEditor("project-model", {
+          title: `Set model for ${selected.id}`,
+          hint: known.length ? `Available locally: ${known.join(", ")}. Enter an exact model id.` : "Enter the exact model id exposed by this provider.",
+          text: spec.model || "",
+        });
+        ui.editor.providerId = selected.id;
+        ui.editor.builtin = Boolean(selected.builtin);
+      }
       else if (name === "d" && entries[ui.providerSelected || 0]) removeProviderById(entries[ui.providerSelected || 0].id);
     };
 

@@ -4,6 +4,7 @@ import { paths, loadState } from "./state.mjs";
 import { createTaskInWorkspace } from "./task-workspace.mjs";
 import { queueAdd, queueCreate, loadQueue, loadQueueBook, saveQueue } from "./queue.mjs";
 import { usageGate } from "./usage.mjs";
+import { validateContracts } from "./queue-recovery.mjs";
 
 export const PLAN_STAGES = Object.freeze(["intent", "frame", "specify", "route", "plan", "review", "approved"]);
 export const PLAN_SCHEMA_VERSION = 1;
@@ -182,6 +183,8 @@ export function normalizeProposals(artifact) {
     proposed_worker: String(proposal.proposed_worker || artifact?.proposed_worker || "pip").trim() || "pip",
     selected_skills: (Array.isArray(proposal.selected_skills) ? proposal.selected_skills : []).map((item) => String(item).trim()).filter(Boolean),
     depends_on: (Array.isArray(proposal.depends_on) ? proposal.depends_on : []).map((item) => String(item).trim()).filter(Boolean),
+    check_owners: proposal.check_owners || {},
+    dispatch_contract: proposal.dispatch_contract || {},
     files: (Array.isArray(proposal.files) ? proposal.files : []).map((item) => String(item).trim()).filter(Boolean),
     verify: String(proposal.verify || "").trim(),
     revision: Number(proposal.revision) || 1,
@@ -561,6 +564,7 @@ export function approvePlanDraft(root, draft, { note = "approved by manager in P
   const artifact = loaded.artifact;
   validatePlanArtifact(artifact);
   const proposals = validateProposals(artifact);
+  validateContracts(Object.fromEntries(proposals.map((proposal) => [proposal.id, proposal])));
   const state = loadState(root);
   const existing = Object.values(state.tasks).filter((task) => task.plan_draft_id === loaded.id);
   if (existing.length) {
@@ -603,6 +607,14 @@ export function approvePlanDraft(root, draft, { note = "approved by manager in P
     stored.plan_artifact_path = loaded.artifactPath;
     stored.plan_approval_note = note;
     stored.plan_depends_on = (proposal.depends_on || []).map((dep) => createdIds.get(dep)).filter(Boolean);
+    stored.dispatch_contract = proposal.dispatch_contract;
+    stored.check_owners = Object.fromEntries(Object.entries(proposal.check_owners || {}).map(([check, owner]) => [check, createdIds.get(owner) || (owner === proposal.id ? task.id : owner)]));
+    if (proposal.id === proposals.at(-1).id) {
+      stored.integrated_delivery = true;
+      stored.integrated_checks = [...new Set(proposals.flatMap((item) => item.completion_checks))];
+      stored.plan_depends_on = [...createdIds.values()];
+      stored.review_required = true;
+    }
     nextState.updated_at = new Date().toISOString();
     nextState.log.push({ at: new Date().toISOString(), task: task.id, actor: "manager", event: "plan_approve", detail: `${note} (card ${proposal.id}, rev ${proposal.revision})` });
     fs.writeFileSync(paths(root).state + ".tmp", JSON.stringify(nextState, null, 2) + "\n");

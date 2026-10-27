@@ -266,6 +266,11 @@ export function queueInspect(root, id = null) {
         status: task?.status || "unknown",
         priority: task?.priority || "normal",
         assigned_worker: task?.assigned_worker || null,
+        input_revisions: task?.input_revisions || {},
+        recovery_action: task?.recovery?.attempts?.at(-1) || null,
+        attempts_remaining: task?.recovery?.status === "exhausted" ? 0 : Math.max(0, 2 - (task?.recovery?.attempts?.length || 0)),
+        waiting_reason: task?.waiting_reason || null,
+        recovery_owner: task?.recovery?.recovery_owner || null,
         added_at: item.added_at,
         added_by: item.added_by || null,
       };

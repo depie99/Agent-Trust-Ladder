@@ -142,7 +142,7 @@ function fail(required, task) {
       throw new StateError(`${task.id}: --reason "..." is required to block a task`);
     if (r === "all_checks_pass") {
       const missing = (task.completion_checks || []).filter(
-        (c) => !task.evidence.some((e) => e.kind === "check" && e.check === c && e.result === "pass" && (e.packet_revision || 1) === (task.packet_revision || 1))
+        (c) => !task.evidence.some((e) => e.kind === "check" && e.check === c && e.result === "pass" && !e.invalidated && e.coverage !== "partial" && (task.evidence_contract !== 2 || (e.coverage === "complete" && e.code_revision)) && (e.packet_revision || 1) === (task.packet_revision || 1))
       );
       if (missing.length > 0)
         throw new StateError(
@@ -191,14 +191,19 @@ export function transition(state, taskId, toStatus, { actor, note }) {
 export function addEvidence(state, taskId, entry, actor) {
   const task = state.tasks[taskId];
   if (!task) throw new StateError(`Unknown task ${taskId}`);
-  if (entry.kind === "check" && (!entry.check || !task.completion_checks.includes(entry.check))) {
+  if (entry.kind === "review" && !["sage", "manager"].includes(actor)) throw new StateError("Sage owns independent review");
+  if (entry.kind === "browser-journey" && !["beacon", "manager"].includes(actor)) throw new StateError("Beacon owns integrated browser verification");
+  if (entry.kind === "check" && (!entry.check || ![...task.completion_checks, ...(task.integrated_checks || [])].includes(entry.check))) {
     throw new StateError(`${task.id}: evidence must copy one completion check verbatim (--evidence-pass/--evidence-fail)`);
   }
+  if (entry.result === "pass" && entry.coverage === "partial") throw new StateError(`${task.id}: partial observations cannot pass a complete check`);
+  if (task.evidence_contract === 2 && entry.kind === "check" && entry.result === "pass" && (entry.coverage !== "complete" || !entry.code_revision)) throw new StateError(`${task.id}: complete coverage and an output revision are required for passing evidence`);
   task.evidence.push({
     kind: entry.kind, check: entry.check || null, result: entry.result || null,
     detail: entry.detail || "", actor, at: new Date().toISOString(), packet_revision: task.packet_revision || 1,
     code_revision: entry.code_revision || null, session_id: entry.session_id || null,
     command: entry.command || null, exit_code: entry.exit_code ?? null, artifact_hash: entry.artifact_hash || null,
+    coverage: entry.coverage || null,
   });
   task.updated_at = new Date().toISOString();
   logEvent(state, { task: taskId, actor, event: `evidence:${entry.kind}`, detail: entry.detail || entry.check || "" });

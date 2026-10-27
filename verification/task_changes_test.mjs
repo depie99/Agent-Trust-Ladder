@@ -1,0 +1,53 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fixture } from "./fixtures/task-changes/project.mjs";
+import { snapshot } from "../runtime/lib/handoffs.mjs";
+import { compareSnapshots, describeChanges, digest, fileDiff, safePath, unifiedDiff } from "../runtime/lib/task-changes.mjs";
+
+const f = fixture();
+try {
+  f.edit();
+  const output = snapshot(f.root, f.workspace), baseline = f.task.handoff_baseline;
+  const record = { id: "test", baseline, output, packet_revision: 1, captured_at: new Date().toISOString() };
+  const files = compareSnapshots(baseline, output);
+  assert.equal(files.some((file) => file.path === "inherited.txt"), false, "inherited dirty source is not attributed to the worker");
+  const find = (name) => files.find((file) => file.path === name);
+  const patch = fileDiff(f.root, record, find("runtime/example.js").id);
+  assert.equal(patch.complete, true); assert.match(patch.patch, /-const message = 'before';/); assert.match(patch.patch, /\+const message = 'after';/);
+  assert.equal(patch.additions, 1); assert.equal(patch.deletions, 1);
+  assert.match(fileDiff(f.root, record, find("deleted.txt").id).patch, /-deleted baseline evidence/);
+  assert.equal(fileDiff(f.root, record, find("binary.bin").id).availability, "binary");
+  assert.equal(fileDiff(f.root, record, find(".env").id).availability, "redacted");
+  assert.match(fileDiff(f.root, record, find("docs/فارسی.txt").id).patch, /سلام/);
+  assert.throws(() => fileDiff(f.root, record, digest("foreign-file")), /does not belong/);
+  f.task.evidence = [{ kind: "check", check: "behavior", result: "pass", coverage: "complete", code_revision: output.revision, packet_revision: 1 }, { kind: "review", result: "approve", code_revision: baseline.revision, packet_revision: 1 }, { kind: "check", result: "pass" }];
+  const view = describeChanges(f.task, record, { limit: 2 });
+  assert.equal(view.status, "blocked"); assert.equal(view.files.length, 2); assert.equal(view.next_cursor, 2);
+  assert.deepEqual(view.evidence.map((e) => e.freshness), ["current", "stale", "unknown"]);
+  assert.ok(view.attention.some((item) => item.code === "blocked")); assert.ok(view.attention.some((item) => item.code === "review_missing"));
+  const modeOutput = structuredClone(baseline); modeOutput.modes["inherited.txt"] = "100755"; modeOutput.revision = digest(JSON.stringify({ files: modeOutput.files, modes: modeOutput.modes }));
+  assert.equal(compareSnapshots(baseline, modeOutput)[0].kind, "mode_changed");
+  const binaryRevision = output.files["binary.bin"];
+  fs.writeFileSync(path.join(f.root, ".trust/manager/handoffs/blobs", binaryRevision), "tampered");
+  assert.equal(fileDiff(f.root, record, find("binary.bin").id).availability, "corrupt_blob");
+  fs.unlinkSync(path.join(f.root, ".trust/manager/handoffs/blobs", baseline.files["deleted.txt"]));
+  assert.equal(fileDiff(f.root, record, find("deleted.txt").id).availability, "blob_missing", "deleted files verify the baseline blob");
+  const huge = "long line\n".repeat(180000);
+  f.write("large.txt", huge); const large = snapshot(f.root, f.workspace);
+  assert.equal(fileDiff(f.root, { ...record, output: large }, digest("large.txt")).availability, "oversized");
+  f.write("settings.json", '{"api_key":"sk-testfixturevalue1234567890"}');
+  const secret = snapshot(f.root, f.workspace);
+  assert.equal(fileDiff(f.root, { ...record, output: secret }, digest("settings.json")).availability, "redacted");
+  for (const unsafe of ["../outside", "C:/outside", "/outside", "folder\\outside", "folder/../outside"]) assert.throws(() => safePath(f.root, unsafe), /Unsafe/);
+  assert.equal(unifiedDiff("a\n", "a", "newline.txt").patch.includes("Final newline changed"), true);
+  assert.equal(unifiedDiff("a\n".repeat(2000), "b\n".repeat(2000), "large.txt").availability, "diff_limit");
+  const many = structuredClone(baseline);
+  for (let i = 0; i < 1000; i++) { many.files[`folder/${i}.txt`] = digest(String(i)); many.modes[`folder/${i}.txt`] = "100644"; }
+  many.revision = digest(JSON.stringify({ files: many.files, modes: many.modes }));
+  const started = performance.now(), paged = describeChanges(f.task, { ...record, output: many });
+  assert.equal(paged.files.length, 100); assert.equal(paged.total_files, 1000); assert.equal(paged.next_cursor, 100);
+  console.log(`Metadata for 1,000 paths: ${(performance.now() - started).toFixed(1)} ms`);
+  assert.equal(unifiedDiff("", "added\n", "a").patch.includes("@@ -0,0 +1,1 @@"), true);
+} finally { f.cleanup(); }
+console.log("PASS: task changes — baseline attribution, bounds, revisions, corruption and redaction");

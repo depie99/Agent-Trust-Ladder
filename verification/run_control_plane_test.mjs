@@ -125,7 +125,7 @@ function makeProject(label) {
   });
   assert.ok(run.results.some((row) => row.status === "requeued"), "the stalled task was retried through Mira's recovery");
   const after = loadState(root);
-  assert.equal(after.tasks["T-001"].status, "blocked", "a twice-stalled task ends blocked, not silently running");
+  assert.equal(after.tasks["T-001"].status, "blocked", `a twice-stalled task ends blocked, not silently running: ${JSON.stringify(run.results)} ${JSON.stringify(after.tasks["T-001"].recovery)}`);
   assert.equal(after.tasks["T-001"].blocker.actor, "manager", "containment is recorded under the confirming human's authority");
   const feed = fs.readFileSync(path.join(root, ".trust", "manager", "feed.jsonl"), "utf8");
   assert.match(feed, /auto-recovered/, "the retry is narrated in the team feed");
@@ -148,7 +148,7 @@ function makeProject(label) {
   const after = loadState(root);
   assert.equal(after.tasks["T-002"].status, "assigned", "the untouched task keeps its pre-run state");
   const runMeta = JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "overnight", "run.json"), "utf8"));
-  assert.equal(runMeta.status, "finished");
+  assert.equal(runMeta.status, "exhausted", "a consumed session allowance is persisted distinctly from completed delivery");
   fs.rmSync(root, { recursive: true, force: true });
 }
 

@@ -95,7 +95,7 @@
   `;
   document.head.append(taskLayoutStyle);
   const routes = [
-    ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"],
+    ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["assistant", "✦", "Ask ATL"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"],
     ["team", "♙", "Agent Team"], ["projects", "⌂", "Projects"], ["approvals", "✓", "Approvals"], ["operations", "▣", "Operations"], ["brain", "◈", "Knowledge"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
   ];
   const fallback = {
@@ -122,6 +122,9 @@
   let currentDraft = null;
   let currentRun = { status: "idle", progress: [], results: [] };
   let pendingApprovalAction = null;
+  let assistantScope = "global";
+  let assistantPending = null;
+  let assistantPoll = null;
   let activityFilter = "";
   let studioGoal = "";
   let studioMode = "local";
@@ -148,6 +151,7 @@
   let defaultProvider = null;
   let pmRemoveConfirm = null;
   let pmEditingId = null;
+  let pmEditingBuiltinId = null;
   let navigationSettings = null;
   let navigationNotice = "";
   let usageNotice = "";
@@ -357,11 +361,16 @@
     if (live === "running") return { label: "Running", reason: "Worker is executing this task." };
     if (["done", "archived", "rejected", "blocked", "escalated"].includes(task.rawStatus || task.status)) return { label: statusLabel(task.rawStatus || task.status), reason: "" };
     if (live === "queued") return { label: "Queued", reason: "Waiting for its turn in the active run." };
+    const budget = task.execution_budget || task.executionBudget;
+    if (budget && budget.used >= budget.max_sessions) return { label: "Stopped", reason: `Task session budget exhausted (${budget.used}/${budget.max_sessions}). Increase the task budget before resuming.` };
     const result = [...(currentRun.results || [])].reverse().find((item) => item.id === task.id);
+    const updated = Date.parse(task.updated_at || task.updatedAt || "");
+    const finished = Date.parse(currentRun.finishedAt || "");
+    if (task.recovery?.status === "resolved" && result?.status === "blocked" && Number.isFinite(updated) && Number.isFinite(finished) && updated > finished) return { label: "Stopped", reason: "The previous blocker was resolved. Review the next run before resuming." };
     const included = (currentRun.taskIds || []).includes(task.id) || Boolean(result);
     if (["in_progress", "in_review", "verifying"].includes(task.rawStatus || task.status) || (included && currentRun.status !== "running")) {
       const reason = result?.reason || (included && currentRun.reason) || "No active worker. Resume to continue.";
-      return { label: "Stopped", reason: /session budget reached/i.test(reason) ? "Session budget exhausted. Resume to continue." : reason };
+      return { label: "Stopped", reason: /task session budget reached/i.test(reason) ? "Session budget exhausted for the last run. Resume to choose a new run limit; any saved task limit still applies." : reason };
     }
     return { label: statusLabel(task.rawStatus || task.status), reason: "" };
   }
@@ -384,17 +393,26 @@
     return { passed: progress.passed, failed: progress.failed, total: progress.checks.length, summary: task.lastCheckpoint?.note || last?.detail || (task.rawStatus === "done" ? "Completed with no outcome summary recorded." : "No outcome recorded yet.") };
   }
 
+  function taskBlockerReason(task) {
+    const reason = task.blocker?.reason || "";
+    const missing = /ENOENT.*handoffs[\\/](T-\d+)\.json/i.exec(reason);
+    const predecessor = missing && snapshot.state?.tasks?.[missing[1]];
+    if (predecessor && !predecessor.handoff_baseline) return `${missing[1]} completed before verified handoffs were recorded. Its baseline and revision-bound evidence are missing; revalidate that predecessor and produce a verified handoff before resuming. Increasing the session budget or unblocking alone will not fix this.`;
+    return reason;
+  }
+
   function derived() {
     const queueByTask = new Map();
     for (const queue of snapshot.queues?.items || []) for (const item of queue.items || []) queueByTask.set(item.id, queue.name || queue.id);
     const tasks = Object.values(snapshot.state?.tasks || {}).map((task) => ({
       id: task.id, title: task.title, desc: task.objective || "", status: taskExecution(task).label, rawStatus: task.status,
       agent: workerLabel(task), priority: statusLabel(task.priority || "normal"),
-      queue: queueByTask.get(task.id) || "Unqueued", block: task.blocker?.reason || "", archived: task.status === "archived",
-      stage: taskExecution(task).reason || task.last_checkpoint?.note || statusLabel(task.status), progress: taskProgress(task).percent,
+      queue: queueByTask.get(task.id) || "Unqueued", block: taskBlockerReason(task), archived: task.status === "archived",
+      stage: (task.status === "blocked" && taskBlockerReason(task)) || taskExecution(task).reason || task.last_checkpoint?.note || statusLabel(task.status), progress: taskProgress(task).percent,
       progressDetails: taskProgress(task), completion_checks: task.completion_checks || [], packet_revision: task.packet_revision || 1, review_required: task.review_required,
       logs: (snapshot.state?.log_tail || []).filter((entry) => entry.task === task.id).slice(-8),
       evidence: task.evidence || [], lastCheckpoint: task.last_checkpoint || null, workspace: task.workspace || null,
+      inputRevisions: task.input_revisions || {}, recovery: task.recovery || null, waitingReason: (task.status === "blocked" && taskBlockerReason(task)) || task.waiting_reason || "", executionBudget: task.execution_budget || null, updatedAt: task.updated_at || null,
     })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
     const queues = (snapshot.queues?.items || []).map((queue) => ({ ...queue, label: queue.name || queue.id }));
     const agents = (snapshot.team || []).map((agent) => [
@@ -413,6 +431,7 @@
     const liveRun = liveRunState(task);
     if (liveRun === "running") return btn("Stop", "run-stop", "sm danger");
     if (liveRun === "queued") return '<span class="pill blue" title="This task is included in the confirmed queue run">In run</span>';
+    if (task.executionBudget && task.executionBudget.used >= task.executionBudget.max_sessions && !["done", "archived", "rejected"].includes(task.rawStatus)) return btn("Increase budget", `task-budget:${task.id}`, "sm primary") + btn("Logs", `task-detail:${task.id}`, "sm");
     if (["in_progress", "in_review", "verifying"].includes(task.rawStatus)) return btn("Resume", `run-task:${task.id}`, `sm primary${currentRun.status === "running" ? " disabled" : ""}`) + btn("Logs", `task-detail:${task.id}`, "sm");
     if (task.rawStatus === "blocked") return btn("Unblock", `unblock:${task.id}`, "sm") + btn("Logs", `task-detail:${task.id}`, "sm");
     if (["done", "archived"].includes(task.rawStatus)) return btn("Logs", `task-detail:${task.id}`, "sm") + btn("Delete", `task-delete:${task.id}`, "sm danger");
@@ -439,9 +458,10 @@
   function approvalSummary(item) {
     const request = item.action || {};
     const args = request.args || {};
+    const assistantAction = request.operation === "assistant.fix" || request.operation === "assistant.diagnose";
     const queues = snapshot.queues?.items || [];
     const taskIds = Array.isArray(args.taskIds) ? args.taskIds : [];
-    const queueIds = Array.isArray(args.queueIds) && args.queueIds.length ? args.queueIds
+    const queueIds = assistantAction ? [] : Array.isArray(args.queueIds) && args.queueIds.length ? args.queueIds
       : taskIds.length ? [] : request.target && request.target !== "selected" ? [request.target] : [];
     const selectedQueues = queueIds.map((id) => queues.find((queue) => queue.id === id) || { id, name: id, missing: true });
     const ids = taskIds.length ? taskIds : selectedQueues.flatMap((queue) => (queue.items || []).map((task) => task.id || task.taskId));
@@ -451,16 +471,16 @@
       : !grant ? "Permission record unavailable" : grant.revoked_at ? "Revoked" : grant.used_at ? "Used"
       : !(new Date(grant.expires_at).getTime() > Date.now()) ? "Expired" : "Available once";
     const continueRun = item.status === "pending" && pendingApprovalAction?.proposalId === item.id;
-    return { title: request.operation === "run.queue" ? (taskIds.length ? "Run selected tasks" : "Run selected queues") : "Other requested action",
+    return { title: assistantAction ? (request.operation === "assistant.fix" ? "Fix task with provider" : "Diagnose with provider") : request.operation === "run.queue" ? (taskIds.length ? "Run selected tasks" : "Run selected queues") : "Other requested action",
       request, tasks, queues: selectedQueues, directTasks: Boolean(taskIds.length), grant, permission, continueRun,
-      unknownScope: request.operation !== "run.queue" || (!taskIds.length && !queueIds.length) };
+      assistantAction, unknownScope: !assistantAction && (request.operation !== "run.queue" || (!taskIds.length && !queueIds.length)) };
   }
 
   function approvalCard(item) {
     const view = approvalSummary(item);
     const scope = view.queues.map((queue) => `<li><b>Queue</b>: <span dir="auto">${escapeHtml(queue.name || queue.id)}</span>${queue.missing ? ' <span class="muted">Queue unavailable</span>' : ""}</li>`).join("");
     const tasks = view.tasks.map((task) => `<li><b>${escapeHtml(task.id)}</b> · <span dir="auto">${escapeHtml(task.title)}</span> ${badge(statusLabel(task.status))}</li>`).join("");
-    const effect = view.unknownScope ? "The scope of this request is incomplete. Inspect the technical details before deciding."
+    const effect = view.assistantAction ? (view.request.operation === "assistant.fix" ? `Allows ${view.request.target} to edit the task workspace ${view.request.args?.workspace || "(unavailable)"} and run checks. This does not approve the resulting work.` : `Allows ${view.request.target} to diagnose in read-only mode.`) : view.unknownScope ? "The scope of this request is incomplete. Inspect the technical details before deciding."
       : "Allows ATL to start worker sessions for the tasks below, using the configured provider. Workers can edit task workspace files. Run limits and task gates still apply.";
     const next = item.status === "pending" ? (view.continueRun ? "Approving starts this waiting run immediately in this tab. Denying keeps it stopped."
       : "Approve once grants permission for 10 minutes. It does not start a run from this page. Return to the task or queue, preview it, and confirm Run.")
@@ -470,7 +490,7 @@
       : item.status === "denied" ? "This request was denied. No permission was granted." : "Review the recorded decision and request details.";
     const outcome = !item.execution || item.execution.status === "unknown" ? "Run result not recorded"
       : ({ running: "Run in progress", complete: "Run ended", finished: "Run ended", failed: "Run failed", stopped: "Run stopped", aborted: "Run stopped" }[item.execution.status] || item.execution.status);
-    const buttons = item.status === "pending" ? btn(view.continueRun ? "Approve and start this run" : "Approve once", `approval-approve:${item.id}`, "sm primary") + btn("Deny request", `approval-deny:${item.id}`, "sm danger")
+    const buttons = item.status === "pending" ? btn(view.continueRun ? (view.assistantAction ? "Approve and start assistant" : "Approve and start this run") : "Approve once", `approval-approve:${item.id}`, "sm primary") + btn("Deny request", `approval-deny:${item.id}`, "sm danger")
       : view.permission === "Available once" ? btn("Revoke unused permission", `approval-revoke:${view.grant.id}`, "sm danger") : "";
     return `<article class="panel pad approval-request" data-approval="${escapeHtml(item.id)}"><div class="row between"><h3>${escapeHtml(view.title)}</h3>${badge(view.permission)}</div><p class="sub">${escapeHtml(effect)}</p><p class="muted tiny"><b>Project</b>: <span dir="ltr">${escapeHtml(view.request.project || "Not recorded")}</span></p>${scope ? `<ul class="approval-scope">${scope}</ul>` : ""}${!view.directTasks && view.tasks.length ? '<b>Current queue contents</b><p class="muted tiny">This task list reflects the queue now. Check the run preview if the queue has changed.</p>' : ""}${tasks ? `<ul class="approval-scope">${tasks}</ul>` : ""}<div class="notice"><p>${escapeHtml(next)}</p></div><div class="row between space"><div><b>Decision</b>: ${badge(item.status)}<div class="muted tiny"><b>Requested</b>: ${escapeHtml(item.created_at ? new Date(item.created_at).toLocaleString() : "Not recorded")}${view.grant ? `<br><b>Permission expires</b>: ${escapeHtml(new Date(view.grant.expires_at).toLocaleString())}` : ""}</div></div><div class="bar">${buttons}</div></div><p class="sub"><b>Execution</b>: <span>${escapeHtml(outcome)}</span>${item.execution?.status !== "unknown" && item.execution?.reason ? ` · ${escapeHtml(item.execution.reason)}` : ""}</p><details><summary>Technical details</summary><pre>${escapeHtml(JSON.stringify({ request_id: item.id, fingerprint: item.digest, action: item.action, execution: item.execution || null }, null, 2))}</pre></details></article>`;
   }
@@ -503,6 +523,7 @@
   }
 
   const panels = {
+    assistant: () => head("WORKSPACE / ASSISTANT", "Ask ATL", "Discuss this project or fix a task in its workspace.", btn("Open assistant", "assistant-open:global", "primary")) + `<div class="notice"><b>Project conversation</b><p>Open Ask ATL from a task to include its brief, blocker, and prerequisites, or request an approved workspace fix.</p></div>`,
     overview: () => {
       const { tasks, events } = derived();
       const blocked = tasks.filter((task) => task.rawStatus === "blocked").length;
@@ -681,7 +702,7 @@
     const translator = window.ATL_I18N?.translateText || ((value) => value);
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
-    for (const node of nodes) node.nodeValue = translator(node.nodeValue, "fa-IR");
+    for (const node of nodes) if (!node.parentElement?.closest("[data-no-translate],.review-path")) node.nodeValue = translator(node.nodeValue, "fa-IR");
     for (const element of document.querySelectorAll("[placeholder]")) element.placeholder = translator(element.placeholder, "fa-IR");
     for (const element of document.querySelectorAll("[aria-label]")) element.setAttribute("aria-label", translator(element.getAttribute("aria-label"), "fa-IR"));
     for (const element of document.querySelectorAll(".task-main-copy b,.task-row .muted,.event .muted,.terminal,code,[data-bidi]")) {
@@ -755,7 +776,7 @@
   // field travels once to the server and only the masked ready state returns.
   function providerManagerModal(status) {
     const providers = studioProviders || [];
-    const connectedBuiltin = (builtinWorkers || []).find((worker) => builtinState(worker).connected);
+    const connectedBuiltin = (builtinWorkers || []).find((worker) => worker.isDefault && builtinState(worker).connected) || (builtinWorkers || []).find((worker) => builtinState(worker).connected);
     const activeId = defaultProvider || studioProvider || providers.find((provider) => provider.ready)?.id || providers[0]?.id || null;
     const active = providers.find((provider) => provider.id === activeId) || null;
     const connectedSection = active
@@ -784,22 +805,34 @@
       const state = builtinState(worker);
       const meta = [`${escapeHtml(String(worker.auth || "subscription"))} auth`, worker.defaultModel ? `default model ${escapeHtml(worker.defaultModel)}` : "model: CLI default"].join(" · ");
       let connect;
-      if (!worker.installed) {
-        connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">Install ${escapeHtml(worker.label)}</b><p class="sub" style="margin:4px 0 0">Run <code>${escapeHtml(worker.installHint || `install ${worker.id}`)}</code>, then <code>${escapeHtml(worker.loginCommand)}</code> to connect.</p></div>`;
+      if (worker.operation?.status === "running") {
+        const loginUrl = worker.operation.url && /^https:\/\//i.test(worker.operation.url) ? `<a href="${escapeHtml(worker.operation.url)}" target="_blank" rel="noopener noreferrer">Open sign-in</a>` : "";
+        connect = `<div class="notice" style="margin-top:9px;padding:9px"><b>${escapeHtml(worker.operation.message)}</b>${loginUrl ? `<p class="sub" style="margin-top:6px">${loginUrl}</p>` : ""}</div>`;
+      } else if (!worker.installed) {
+        connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${escapeHtml(worker.label)} is not installed</b><p class="sub" style="margin:4px 0 8px">Install once for all projects.</p>${btn("Install", `pm-install-builtin:${escapeHtml(worker.id)}`, "sm primary")}</div>`;
       } else if (state.connected) {
         connect = `<p class="sub" style="margin-top:8px">${escapeHtml(worker.detail || "Connected via your subscription.")} Queue and task runs can use this CLI.</p>`;
       } else {
-        connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${worker.method === "api-key" ? "Signed in with an API key — switch to your plan" : `Connect ${escapeHtml(worker.label)}`}</b><ol class="sub" style="margin:6px 0 0;padding-left:20px;line-height:1.9"><li>Run <code>${escapeHtml(worker.loginCommand)}</code> ${btn("Copy", `copy:${escapeHtml(worker.loginCommand)}`, "sm ghost")}</li><li>${escapeHtml(worker.loginNote)}</li><li>Press <b>Recheck</b>, then <code>${escapeHtml(worker.verifyCommand || "atl launch --dry-run")}</code> should list <b>${escapeHtml(worker.id)}</b> · subscription.</li></ol></div>`;
+        connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">Connect ${escapeHtml(worker.label)}</b><p class="sub" style="margin:4px 0 8px">Sign in once for all projects.</p>${btn("Sign in", `pm-login-builtin:${escapeHtml(worker.id)}`, "sm primary")}</div>`;
       }
-      const selectBuiltin = worker.id === "codex" || worker.id === "claude"
-        ? `<div class="bar" style="margin-top:9px">${worker.isDefault ? '<span class="muted tiny">Selected for task runs</span>' : btn("Use for task runs", `pm-use-builtin:${escapeHtml(worker.id)}`, "sm primary")}</div>`
+      if (worker.operation && worker.operation.status !== "running") connect += `<p class="sub ${worker.operation.status === "error" ? "red" : "green"}" role="status">${escapeHtml(worker.operation.message)}</p>`;
+      const builtinEditing = worker.id === pmEditingBuiltinId;
+      const builtinActions = builtinEditing
+        ? `${btn("Save model", `pm-save-builtin:${escapeHtml(worker.id)}`, "primary")}${btn("Cancel", "pm-cancel-builtin", "sm")}`
+        : `${worker.isDefault ? '<span class="muted tiny">Selected for task runs</span>' : btn("Use for task runs", `pm-use-builtin:${escapeHtml(worker.id)}`, "sm primary")}${btn("Edit", `pm-edit-builtin:${escapeHtml(worker.id)}`, "sm")}`;
+      const builtinModelOptions = [...new Map([worker.defaultModel, ...(worker.models || [])].filter(Boolean).map((model) => [typeof model === "string" ? model : model.id, model])).values()];
+      const builtinModelField = builtinModelOptions.length
+        ? `<select class="input" id="pmBuiltinModel" data-pm-builtin-model>${builtinModelOptions.map((model) => { const id = typeof model === "string" ? model : model.id; const label = typeof model === "string" ? `${model} (current; not in catalog)` : `${model.label} · ${model.id}`; return `<option value="${escapeHtml(id)}" ${id === worker.defaultModel ? "selected" : ""}>${escapeHtml(label)}</option>`; }).join("")}</select>`
+        : `<input class="input" id="pmBuiltinModel" data-pm-builtin-model value="${escapeHtml(worker.defaultModel || "")}" placeholder="e.g. gpt-6-luna">`;
+      const selectBuiltin = worker.id === "codex" || worker.id === "claude" || worker.id === "gapgpt"
+        ? `<div class="bar" style="margin-top:9px">${builtinActions}</div>${builtinEditing ? `<div class="field" style="margin-top:10px"><label class="label" for="pmBuiltinModel">Default model</label>${builtinModelField}<p class="muted tiny" style="margin-top:6px">${worker.models?.length ? `${worker.models.length} models from the provider's local catalog; it may be stale.` : "No local model catalog found; enter an exact model id."} Saved to this project.</p></div>` : ""}`
         : "";
-      return `<div style="border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-bottom:10px;background:rgba(8,15,25,.35)"><div class="row between" style="gap:12px;flex-wrap:wrap"><div class="bar" style="gap:7px;min-width:0"><b>${escapeHtml(worker.label)}</b><span class="pill violet">${worker.id === "gapgpt" ? "project worker" : "built-in"}</span><span class="pill ${state.tone}">${escapeHtml(state.label)}</span>${worker.isDefault ? '<span class="pill green">project default</span>' : ""}</div><span class="muted tiny">${meta}</span></div>${connect}${selectBuiltin}</div>`;
+      return `<div style="border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-bottom:10px;background:rgba(8,15,25,.35)"><div class="row between" style="gap:12px;flex-wrap:wrap"><div class="bar" style="gap:7px;min-width:0"><b>${escapeHtml(worker.label)}</b><span class="pill violet">built-in</span><span class="pill ${state.tone}">${escapeHtml(state.label)}</span>${worker.isDefault ? '<span class="pill green">project default</span>' : ""}</div><span class="muted tiny">${meta}</span></div>${connect}${selectBuiltin}</div>`;
     }).join("");
     const builtinSection = (builtinWorkers || []).length
-      ? `<div style="margin-bottom:6px"><div class="row between" style="margin-bottom:8px"><div class="eyebrow">BUILT-IN WORKERS · SUBSCRIPTION AUTH</div>${btn("Recheck", "provider-recheck", "sm")}</div><p class="sub" style="margin:0 0 10px">One CLI login connects these — no key is stored and nothing is added to the registry. <code>atl provider add</code> is only for external API providers (Z.ai, OpenRouter, Anthropic, custom) below.</p>${builtinRows}</div>`
+      ? `<div style="margin-bottom:6px"><div class="row between" style="margin-bottom:8px"><div class="eyebrow">BUILT-IN WORKERS</div>${btn("Recheck", "provider-recheck", "sm")}</div><p class="sub" style="margin:0 0 10px">Install and sign in once to use these workers across projects.</p>${builtinRows}</div>`
       : "";
-    popupWide("Providers", `${statusLine}<p class="sub" style="margin-bottom:14px">Built-in workers connect with a single CLI login. Below them: your connected key providers for model planning and alternative endpoints.</p>${builtinSection}${connectedSection}${rows ? `<div class="eyebrow" style="margin:16px 0 8px">OTHER CONNECTED PROVIDERS</div>${rows}` : rows}${addForm}`, btn("Close", "close"));
+    popupWide("Providers", `${statusLine}<p class="sub" style="margin-bottom:14px">Connect built-in providers here and choose a model for this project.</p>${builtinSection}${connectedSection}${rows ? `<div class="eyebrow" style="margin:16px 0 8px">OTHER CONNECTED PROVIDERS</div>${rows}` : rows}${addForm}`, btn("Close", "close"));
   }
   /* old provider modal body intentionally replaced above */
   /*
@@ -832,10 +865,13 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   function taskDetail(task) {
     const logs = task.logs.length ? task.logs.map((entry) => `${entry.at ? new Date(entry.at).toLocaleTimeString() : "--:--:--"}  ${entry.event || "INFO"}  ${entry.detail || entry.note || "state changed"}`).join("\n") : "No task-specific logs recorded yet.";
     const outcome = taskOutcome(task);
-    const outcomePanel = task.rawStatus === "done"
+    const repairAttemptsRemaining = task.recovery?.status === "exhausted" ? 0 : Math.max(0, 2 - (task.recovery?.attempts?.length || 0));
+    const recoveryPanel = `<div class="notice"><b>Queue preparation and recovery</b><p>Input revisions: ${escapeHtml(Object.entries(task.inputRevisions || {}).map(([id, revision]) => `${id}: ${revision}`).join("; ") || "none" )}</p><p>Waiting: ${escapeHtml(task.waitingReason || "none")}</p><p>Recovery owner: ${escapeHtml(task.recovery?.recovery_owner || "none")} · Attempts remaining: ${repairAttemptsRemaining}</p><p>Current action: ${escapeHtml(task.recovery?.attempts?.at(-1)?.action || "none")}</p></div>`;
+    const budgetPanel = task.executionBudget ? `<div class="notice" style="margin-top:14px"><b>Task session budget: ${escapeHtml(task.executionBudget.used)} / ${escapeHtml(task.executionBudget.max_sessions)} used</b><p>This limit persists across runs. Recovery attempts are separate.</p>${!["done", "archived", "rejected"].includes(task.rawStatus) ? btn("Increase task budget", `task-budget:${task.id}`, "sm") : ""}</div>` : `<div class="notice" style="margin-top:14px"><b>Session budget</b><p>No persistent task limit is recorded. Choose the next run's session limit when you resume.</p></div>`;
+    const outcomePanel = recoveryPanel + budgetPanel + (task.rawStatus === "done"
       ? `<div class="notice" style="margin-top:14px;border-color:var(--accent)"><b class="green">✓ Accomplished</b><p>${escapeHtml(outcome.summary)}</p><div class="bar"><span class="pill green">${outcome.passed} passed</span>${outcome.failed ? `<span class="pill red">${outcome.failed} failed</span>` : ""}<span class="pill">${outcome.total} checks</span></div></div>`
-      : `<div class="notice" style="margin-top:14px"><b>${liveRunState(task) === "running" ? '<span class="running-mark"></span>Running now' : escapeHtml(task.status)}</b><p class="sub">${escapeHtml(task.stage)}</p></div>`;
-    popup(`${escapeHtml(task.id)} / Task details`, `<div class="bar">${badge(task.status)}${badge(task.priority)}<span class="muted">${escapeHtml(task.queue)} · ${escapeHtml(task.agent)}</span></div><h2 style="font-size:18px;margin:17px 0">${escapeHtml(task.title)}</h2><p>${escapeHtml(task.desc)}</p>${lifecycleDiagram(task)}${taskProgressMarkup(task, true)}${outcomePanel}${task.block ? `<div class="notice" style="margin-top:14px"><b class="red">BLOCKER</b><p>${escapeHtml(task.block)}</p></div>` : ""}<h3 style="margin:18px 0 8px">Latest task activity</h3><pre class="terminal" style="max-height:230px;white-space:pre-wrap">${escapeHtml(logs)}</pre>`, btn("Diagram", `task-diagram:${task.id}`) + btn("Edit task", `edit:${task.id}`) + btn("Actions", `task-actions:${task.id}`, "primary"));
+      : `<div class="notice" style="margin-top:14px"><b>${liveRunState(task) === "running" ? '<span class="running-mark"></span>Running now' : escapeHtml(task.status)}</b><p class="sub">${escapeHtml(task.stage)}</p></div>`);
+    popup(`${escapeHtml(task.id)} / Task details`, `<div class="bar">${badge(task.status)}${badge(task.priority)}<span class="muted">${escapeHtml(task.queue)} · ${escapeHtml(task.agent)}</span></div><h2 style="font-size:18px;margin:17px 0">${escapeHtml(task.title)}</h2><p>${escapeHtml(task.desc)}</p>${task.block ? `<div class="notice" style="margin-top:14px"><b class="red">BLOCKER</b><p>${escapeHtml(task.block)}</p>${btn("Review recovery", `task-recovery:${task.id}`, "sm")}</div>` : ""}${lifecycleDiagram(task)}${taskProgressMarkup(task, true)}${outcomePanel}<h3 style="margin:18px 0 8px">Latest task activity</h3><pre class="terminal" style="max-height:230px;white-space:pre-wrap">${escapeHtml(logs)}</pre>`, btn("Ask ATL", `assistant-open:${task.id}`, "primary") + (window.ATL_CHANGE_REVIEW ? btn("Review changes", `task-changes:${task.id}`) : "") + btn("Diagram", `task-diagram:${task.id}`) + btn("Edit task", `edit:${task.id}`) + btn("Actions", `task-actions:${task.id}`));
     detailExecution = { id: task.id, fingerprint: JSON.stringify(task) };
   }
 
@@ -866,10 +902,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const checksLabel = outcome.total ? `${outcome.passed}/${outcome.total} checks passed` : "No checks recorded";
     const story = [
       ["01", "Request received", `The task ${task.id} entered ATL as “${task.title}”.`],
-      ["02", task.agent === "Unassigned" ? "Waiting for an owner" : `Worked by ${task.agent}`, task.agent === "Unassigned" ? "No worker is assigned yet." : "The assigned worker handled the change in an isolated workspace."],
+      ["02", task.agent === "Unassigned" ? "Waiting for an owner" : `Worked by ${task.agent}`, task.agent === "Unassigned" ? "No worker is assigned yet." : "The task records this assigned worker. Inspect its workspace and evidence to establish what changed."],
       ["03", `Reached ${task.status}`, task.rawStatus === "done" ? "The lifecycle reached its terminal Done state." : "The task is currently at this lifecycle stage."],
       ["04", checksLabel, outcome.total ? "Completion evidence is recorded against the task." : "Add completion checks and evidence to make the outcome verifiable."],
-      ["05", "Outcome recorded", outcome.summary],
+      ["05", "Recorded task summary", outcome.summary],
     ];
     const storyMarkup = `<div class="diagram-story" aria-label="Task change flow">${story.map(([number, title, detail], index) => `<div class="diagram-story-step"><div class="diagram-node">${number}</div><div><b>${escapeHtml(title)}</b><p class="sub">${escapeHtml(detail)}</p></div>${index < story.length - 1 ? '<span class="diagram-arrow" aria-hidden="true">↓</span>' : ''}</div>`).join("")}</div>`;
     const relationships = [
@@ -948,7 +984,43 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     render();
   }
   async function mutation(command, after = page) { close(); await runCommand(command); await refresh(false); page = after; render(); }
+  async function assistantRead(scope) {
+    const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "read", scope }) });
+    const result = await response.json(); if (!response.ok) throw new Error(result.error || "Assistant unavailable"); return result;
+  }
+  function assistantTranscript(session) {
+    const messages = (session.messages || []).map((message) => `<div class="notice" style="margin-bottom:8px"><b>${escapeHtml(message.role === "user" ? "You" : "ATL assistant")}</b><pre style="white-space:pre-wrap;margin:8px 0">${escapeHtml(message.text)}</pre></div>`).join("");
+    return `${messages}${session.status === "running" ? `<div class="notice"><b><span class="running-mark"></span> Provider running · ${escapeHtml(session.mode === "fix" ? "investigating and editing" : "diagnosing")}</b><pre style="white-space:pre-wrap">${escapeHtml(session.output || "Waiting for provider output…")}</pre>${session.diagnostic ? `<details><summary>Provider activity</summary><pre style="white-space:pre-wrap">${escapeHtml(session.diagnostic)}</pre></details>` : ""}</div>` : ""}<p class="muted tiny">Status: ${escapeHtml(session.status === "awaiting-review" ? "Changes need independent review and verification; not approved or complete" : session.status || "idle")}${session.error ? ` · ${escapeHtml(session.error)}` : ""}</p>${session.status === "awaiting-review" && session.scope !== "global" ? btn("Review task", `task-detail:${session.scope}`, "sm") : ""}`;
+  }
+  async function openAssistant(scope) {
+    clearInterval(assistantPoll); assistantScope = scope;
+    try {
+      const result = await assistantRead(scope);
+      const options = result.providers.flatMap((provider) => {
+        const models = provider.models?.length ? provider.models : [{ id: provider.defaultModel || "", label: provider.defaultModel || "CLI default" }];
+        return models.map((model) => `<option value="${escapeHtml(`${provider.id}|${model.id}`)}" ${!provider.installed || !provider.signedIn ? "disabled" : ""}>${escapeHtml(provider.label)} · ${escapeHtml(model.label || model.id)}${!provider.installed ? " · not installed" : !provider.signedIn ? " · not signed in" : ""}</option>`);
+      }).join("");
+      popupWide(`Ask ATL · ${escapeHtml(scope === "global" ? "Project" : scope)}`, `<p class="sub">Task fixes run in the task workspace after approval; they still require independent verification and review. Provider usage may apply. History is stored locally; do not enter secrets.</p><div id="assistantTranscript" aria-live="polite" style="max-height:300px;overflow:auto">${assistantTranscript(result.session)}</div><label class="label" for="assistantProvider">Provider and cached model</label><select class="input" id="assistantProvider">${options}</select><label class="label" for="assistantMode">Mode</label><select class="input" id="assistantMode">${scope !== "global" ? '<option value="fix">Fix in task workspace</option>' : ""}<option value="diagnose">Diagnose only</option></select><label class="label" for="assistantMessage">Message</label><textarea class="input" id="assistantMessage" placeholder="Describe what ATL should investigate or fix"></textarea>`, btn("Close", "close") + btn("Stop", "assistant-cancel") + btn("Review message", "assistant-send", "primary"));
+      assistantPoll = setInterval(async () => { if (!$("#assistantTranscript")) { clearInterval(assistantPoll); return; } try { const current = await assistantRead(scope); if ($("#assistantTranscript")) $("#assistantTranscript").innerHTML = assistantTranscript(current.session); } catch { /* next poll retries */ } }, 1500);
+    } catch (error) { popup("Assistant unavailable", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+  }
   async function action(value) {
+    if (value.startsWith("task-changes:")) { const task = derived().tasks.find((item) => item.id === value.slice(13)); detailExecution = null; if (task && window.ATL_CHANGE_REVIEW) await window.ATL_CHANGE_REVIEW.open(task, { popupWide, btn }); return; }
+    if (value.startsWith("assistant-open:")) { await openAssistant(value.slice(15)); return; }
+    if (value === "assistant-send") { const [provider, model] = String($("#assistantProvider")?.value || "").split("|"); const message = $("#assistantMessage")?.value || ""; const mode = $("#assistantMode")?.value || "diagnose"; if (!provider || !message.trim()) return popup("Message required", "<p>Select an available provider and enter a message.</p>", btn("Back", `assistant-open:${assistantScope}`)); assistantPending = { scope: assistantScope, provider, model: model || "", message, mode }; popup("Review assistant request", `<p>Provider: ${escapeHtml(provider)} · Model: ${escapeHtml(model || "CLI default")}</p><p>${mode === "fix" ? "The provider may edit the task workspace and run checks. Task state and approval are not changed automatically; review remains required." : "This session is read-only."} Provider usage may apply. Task context and recent conversation will be sent to the provider.</p><pre class="terminal" style="white-space:pre-wrap">${escapeHtml(message)}</pre>`, btn("Cancel", `assistant-open:${assistantScope}`) + btn("Request approval", "assistant-confirm", "primary")); return; }
+    if (value === "assistant-confirm") { if (!assistantPending) return; try { const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "send", ...assistantPending }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, "assistant-confirm"); if (!response.ok) throw new Error(result.error || "Assistant could not start"); const scope = assistantPending.scope; assistantPending = null; await openAssistant(scope); } catch (error) { popup("Assistant could not start", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Back", `assistant-open:${assistantScope}`)); } return; }
+    if (value === "assistant-cancel") { try { const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "cancel", scope: assistantScope }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "No session to stop"); await openAssistant(assistantScope); } catch (error) { popup("Cannot stop session", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Back", `assistant-open:${assistantScope}`)); } return; }
+    if (value.startsWith("task-recovery:")) {
+      const id = value.slice(14);
+      try {
+        const response = await fetch(`/api/task-recovery?taskId=${encodeURIComponent(id)}`, { cache: "no-store" });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || "Recovery inventory unavailable");
+        const proposal = result.proposal;
+        const items = proposal.items.map((item) => `<div class="notice" style="margin-top:10px"><b>${escapeHtml(item.id)} · ${escapeHtml(item.title || "Unknown prerequisite")}</b><p>${escapeHtml(item.handoff || item.status)} · ${escapeHtml(item.reason || "Handoff verified")}</p><p>Workspace: ${item.workspaceAvailable ? "available" : "unavailable"} · baseline: ${item.baselineAvailable ? "recorded" : "not recorded"} · ${item.evidenceCount || 0} evidence records</p><p>Checks: ${escapeHtml((item.checks || []).join("; ") || "none recorded")}</p><details><summary>Workspace changes (${(item.files || []).length}${item.filesUnavailable ? "; unavailable" : ""})</summary><pre class="terminal">${escapeHtml((item.files || []).join("\n") || "No changes reported")}</pre></details></div>`).join("");
+        popupWide(`Recovery proposal · ${escapeHtml(id)}`, `<p class="sub">Read-only inventory. No task was reopened, no evidence was fabricated, and no provider was started. Provider usage is unknown until a specific recovery run is reviewed.</p>${items || "<p>No prerequisites recorded.</p>"}<h3>Proposed steps</h3><ol>${proposal.actions.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>`, btn("Back", `task-detail:${id}`) + btn("Close", "close"));
+      } catch (error) { popup("Recovery inventory unavailable", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
     if (value === "toggle-locale") {
       locale = locale === "fa-IR" ? "en-US" : "fa-IR";
       try { localStorage.setItem("atl-cp-lang", locale); localStorage.removeItem("atl-locale"); } catch { /* private browsing */ }
@@ -996,7 +1068,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "blockers") { filter = "Blocked"; queueFilter = "All"; page = "tasks"; render(); return; }
     if (value.startsWith("edit:")) return taskForm(derived().tasks.find((task) => task.id === value.slice(5)));
     if (value.startsWith("task-detail:")) { const task = derived().tasks.find((item) => item.id === value.slice(12)); if (task) taskDetail(task); return; }
-    if (value.startsWith("task-diagram:")) { const task = derived().tasks.find((item) => item.id === value.slice(13)); if (task) taskDiagram(task); return; }
+    if (value.startsWith("task-diagram:")) { const task = derived().tasks.find((item) => item.id === value.slice(13)); detailExecution = null; if (task && window.ATL_CHANGE_REVIEW) await window.ATL_CHANGE_REVIEW.open(task, { popupWide, btn }, "relationships"); else if (task) taskDiagram(task); return; }
     if (value.startsWith("task-actions:")) { const task = derived().tasks.find((item) => item.id === value.slice(13)); if (task) taskActions(task); return; }
     if (value.startsWith("task-delete:")) {
       const id = value.slice(12);
@@ -1048,8 +1120,26 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       render();
       return;
     }
-    if (value === "provider-manager") { pmRemoveConfirm = null; pmEditingId = null; await loadProviders(true); providerManagerModal(null); return; }
+    if (value === "provider-manager") { pmRemoveConfirm = null; pmEditingId = null; pmEditingBuiltinId = null; await loadProviders(true); providerManagerModal(null); return; }
     if (value === "provider-recheck") { await loadProviders(true); providerManagerModal({ ok: true, text: "Rechecked built-in workers and registry providers." }); return; }
+    if (value.startsWith("pm-login-builtin:") || value.startsWith("pm-install-builtin:")) {
+      const installing = value.startsWith("pm-install-builtin:");
+      const id = value.slice((installing ? "pm-install-builtin:" : "pm-login-builtin:").length);
+      try {
+        const result = await planApi("/api/providers", { action: installing ? "builtin-install" : "builtin-login", id });
+        builtinWorkers = result.builtin || [];
+        providerManagerModal(null);
+        const poll = async () => {
+          if (!dialogOpen || !document.querySelector(`[data-action="pm-${installing ? "install" : "login"}-builtin:${id}"]`) && !(builtinWorkers.find((worker) => worker.id === id)?.operation?.status === "running")) return;
+          await loadProviders(true);
+          if (!dialogOpen || pmEditingBuiltinId) return;
+          providerManagerModal(null);
+          if (builtinWorkers.find((worker) => worker.id === id)?.operation?.status === "running") setTimeout(poll, 2000);
+        };
+        setTimeout(poll, 2000);
+      } catch (error) { providerManagerModal({ ok: false, text: error.message }); }
+      return;
+    }
     if (value.startsWith("copy:")) {
       const text = value.slice(5);
       const button = document.querySelector(`[data-action="${value}"]`);
@@ -1061,6 +1151,21 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
     if (value.startsWith("pm-edit:")) { pmEditingId = value.slice(8); providerManagerModal(null); return; }
     if (value === "pm-cancel") { pmEditingId = null; providerManagerModal(null); return; }
+    if (value.startsWith("pm-edit-builtin:")) { pmEditingBuiltinId = value.slice("pm-edit-builtin:".length); providerManagerModal(null); return; }
+    if (value === "pm-cancel-builtin") { pmEditingBuiltinId = null; providerManagerModal(null); return; }
+    if (value.startsWith("pm-save-builtin:")) {
+      const id = value.slice("pm-save-builtin:".length);
+      const model = document.querySelector("[data-pm-builtin-model]")?.value.trim();
+      if (!model) return providerManagerModal({ ok: false, text: "Enter a default model first." });
+      try {
+        const result = await planApi("/api/providers", { action: "update", id, model });
+        builtinWorkers = result.builtin || builtinWorkers;
+        defaultProvider = result.defaultProvider;
+        pmEditingBuiltinId = null;
+        providerManagerModal({ ok: true, text: `${id} now uses ${model} for this project.` });
+      } catch (error) { providerManagerModal({ ok: false, text: error.message }); }
+      return;
+    }
     if (value === "navigation-save") {
       const body = {
         mode: $("#navigationMode")?.value,
@@ -1165,7 +1270,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const id = value.slice("pm-use-builtin:".length);
       try {
         const result = await planApi("/api/providers", { action: "use", id });
-        studioProviders = result.providers; pmTemplates = result.templates; defaultProvider = result.defaultProvider;
+        studioProviders = result.providers; pmTemplates = result.templates; defaultProvider = result.defaultProvider; builtinWorkers = result.builtin || builtinWorkers;
         providerManagerModal({ ok: true, text: `${id} is now the selected built-in provider for task runs.` });
       } catch (error) { providerManagerModal({ ok: false, text: error.message }); }
       return;
@@ -1409,8 +1514,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       currentRun = result.run; page = "queues"; render();
       return;
     }
-    if (value.startsWith("run-task:")) { const id = value.slice(9); try { const response = await fetch("/api/run/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskIds: [id] }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "preview failed"); popup(`Dispatch preview · ${escapeHtml(id)}`, `<div class="terminal">${escapeHtml((result.lines || []).join("\n"))}</div><div class="notice"><b>Nothing has started.</b><p>Confirming runs this task through its full lifecycle (60m overall / 8 sessions per task). Resume is available if the confirmed budget ends.</p></div>`, btn("Cancel", "close") + btn("Run this task", `run-task-confirm:${id}`, "primary")); } catch (error) { popup("Preview failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
-    if (value.startsWith("run-task-confirm:")) { const id = value.slice(17); close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, taskIds: [id], maxSessions: 8, maxMinutes: 60 }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, `run-task-confirm:${id}`); if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
+    if (value.startsWith("task-budget:")) { const id = value.slice(12); const task = derived().tasks.find((item) => item.id === id); if (!task?.executionBudget) return; const budget = task.executionBudget; popup(`Increase task budget · ${escapeHtml(id)}`, `<p>Used ${escapeHtml(budget.used)} of ${escapeHtml(budget.max_sessions)} sessions across runs. Adding sessions does not start work or bypass review.</p><div class="field"><label class="label" for="budget-add">Additional sessions (1–20)</label><input class="input" id="budget-add" type="number" min="1" max="20" step="1" value="8"></div>`, btn("Cancel", "close") + btn("Save increase", `task-budget-save:${id}`, "primary")); return; }
+    if (value.startsWith("task-budget-save:")) { const id = value.slice(17); const additionalSessions = Number($("#budget-add")?.value); if (!Number.isInteger(additionalSessions) || additionalSessions < 1 || additionalSessions > 20) return popup("Invalid budget", "<p>Choose between 1 and 20 additional sessions.</p>", btn("Back", `task-budget:${id}`)); try { const response = await fetch("/api/tasks/session-budget", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId: id, additionalSessions }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Could not increase budget"); await refresh(false); popup("Budget increased", `<p>${escapeHtml(result.budget.used)} of ${escapeHtml(result.budget.max_sessions)} task sessions used. Review the run before resuming.</p>`, btn("Close", "close") + btn("Review resume", `run-task:${id}`, "primary")); } catch (error) { popup("Budget not changed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
+    if (value.startsWith("run-task:") || value.startsWith("run-task-preview:")) { const updating = value.startsWith("run-task-preview:"); const id = value.slice(updating ? 17 : 9); const maxSessions = updating ? Number($("#run-sessions")?.value) : 8; if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 20) return popup("Invalid budget", "<p>Choose between 1 and 20 sessions per task.</p>", btn("Back", `run-task:${id}`)); try { const response = await fetch("/api/run/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskIds: [id], maxSessions, maxMinutes: 60 }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "preview failed"); const task = derived().tasks.find((item) => item.id === id); const exhausted = task?.executionBudget && task.executionBudget.used >= task.executionBudget.max_sessions; popup(`Dispatch preview · ${escapeHtml(id)}`, `<div class="terminal">${escapeHtml((result.lines || []).join("\n"))}</div><div class="field"><label class="label" for="run-sessions">Sessions for this run (1–20)</label><input class="input" id="run-sessions" type="number" min="1" max="20" step="1" value="${maxSessions}"></div><div class="notice"><b>Nothing has started.</b><p>Update the preview after changing this limit. The run has a 60-minute overall limit; any persistent task limit also applies. Required review and dependencies remain in force.</p></div>`, btn("Cancel", "close") + btn("Update preview", `run-task-preview:${id}`) + (exhausted ? btn("Increase task budget", `task-budget:${id}`, "primary") : btn("Run this task", `run-task-confirm:${id}:${maxSessions}`, "primary"))); } catch (error) { popup("Preview failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
+    if (value.startsWith("run-task-confirm:")) { const [id, sessions] = value.slice(17).split(":"); const maxSessions = Number(sessions); const input = $("#run-sessions"); if (input && Number(input.value) !== maxSessions) return popup("Update preview first", "<p>The session limit changed. Update the preview before starting.</p>", btn("Back", `run-task:${id}`)); close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, taskIds: [id], maxSessions, maxMinutes: 60 }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, `run-task-confirm:${id}:${maxSessions}`); if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
     if (value.startsWith("run-start:")) { const id = value.slice(10) || snapshot.queues?.active_queue; close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, queueId: id }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, `run-start:${id}`); if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
     if (value === "run-stop") { const response = await fetch("/api/run/stop", { method: "POST" }); const result = await response.json(); if (!response.ok) return popup("Stop request", `<p>${escapeHtml(result.error || "No active run")}</p>`, btn("Close", "close")); currentRun = result.run; render(); return; }
     if (value.startsWith("agent:")) { const agent = derived().agents?.find((row) => row[0] === value.slice(6)); popup(`${value.slice(6)} / Agent brief`, `<p>Live role telemetry is shown in Agent Team and Activity & Logs.</p>`, btn("Logs", "go:activity") + btn("Close", "close")); return; }
@@ -1555,6 +1662,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
   }, true);
   document.addEventListener("keydown", (event) => {
+    if (event.target.closest(".review-dialog") && event.key !== "Escape") return;
     if (event.key === "Enter" && (event.target.id === "cliInput" || event.target.id === "dockInput")) { const value = event.target.value; event.target.value = ""; void runCommand(value); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); palette(); return; }
     if (event.key === "Escape" && cardDraft) { closeCardEditor(); render(); return; }

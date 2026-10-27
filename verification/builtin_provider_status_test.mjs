@@ -64,13 +64,13 @@ assert.equal(builtinAuthStatus("claude", { env }).signedIn, false, "claude with 
 
 // Aggregate browser view: shape, honest install state, no secrets.
 const status = builtinProviderStatus({}, { env });
-assert.deepEqual(status.map((worker) => worker.id), ["codex", "claude"], "both built-in workers are reported");
+assert.deepEqual(status.map((worker) => worker.id), ["codex", "claude", "gapgpt"], "all built-in workers are reported");
 for (const worker of status) {
   assert.equal(worker.auth, "subscription", "built-in workers default to subscription auth");
   assert.equal(worker.installed, false, "an empty PATH means the CLI is reported not installed");
   assert.equal(typeof worker.loginCommand, "string", "each worker carries its login command");
   assert.ok(worker.loginNote.length > 10, "each worker explains how to sign in");
-  assert.ok(worker.installHint.includes("npm install"), "an uninstalled worker carries its install hint");
+  assert.ok(worker.installHint, "an uninstalled worker carries its install hint");
 }
 assert.equal(status[0].loginCommand, "codex login", "codex connects with codex login");
 assert.match(status[0].loginNote, /Sign in with ChatGPT/, "codex guidance steers to the ChatGPT flow, not API-key sign-in");
@@ -96,7 +96,7 @@ const running = await startControlPlaneServer(root);
 try {
   const payload = await fetch(`${running.url}api/providers`).then((response) => response.json());
   assert.ok(Array.isArray(payload.builtin), "GET /api/providers carries the builtin array");
-  assert.deepEqual(payload.builtin.map((worker) => worker.id), ["codex", "claude"], "the browser sees both built-in workers");
+  assert.deepEqual(payload.builtin.map((worker) => worker.id), ["codex", "claude", "gapgpt"], "the browser sees all built-in workers");
   assert.ok(payload.builtin.every((worker) => !JSON.stringify(worker).includes("access_token")), "no token material ships to the browser");
   assert.ok(!JSON.stringify(payload).includes("sk-paid-credits"), "no API-key material ships to the browser");
   const codex = payload.builtin.find((worker) => worker.id === "codex");

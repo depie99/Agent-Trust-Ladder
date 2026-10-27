@@ -122,6 +122,13 @@ ${JSON.stringify(task.plan_context || [], null, 2)}
 Before implementing, check whether any completion check requires work owned by a downstream task. Report a contract conflict once with the task ids and exact checks; repeating unchanged work cannot resolve a contract conflict.
 Assigned worker: ${task.assigned_worker || "not assigned"}
 Task workspace: ${workdir}
+Verified input revisions: ${JSON.stringify(task.input_revisions || {})}
+Integration inputs: ${JSON.stringify(task.integration_inputs || null)}
+If integration is required, read .atl-inputs/integration.json and the predecessor
+files under .atl-inputs/<task-id>/files. Preserve existing functionality, compose
+the changes here, and return through Sage review and Beacon verification.
+${task.pip_repair_request ? "Mira requests one Pip contract repair. Write {patch, evidence} to a JSON file in this workspace, then run contract-repair <task-id> <file> --actor pip. Only prerequisite, verifier and check ownership metadata may change; acceptance and objective must remain intact." : ""}
+${task.integrated_delivery ? `This is the integrated delivery stage. Re-run these predecessor checks against the composed output: ${JSON.stringify(task.integrated_checks || [])}. Run revision <task-id> to obtain the content revision. Write observation packets under .atl-evidence/ (excluded from source snapshots), then record check, review and browser-journey JSON packets with observe <task-id> <file> --actor <role>. Passing observations need coverage: complete and code_revision: the current content revision. Sage records independent review and Beacon records the complete browser journey. A complete browser journey is mandatory.` : ""}
 Durable handoff from the previous stage:
 ${handoff || "- First stage; no prior handoff"}
 ${role === "rowan" && latestReview?.result === "changes-requested" ? "Repair every outstanding review finding before handing back to Sage. Run the exact failed completion check and save its actual output. Repeating the previous handoff or deferring a failed requirement to another task is not a repair. If the contract conflicts with another task, record the conflict as a blocker; do not claim a pass." : ""}
@@ -160,6 +167,7 @@ export function buildInvocation(worker, { root, workspace, role, task, auth = "s
   const prompt = promptFor(role, task, root, workspace, feedback, navigationContext) + (uiReviewRuntime?.prompt || "");
   if (provider && Array.isArray(provider.args)) {
     const args = provider.args.map((arg) => expandProviderArg(arg, { root, cwd, workspace, role, task, auth, provider, prompt }));
+    if (worker === "gapgpt" && provider.model && !provider.args.some((arg) => String(arg).includes("{model}") || arg === "--model" || arg === "-m")) args.splice(args[0] === "exec" ? 1 : 0, 0, "--model", provider.model);
     if (provider.promptArg) args.push(expandProviderArg(provider.promptArg, { root, cwd, workspace, role, task, auth, provider, prompt }));
     return {
       command: provider.command,
@@ -167,6 +175,9 @@ export function buildInvocation(worker, { root, workspace, role, task, auth = "s
       cwd,
       prompt,
     };
+  }
+  if (worker === "gapgpt") {
+    return { command: provider?.command || "gapcode", args: ["exec", ...(provider?.model ? ["--model", provider.model] : []), "--cd", cwd, "--sandbox", "workspace-write", "--ephemeral", "--skip-git-repo-check", "-"], cwd, prompt };
   }
   // The prompt travels on stdin (both CLIs read stdin when the prompt
   // argument is omitted or "-"): command lines stay short and Windows-safe.

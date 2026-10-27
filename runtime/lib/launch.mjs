@@ -23,6 +23,10 @@ import { buildContextPack } from "./brain.mjs";
 import { probeUiReviewRuntime, uiReviewPrompt } from "./ui-review-runtime.mjs";
 import { createWorkerCredential } from "./session-auth.mjs";
 import { acquireLease, heartbeatLease, releaseLease } from "./leases.mjs";
+import { recordHandoff, readHandoff, deliveryGate, startBaseline, createDeliveryBranch, inspectHandoffChain } from "./handoffs.mjs";
+import { dispatchPreflight } from "./dispatch-preflight.mjs";
+import { recordBlocker, repairBlocker, validateContracts, selectedContracts } from "./queue-recovery.mjs";
+import { recordIntegratedDelivery } from "./delivery.mjs";
 
 const say = (root, from, text, opts = {}) => feedPost(root, { from, text, ...opts });
 
@@ -61,12 +65,12 @@ export function containmentBlock(state, taskId, reason) {
   const task = state.tasks[taskId];
   if (!task || isTerminal(task.status)) return false;
   if (task.status === "blocked") {
-    task.blocker = { reason, since: new Date().toISOString(), actor: "manager" };
+    task.blocker = { ...(task.blocker || {}), reason, since: new Date().toISOString(), actor: "manager" };
     task.updated_at = new Date().toISOString();
     logEvent(state, { task: taskId, actor: "manager", event: "containment", detail: reason });
     return true;
   }
-  task.blocker = { reason, since: new Date().toISOString(), actor: "manager" };
+  task.blocker = { ...(task.blocker || {}), reason, since: new Date().toISOString(), actor: "manager" };
   try {
     transition(state, taskId, "blocked", {
       actor: "manager",
@@ -81,7 +85,85 @@ export function containmentBlock(state, taskId, reason) {
 
 function maxAutoRecoveries(root) {
   const configured = readManagerConfig(root).budgets?.max_auto_recoveries;
-  return Number.isFinite(Number(configured)) ? Math.max(0, Number(configured)) : 1;
+  return Number.isFinite(Number(configured)) ? Math.min(2, Math.max(0, Number(configured))) : 2;
+}
+
+async function prepareRecovery(root, taskId, outcome) {
+  if (!(outcome.failed || outcome.stalled || outcome.status === "blocked")) return;
+  const state = loadState(root); const task = state.tasks[taskId];
+  if (!task) return;
+  const failure = outcome.preflight || { cause: outcome.blocker || "execution", reason: outcome.reason || task.blocker?.reason || "worker stopped" };
+  if (requiresHumanAction(failure.reason)) failure.recovery_owner = "owner";
+  if (failure.cause === "provider-quota" || failure.cause === "browser_probe_failed" || /provider usage limit|provider quota (?:exhausted|reached)/i.test(failure.reason)) failure.recovery_owner = "owner";
+  const record = recordBlocker(task, failure);
+  saveState(root, state);
+  if (record.recovery_owner === "owner" || record.status === "exhausted" || maxAutoRecoveries(root) === 0) return;
+  const recipes = [
+    { action: "prepare-verified-inputs", permitted: ["handoff", "missing-artifact", "workspace", "execution"].includes(record.cause), provision: false },
+    { action: "provision-locked-local-dependencies", permitted: readManagerConfig(root).workspaces?.provisionLocal === true, provision: true },
+  ];
+  for (const recipe of recipes) {
+    if (!recipe.permitted || record.attempts.some((attempt) => attempt.action === recipe.action && attempt.status !== "repairing")) continue;
+    const current = loadState(root).tasks[taskId].recovery;
+    const latestCause = [...current.attempts].reverse().find((attempt) => attempt.preflight?.cause)?.preflight.cause || current.cause;
+    if (recipe.provision && !["local-dependencies", "local-dependencies-unavailable"].includes(latestCause)) continue;
+    const result = await repairBlocker(root, taskId, {
+      action: recipe.action,
+      maxAttempts: maxAutoRecoveries(root),
+      remedy: () => {
+        if (!recipe.provision) {
+          const latest = loadState(root);
+          const predecessors = selectedContracts(latest.tasks, latest.tasks[taskId].plan_depends_on || []);
+          for (const predecessor of Object.values(predecessors)) {
+            if (predecessor.status !== "done" || !predecessor.handoff_baseline) continue;
+            try { readHandoff(root, predecessor); } catch { recordHandoff(root, predecessor); }
+          }
+          saveState(root, latest);
+        }
+        return { remedy: recipe.action, network: false };
+      },
+      preflight: (candidate, tasks) => dispatchPreflight(root, candidate, tasks, { provisionLocal: recipe.provision }),
+    });
+    if (result.recovered) break;
+  }
+}
+
+export async function recoverPreparedTasks(root, taskIds = null, { lockHeld = false } = {}) {
+  const recoveryRunId = lockHeld ? null : beginQueueRun(root, "supervisor-recovery");
+  try {
+  const state = loadState(root);
+  const ids = taskIds || Object.keys(state.tasks);
+  for (const id of ids) {
+    const task = loadState(root).tasks[id];
+    if (task?.status !== "blocked" || !task.recovery || task.recovery.recovery_owner === "owner" || task.recovery.status === "exhausted") continue;
+    const interrupted = task.recovery.attempts.find((attempt) => attempt.status === "repairing");
+    if (interrupted) {
+      await repairBlocker(root, id, {
+        action: interrupted.action,
+        remedy: () => { throw new Error("interrupted remedy must not repeat"); },
+        preflight: (candidate, tasks) => interrupted.action === "pip-contract-repair" && !candidate.pip_repair ? { ready: false, reason: "interrupted Pip session produced no permitted repair" } : dispatchPreflight(root, candidate, tasks, { provisionLocal: readManagerConfig(root).workspaces?.provisionLocal === true, allowIntegration: true }),
+      });
+    }
+    const current = loadState(root).tasks[id];
+    if (current.recovery.status !== "resolved") await prepareRecovery(root, id, { status: "blocked", reason: current.recovery.reason, preflight: current.recovery });
+  }
+  return recoverDueBlockedTasks(root, { taskIds: ids });
+  } finally { if (recoveryRunId) endQueueRun(root, recoveryRunId); }
+}
+
+function queueCompletion(root, tasks, { deliver = true } = {}) {
+  const integrationTask = tasks.find((task) => task.integrated_delivery);
+  let delivery = integrationTask ? deliveryGate(root, tasks, integrationTask) : { version: 1, ready: false, reason: "integrated delivery stage and browser journey required" };
+  if (deliver && delivery.ready && tasks.every((task) => task.status === "done")) {
+    delivery = createDeliveryBranch(root, tasks, integrationTask);
+    delivery.packet_id = recordIntegratedDelivery(root, integrationTask.id, delivery).id;
+  }
+  const status = tasks.some((task) => task.recovery?.status === "exhausted" || (task.execution_budget && task.execution_budget.used >= task.execution_budget.max_sessions && task.status !== "done")) ? "exhausted"
+    : tasks.some((task) => task.recovery?.recovery_owner === "owner" && task.recovery?.status !== "resolved") ? "owner-blocked"
+    : tasks.length && tasks.every((task) => task.status === "done") && delivery.ready ? "completed" : "waiting";
+  const stopped = tasks.find((task) => status === "owner-blocked" ? task.recovery?.recovery_owner === "owner" && task.recovery.status !== "resolved" : status === "exhausted" ? task.recovery?.status === "exhausted" || (task.execution_budget && task.execution_budget.used >= task.execution_budget.max_sessions && task.status !== "done") : task.status !== "done");
+  const reason = stopped?.recovery?.escalation || stopped?.waiting_reason || stopped?.blocker?.reason || (status === "exhausted" ? "persistent execution allowance exhausted" : delivery.reason);
+  return { status, delivery, reason };
 }
 
 // Plan Studio records a directed task chain. A task with unfinished
@@ -169,7 +251,7 @@ function workspaceConfig(root, cfg) {
 //   - a provider preflight runs before every spawn: a missing executable
 //     starts no agent and returns an actionable `blockedLaunch` outcome.
 export async function driveTaskUntilGate(root, taskId, budget, {
-  overnight, dryRun, worker, auth, envPolicy, resolveWorker, lease = null, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false,
+  overnight, dryRun, worker, auth, envPolicy, resolveWorker, lease = null, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false, contractRepair = false,
 }) {
   const report = typeof onProgress === "function" ? onProgress : console.log;
   const runDir = path.join(root, ".trust", "manager", "overnight", taskId);
@@ -179,8 +261,11 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     const state = loadState(root);
     const task = state.tasks[taskId];
     if (!task) return { status: "unknown", reason: `unknown task ${taskId}` };
-    if (isTerminal(task.status)) return { status: task.status, reason: `already ${task.status}` };
-    const role = nextRole(task);
+    if (isTerminal(task.status) && !contractRepair) return { status: task.status, reason: task.status === "blocked" ? task.blocker?.reason || "blocked" : `already ${task.status}` };
+    task.execution_budget ||= { version: 1, max_sessions: budget.maxSessions, used: 0 };
+    task.evidence_contract = 2;
+    if (task.execution_budget.used >= task.execution_budget.max_sessions) return { status: task.status, reason: `persistent session budget exhausted (${task.execution_budget.used}/${task.execution_budget.max_sessions}); increase the task budget before resuming`, exhausted: true };
+    const role = contractRepair ? "pip" : nextRole(task);
     if (!role) return { status: task.status, reason: `no worker role is defined for status ${task.status}` };
 
     const evidenceBefore = (task.evidence || []).length;
@@ -216,7 +301,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     }
 
     let workspace = task.workspace || null;
-    if (role === "rowan") {
+    if (role === "rowan" || (task.plan_depends_on || []).length) {
       const ws = ensureWorkspace(root, workspaceConfig(root, readManagerConfig(root)), task);
       workspace = ws.dir;
       if (task.workspace !== workspace) {
@@ -224,6 +309,30 @@ export async function driveTaskUntilGate(root, taskId, budget, {
         logEvent(state, { task: task.id, actor: "runner", event: "workspace", detail: `${ws.mode}${ws.from ? ` from ${ws.from}` : ""}${ws.reused ? " (reused)" : ""}` });
         saveState(root, state);
       }
+    }
+
+    if (workspace && !dryRun) {
+      writeRunMeta(root, { phase: "preparation" });
+      task.workspace = workspace;
+      const preflightTask = contractRepair ? { ...task, dispatch_contract: { ...task.dispatch_contract, commands: [] } } : task;
+      let preflight = dispatchPreflight(root, preflightTask, state.tasks, { provisionLocal: readManagerConfig(root).workspaces?.provisionLocal === true, allowIntegration: role === "rowan" || contractRepair });
+      if (!preflight.ready && preflight.cause === "overlapping-edits" && role !== "rowan" && !contractRepair) {
+        task.status = "assigned"; task.assigned_worker = "rowan"; task.review_required = true;
+        logEvent(state, { task: task.id, actor: "mira", event: "integration-route", detail: preflight.reason });
+        saveState(root, state); continue;
+      }
+      if (preflight.integration && role === "rowan") {
+        // Rowan receives every conflicting input inside its sandbox. Integration
+        // consumes the same task session budget and must return through review.
+        task.integration_inputs.sessions = (task.integration_inputs.sessions || 0) + 1;
+        startBaseline(root, task);
+        preflight = task.integration_inputs.sessions <= 2 ? preflight : { ready: false, cause: "integration-exhausted", reason: "Rowan integration session budget exhausted" };
+      }
+      if (!preflight.ready) {
+        recordBlocker(task, preflight); saveState(root, state);
+        return { status: task.status, reason: preflight.reason, failed: true, blockedLaunch: true, preflight };
+      }
+      saveState(root, state);
     }
 
     let uiReviewRuntime = null;
@@ -253,6 +362,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       .filter((peer) => peer.id !== task.id && peer.plan_draft_id === task.plan_draft_id)
       .map((peer) => ({ id: peer.id, objective: peer.objective, completion_checks: peer.completion_checks, depends_on: peer.plan_depends_on || [], status: peer.status })) : [];
     const invocation = buildInvocation(useWorker, { root, workspace, role, task: { ...task, plan_context }, auth: useAuth, provider: useProvider, feedback, navigationContext, uiReviewRuntime });
+    invocation.command = disc.path;
     budget.sessions += 1;
     if (budget.taskSessions) budget.taskSessions.set(taskId, taskSessions() + 1);
     const logPath = path.join(runDir, `session-${String(budget.sessions).padStart(2, "0")}-${role}-${Date.now()}.log`);
@@ -268,6 +378,8 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       report("  prompt: role contract + task packet ready (full text is intentionally hidden)");
       return { status: task.status, reason: "dry-run preview" };
     }
+    task.execution_budget.used += 1;
+    writeRunMeta(root, { phase: "provider-session" });
     // Persist worker_start before the session runs — otherwise the event is
     // logged into a state object that the post-session reload discards, and
     // the history only ever shows worker_exit.
@@ -292,7 +404,21 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       throw error;
     }
     const after = loadState(root);
+    writeRunMeta(root, { phase: "handoff" });
     const nextTask = after.tasks[taskId];
+    if (role === "rowan" && nextTask?.integration_inputs?.status === "required" && ["in_review", "verifying", "done"].includes(nextTask.status)) {
+      nextTask.integration_inputs.status = "composed";
+      nextTask.review_required = true;
+    }
+    if (nextTask?.status === "done" && nextTask.handoff_baseline) {
+      try { recordHandoff(root, nextTask); }
+      catch (error) {
+        // A worker's completion claim cannot publish an unverifiable handoff.
+        nextTask.status = "blocked";
+        nextTask.blocker = { reason: error.message, actor: "mira", since: new Date().toISOString() };
+        recordBlocker(nextTask, { cause: "handoff-verification", reason: error.message });
+      }
+    }
     logEvent(after, { task: taskId, actor: "runner", event: "worker_exit", detail: `${useWorker}/${role}; code=${result.code}; timed_out=${result.timedOut}; log=${logPath}` });
     say(root, "runner", `${role} session ended for ${taskId}: code=${result.code}${result.timedOut ? ", timed out" : ""}.`, { task: taskId, detail: logPath });
     saveState(root, after);
@@ -321,6 +447,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     fs.writeFileSync(logPath.replace(/\.log$/i, ".json"), JSON.stringify(summary, null, 2) + "\n");
     report(`[${taskId}] ${role} session finished · exit ${result.code}${result.timedOut ? " · timed out" : ""}`);
     if (typeof onSession === "function") await onSession(summary);
+    if (contractRepair) return { status: nextTask?.status, contractRepaired: Boolean(nextTask?.pip_repair), reason: nextTask?.pip_repair ? "Pip repaired the contract" : "Pip did not produce a permitted contract repair" };
     if (sessionInterruptRequested) {
       sessionInterruptRequested = false;
       return { status: nextTask?.status || task.status, reason: "session interrupted for pending human feedback", interrupted: true };
@@ -350,7 +477,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     if (!overnight) return { status: nextTask.status, reason: "one-shot session complete" };
   }
   const finalTask = loadState(root).tasks[taskId];
-  if (taskSessions() >= budget.maxSessions) return { status: finalTask?.status, reason: `task session budget reached; next role: ${finalTask ? nextRole(finalTask) || "human gate" : "unknown"}`, resumable: true, nextRole: finalTask ? nextRole(finalTask) : null };
+  if (taskSessions() >= budget.maxSessions) return { status: finalTask?.status, reason: `task session budget reached; next role: ${finalTask ? nextRole(finalTask) || "human gate" : "unknown"}`, exhausted: true, resumable: false, nextRole: finalTask ? nextRole(finalTask) : null };
   return { status: finalTask?.status, reason: "overall time budget reached; task can resume", resumable: true, nextRole: finalTask ? nextRole(finalTask) : null };
 }
 
@@ -390,6 +517,11 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     const resolvedSpec = spec ? { ...spec, model: resolvedProvider.model } : spec;
     const disc = role ? discover(provider.worker, { command: spec.command }) : null;
     const blockers = [];
+    if (task.execution_budget && task.execution_budget.used >= task.execution_budget.max_sessions) blockers.push(`persistent session budget exhausted (${task.execution_budget.used}/${task.execution_budget.max_sessions}); increase the task budget before resuming`);
+    if ((task.plan_depends_on || []).length) {
+      const handoffs = inspectHandoffChain(root, task, state.tasks);
+      for (const item of handoffs.items) if (item.handoff !== "verified" && item.status === "done") blockers.push(item.reason);
+    }
     const unmet = unmetDependencies(state, task);
     if (unmet.length) blockers.push(`waiting for prerequisite${unmet.length === 1 ? "" : "s"}: ${unmet.join(", ")}`);
     if (!role) blockers.push(`no worker role is defined for status ${task.status}`);
@@ -518,8 +650,10 @@ export function reconcileOvernightRun(root) {
   const order = Array.isArray(run.taskOrder) ? run.taskOrder : [];
   // Exclude the in-flight task. Its outcome is unknown, so it is surfaced for
   // a manager rather than included in a later confirmed recovery run.
-  const resumableTaskIds = order.slice(completed + (run.currentTaskId ? 1 : 0));
-  const interruptedTaskId = run.currentTaskId || null;
+  const safePhase = ["preparation", "handoff", "recovery"].includes(run.phase);
+  const remaining = Array.isArray(run.pendingTaskIds) ? run.pendingTaskIds : order.slice(completed + (run.currentTaskId ? 1 : 0));
+  const resumableTaskIds = [...new Set([...(safePhase && run.currentTaskId ? [run.currentTaskId] : []), ...remaining, ...(run.resumableTaskIds || [])])].filter((id) => safePhase || id !== run.currentTaskId);
+  const interruptedTaskId = safePhase ? null : run.currentTaskId || null;
   const next = writeRunMeta(root, {
     status: "interrupted",
     interruptedAt: new Date().toISOString(),
@@ -632,12 +766,30 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
     throw new Error(`queue "${queue.queue_id}" is paused — resume it before launching`);
   }
   const initialState = loadState(root);
+  validateContracts(selectedContracts(initialState.tasks, queue.items.map((item) => item.id)));
   const initialPresent = queue.items.map((item) => initialState.tasks[item.id]).filter((t) => t && !isTerminal(t.status));
   if (!initialPresent.length && (dryRun || !confirm)) {
     return { results: [], budget: { sessions: 0, maxSessions, deadline: Date.now() }, reason: "the execution queue is empty (queue tasks with `atl queue add <id>`)" };
   }
   if (!dryRun && !confirm) {
     throw new Error("launch requires --confirm; use --dry-run to preview without starting an agent");
+  }
+  const runId = dryRun ? null : beginQueueRun(root, queue.queue_id);
+  const runStartedAt = Date.now();
+  try {
+  if (!dryRun) {
+    const completedState = loadState(root);
+    for (const item of queue.items) {
+      const task = completedState.tasks[item.id];
+      if (task?.status !== "done" || !task.handoff_baseline) continue;
+      try { readHandoff(root, task); }
+      catch {
+        try { recordHandoff(root, task); }
+        catch (error) { task.status = "blocked"; task.blocker = { reason: error.message, actor: "mira" }; recordBlocker(task, { cause: "handoff-verification", reason: error.message }); }
+      }
+    }
+    saveState(root, completedState);
+    await recoverPreparedTasks(root, queue.items.map((item) => item.id), { lockHeld: true });
   }
   recoverDueBlockedTasks(root, { taskIds: queue.items.map((item) => item.id), dryRun, maxRecoveries: maxAutoRecoveries(root) });
   const state = loadState(root);
@@ -646,13 +798,18 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
   // stay priority-ordered.
   const ordered = queueSelect(present, { preserveOrder: Boolean(queue.round_robin) });
   if (!ordered.length) {
+    if (!dryRun && queue.items.length) {
+      const tasks = queue.items.map((item) => loadState(root).tasks[item.id]).filter(Boolean);
+      const completion = queueCompletion(root, tasks);
+      const results = tasks.map((task) => ({ id: task.id, status: task.status, reason: task.waiting_reason || task.blocker?.reason || completion.delivery.reason || "settled" }));
+      writeRunMeta(root, { ...completion, currentTaskId: null, results, endedAt: new Date().toISOString(), reason: completion.reason || completion.status });
+      return { ...completion, results, budget: { sessions: 0, maxSessions, deadline: Date.now() }, reason: completion.reason || completion.status };
+    }
     return { results: [], budget: { sessions: 0, maxSessions, deadline: Date.now() }, reason: "the execution queue is empty (queue tasks with `atl queue add <id>`)" };
   }
   runAbortRequested = false;
   sessionInterruptRequested = false;
-  const budget = { sessions: 0, maxSessions, taskSessions: new Map(), deadline: Date.now() + maxMinutes * 60 * 1000 };
-  const runStartedAt = Date.now();
-  const runId = dryRun ? null : beginQueueRun(root, queue.queue_id);
+  const budget = { sessions: 0, maxSessions, taskSessions: new Map(), deadline: runStartedAt + maxMinutes * 60 * 1000 };
   writeRunMeta(root, {
     version: 2,
     runId,
@@ -669,18 +826,19 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
     startedAt: new Date().toISOString(),
     heartbeatAt: new Date().toISOString(),
     taskOrder: ordered.map((task) => task.id),
+    pendingTaskIds: ordered.map((task) => task.id),
     cursor: 0,
     currentTaskId: null,
     resumableTaskIds: [],
     pauseAfterSession,
     budget: { maxMinutes, maxSessions, scope: "per-task sessions; overall time limit" },
   });
-  try {
     const results = [];
   const pending = [...ordered];
+  const waiting = new Map();
   while (pending.length) {
     const queued = pending.shift();
-    writeRunMeta(root, { heartbeatAt: new Date().toISOString(), currentTaskId: queued.id });
+    writeRunMeta(root, { heartbeatAt: new Date().toISOString(), currentTaskId: queued.id, pendingTaskIds: [...new Set([...pending.map((task) => task.id), ...waiting.keys()])] });
     if (runAbortRequested) {
       results.push({ id: queued.id, status: "queued", reason: "not reached: run aborted by operator" });
       writeRunMeta(root, { cursor: results.length, currentTaskId: null, results });
@@ -701,7 +859,11 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
     if (unmet.length) {
       const reason = `waiting for prerequisite${unmet.length === 1 ? "" : "s"}: ${unmet.join(", ")}`;
       results.push({ id: fresh.id, status: "queued", reason, waiting: true });
-      writeRunMeta(root, { cursor: results.length, currentTaskId: null, results });
+      waiting.set(fresh.id, fresh);
+      const waitingState = loadState(root);
+      waitingState.tasks[fresh.id].waiting_reason = reason;
+      saveState(root, waitingState);
+      writeRunMeta(root, { cursor: results.length, currentTaskId: null, results, pendingTaskIds: [...new Set([...pending.map((task) => task.id), ...waiting.keys()])] });
       onProgress(`${fresh.id}: ${reason}`);
       continue;
     }
@@ -710,6 +872,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
     try { lease = acquireLease(root, { project: path.resolve(root), task: fresh.id, role: fresh.assigned_worker || "rowan", run: runId || "preview" }); }
     catch (error) { results.push({ id: fresh.id, status: "queued", reason: error.message, lease: false }); onProgress(`${fresh.id}: ${error.message}`); continue; }
     const leaseHeartbeat = setInterval(() => { try { heartbeatLease(root, lease); } catch { /* expiry is surfaced at the next mutation */ } }, 5000);
+    try {
     let outcome = await driveTaskUntilGate(root, fresh.id, budget, {
       overnight: true,
       lease,
@@ -728,7 +891,6 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
         return { ...resolved, provider: { ...providerSpec(profile, resolved.worker), model: resolved.model } };
       },
     }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
-    clearInterval(leaseHeartbeat);
     try { heartbeatLease(root, lease); } catch (error) { outcome = { status: "blocked", reason: `lease fencing failed: ${error.message}`, failed: true }; }
     if (outcome.interrupted && (budget.taskSessions.get(fresh.id) || 0) < budget.maxSessions && Date.now() < budget.deadline) {
       say(root, "runner", `${fresh.id} restarting its gate with the pending human feedback.`, { task: fresh.id });
@@ -752,22 +914,73 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       // records every untouched task as "not reached: run aborted by operator".
       say(root, "runner", `${fresh.id} keeps its gate status — the queue run was aborted by the operator.`, { task: fresh.id });
     }
+    writeRunMeta(root, { phase: "recovery", currentTaskId: fresh.id });
+    const contractFailure = outcome.preflight?.cause === "verifier-assumption" || /contract (?:conflict|contradiction)|downstream.*(?:owns|owned)|conflicting.*ownership/i.test(outcome.reason || "");
+    const repairState = loadState(root); const repairTask = repairState.tasks[fresh.id];
+    let contractRecovered = false;
+    if (contractFailure && !repairTask.pip_repair_request && !dryRun && maxAutoRecoveries(root) > 0 && Date.now() < budget.deadline && (repairTask.execution_budget?.used || 0) < budget.maxSessions) {
+      recordBlocker(repairTask, { cause: outcome.preflight?.cause || "contract-conflict", reason: outcome.reason, recovery_owner: "pip" });
+      repairTask.pip_repair_request = { version: 1, objective: repairTask.objective, reason: outcome.reason, at: new Date().toISOString() };
+      saveState(root, repairState);
+      const contractRecovery = await repairBlocker(root, fresh.id, {
+        action: "pip-contract-repair",
+        maxAttempts: maxAutoRecoveries(root),
+        remedy: async () => driveTaskUntilGate(root, fresh.id, budget, {
+          overnight: true, dryRun, lease, onProgress, onSession, echo, contractRepair: true,
+          resolveWorker: (role) => {
+            const profile = providerProfile(readManagerConfig(root));
+            const resolved = providerForRole(profile, role);
+            return { ...resolved, provider: { ...providerSpec(profile, resolved.worker), model: resolved.model } };
+          },
+        }),
+        preflight: (candidate, tasks) => candidate.pip_repair
+          ? dispatchPreflight(root, candidate, tasks, { provisionLocal: readManagerConfig(root).workspaces?.provisionLocal === true, allowIntegration: true })
+          : { ready: false, reason: "Pip did not repair the contract" },
+      });
+      contractRecovered = contractRecovery.recovered;
+    }
+    if (!contractRecovered) await prepareRecovery(root, fresh.id, outcome);
     const recovery = recoverAfterOutcome(root, fresh.id, outcome, { maxRecoveries: maxAutoRecoveries(root) });
     entry.status = loadState(root).tasks[fresh.id]?.status || entry.status;
     if (recovery.recovered) {
       pending.push(loadState(root).tasks[fresh.id]);
       results.push({ id: fresh.id, status: "requeued", reason: "Mira auto-recovered a non-human blocker" });
     }
-    releaseLease(root, lease);
+    if (entry.status === "done" || recovery.recovered) {
+      const latest = loadState(root);
+      for (const [id, task] of waiting) {
+        if (!unmetDependencies(latest, latest.tasks[id]).length) {
+          pending.push(task); waiting.delete(id);
+          latest.tasks[id].waiting_reason = null;
+          for (let i = results.length - 1; i >= 0; i--) if (results[i].id === id && results[i].waiting) results.splice(i, 1);
+        }
+      }
+      const pendingIds = new Set(pending.map((task) => task.id));
+      for (const item of queue.items) {
+        const task = latest.tasks[item.id];
+        if (task?.revalidation_requested && !isTerminal(task.status) && !pendingIds.has(task.id) && task.id !== fresh.id && !waiting.has(task.id)) { pending.push(task); pendingIds.add(task.id); }
+      }
+      saveState(root, latest);
+    }
+    writeRunMeta(root, { phase: "boundary", currentTaskId: null, results, pendingTaskIds: [...new Set([...pending.map((task) => task.id), ...waiting.keys()])] });
+    } finally {
+      clearInterval(leaseHeartbeat);
+      releaseLease(root, lease);
+    }
   }
-  const completionReason = runAbortRequested ? "operator stopped the run"
+  let completionReason = runAbortRequested ? "operator stopped the run"
     : results.find((entry) => entry.status === "blocked" || entry.status === "unknown" || entry.resumable || entry.waiting)?.reason || "queue run complete";
+  const finalState = loadState(root);
+  const finalTasks = queue.items.map((item) => finalState.tasks[item.id]).filter(Boolean);
+  const { status: queueStatus, delivery, reason: gateReason } = queueCompletion(root, finalTasks, { deliver: !runAbortRequested && !results.some((entry) => entry.paused) });
+  if (!runAbortRequested && queueStatus !== "completed" && gateReason) completionReason = gateReason;
   writeRunMeta(root, {
-    status: runAbortRequested ? "aborted" : (results.some((entry) => entry.paused) ? "paused" : "finished"),
+    status: runAbortRequested ? "aborted" : (results.some((entry) => entry.paused) ? "paused" : queueStatus),
+    delivery,
     endedAt: new Date().toISOString(),
     reason: completionReason,
     currentTaskId: null,
-    resumableTaskIds: results.filter((entry) => entry.resumable).map((entry) => entry.id),
+    resumableTaskIds: [...new Set([...results.filter((entry) => entry.resumable).map((entry) => entry.id), ...waiting.keys()])],
     results,
   });
   // Threshold watch: near-exhaustion or exhaustion at run end posts a
@@ -780,7 +993,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       maxMinutes,
     });
   } catch { /* telemetry must never fail the run summary */ }
-  return { results, budget, runId, reason: completionReason };
+  return { results, budget, runId, reason: completionReason, status: queueStatus, delivery };
   } finally {
     if (runId) endQueueRun(root, runId);
   }

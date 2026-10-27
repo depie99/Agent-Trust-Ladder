@@ -52,6 +52,8 @@ import { registerProject, setSupervisorDefaults, supervisorSnapshot } from "./li
 import { validateWorkerCredential } from "./lib/session-auth.mjs";
 import { leaseAllows } from "./lib/leases.mjs";
 import { createBackup, listBackups, restoreBackup } from "./lib/backup.mjs";
+import { repairContract } from "./lib/queue-recovery.mjs";
+import { snapshot as contentSnapshot } from "./lib/handoffs.mjs";
 
 // The project is where you run the CLI from (like git): state, config, and
 // workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
@@ -141,6 +143,9 @@ Intake (pulls new work in)
   triage <task-id>              print Pip's triage packet for a task
 
 Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
+  revision <id>                print the workspace content revision
+  observe <id> <packet.json>    record complete revision-bound observation evidence
+  contract-repair <id> <file>  apply one supervisor-requested Pip contract revision
   update <id> [--set k=v]... [--check "..."]... [--objective "..."]
                 [--evidence-pass "..."]... [--evidence-fail "..."]...
                 [--review "approve: ..."| "changes-requested: ..."] [--note "..."]
@@ -1070,7 +1075,7 @@ async function main() {
         if (!id) throw new StateError("provider use needs a name: provider use <id> [--role role]");
         const registry = loadUserProviders();
         const entry = getProvider(registry, id);
-        const builtin = new Set(["codex", "claude"]);
+        const builtin = new Set(["codex", "claude", "gapgpt"]);
         if (!entry && !builtin.has(String(id).toLowerCase())) throw new StateError(`no provider named "${id}" in ~/.atl/providers.json or built-in workers`);
         flags.provider = entry?.id || String(id).toLowerCase();
         updateProviderSelection();
@@ -1126,6 +1131,7 @@ async function main() {
       const { state, task } = need(pos[0]);
       const actor = knownActor(task.id);
       const contract = actor !== "manager" ? contractFor(actor) : null;
+      if (actor === "pip" && task.pip_repair_request && (flags.objective || flags.check.length || Object.keys(flags.set).length)) throw new StateError("a requested Pip repair must use contract-repair; the approved objective and acceptance cannot change through update");
 
       if (task.status === "new" && actor && !["pip", "manager", "mira"].includes(actor)) {
         throw new StateError(`${task.id}: only Pip (or the manager) may shape a task in triage`);
@@ -1165,7 +1171,7 @@ async function main() {
         task.assigned_worker = flags.to;
       }
       for (const p of flags.pass) {
-        addEvidence(state, task.id, { kind: "check", check: p, result: "pass", detail: "" }, actor);
+        addEvidence(state, task.id, { kind: "check", check: p, result: "pass", detail: "", coverage: "complete", code_revision: task.workspace ? contentSnapshot(ROOT, task.workspace).revision : null }, actor);
         say(actor, `check passed on ${task.id}: ${p}`, { task: task.id });
       }
       for (const f of flags.fail) {
@@ -1180,7 +1186,7 @@ async function main() {
       for (const r of flags.review) {
         const m = r.match(/^\s*(approve|changes-requested)\s*[:\-]\s*(.+)$/i);
         if (!m) throw new StateError(`--review expects "approve: <findings>" or "changes-requested: <findings>"`);
-        addEvidence(state, task.id, { kind: "review", result: m[1].toLowerCase(), detail: m[2].trim() }, actor);
+        addEvidence(state, task.id, { kind: "review", result: m[1].toLowerCase(), detail: m[2].trim(), code_revision: task.workspace ? contentSnapshot(ROOT, task.workspace).revision : null }, actor);
         say(actor, `review verdict on ${task.id}: ${m[1].toLowerCase()} — ${m[2].trim()}`, { task: task.id });
       }
       for (const n of flags.note) {
@@ -1197,6 +1203,33 @@ async function main() {
       return;
     }
 
+    case "revision": {
+      const { task } = need(pos[0]);
+      console.log(contentSnapshot(ROOT, task.workspace).revision); return;
+    }
+    case "observe": {
+      const { state, task } = need(pos[0]);
+      const actor = knownActor(task.id);
+      if (!["rowan", "sage", "beacon", "manager"].includes(actor)) throw new StateError("this role cannot record verification evidence");
+      const file = path.resolve(task.workspace, pos[1] || "");
+      if (!file.startsWith(path.resolve(task.workspace) + path.sep)) throw new StateError("evidence packet must be inside the task workspace");
+      const entry = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (!["check", "review", "browser-journey"].includes(entry.kind)) throw new StateError("unsupported observation kind");
+      if (entry.kind === "review" && !["sage", "manager"].includes(actor)) throw new StateError("Sage owns independent review");
+      if (entry.kind === "browser-journey" && !["beacon", "manager"].includes(actor)) throw new StateError("Beacon owns integrated browser verification");
+      addEvidence(state, task.id, entry, actor); saveState(ROOT, state);
+      console.log("observation recorded"); return;
+    }
+    case "contract-repair": {
+      const { task } = need(pos[0]);
+      const actor = knownActor(task.id);
+      if (actor !== "pip" || !task.pip_repair_request) throw new StateError("only a supervisor-requested Pip repair is permitted");
+      const file = path.resolve(task.workspace, pos[1] || "");
+      if (!file.startsWith(path.resolve(task.workspace) + path.sep)) throw new StateError("repair packet must be inside the task workspace");
+      const packet = JSON.parse(fs.readFileSync(file, "utf8"));
+      repairContract(ROOT, task.id, packet.patch, { objective: task.objective, budgetApproved: true, evidence: packet.evidence });
+      console.log("contract revision recorded; affected evidence invalidated"); return;
+    }
     case "move": {
       const { state, task } = need(pos[0]);
       const to = pos[1];
@@ -1848,7 +1881,7 @@ async function main() {
       for (const t of Object.values(state.tasks)) {
         if (!STATUSES.includes(t.status)) problems.push(`${t.id}: bad status ${t.status}`);
         for (const e of t.evidence) {
-          if (e.kind === "check" && e.check && !t.completion_checks.includes(e.check)) {
+          if (e.kind === "check" && e.check && ![...t.completion_checks, ...(t.integrated_checks || [])].includes(e.check)) {
             problems.push(`${t.id}: evidence references unknown check "${e.check}"`);
           }
         }

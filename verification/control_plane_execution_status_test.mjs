@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { startControlPlaneServer } from '../runtime/lib/control-plane-server.mjs';
-import { emptyState, saveState } from '../runtime/lib/state.mjs';
+import { emptyState, loadState, saveState } from '../runtime/lib/state.mjs';
+import { buildLaunchPlan } from '../runtime/lib/launch.mjs';
 
 // Exercise the real client projection and markup without starting providers.
 const source = fs.readFileSync(new URL('../runtime/control-plane-client.js', import.meta.url), 'utf8');
@@ -57,6 +58,11 @@ const task = { id: 'T-018', rawStatus: 'in_progress', status: 'Stopped', title: 
 scope.currentRun = { status: 'stopped', taskIds: ['T-018'], results: [{ id: 'T-018', resumable: true, reason: 'task session budget reached; next role: rowan' }] };
 assert.equal(scope.taskExecution(task).label, 'Stopped');
 assert.match(scope.taskExecution(task).reason, /Session budget exhausted/);
+assert.match(scope.taskExecution({ ...task, executionBudget: { used: 8, max_sessions: 8 } }).reason, /Increase the task budget/);
+assert.match(scope.taskExecution(task).reason, /last run/);
+scope.currentRun = { status: 'stopped', taskIds: ['T-018'], finishedAt: '2026-10-27T10:00:00Z', results: [{ id: 'T-018', status: 'blocked', reason: 'missing handoff' }] };
+assert.match(scope.taskExecution({ ...task, updated_at: '2026-10-27T10:05:00Z', recovery: { status: 'resolved' } }).reason, /previous blocker was resolved/);
+scope.currentRun = { status: 'stopped', taskIds: ['T-018'], results: [{ id: 'T-018', resumable: true, reason: 'task session budget reached; next role: rowan' }] };
 assert.doesNotMatch(scope.renderRow(task), /running-mark|55%/);
 scope.taskDetail(task);
 assert.doesNotMatch(scope.detail, /Running now|running-mark|55%/);
@@ -144,6 +150,19 @@ const running = await startControlPlaneServer(root);
 const ledger = path.join(root, '.trust/manager/overnight/run.json');
 fs.mkdirSync(path.dirname(ledger), { recursive: true });
 try {
+  const state = loadState(root);
+  state.tasks['T-BUDGET'] = { id: 'T-BUDGET', title: 'Budget', status: 'in_review', execution_budget: { version: 1, used: 8, max_sessions: 8 } };
+  saveState(root, state);
+  const plan = () => buildLaunchPlan(root, { taskIds: ['T-BUDGET'], discover: () => ({ available: false, error: 'not installed' }) });
+  assert.match(plan().items[0].blockers.join(' '), /persistent session budget exhausted/);
+  const changeBudget = (additionalSessions) => fetch(`${running.url}api/tasks/session-budget`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ taskId: 'T-BUDGET', additionalSessions }) });
+  assert.equal((await changeBudget(0)).status, 400);
+  assert.equal((await changeBudget(21)).status, 400);
+  assert.equal((await changeBudget(4)).status, 200);
+  assert.equal(loadState(root).tasks['T-BUDGET'].execution_budget.used, 8);
+  assert.equal(loadState(root).tasks['T-BUDGET'].execution_budget.max_sessions, 12);
+  assert.doesNotMatch(plan().items[0].blockers.join(' '), /persistent session budget exhausted/);
+  assert.equal(loadState(root).log.at(-1).event, 'session_budget_increased');
   const write = (data) => fs.writeFileSync(ledger, JSON.stringify(data));
   write({ status: 'running', runnerPid: process.pid, taskOrder: ['T-018', 'T-019'], currentTaskId: 'T-018', results: [] });
   let run = await fetch(`${running.url}api/run`).then((r) => r.json());
