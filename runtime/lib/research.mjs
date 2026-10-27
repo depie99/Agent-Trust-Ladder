@@ -281,7 +281,9 @@ export function createRecord(root, fields, { force = false } = {}) {
   });
   addClaim(root, {
     text: record.atl_impact || record.title,
-    subject: (record.concepts || [])[0] || record.title,
+    // A concept is a topic, not a claim identity: independent records on the
+    // same topic must not be declared contradictory merely for differing.
+    subject: `research:${record.id}`,
     source_id: record.id,
     source_uri: (record.sources || [])[0] || null,
     source_content: body,

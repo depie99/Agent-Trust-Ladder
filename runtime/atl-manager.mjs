@@ -14,7 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   StateError, STATUSES, paths, emptyState, loadState, saveState,
   createTask, logEvent, transition, addEvidence, reviseTaskPacket,
@@ -1435,7 +1435,17 @@ async function main() {
       const host = String(flags.host || "127.0.0.1");
       const port = Number(flags.port || 0);
       if (!Number.isInteger(port) || port < 0 || port > 65535) throw new StateError("--port must be an integer from 0 to 65535");
-      const running = await startControlPlaneServer(ROOT, { host, port, ...(flags.assetRoot ? { assetRoot: flags.assetRoot } : {}) });
+      // Project assets and API routes must come from the same runtime version.
+      // An installed CLI may be older than the project it is refreshing.
+      let startServer = startControlPlaneServer;
+      if (flags.assetRoot) {
+        const projectServer = path.join(flags.assetRoot, "lib", "control-plane-server.mjs");
+        if (!fs.existsSync(projectServer)) throw new StateError("Project UI assets are present but their matching Control Plane server is missing.");
+        const module = await import(pathToFileURL(projectServer).href);
+        if (typeof module.startControlPlaneServer !== "function") throw new StateError("Project Control Plane server does not export startControlPlaneServer.");
+        startServer = module.startControlPlaneServer;
+      }
+      const running = await startServer(ROOT, { host, port, ...(flags.assetRoot ? { assetRoot: flags.assetRoot } : {}) });
       console.log(`ATL browser control plane: ${running.url}`);
       console.log("Live state and commands are served from this project. Press Ctrl+C to stop.");
       if (!flags.noOpen) openControlPlane(running.url);

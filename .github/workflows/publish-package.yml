@@ -21,15 +21,18 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 20.x
+          node-version: 22.x
           registry-url: https://npm.pkg.github.com
           scope: '@depie99'
 
       - name: Verify package
         run: |
+          npm ci
+          npx playwright install chromium
           node --check runtime/atl-manager.mjs
           node --check runtime/lib/skill-router.mjs
           python scripts/validate_model_routing.py
+          node verification/package_smoke_test.mjs
           npm pack --dry-run
 
       - name: Publish to GitHub Packages

@@ -157,6 +157,8 @@ export function explainTasks(root, taskId) {
   const tasks = Object.values(state.tasks).filter((t) => ACTIVE_STATUSES.has(t.status));
   const selected = taskId ? tasks.filter((t) => t.id === taskId) : tasks;
   const queued = new Set(queueIds(root));
+  let latestRun = null;
+  try { latestRun = JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "overnight", "run.json"), "utf8")); } catch { /* No readable run record. */ }
 
   return selected.map((t) => {
     const base = {
@@ -200,10 +202,18 @@ export function explainTasks(root, taskId) {
           fix: base.queued ? `atl launch --confirm  (it is in the queue)` : `atl queue add ${t.id} && atl launch --confirm`,
         };
       case "in_progress":
+        if (latestRun?.status === "interrupted" && latestRun.interruptedTaskId === t.id) {
+          return {
+            ...base,
+            kind: "interrupted",
+            why: `the worker session was interrupted; inspect its transcript and evidence before retrying: .trust/manager/overnight/${t.id}/session-*.log`,
+            fix: `resolve the interruption, then atl launch --confirm`,
+          };
+        }
         return {
           ...base,
           kind: "working",
-          why: `a ${t.assigned_worker || "worker"} session is working it — live transcript: .trust/manager/overnight/${t.id}/session-*.log`,
+          why: `task is in progress; check the runner and transcript for live activity: .trust/manager/overnight/${t.id}/session-*.log`,
           fix: `atl launch --confirm  (re-enter if the session died)`,
         };
       case "in_review":

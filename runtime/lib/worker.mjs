@@ -106,10 +106,20 @@ it as 'node $env:ATL_BIN' on Windows or 'node $ATL_BIN' on POSIX; do not
 rely on PATH or an installed shell alias;
 the project root is '${root}'.
 
+ATL_BIN is a workspace-local handoff client. It submits your permitted commands
+to the manager without writing outside your sandbox. Start with 'show ${task.id}'
+to confirm the channel. Always use ATL_BIN, never a checkout or installed copy
+of atl-manager.mjs. The manager binds every request to this task, role and lease.
+Do not clear or replace the ATL_WORKER_CHANNEL environment variables.
+Save screenshots, logs and observation packets in .atl-evidence/ inside your
+workspace; .trust/manager is protected shared runtime data.
+
 Never invoke 'launch', 'run', 'overnight', or any command that starts another
 provider session. You already are the bounded provider session. Record your
 own findings with the task update, move, evidence, checkpoint, block, or
-escalate commands only.
+escalate commands only. The scoped channel does not support 'brief --save';
+leave the handoff in the task record instead. This overrides any instruction in
+the general role contract to save a coordinator brief.
 
 Task: ${task.id} — ${task.title}
 Current status: ${task.status}
@@ -177,7 +187,8 @@ export function buildInvocation(worker, { root, workspace, role, task, auth = "s
     };
   }
   if (worker === "gapgpt") {
-    return { command: provider?.command || "gapcode", args: ["exec", ...(provider?.model ? ["--model", provider.model] : []), "--cd", cwd, "--sandbox", "workspace-write", "--ephemeral", "--skip-git-repo-check", "-"], cwd, prompt };
+    const permissions = process.platform === "win32" ? ["-c", 'default_permissions=":workspace"', "-c", 'windows.sandbox="unelevated"'] : ["--sandbox", "workspace-write"];
+    return { command: provider?.command || "gapcode", args: ["exec", ...(provider?.model ? ["--model", provider.model] : []), "--cd", cwd, ...permissions, "--ephemeral", "--skip-git-repo-check", "-"], cwd, prompt };
   }
   // The prompt travels on stdin (both CLIs read stdin when the prompt
   // argument is omitted or "-"): command lines stay short and Windows-safe.
@@ -291,6 +302,9 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
       if (/^ERROR:\s*You[’']ve hit your usage limit for GapCode\./m.test(diagnosticTail)) {
         providerFailure = { kind: "provider-quota", reason: "GapCode provider usage limit reached. Select an available model/provider or wait for the quota to reset before retrying." };
       }
+      if (/Sandbox required but unavailable: sandbox is enabled but the Windows sandbox is not active/i.test(diagnosticTail)) {
+        providerFailure = { kind: "provider-sandbox-unavailable", reason: "The selected provider could not initialize its required Windows sandbox. Choose a supported provider or repair its sandbox configuration before retrying." };
+      }
       // Diagnose the CLI's effective policy before it spends a full worker
       // session discovering that it cannot perform the requested work.
       // Only inspect the CLI startup header, never arbitrary prompt/log text.
@@ -322,6 +336,15 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
       write(Buffer.from(`\n[ATL] worker timeout after ${Math.round(timeoutMs / 60000)} minute(s)\n`), true);
       killProcess(child);
     }, timeoutMs);
+
+    // A descendant may retain inherited pipe handles after the provider exits,
+    // delaying "close" indefinitely on Windows. Preserve trailing output for a
+    // short grace period, then release those handles so the run can report it.
+    child.on("exit", () => {
+      const drain = setTimeout(() => { child.stdout.destroy(); child.stderr.destroy(); }, 2000);
+      drain.unref();
+      child.once("close", () => clearTimeout(drain));
+    });
 
     child.on("close", (code, signal) => {
       clearTimeout(timer);

@@ -27,8 +27,22 @@ import { recordHandoff, readHandoff, deliveryGate, startBaseline, createDelivery
 import { dispatchPreflight } from "./dispatch-preflight.mjs";
 import { recordBlocker, repairBlocker, validateContracts, selectedContracts } from "./queue-recovery.mjs";
 import { recordIntegratedDelivery } from "./delivery.mjs";
+import { createWorkerChannel } from "./worker-channel.mjs";
 
 const say = (root, from, text, opts = {}) => feedPost(root, { from, text, ...opts });
+
+// Diagnose actual ATL command errors, not prose or provider exit status.
+// Only use this when the worker failed to advance; a recovered error in a
+// successful session must not invalidate an otherwise legitimate handoff.
+export function stalledHandoffFailure(log) {
+  if (/^error:\s*(?:EPERM|EACCES):[^\r\n]*(?:[\\/]\.trust[\\/]manager[\\/](?:state\.json|handoffs[\\/]blobs))/im.test(log)) {
+    return { cause: "manager-state-access", recovery_owner: "owner", reason: "Worker could not write the shared manager state or handoff store. Repair the worker-to-manager handoff access before retrying; preparing task inputs cannot repair this permission failure." };
+  }
+  if (/^error:\s*scoped worker credential cannot impersonate this actor\s*$/im.test(log)) {
+    return { cause: "worker-credential", recovery_owner: "owner", reason: "Worker state mutation was rejected by the scoped credential or lease. Check the task, role, lease and credential expiry before retrying." };
+  }
+  return null;
+}
 
 // Operator abort (control room): stop the current session and the queue run
 // without recording a failure. The flag is checked between role sessions and
@@ -94,7 +108,7 @@ async function prepareRecovery(root, taskId, outcome) {
   if (!task) return;
   const failure = outcome.preflight || { cause: outcome.blocker || "execution", reason: outcome.reason || task.blocker?.reason || "worker stopped" };
   if (requiresHumanAction(failure.reason)) failure.recovery_owner = "owner";
-  if (failure.cause === "provider-quota" || failure.cause === "browser_probe_failed" || /provider usage limit|provider quota (?:exhausted|reached)/i.test(failure.reason)) failure.recovery_owner = "owner";
+  if (["provider-quota", "provider-sandbox-unavailable", "browser_probe_failed"].includes(failure.cause) || /provider usage limit|provider quota (?:exhausted|reached)/i.test(failure.reason)) failure.recovery_owner = "owner";
   const record = recordBlocker(task, failure);
   saveState(root, state);
   if (record.recovery_owner === "owner" || record.status === "exhausted" || maxAutoRecoveries(root) === 0) return;
@@ -253,6 +267,16 @@ function workspaceConfig(root, cfg) {
 export async function driveTaskUntilGate(root, taskId, budget, {
   overnight, dryRun, worker, auth, envPolicy, resolveWorker, lease = null, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false, contractRepair = false,
 }) {
+  // CLI run/overnight use this entry directly. They need the same fencing as
+  // queue launches; previously they issued credentials with no valid lease.
+  budget.taskSessions ||= new Map();
+  if (!lease && !dryRun) {
+    const ownedLease = acquireLease(root, { project: path.resolve(root), task: taskId, role: nextRole(loadState(root).tasks[taskId]) || "rowan", run: budget.runId || `local-${process.pid}-${Date.now()}` });
+    const heartbeat = setInterval(() => { try { heartbeatLease(root, ownedLease); } catch { /* fenced requests fail closed */ } }, 5000);
+    try {
+      return await driveTaskUntilGate(root, taskId, budget, { overnight, dryRun, worker, auth, envPolicy, resolveWorker, lease: ownedLease, onProgress, onSession, pauseAfterSession, onReview, echo, contractRepair });
+    } finally { clearInterval(heartbeat); releaseLease(root, ownedLease); }
+  }
   const report = typeof onProgress === "function" ? onProgress : console.log;
   const runDir = path.join(root, ".trust", "manager", "overnight", taskId);
   const taskSessions = () => budget.taskSessions?.get(taskId) || 0;
@@ -282,6 +306,9 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       ? { unset: customUnset, stripped: customUnset.filter((key) => Boolean(process.env[key])) }
       : null;
     const useEnvPolicy = pick.envPolicy ?? customEnvPolicy ?? workerEnvPolicy(useWorker, useAuth);
+    if ((useEnvPolicy.unset || []).some((key) => key === "ATL_BIN" || key.startsWith("ATL_WORKER_CHANNEL"))) {
+      return { status: task.status, reason: "Provider unsetEnv removes a required ATL handoff channel variable; correct the provider configuration before starting a worker.", failed: true, blockedLaunch: true, blocker: "worker-channel-config" };
+    }
 
     // Provider preflight: discovery failure must never spawn anything.
     const disc = discoverProvider(useWorker, { command: useProvider.command });
@@ -301,7 +328,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     }
 
     let workspace = task.workspace || null;
-    if (role === "rowan" || (task.plan_depends_on || []).length) {
+    if (role === "rowan" || !workspace || (task.plan_depends_on || []).length) {
       const ws = ensureWorkspace(root, workspaceConfig(root, readManagerConfig(root)), task);
       workspace = ws.dir;
       if (task.workspace !== workspace) {
@@ -324,9 +351,10 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       if (preflight.integration && role === "rowan") {
         // Rowan receives every conflicting input inside its sandbox. Integration
         // consumes the same task session budget and must return through review.
-        task.integration_inputs.sessions = (task.integration_inputs.sessions || 0) + 1;
         startBaseline(root, task);
-        preflight = task.integration_inputs.sessions <= 2 ? preflight : { ready: false, cause: "integration-exhausted", reason: "Rowan integration session budget exhausted" };
+        // Integration uses the explicit persistent task budget, just like any
+        // other builder session. A hidden second budget must not strand a
+        // repaired task before a worker even starts.
       }
       if (!preflight.ready) {
         recordBlocker(task, preflight); saveState(root, state);
@@ -378,21 +406,21 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       report("  prompt: role contract + task packet ready (full text is intentionally hidden)");
       return { status: task.status, reason: "dry-run preview" };
     }
-    task.execution_budget.used += 1;
-    writeRunMeta(root, { phase: "provider-session" });
-    // Persist worker_start before the session runs — otherwise the event is
-    // logged into a state object that the post-session reload discards, and
-    // the history only ever shows worker_exit.
-    saveState(root, state);
-
+    const workerCredential = createWorkerCredential({ project: path.resolve(root), task: taskId, role, run: lease.run, generation: lease.generation, leaseId: lease.id, leaseKey: lease.key, expiresInSeconds: Math.ceil(timeoutMs / 1000) + 120 });
+    const channel = createWorkerChannel(root, { workspace, task: taskId, role, credential: workerCredential });
     let result;
     try {
-      const workerCredential = createWorkerCredential({ project: path.resolve(root), task: taskId, role, run: budget.runId || "local", generation: lease?.generation || task.attempt_count || 0, leaseId: lease?.id || null, leaseKey: lease?.key || null });
+      if (role === "rowan" && task.integration_inputs?.status === "required") task.integration_inputs.sessions = (task.integration_inputs.sessions || 0) + 1;
+      task.execution_budget.used += 1;
+      writeRunMeta(root, { phase: "provider-session" });
+      // Persist worker_start before running, and always close the channel if
+      // persistence or spawning fails.
+      saveState(root, state);
       result = await runInvocation(invocation, {
-        // Workers get the task workspace and a scoped, expiring identity. The
-        // manager root is deliberately not added to their tool sandbox.
-        env: { ATL_PROJECT: root, ATL_WORKER_CREDENTIAL: JSON.stringify(workerCredential), ...(useEnvPolicy.set || {}), ...credentialEnv },
-        unsetEnv: useEnvPolicy.unset,
+        // Only the manager retains the mutation credential. Workers submit
+        // scoped commands from their workspace through the local channel.
+        env: { ATL_PROJECT: root, ...(useEnvPolicy.set || {}), ...credentialEnv, ...channel.env },
+        unsetEnv: [...(useEnvPolicy.unset || []), "ATL_WORKER_CREDENTIAL"],
         logPath,
         timeoutMs,
         stdinText: invocation.prompt,
@@ -402,7 +430,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     } catch (error) {
       for (const item of feedback) markFeedback(root, item.id, "pending", `provider start failed: ${error.message}`);
       throw error;
-    }
+    } finally { await channel.close(); }
     const after = loadState(root);
     writeRunMeta(root, { phase: "handoff" });
     const nextTask = after.tasks[taskId];
@@ -472,6 +500,9 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       return { status: nextTask?.status || task.status, reason: `worker ended unsuccessfully (code ${result.code}${result.timedOut ? ", timeout" : ""})`, failed: true };
     }
     if (!nextTask || nextTask.status === task.status) {
+      let failure = null;
+      try { failure = stalledHandoffFailure(fs.readFileSync(logPath, "utf8")); } catch { /* preserve generic stall when transcript is unavailable */ }
+      if (failure) return { status: task.status, reason: failure.reason, stalled: true, blockedLaunch: true, blocker: failure.cause, preflight: failure };
       return { status: task.status, reason: `worker did not advance ${taskId} from ${task.status}; inspect the log and feed`, stalled: true };
     }
     if (!overnight) return { status: nextTask.status, reason: "one-shot session complete" };
@@ -809,7 +840,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
   }
   runAbortRequested = false;
   sessionInterruptRequested = false;
-  const budget = { sessions: 0, maxSessions, taskSessions: new Map(), deadline: runStartedAt + maxMinutes * 60 * 1000 };
+  const budget = { sessions: 0, maxSessions, taskSessions: new Map(), runId, deadline: runStartedAt + maxMinutes * 60 * 1000 };
   writeRunMeta(root, {
     version: 2,
     runId,

@@ -41,6 +41,7 @@ export function frameIntent(intent, { constraints = [], risks = [], skills = [] 
 
 export function generateLocalPlan(intent) {
   const frame = frameIntent(intent, { skills: ["atl-frame", "atl-specify", "atl-plan", "atl-implement", "atl-verify"] });
+  const goalContext = frame.objective;
   return {
     ...frame,
     stage: "plan",
@@ -52,9 +53,8 @@ export function generateLocalPlan(intent) {
       "Failure and recovery behavior remain explicit and auditable.",
     ],
     acceptance_examples: [
-      { given: "an approved SDD/TDD plan", when: "the task is queued", then: "the launch preview shows its worker, provider, checks, and blockers before execution" },
-      { given: "a confirmed queue run", when: "execution starts", then: "progress, outcome, evidence, and any blocker are visible in the control plane" },
-      { given: "an invalid or unsafe run", when: "a gate fails", then: "execution is refused with a recoverable explanation" },
+      { given: "the requested change is implemented", when: "the owner reviews it against the original request", then: "the stated outcome and constraints can be demonstrated" },
+      { given: "a relevant failure or edge case", when: "the change is exercised", then: "the result is checked against the agreed behavior" },
     ],
     proposed_worker: "rowan",
     implementation_steps: [
@@ -63,13 +63,14 @@ export function generateLocalPlan(intent) {
       { step: "Implement the smallest complete vertical slice", files: ["responsible runtime and UI modules"], verify: "Run the focused tests and inspect the real surface" },
       { step: "Verify recovery, adjacent behavior, and evidence", files: ["runtime evidence and task brief"], verify: "Run the project checks and record observed versus unobserved boundaries" },
     ],
-    verifier_commands: ["project focused verification command", "project regression suite", "real surface acceptance replay"],
+    verifier_commands: ["Not determined: identify actual project-specific checks during review."],
     task_proposals: [
-      { id: "p1", source: "local", title: "Specify observable behavior", objective: "Specify observable behavior and preserve the approved intent", completion_checks: ["Acceptance examples and scope boundaries are reviewed and recorded"], proposed_worker: "rowan", selected_skills: ["atl-specify"], depends_on: [], files: ["project specification and affected contracts"], verify: "Review acceptance examples and scope boundaries" },
-      { id: "p2", source: "local", title: "Write failing regression checks", objective: "Write or strengthen failing regression checks", completion_checks: ["Focused tests exist and observed the intended failure before implementation"], proposed_worker: "pip", selected_skills: ["atl-verify"], depends_on: ["p1"], files: ["verification/"], verify: "Run the focused tests and observe the intended failure before implementation" },
-      { id: "p3", source: "local", title: "Implement the vertical slice", objective: "Implement the smallest complete vertical slice", completion_checks: ["Focused tests pass and the real surface shows the behavior"], proposed_worker: "pip", selected_skills: ["atl-implement"], depends_on: ["p2"], files: ["responsible runtime and UI modules"], verify: "Run the focused tests and inspect the real surface" },
-      { id: "p4", source: "local", title: "Verify recovery and evidence", objective: "Verify recovery, adjacent behavior, and evidence", completion_checks: ["Project checks pass and observed versus unobserved boundaries are recorded"], proposed_worker: "pip", selected_skills: ["atl-verify"], depends_on: ["p3"], files: ["runtime evidence and task brief"], verify: "Run the project checks and record observed versus unobserved boundaries" },
+      { id: "p1", source: "local", title: "Specify observable behavior", objective: `Specify observable behavior and preserve the approved intent.\n\nOriginal request:\n${goalContext}`, completion_checks: ["Acceptance examples and scope boundaries are reviewed and recorded"], proposed_worker: "rowan", selected_skills: ["atl-specify"], depends_on: [], files: ["project specification and affected contracts"], verify: "Review acceptance examples and scope boundaries" },
+      { id: "p2", source: "local", title: "Write failing regression checks", objective: `Write or strengthen failing regression checks.\n\nOriginal request:\n${goalContext}`, completion_checks: ["Focused tests exist and observed the intended failure before implementation"], proposed_worker: "pip", selected_skills: ["atl-verify"], depends_on: ["p1"], files: ["verification/"], verify: "Run the focused tests and observe the intended failure before implementation" },
+      { id: "p3", source: "local", title: "Implement the vertical slice", objective: `Implement the smallest complete vertical slice.\n\nOriginal request:\n${goalContext}`, completion_checks: ["Focused tests pass and the real surface shows the behavior"], proposed_worker: "pip", selected_skills: ["atl-implement"], depends_on: ["p2"], files: ["responsible runtime and UI modules"], verify: "Run the focused tests and inspect the real surface" },
+      { id: "p4", source: "local", title: "Verify recovery and evidence", objective: `Verify recovery, adjacent behavior, and evidence.\n\nOriginal request:\n${goalContext}`, completion_checks: ["Project checks pass and observed versus unobserved boundaries are recorded"], proposed_worker: "pip", selected_skills: ["atl-verify"], depends_on: ["p3"], files: ["runtime evidence and task brief"], verify: "Run the project checks and record observed versus unobserved boundaries" },
     ],
+    planning_limitations: ["This is a generic planning template. No repository files, project commands, or request-specific acceptance criteria were inspected or verified."],
     generated_by: "atl-local-sdd-tdd-planner",
     generated_via: "local",
   };
@@ -144,13 +145,14 @@ export function validatePlanArtifact(artifact) {
   const required = ["title", "objective", "completion_checks", "acceptance_examples", "implementation_steps", "verifier_commands"];
   const missing = required.filter((key) => !artifact || artifact[key] == null || (Array.isArray(artifact[key]) && artifact[key].length === 0));
   if (missing.length) throw new Error(`Plan artifact missing: ${missing.join(", ")}`);
+  if (![artifact.title, artifact.objective].every((value) => typeof value === "string" && value.trim())) throw new Error("title and objective must be non-empty strings");
   if (!Array.isArray(artifact.completion_checks) || !artifact.completion_checks.every((item) => typeof item === "string" && item.trim())) throw new Error("completion_checks must be non-empty strings");
-  if (!Array.isArray(artifact.acceptance_examples) || !artifact.acceptance_examples.every((item) => item && item.given && item.when && item.then)) throw new Error("acceptance_examples must contain given/when/then");
+  if (!Array.isArray(artifact.acceptance_examples) || !artifact.acceptance_examples.every((item) => item && [item.given, item.when, item.then].every((value) => typeof value === "string" && value.trim()))) throw new Error("acceptance_examples must contain given/when/then");
   // The gate demands a non-empty step description; files/verify are typed but
   // optional because the normalizer fills them ([]/"") for string-shaped
   // model steps — cards stay editable and the manager adds checks in review.
   if (!Array.isArray(artifact.implementation_steps) || !artifact.implementation_steps.every((item) => item && typeof item === "object" && typeof item.step === "string" && item.step.trim())) throw new Error("implementation_steps must contain non-empty step descriptions");
-  if (!Array.isArray(artifact.verifier_commands) || !artifact.verifier_commands.length) throw new Error("verifier_commands must be non-empty");
+  if (!Array.isArray(artifact.verifier_commands) || !artifact.verifier_commands.length || !artifact.verifier_commands.every((command) => typeof command === "string" && command.trim())) throw new Error("verifier_commands must be non-empty strings");
   validateProposals(artifact);
   return true;
 }
@@ -641,7 +643,7 @@ export async function runPlanProvider(root, intent, { role = "pip", provider, co
     task: "Convert the intent into an evidence-gated ATL SDD/TDD plan.",
     intent: String(intent).trim(),
     required: ["title", "objective", "constraints", "risks", "completion_checks", "acceptance_examples", "selected_skills", "proposed_worker", "implementation_steps", "verifier_commands"],
-    rule: "Return JSON only. acceptance_examples must be a list of objects, each with non-empty string fields given, when, then. implementation_steps must be a list of objects, each with non-empty string step, string-array files, string verify. Each task must have independently satisfiable completion checks. A prerequisite task must never require implementation owned by one of its downstream dependents; put integration checks on the integration task. Declare all dependencies explicitly and without cycles. Do not claim checks passed. Do not execute commands or change files.",
+    rule: "Return JSON only. acceptance_examples must be a list of objects, each with non-empty string fields given, when, then. implementation_steps must be a list of objects, each with non-empty string step, string-array files, string verify. Each task must have independently satisfiable completion checks. A prerequisite task must never require implementation owned by one of its downstream dependents; put integration checks on the integration task. Declare all dependencies explicitly and without cycles. Ground proposed paths and verification commands in inspected project evidence when available; otherwise label them as unknown and do not invent commands. Preserve the original request and constraints. Separate assumptions from observed facts. Do not claim checks passed. Do not execute commands or change files.",
   };
   const id = draftId || `${Date.now()}-${slug(titleOf(intent))}`;
   const logPath = path.join(path.dirname(paths(root).state), "plan-studio", id, "provider.log");

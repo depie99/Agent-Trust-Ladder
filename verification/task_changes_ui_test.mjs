@@ -31,8 +31,12 @@ assert.match(mount.innerHTML, /&lt;img src=x onerror=attack\(\)&gt;/); assert.do
 await click("more"); assert.match(mount.innerHTML, /فارسی/); assert.match(mount.innerHTML, /2 \/ 2/);
 await click("refresh"); assert.match(mount.innerHTML, /2 \/ 2/, "refresh keeps the loaded file page and selection");
 assert.match(mount.innerHTML, /&lt;img/);
-await click("tab:evidence"); assert.match(mount.innerHTML, /stale/); assert.doesNotMatch(mount.innerHTML, /<script>attack/);
+await click("tab:evidence"); assert.match(mount.innerHTML, /stale/); assert.match(mount.innerHTML, /Result: approve/); assert.doesNotMatch(mount.innerHTML, /<script>attack/);
+data.evidence.push({ id: "note-one", kind: "note", actor: "pip", freshness: "unknown", detail: "A note" });
+await click("refresh"); assert.match(mount.innerHTML, /Revision link missing/); assert.match(mount.innerHTML, /code revision, packet revision/); assert.doesNotMatch(mount.innerHTML, /note · pip · unknown/);
 await click("tab:relationships"); assert.match(mount.innerHTML, /Recorded relationships/); assert.match(mount.innerHTML, /capture-one/); assert.match(mount.innerHTML, /Run link/);
+assert.match(mount.innerHTML, /Starting point before changes/); assert.match(mount.innerHTML, /Result after changes/);
+await click("node:Baseline:base"); assert.match(mount.innerHTML, /aria-pressed="true"/); assert.match(mount.innerHTML, /Recorded data/); assert.match(mount.innerHTML, /&quot;revision&quot;: &quot;base&quot;/);
 let release;
 hold = new Promise((resolve) => { release = resolve; });
 listeners.click({ target: { closest: () => ({ dataset: { reviewAction: "refresh" } }) } });

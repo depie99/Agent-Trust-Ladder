@@ -184,3 +184,16 @@ assert.match(waitRow.fix, /launch --confirm/, "a queued assigned task points at 
 assert.doesNotMatch(waitRow.fix, /queue add/, "no queue add hint for a task already queued");
 
 console.log("PASS: owner approve records durable evidence, clears the gate, and queues the task");
+
+const interruptedState = emptyState();
+const interruptedTask = createTask(interruptedState, { title: "Interrupted worker" });
+interruptedTask.status = "in_progress";
+saveState(root, interruptedState);
+const runDir = path.join(root, ".trust", "manager", "overnight");
+fs.mkdirSync(runDir, { recursive: true });
+fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ status: "interrupted", interruptedTaskId: interruptedTask.id }));
+const interruptedRow = explainTasks(root, interruptedTask.id)[0];
+assert.equal(interruptedRow.kind, "interrupted");
+assert.match(interruptedRow.why, /interrupted/);
+assert.doesNotMatch(interruptedRow.why, /live transcript/);
+console.log("PASS: interrupted worker is not reported as live");

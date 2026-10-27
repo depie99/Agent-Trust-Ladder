@@ -7,13 +7,13 @@ import { fileURLToPath } from "node:url";
 import { createControlPlaneSnapshot } from "./control-plane.mjs";
 import { dispatchTuiCommand } from "./command-console.mjs";
 import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, reconcileOvernightRun, readRunLock, requestRunAbort } from "./launch.mjs";
-import { addProposal, addProposalFeedback, editProposal, loadPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider } from "./plan-studio.mjs";
+import { addProposal, addProposalFeedback, editProposal, generateLocalPlan, savePlanDraft, loadPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider } from "./plan-studio.mjs";
 import { invokePlanningProvider } from "./plan-model.mjs";
 import { builtinProviderStatus, discoverProvider } from "./providers.mjs";
 import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLATES, providerChoices, removeProvider, requireReadyProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
 import { paths, loadState, saveState, logEvent } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
-import { approveClaim, promoteSkill, registerRoutine, validateSkill } from "./governance.mjs";
+import { approveClaim, registerRoutine, validateSkill } from "./governance.mjs";
 import { approvalSnapshot, authorizeAction, decideProposal, proposeAction, recordActionOutcome, revokeGrant } from "./approvals.mjs";
 import { registerProject, removeProject, setSupervisorDefaults, supervisorSnapshot } from "./supervisor.mjs";
 import { createBackup, listBackups, previewRestore, restoreBackup } from "./backup.mjs";
@@ -26,6 +26,7 @@ import { inspectHandoffChain } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview } from "./change-review-store.mjs";
 import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
+import { installSkill, designateSkill } from "./skill-install.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_PLANE_FILE = path.join(RUNTIME_DIR, "..", "control-plane.html");
@@ -455,6 +456,12 @@ function providerLogTail(error) {
 
 async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
   const payload = JSON.parse(await readBody(req) || "{}");
+  if (pathname === "/api/plan/local") {
+    const intent = String(payload.intent || "").trim();
+    if (!intent) return json(res, 400, { ok: false, error: "plan generation needs an intent" });
+    try { const artifact = generateLocalPlan(intent); const draft = savePlanDraft(root, { intent, artifact, stage: "plan" }); return json(res, 200, { ok: true, draft: draftResponse(draft) }); }
+    catch (error) { return json(res, 400, { ok: false, error: error.message }); }
+  }
   if (pathname === "/api/plan/generate") {
     const intent = String(payload.intent || "").trim();
     if (!intent) return json(res, 400, { ok: false, error: "plan generation needs an intent" });
@@ -674,9 +681,11 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       if (req.method === "POST" && url.pathname === "/api/brain") {
         const payload = JSON.parse(await readBody(req) || "{}");
         let result;
-        if (payload.action === "approve-claim") result = approveClaim(root, String(payload.claim_id || ""), { actor: "manager", note: String(payload.note || "") });
+        if (payload.action === "install-skill") result = await installSkill(root, payload.source);
+        else if (payload.action === "designate-skill") result = designateSkill(root, payload.id);
+        else if (payload.action === "approve-claim") result = approveClaim(root, String(payload.claim_id || ""), { actor: "manager", note: String(payload.note || "") });
         else if (payload.action === "validate-skill") result = validateSkill(payload.skill || {});
-        else if (payload.action === "promote-skill") result = promoteSkill(root, payload.skill || {}, { actor: "manager" });
+        else if (payload.action === "promote-skill") { json(res, 409, { ok: false, error: "Promotion is unavailable: the control plane cannot verify validation runs or independent reviews yet." }); return; }
         else if (payload.action === "register-routine") result = registerRoutine(root, payload.routine || {}, { actor: "manager" });
         else { json(res, 400, { ok: false, error: "unknown brain action" }); return; }
         json(res, 200, { ok: true, result, snapshot: createControlPlaneSnapshot(root) });

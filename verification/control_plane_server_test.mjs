@@ -47,7 +47,7 @@ try {
   assert.match(client, /class="task-controls"/, "task rows group status, ownership, and actions in one control region");
   assert.match(client, /class="task-owner-label">Assigned to/, "task ownership is explicitly labelled");
   assert.match(client, /class="task-actions"/, "task actions have a distinct visual group");
-  assert.match(client, /Evidence & Automation/, "Control Plane exposes the Knowledge workspace");
+  assert.match(client, /WORKSPACE \/ KNOWLEDGE/, "Control Plane exposes the Knowledge workspace");
   assert.match(client, /brain-approve:/, "claim approval is available in the primary UI");
   assert.match(client, /brain-skill-form/, "skill validation and promotion are available in the primary UI");
   assert.match(client, /brain-routine-form/, "routine registration is available in the primary UI");

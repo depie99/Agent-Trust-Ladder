@@ -121,7 +121,12 @@ export function fileDiff(root, record, fileId) {
   }
 }
 export function evidenceFor(task, record) {
-  return (task.evidence || []).map((entry, index) => ({ ...entry, id: `evidence-${digest(JSON.stringify([task.id, index, entry.at, entry.session_id, entry.kind, entry.code_revision, entry.packet_revision])).slice(0, 20)}`, freshness: entry.invalidated ? "invalidated" : !entry.code_revision || entry.packet_revision == null ? "unknown" : entry.code_revision !== record.output.revision || entry.packet_revision !== record.packet_revision ? "stale" : "current" }));
+  return (task.evidence || []).map((entry, index) => {
+    const packetMismatch = entry.packet_revision != null && entry.packet_revision !== record.packet_revision;
+    const codeMismatch = Boolean(entry.code_revision) && entry.code_revision !== record.output.revision;
+    const freshness = entry.invalidated ? "invalidated" : packetMismatch || codeMismatch ? "stale" : !entry.code_revision || entry.packet_revision == null ? "unknown" : "current";
+    return { ...entry, id: `evidence-${digest(JSON.stringify([task.id, index, entry.at, entry.session_id, entry.kind, entry.code_revision, entry.packet_revision])).slice(0, 20)}`, freshness, revision_match: { packet: entry.packet_revision == null ? "missing" : packetMismatch ? "different" : "matches", code: !entry.code_revision ? "missing" : codeMismatch ? "different" : "matches" } };
+  });
 }
 export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page } = {}) {
   const files = compareSnapshots(record.baseline, record.output), evidence = evidenceFor(task, record), attention = [];

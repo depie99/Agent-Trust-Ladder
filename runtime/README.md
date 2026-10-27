@@ -402,6 +402,26 @@ Who may move what (enforced; the human `--actor manager` may always override):
 
 ### Recovering a blocked task
 
+Workers submit state changes through a manager-owned handoff channel. `ATL_BIN`
+points to a workspace-local client; use `node "$env:ATL_BIN" show T-001` in
+PowerShell, or `node "$ATL_BIN" show T-001` in a POSIX shell. The worker writes
+only inside its workspace. The manager validates the task, role, command,
+credential expiry and live lease before executing the command and recording
+evidence. Mutation credentials stay in the manager process. Save observation
+packets and rendered evidence under `.atl-evidence/`, not protected manager data.
+
+Direct runs and queue runs use the same channel and lease lifecycle. Expired
+leases, cross-task requests and actor impersonation are rejected. A stopped
+channel reports its failure without replaying an uncertain mutation. Integration
+sessions consume the visible persistent task budget; there is no separate hidden
+two-session cap. `ui-refresh` loads project API routes together with project UI
+assets so recovery controls cannot silently use an older installed API.
+
+The executable regressions are `node verification/worker_channel_test.mjs` and
+`node verification/worker_channel_launch_test.mjs`. See
+[the recurring blocker brief](../docs/task-run-reliability.md) for causes and
+prevention.
+
 Blocking is a safety stop, not a permanent failure. First ask why — `atl why`
 prints the full, untruncated blocker text behind every active task plus the
 exact command that fixes it (`atl why T-001` for one task; `atl show` also
