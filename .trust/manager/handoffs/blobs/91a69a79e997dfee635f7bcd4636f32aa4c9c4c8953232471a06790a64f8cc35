@@ -1,0 +1,64 @@
+---
+{
+  "id": "R-0004",
+  "title": "Grok Bot — persistent agent teammates (own computer, memory, approval escalation)",
+  "kind": "announcement",
+  "priority": "P1",
+  "status": "pending",
+  "published": "2026-08-11",
+  "captured": "2026-10-22T18:56:55.235Z",
+  "updated": "2026-10-22T18:56:55.235Z",
+  "people": [],
+  "concepts": [
+    "persistent-agents",
+    "memory",
+    "approval-escalation",
+    "resumable-jobs",
+    "team-identity"
+  ],
+  "sources": [
+    "https://x.ai/news/introducing-grok-bot"
+  ],
+  "repos": [],
+  "evidence": "verified",
+  "atl_impact": "Persistent agent identities, resumable jobs, human approval requests, and more capable team-member pages in the TUI.",
+  "checks": [
+    "each Grok Bot teammate capability mapped to an ATL mechanism or a backlog entry"
+  ],
+  "objective": "Compare Grok Bot's teammate model (persistent identity, conversational memory, approval escalation) against ATL's roles and file the deltas as improvement records.",
+  "tickets": [],
+  "transcript": null,
+  "decisions": [
+    {
+      "at": "2026-10-22T18:56:55.235Z",
+      "actor": "manager",
+      "action": "captured",
+      "note": ""
+    }
+  ],
+  "dedup": [
+    "url:61f8622f16d38d847e83",
+    "title:038a43c568825fc1ba3e"
+  ]
+}
+---
+
+## Summary
+
+xAI's announcement describes bots with their own computers, access to tools
+and apps, persistent ongoing work, conversational memory, and
+approval-based escalation to the human.
+
+## Why it matters to ATL
+
+This is the product-level version of what ATL builds by hand: persistent
+teammates that remember context across sessions and escalate for approval.
+ATL already has the approval gate (owner gates, `atl approve`) and durable
+state; the deltas are persistent agent identity/memory across sessions and
+the teammate-facing surface.
+
+## ATL recommendation
+
+P1: keep ATL's explicit-file memory (state.json + learning.json) but study
+Grok Bot's escalation UX and teammate pages for the control room. File
+follow-up records when the TUI wave lands.

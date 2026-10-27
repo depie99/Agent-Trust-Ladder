@@ -1,0 +1,46 @@
+{
+  "name": "@depie99/atl",
+  "version": "0.1.1",
+  "description": "Evidence-gated autonomous engineering workflow, browser Control Plane, and team runtime",
+  "homepage": "https://depie99.github.io/Agent-Trust-Ladder/control-room.html",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/depie99/Agent-Trust-Ladder.git"
+  },
+  "type": "module",
+  "scripts": {
+    "docs:css": "sass --no-source-map docs/scss/styles.scss docs/styles.css",
+    "docs:css:check": "node scripts/check-docs-css.mjs",
+    "docs:diagrams": "node scripts/make-diagram-light-variants.mjs",
+    "docs:diagrams:check": "node scripts/make-diagram-light-variants.mjs --check",
+    "ui:css": "node scripts/build-control-plane-css.mjs",
+    "ui:css:check": "node scripts/build-control-plane-css.mjs --check"
+  },
+  "bin": {
+    "atl": "runtime/atl-manager.mjs"
+  },
+  "exports": {
+    ".": "./runtime/atl-manager.mjs",
+    "./team": "./skills/atl-team/SKILL.md",
+    "./skill-router": "./runtime/lib/skill-router.mjs"
+  },
+  "files": [
+    "commands",
+    "config",
+    "runtime",
+    "scripts",
+    "skills",
+    "verification",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "devDependencies": {
+    "sass": "^1.106.1"
+  }
+}

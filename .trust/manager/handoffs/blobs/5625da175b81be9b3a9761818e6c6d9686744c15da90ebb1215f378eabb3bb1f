@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "inbox_dir": ".trust/manager/inbox",
+  "briefs_dir": ".trust/manager/briefs",
+  "budgets": {
+    "max_attempts": 3,
+    "stale_after_hours": 24,
+    "max_active_tasks": 5
+  },
+  "navigation": {
+    "mode": "off",
+    "max_tokens": 800,
+    "build_on_launch": true,
+    "note": "off preserves existing prompts. Set on only after checking map coverage for the target repository; map entries are navigation hints, never source authority."
+  },
+  "routines": [],
+  "routines_note": "demo routines (readme-doc-fixes, perf-regressions) removed 2026-10-21 for the clean first run; they overrode explicit @priority in inbox files at intake. Re-add deliberately, and decide whether explicit file metadata should win over a keyword routine.",
+  "providers": {
+    "default": "codex",
+    "auth": "subscription",
+    "model": "gpt-5.6-luna",
+    "by_role": {},
+    "catalog": {},
+    "note": "spec 014 launch boundary: per-role override, e.g. \"by_role\": { \"sage\": \"claude\" }; custom CLIs/models live under catalog. Discovery validates PATH before any preview/launch; a missing executable blocks the run with an actionable message.",
+    "model_by_role": {}
+  },
+  "codex_bridge": {
+    "enabled": true,
+    "thread_id": "01a16468-ce63-7800-bbed-521ca441371c",
+    "mode": "dedicated",
+    "fallback": "new-thread",
+    "include_feed": true,
+    "include_session_transcripts": true,
+    "note": "opt-in app-server bridge; link one explicit Codex thread before enabling"
+  },
+  "memory": {
+    "provider": "none",
+    "project_id": "",
+    "mem0": {
+      "enable_graph": true,
+      "graph_store": {
+        "provider": "neo4j",
+        "config": {
+          "url": "$NEO4J_URL",
+          "username": "$NEO4J_USERNAME",
+          "password": "$NEO4J_PASSWORD"
+        }
+      }
+    }
+  },
+  "intake": {
+    "file": {
+      "enabled": true
+    },
+    "github": {
+      "enabled": false,
+      "repos": [
+        "shahryarjb/temp_mishka_cms"
+      ],
+      "note": "leftover from the 2026-10-20 intake test; repo is private and gh is unauthenticated. Re-enable only after gh auth login (or GITHUB_TOKEN), otherwise intake 404s."
+    },
+    "azure": {
+      "enabled": false,
+      "org_url": "https://devops.soitco.net:32678/Solico-Group",
+      "project": "Middleware-and-Portals",
+      "team": "Middleware-and-Portals Team",
+      "iteration_path": "Middleware-and-Portals\\Sprint 73",
+      "token_env": "AZDO_PAT",
+      "tls_allow_untrusted": true,
+      "note": "set enabled=true and provide AZDO_PAT (Work Items: Read). tls_allow_untrusted is ON for the self-hosted server certificate; turn it off if you install a trusted cert."
+    }
+  },
+  "workspaces": {
+    "root": ".trust/manager/workspaces",
+    "repos": {
+      "shahryarjb/temp_mishka_cms": {
+        "path": ""
+      }
+    },
+    "note": "put a local clone path in repos.<owner/name>.path to get cheap git worktrees instead of fresh clones"
+  }
+}

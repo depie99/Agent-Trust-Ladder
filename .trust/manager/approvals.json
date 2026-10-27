@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": 24,
+  "revision": 120,
   "rules": [],
   "proposals": [
     {
@@ -98,7 +98,7 @@
       "execution": {
         "status": "unknown",
         "reason": "queue run complete",
-        "recorded_at": "2026-10-27T06:03:13.783Z"
+        "recorded_at": "2026-10-27T11:27:56.194Z"
       }
     },
     {
@@ -122,8 +122,8 @@
       "decided_by": "owner",
       "execution": {
         "status": "unknown",
-        "reason": "queue run complete",
-        "recorded_at": "2026-10-27T05:54:59.812Z"
+        "reason": "waiting for prerequisite: T-019",
+        "recorded_at": "2026-10-27T11:44:38.037Z"
       }
     },
     {
@@ -146,6 +146,556 @@
       "status": "approved",
       "created_at": "2026-10-27T06:01:26.893Z",
       "decided_at": "2026-10-27T06:01:36.551Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-ad7e1ef7-34dd-4fbf-9557-1760827d23d7",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T07:24:13.759Z",
+      "decided_at": "2026-10-27T07:24:15.458Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-3dfcd0bb-72dc-4b7e-b5d8-87bba010b65f",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-024"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T08:01:54.134Z",
+      "decided_at": "2026-10-27T08:01:55.003Z",
+      "decided_by": "owner",
+      "execution": {
+        "status": "unknown",
+        "reason": "waiting for prerequisite: T-023",
+        "recorded_at": "2026-10-27T08:08:17.678Z"
+      }
+    },
+    {
+      "id": "AP-f961ce1e-319f-44d3-982f-ec41f418cd50",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T08:02:09.369Z",
+      "decided_at": "2026-10-27T08:02:15.699Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-2b8d6f6e-052b-4e7b-8dc3-a439256312d9",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-025"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "21379cd27651e2be3a4f10f0918876bb960383e5e166df1e44686e8038f90a15",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T08:07:25.864Z",
+      "decided_at": "2026-10-27T08:07:26.615Z",
+      "decided_by": "owner",
+      "execution": {
+        "status": "unknown",
+        "reason": "worker ended unsuccessfully (code 1)",
+        "recorded_at": "2026-10-27T08:07:59.852Z"
+      }
+    },
+    {
+      "id": "AP-896b61ea-c250-42df-bdfa-6d10f05c7e68",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-024"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T08:08:16.551Z",
+      "decided_at": "2026-10-27T08:08:17.473Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-643fcebd-5658-4d4a-91c4-4cd83879a57b",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T09:58:07.052Z",
+      "decided_at": "2026-10-27T09:58:09.716Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-b294ba02-e75b-4c31-bb72-bd9109f87915",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T09:58:29.031Z",
+      "decided_at": "2026-10-27T09:58:30.799Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-20e4defc-c722-47cf-b107-c5301422db41",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:00:30.586Z",
+      "decided_at": "2026-10-27T10:00:30.588Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-51cf4b08-6eaf-4494-a905-470552cd9757",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:10:15.315Z",
+      "decided_at": "2026-10-27T10:10:15.319Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-cd4ea2e7-5168-4bc6-a374-6c6b63323319",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:17:39.581Z",
+      "decided_at": "2026-10-27T10:17:39.585Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-0ee1f2c1-9a9a-4cd6-a581-ca79d963bc9d",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:21:16.032Z",
+      "decided_at": "2026-10-27T10:21:16.035Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-7c9ef44a-b1d3-43e2-b6fc-b57fad6de15b",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:32:39.657Z",
+      "decided_at": "2026-10-27T10:32:39.659Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-a7a71dfa-60c4-49e8-959b-1a44cf752afe",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:36:28.086Z",
+      "decided_at": "2026-10-27T10:36:28.091Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-dfdb4707-9f2c-46cb-b0f6-fffc399bc3c2",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:41:10.253Z",
+      "decided_at": "2026-10-27T10:41:10.259Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-8b96e37d-0631-4fae-949e-a1c58f18080c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:43:17.889Z",
+      "decided_at": "2026-10-27T10:43:17.894Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-3138be57-15ed-4967-9e30-1b9787e41036",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T10:44:39.083Z",
+      "decided_at": "2026-10-27T10:44:39.090Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-0a0fc50d-94d2-4f95-9260-96f4cda756cb",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T11:27:22.966Z",
+      "decided_at": "2026-10-27T11:27:24.819Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-3d5c3827-f6c0-485f-8c9d-19ca178a21d4",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T11:43:04.988Z",
+      "decided_at": "2026-10-27T11:43:06.933Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-b147eabc-7994-41a1-a933-ee55522673e4",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "digest": "7723d709bff18fe419654d01d8ad381856d1703fba3e3ea1c6d5c5c02b29244d",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T13:06:34.401Z",
+      "decided_at": "2026-10-27T13:06:36.454Z",
+      "decided_by": "owner",
+      "execution": {
+        "status": "unknown",
+        "reason": "ENOENT: no such file or directory, open 'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\handoffs\\T-018.json'",
+        "recorded_at": "2026-10-27T13:06:36.818Z"
+      }
+    },
+    {
+      "id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null,
+          "maxSessions": 20,
+          "maxMinutes": 60
+        },
+        "policyVersion": 1
+      },
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T13:09:57.618Z",
+      "decided_at": "2026-10-27T13:09:58.619Z",
+      "decided_by": "owner",
+      "execution": {
+        "status": "waiting",
+        "reason": "Rowan integration required: runtime/control-plane-client.js, verification/control_plane_server_test.mjs, verification/control_plane_catalog_test.mjs, runtime/control-plane.html, runtime/scss/_app.scss",
+        "recorded_at": "2026-10-27T14:04:14.589Z"
+      }
+    },
+    {
+      "id": "AP-a6a1116a-63d1-4e65-8c60-331c485b379f",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null,
+          "maxSessions": 20,
+          "maxMinutes": 60
+        },
+        "policyVersion": 1
+      },
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T13:11:11.960Z",
+      "decided_at": "2026-10-27T13:11:24.124Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-b93e1887-1299-406c-b193-d76b7521aa7a",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": "T-022",
+        "operation": "assistant.diagnose",
+        "target": "gapgpt",
+        "args": {
+          "scope": "T-022",
+          "model": "gpt-6.1-terra",
+          "messageDigest": "b54a3aba9198c1ed393e71bbd2d7b9e43114b7195da31df6b7dbb17bac755518",
+          "contextDigest": "d086044678b993229c4fd1b340b91b47795ca80808f31ec1c223620b93481a5a",
+          "mode": "read-only"
+        },
+        "policyVersion": 1
+      },
+      "digest": "eeff069b9ffc1f96d2e474459b6fc9f2ba4f9066a540fb2d0273fabd5420f2b6",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T13:37:39.785Z",
+      "decided_at": "2026-10-27T13:37:41.244Z",
+      "decided_by": "owner",
+      "execution": {
+        "status": "started",
+        "reason": null,
+        "recorded_at": "2026-10-27T13:37:41.588Z"
+      }
+    },
+    {
+      "id": "AP-41227fa0-a9dd-416d-afbd-3779afad0b6e",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null,
+          "maxSessions": 20,
+          "maxMinutes": 60
+        },
+        "policyVersion": 1
+      },
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T13:41:32.918Z",
+      "decided_at": "2026-10-27T13:41:34.132Z",
+      "decided_by": "owner"
+    },
+    {
+      "id": "AP-3925bef5-8010-4ae2-a313-9c8a7c449b44",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null,
+          "maxSessions": 20,
+          "maxMinutes": 60
+        },
+        "policyVersion": 1
+      },
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T13:53:49.172Z",
+      "decided_at": "2026-10-27T13:53:50.465Z",
       "decided_by": "owner"
     }
   ],
@@ -283,6 +833,555 @@
       "rule": "allow-once",
       "expires_at": "2026-10-27T06:11:36.551Z",
       "used_at": "2026-10-27T06:01:36.598Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-adc34284-c06b-4a8e-8e7f-049717e1a21e",
+      "proposal_id": "AP-ad7e1ef7-34dd-4fbf-9557-1760827d23d7",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T07:34:15.458Z",
+      "used_at": "2026-10-27T07:24:15.522Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-dd94d0f1-0355-4324-a973-4f04215cfabb",
+      "proposal_id": "AP-3dfcd0bb-72dc-4b7e-b5d8-87bba010b65f",
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-024"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T08:11:55.003Z",
+      "used_at": "2026-10-27T08:01:55.105Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-83401ef4-d5d7-4f28-a6ec-a15de0ca4089",
+      "proposal_id": "AP-f961ce1e-319f-44d3-982f-ec41f418cd50",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T08:12:15.699Z",
+      "used_at": "2026-10-27T08:02:15.814Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-3d0fd134-00ab-4d5b-b1a6-ce6e61578f1a",
+      "proposal_id": "AP-2b8d6f6e-052b-4e7b-8dc3-a439256312d9",
+      "digest": "21379cd27651e2be3a4f10f0918876bb960383e5e166df1e44686e8038f90a15",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-025"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T08:17:26.615Z",
+      "used_at": "2026-10-27T08:07:26.694Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-d8fd7291-ef6f-4c3f-b7c7-d0794162989a",
+      "proposal_id": "AP-896b61ea-c250-42df-bdfa-6d10f05c7e68",
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-024"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T08:18:17.473Z",
+      "used_at": "2026-10-27T08:08:17.576Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-347e52fe-c608-4246-b7d1-943915f01a99",
+      "proposal_id": "AP-643fcebd-5658-4d4a-91c4-4cd83879a57b",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:08:09.716Z",
+      "used_at": "2026-10-27T09:58:09.803Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-e48b4a96-3606-4950-8ad9-580f3920dffb",
+      "proposal_id": "AP-b294ba02-e75b-4c31-bb72-bd9109f87915",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:08:30.799Z",
+      "used_at": "2026-10-27T09:58:30.882Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-e12a9d36-f30c-4070-93ee-e582012d789d",
+      "proposal_id": "AP-20e4defc-c722-47cf-b107-c5301422db41",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:10:30.588Z",
+      "used_at": "2026-10-27T10:00:30.590Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-e4c0369e-df86-4d93-bca5-a9c4d7f09b38",
+      "proposal_id": "AP-51cf4b08-6eaf-4494-a905-470552cd9757",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:20:15.319Z",
+      "used_at": "2026-10-27T10:10:15.326Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-b92c7bb1-eb44-496f-955d-caf748b84dd1",
+      "proposal_id": "AP-cd4ea2e7-5168-4bc6-a374-6c6b63323319",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:27:39.585Z",
+      "used_at": "2026-10-27T10:17:39.587Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-39e2c2ab-b8ab-4ebc-b983-409def0c02bb",
+      "proposal_id": "AP-0ee1f2c1-9a9a-4cd6-a581-ca79d963bc9d",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:31:16.035Z",
+      "used_at": "2026-10-27T10:21:16.037Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-0cf7678a-0d9f-44e1-9717-c17710322622",
+      "proposal_id": "AP-7c9ef44a-b1d3-43e2-b6fc-b57fad6de15b",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:42:39.659Z",
+      "used_at": "2026-10-27T10:32:39.661Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-a0a9d306-dc4d-4862-a770-a18f29265ade",
+      "proposal_id": "AP-a7a71dfa-60c4-49e8-959b-1a44cf752afe",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:46:28.091Z",
+      "used_at": "2026-10-27T10:36:28.098Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-0b4e0151-5fc7-4884-b724-ead54685831e",
+      "proposal_id": "AP-dfdb4707-9f2c-46cb-b0f6-fffc399bc3c2",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:51:10.259Z",
+      "used_at": "2026-10-27T10:41:10.263Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-d2b763a2-9b5c-41ce-841a-7b58aa0b1625",
+      "proposal_id": "AP-8b96e37d-0631-4fae-949e-a1c58f18080c",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:53:17.894Z",
+      "used_at": "2026-10-27T10:43:17.900Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-90e724e5-b883-439b-8c86-cd493215f8ab",
+      "proposal_id": "AP-3138be57-15ed-4967-9e30-1b9787e41036",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T10:54:39.090Z",
+      "used_at": "2026-10-27T10:44:39.096Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-4834f3f1-86ec-401f-9a09-b6b30865e7a5",
+      "proposal_id": "AP-0a0fc50d-94d2-4f95-9260-96f4cda756cb",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-018"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T11:37:24.820Z",
+      "used_at": "2026-10-27T11:27:24.923Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-a5c37f35-fde6-4355-a137-e2b6d1dcde6d",
+      "proposal_id": "AP-3d5c3827-f6c0-485f-8c9d-19ca178a21d4",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "plan-add-farsi-persian-planei",
+        "args": {
+          "taskIds": null,
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T11:53:06.933Z",
+      "used_at": "2026-10-27T11:43:07.047Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-fdfd003a-bfd1-4ce2-a91b-ff35aaa903d1",
+      "proposal_id": "AP-b147eabc-7994-41a1-a933-ee55522673e4",
+      "digest": "7723d709bff18fe419654d01d8ad381856d1703fba3e3ea1c6d5c5c02b29244d",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T13:16:36.454Z",
+      "used_at": "2026-10-27T13:06:36.573Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-ad025f53-1e38-4adf-bb16-f0572da16d04",
+      "proposal_id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null,
+          "maxSessions": 20,
+          "maxMinutes": 60
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T13:19:58.619Z",
+      "used_at": "2026-10-27T13:09:58.746Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-5d9a6d7d-451f-45c0-8d22-60f920759dc5",
+      "proposal_id": "AP-a6a1116a-63d1-4e65-8c60-331c485b379f",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null,
+          "maxSessions": 20,
+          "maxMinutes": 60
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T13:21:24.124Z",
+      "used_at": "2026-10-27T13:11:24.291Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-9d1d9635-a56f-4941-aa54-49a55b3926b3",
+      "proposal_id": "AP-b93e1887-1299-406c-b193-d76b7521aa7a",
+      "digest": "eeff069b9ffc1f96d2e474459b6fc9f2ba4f9066a540fb2d0273fabd5420f2b6",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": "T-022",
+        "operation": "assistant.diagnose",
+        "target": "gapgpt",
+        "args": {
+          "scope": "T-022",
+          "model": "gpt-6.1-terra",
+          "messageDigest": "b54a3aba9198c1ed393e71bbd2d7b9e43114b7195da31df6b7dbb17bac755518",
+          "contextDigest": "d086044678b993229c4fd1b340b91b47795ca80808f31ec1c223620b93481a5a",
+          "mode": "read-only"
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T13:47:41.244Z",
+      "used_at": "2026-10-27T13:37:41.491Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-9c706f61-9188-47c7-8fc1-a9bc629fc983",
+      "proposal_id": "AP-41227fa0-a9dd-416d-afbd-3779afad0b6e",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null,
+          "maxSessions": 20,
+          "maxMinutes": 60
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T13:51:34.132Z",
+      "used_at": "2026-10-27T13:41:34.324Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-e5bcc45f-8c7b-44d9-bd0f-854391f150d6",
+      "proposal_id": "AP-3925bef5-8010-4ae2-a313-9c8a7c449b44",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": null,
+        "operation": "run.queue",
+        "target": "selected",
+        "args": {
+          "taskIds": [
+            "T-022"
+          ],
+          "queueIds": null,
+          "maxSessions": 20,
+          "maxMinutes": 60
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T14:03:50.465Z",
+      "used_at": "2026-10-27T13:53:50.631Z",
       "revoked_at": null,
       "principal": "owner"
     }
@@ -467,6 +1566,726 @@
       "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
       "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
       "status": "unknown"
+    },
+    {
+      "id": "d2d73937-366b-47ee-915f-cdd97b75a61a",
+      "at": "2026-10-27T07:24:13.759Z",
+      "type": "proposal",
+      "proposal_id": "AP-ad7e1ef7-34dd-4fbf-9557-1760827d23d7",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "dd68f0e0-1943-42c9-9f5a-7437ab231d7b",
+      "at": "2026-10-27T07:24:15.458Z",
+      "type": "allow-once",
+      "proposal_id": "AP-ad7e1ef7-34dd-4fbf-9557-1760827d23d7",
+      "principal": "owner"
+    },
+    {
+      "id": "33c17ae0-bfdc-4183-816f-c3b5ac771a0a",
+      "at": "2026-10-27T07:24:15.522Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-adc34284-c06b-4a8e-8e7f-049717e1a21e",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "16d56bd7-ded5-400d-b5f7-3a187bef8d4a",
+      "at": "2026-10-27T07:24:35.764Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "dde70807-202d-40cb-91c4-a40437ea34f7",
+      "at": "2026-10-27T08:01:54.134Z",
+      "type": "proposal",
+      "proposal_id": "AP-3dfcd0bb-72dc-4b7e-b5d8-87bba010b65f",
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3",
+      "principal": "owner"
+    },
+    {
+      "id": "7614aa0d-343f-4ba6-ad3e-06ac21a9d348",
+      "at": "2026-10-27T08:01:55.003Z",
+      "type": "allow-once",
+      "proposal_id": "AP-3dfcd0bb-72dc-4b7e-b5d8-87bba010b65f",
+      "principal": "owner"
+    },
+    {
+      "id": "1dd03433-d6eb-4024-b2fe-4ed7a8122213",
+      "at": "2026-10-27T08:01:55.105Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-dd94d0f1-0355-4324-a973-4f04215cfabb",
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3"
+    },
+    {
+      "id": "ac6e5922-3bcc-4a98-872b-3f52c8acc4fd",
+      "at": "2026-10-27T08:01:55.184Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-3dfcd0bb-72dc-4b7e-b5d8-87bba010b65f",
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3",
+      "status": "unknown"
+    },
+    {
+      "id": "e4328f56-3846-49bc-99bf-f5eadc850648",
+      "at": "2026-10-27T08:02:09.369Z",
+      "type": "proposal",
+      "proposal_id": "AP-f961ce1e-319f-44d3-982f-ec41f418cd50",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner"
+    },
+    {
+      "id": "56808101-5fa1-49bf-bcd5-8b93a66773a8",
+      "at": "2026-10-27T08:02:15.699Z",
+      "type": "allow-once",
+      "proposal_id": "AP-f961ce1e-319f-44d3-982f-ec41f418cd50",
+      "principal": "owner"
+    },
+    {
+      "id": "a9cf9e61-e086-499a-b8a3-30980da0229c",
+      "at": "2026-10-27T08:02:15.814Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-83401ef4-d5d7-4f28-a6ec-a15de0ca4089",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139"
+    },
+    {
+      "id": "54977d53-d422-405d-a97b-a377816d6bbf",
+      "at": "2026-10-27T08:02:15.921Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-8cf1e17e-65f2-4d8d-989f-bc3570201585",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "status": "unknown"
+    },
+    {
+      "id": "8aacb2cf-db1c-4a69-b369-343a00bbd3f9",
+      "at": "2026-10-27T08:07:25.864Z",
+      "type": "proposal",
+      "proposal_id": "AP-2b8d6f6e-052b-4e7b-8dc3-a439256312d9",
+      "digest": "21379cd27651e2be3a4f10f0918876bb960383e5e166df1e44686e8038f90a15",
+      "principal": "owner"
+    },
+    {
+      "id": "4f9b08b5-8729-4195-86d5-77684e7043de",
+      "at": "2026-10-27T08:07:26.615Z",
+      "type": "allow-once",
+      "proposal_id": "AP-2b8d6f6e-052b-4e7b-8dc3-a439256312d9",
+      "principal": "owner"
+    },
+    {
+      "id": "4e911218-5e34-4818-96b9-c4f4a633ea1e",
+      "at": "2026-10-27T08:07:26.694Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-3d0fd134-00ab-4d5b-b1a6-ce6e61578f1a",
+      "digest": "21379cd27651e2be3a4f10f0918876bb960383e5e166df1e44686e8038f90a15"
+    },
+    {
+      "id": "2e1ba895-c167-47eb-b717-3247f7034296",
+      "at": "2026-10-27T08:07:59.853Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-2b8d6f6e-052b-4e7b-8dc3-a439256312d9",
+      "digest": "21379cd27651e2be3a4f10f0918876bb960383e5e166df1e44686e8038f90a15",
+      "status": "unknown"
+    },
+    {
+      "id": "99be8a8d-7d22-46e1-9e71-f16e5b26655d",
+      "at": "2026-10-27T08:08:16.551Z",
+      "type": "proposal",
+      "proposal_id": "AP-896b61ea-c250-42df-bdfa-6d10f05c7e68",
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3",
+      "principal": "owner"
+    },
+    {
+      "id": "9238b08a-b6fe-46c0-a449-c2661e62f19f",
+      "at": "2026-10-27T08:08:17.473Z",
+      "type": "allow-once",
+      "proposal_id": "AP-896b61ea-c250-42df-bdfa-6d10f05c7e68",
+      "principal": "owner"
+    },
+    {
+      "id": "98d7c2d3-3b69-428f-ae41-191bfea4f57a",
+      "at": "2026-10-27T08:08:17.576Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-d8fd7291-ef6f-4c3f-b7c7-d0794162989a",
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3"
+    },
+    {
+      "id": "5327a276-07d1-4152-bb65-316b0fea337f",
+      "at": "2026-10-27T08:08:17.678Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-3dfcd0bb-72dc-4b7e-b5d8-87bba010b65f",
+      "digest": "629d4d86012e3b209b5d971085c5b0715be65ebcac6160ca3fc5ff8162e626d3",
+      "status": "unknown"
+    },
+    {
+      "id": "2695aa5f-5069-4129-8c6e-fe3ccf4b4062",
+      "at": "2026-10-27T09:58:07.052Z",
+      "type": "proposal",
+      "proposal_id": "AP-643fcebd-5658-4d4a-91c4-4cd83879a57b",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner"
+    },
+    {
+      "id": "4236cf47-2b13-49d1-ba4f-0975c79fb809",
+      "at": "2026-10-27T09:58:09.716Z",
+      "type": "allow-once",
+      "proposal_id": "AP-643fcebd-5658-4d4a-91c4-4cd83879a57b",
+      "principal": "owner"
+    },
+    {
+      "id": "4e46f250-ad79-43e5-8a83-5d388eafa410",
+      "at": "2026-10-27T09:58:09.803Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-347e52fe-c608-4246-b7d1-943915f01a99",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139"
+    },
+    {
+      "id": "4a32b2d2-4145-4c10-bb35-370ddfc62cfd",
+      "at": "2026-10-27T09:58:09.892Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-8cf1e17e-65f2-4d8d-989f-bc3570201585",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "status": "unknown"
+    },
+    {
+      "id": "6d09675b-35f5-43f8-80a8-769bf6018761",
+      "at": "2026-10-27T09:58:29.031Z",
+      "type": "proposal",
+      "proposal_id": "AP-b294ba02-e75b-4c31-bb72-bd9109f87915",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner"
+    },
+    {
+      "id": "7ff79936-75b2-411b-8da8-ba79b09f6b5b",
+      "at": "2026-10-27T09:58:30.799Z",
+      "type": "allow-once",
+      "proposal_id": "AP-b294ba02-e75b-4c31-bb72-bd9109f87915",
+      "principal": "owner"
+    },
+    {
+      "id": "a7dcb392-f414-4bbe-8497-24230f3e37db",
+      "at": "2026-10-27T09:58:30.882Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-e48b4a96-3606-4950-8ad9-580f3920dffb",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139"
+    },
+    {
+      "id": "a2ac360b-208a-4843-8183-1aee6978e716",
+      "at": "2026-10-27T09:59:12.612Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-8cf1e17e-65f2-4d8d-989f-bc3570201585",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "status": "unknown"
+    },
+    {
+      "id": "1e4bcc02-64a0-4c63-ac23-01ec7b03be93",
+      "at": "2026-10-27T10:00:30.586Z",
+      "type": "proposal",
+      "proposal_id": "AP-20e4defc-c722-47cf-b107-c5301422db41",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner"
+    },
+    {
+      "id": "f4de9ed6-f646-4385-a36c-150d10de77e7",
+      "at": "2026-10-27T10:00:30.588Z",
+      "type": "allow-once",
+      "proposal_id": "AP-20e4defc-c722-47cf-b107-c5301422db41",
+      "principal": "owner"
+    },
+    {
+      "id": "5153e037-5dbe-42c4-af95-7223c1e628c8",
+      "at": "2026-10-27T10:00:30.590Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-e12a9d36-f30c-4070-93ee-e582012d789d",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139"
+    },
+    {
+      "id": "8337f0b6-d539-4d88-bb3c-9d8e4c29f858",
+      "at": "2026-10-27T10:10:00.120Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-8cf1e17e-65f2-4d8d-989f-bc3570201585",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "status": "unknown"
+    },
+    {
+      "id": "c0b1db14-5df4-473e-b0d5-a06878275a9f",
+      "at": "2026-10-27T10:10:15.315Z",
+      "type": "proposal",
+      "proposal_id": "AP-51cf4b08-6eaf-4494-a905-470552cd9757",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner"
+    },
+    {
+      "id": "83a3b6b8-c702-4c10-bc9e-a471c00aa20f",
+      "at": "2026-10-27T10:10:15.320Z",
+      "type": "allow-once",
+      "proposal_id": "AP-51cf4b08-6eaf-4494-a905-470552cd9757",
+      "principal": "owner"
+    },
+    {
+      "id": "0fd08a5c-558b-4753-949a-e2f92efe9fe5",
+      "at": "2026-10-27T10:10:15.327Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-e4c0369e-df86-4d93-bca5-a9c4d7f09b38",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139"
+    },
+    {
+      "id": "e1fc13c7-ee33-4815-b3da-b00315cefcb4",
+      "at": "2026-10-27T10:14:40.392Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-8cf1e17e-65f2-4d8d-989f-bc3570201585",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "status": "unknown"
+    },
+    {
+      "id": "79cac190-dcd9-49ea-8f9c-769f85d863c1",
+      "at": "2026-10-27T10:17:39.581Z",
+      "type": "proposal",
+      "proposal_id": "AP-cd4ea2e7-5168-4bc6-a374-6c6b63323319",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "8e376157-63e5-4f9d-aff6-16c165712fe1",
+      "at": "2026-10-27T10:17:39.585Z",
+      "type": "allow-once",
+      "proposal_id": "AP-cd4ea2e7-5168-4bc6-a374-6c6b63323319",
+      "principal": "owner"
+    },
+    {
+      "id": "75385d7f-3872-4a36-82df-7d11b4a4f418",
+      "at": "2026-10-27T10:17:39.587Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-b92c7bb1-eb44-496f-955d-caf748b84dd1",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "934ca9cc-918c-468c-a169-b535f9399cf8",
+      "at": "2026-10-27T10:18:16.632Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "2771556b-4981-484f-a597-ff4addffdc88",
+      "at": "2026-10-27T10:21:16.032Z",
+      "type": "proposal",
+      "proposal_id": "AP-0ee1f2c1-9a9a-4cd6-a581-ca79d963bc9d",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "86e767e1-6f3d-47a1-b191-55840c7cb3cb",
+      "at": "2026-10-27T10:21:16.035Z",
+      "type": "allow-once",
+      "proposal_id": "AP-0ee1f2c1-9a9a-4cd6-a581-ca79d963bc9d",
+      "principal": "owner"
+    },
+    {
+      "id": "45f1eaf4-1a56-411a-957b-5f23abe4cd20",
+      "at": "2026-10-27T10:21:16.037Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-39e2c2ab-b8ab-4ebc-b983-409def0c02bb",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "fdfa705c-c6af-4443-bb8c-f0710b46d74c",
+      "at": "2026-10-27T10:21:50.161Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "f01df086-e5a5-44b0-a46c-45306b6b7662",
+      "at": "2026-10-27T10:32:39.657Z",
+      "type": "proposal",
+      "proposal_id": "AP-7c9ef44a-b1d3-43e2-b6fc-b57fad6de15b",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "f2c9d087-46cb-44aa-a999-cf6e4ab66887",
+      "at": "2026-10-27T10:32:39.659Z",
+      "type": "allow-once",
+      "proposal_id": "AP-7c9ef44a-b1d3-43e2-b6fc-b57fad6de15b",
+      "principal": "owner"
+    },
+    {
+      "id": "22f2595f-1a41-4f16-8fe1-8d4e431ec44f",
+      "at": "2026-10-27T10:32:39.661Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-0cf7678a-0d9f-44e1-9717-c17710322622",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "1ddd4a11-c41d-4531-b08f-ef01993ec6cc",
+      "at": "2026-10-27T10:35:44.725Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "c5cbbea3-5e41-4817-9842-ef913bd69a60",
+      "at": "2026-10-27T10:36:28.086Z",
+      "type": "proposal",
+      "proposal_id": "AP-a7a71dfa-60c4-49e8-959b-1a44cf752afe",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "a653d71a-c4f4-4705-8ca9-ba4c184e76c9",
+      "at": "2026-10-27T10:36:28.091Z",
+      "type": "allow-once",
+      "proposal_id": "AP-a7a71dfa-60c4-49e8-959b-1a44cf752afe",
+      "principal": "owner"
+    },
+    {
+      "id": "c0a8cef9-c7cb-444e-be32-9331436d1c81",
+      "at": "2026-10-27T10:36:28.098Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-a0a9d306-dc4d-4862-a770-a18f29265ade",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "a2525179-fbf7-4a46-bd9b-8ac4ddbbbbf7",
+      "at": "2026-10-27T10:40:39.394Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "6d0b4d7c-6812-46b3-9672-92d6581b00c3",
+      "at": "2026-10-27T10:41:10.253Z",
+      "type": "proposal",
+      "proposal_id": "AP-dfdb4707-9f2c-46cb-b0f6-fffc399bc3c2",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "c4b41064-3fcf-4174-8245-87c33f4ff39c",
+      "at": "2026-10-27T10:41:10.259Z",
+      "type": "allow-once",
+      "proposal_id": "AP-dfdb4707-9f2c-46cb-b0f6-fffc399bc3c2",
+      "principal": "owner"
+    },
+    {
+      "id": "9bc899c0-a127-41de-81a6-acc36297bb6c",
+      "at": "2026-10-27T10:41:10.263Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-0b4e0151-5fc7-4884-b724-ead54685831e",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "fec293d2-3298-409a-a8ee-b52889369e5b",
+      "at": "2026-10-27T10:42:47.988Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "f05fbf18-6395-4347-b356-61116f47de0c",
+      "at": "2026-10-27T10:43:17.889Z",
+      "type": "proposal",
+      "proposal_id": "AP-8b96e37d-0631-4fae-949e-a1c58f18080c",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "ed35633b-1bb9-4418-abc0-5412f789fa5b",
+      "at": "2026-10-27T10:43:17.894Z",
+      "type": "allow-once",
+      "proposal_id": "AP-8b96e37d-0631-4fae-949e-a1c58f18080c",
+      "principal": "owner"
+    },
+    {
+      "id": "87ccbee9-6f21-442a-9d73-913042fb3d7c",
+      "at": "2026-10-27T10:43:17.900Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-d2b763a2-9b5c-41ce-841a-7b58aa0b1625",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "f3dd826a-b190-4ae9-8e7a-d463824f15d7",
+      "at": "2026-10-27T10:44:07.537Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "762148cc-52aa-4ea3-af68-dff0b027993d",
+      "at": "2026-10-27T10:44:39.083Z",
+      "type": "proposal",
+      "proposal_id": "AP-3138be57-15ed-4967-9e30-1b9787e41036",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "02e30697-93ee-40ea-833b-495d93f11867",
+      "at": "2026-10-27T10:44:39.090Z",
+      "type": "allow-once",
+      "proposal_id": "AP-3138be57-15ed-4967-9e30-1b9787e41036",
+      "principal": "owner"
+    },
+    {
+      "id": "123b9e90-c06a-4514-b23a-bee6ad3e7882",
+      "at": "2026-10-27T10:44:39.096Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-90e724e5-b883-439b-8c86-cd493215f8ab",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "b4eb0b17-20ad-4e76-a705-f9f2caf3076f",
+      "at": "2026-10-27T10:46:53.121Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "17487c76-cafb-4de8-8e51-b5e81fd55f36",
+      "at": "2026-10-27T11:27:22.966Z",
+      "type": "proposal",
+      "proposal_id": "AP-0a0fc50d-94d2-4f95-9260-96f4cda756cb",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "principal": "owner"
+    },
+    {
+      "id": "cdc4cebe-a962-4e29-971f-655f2ecb715d",
+      "at": "2026-10-27T11:27:24.820Z",
+      "type": "allow-once",
+      "proposal_id": "AP-0a0fc50d-94d2-4f95-9260-96f4cda756cb",
+      "principal": "owner"
+    },
+    {
+      "id": "9a7736fc-1684-4fd4-a1cc-7482e1a656ac",
+      "at": "2026-10-27T11:27:24.923Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-4834f3f1-86ec-401f-9a09-b6b30865e7a5",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c"
+    },
+    {
+      "id": "abb8dd8d-e59a-416d-b666-994424524118",
+      "at": "2026-10-27T11:27:56.194Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1eeb29a9-0ea8-41ef-9789-7c008649d578",
+      "digest": "49cba4d41661734dd66af9b2deb6005ef746afc2d31e109d7d373a9e11020e7c",
+      "status": "unknown"
+    },
+    {
+      "id": "326cbdcb-3775-489e-ba51-0ce0481e2a8d",
+      "at": "2026-10-27T11:43:04.988Z",
+      "type": "proposal",
+      "proposal_id": "AP-3d5c3827-f6c0-485f-8c9d-19ca178a21d4",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "principal": "owner"
+    },
+    {
+      "id": "a8e4f10e-c7f7-4e9d-af5a-27ba7eb7faf6",
+      "at": "2026-10-27T11:43:06.933Z",
+      "type": "allow-once",
+      "proposal_id": "AP-3d5c3827-f6c0-485f-8c9d-19ca178a21d4",
+      "principal": "owner"
+    },
+    {
+      "id": "8e4a19d5-e86f-4655-8d70-ebd38ef64836",
+      "at": "2026-10-27T11:43:07.047Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-a5c37f35-fde6-4355-a137-e2b6d1dcde6d",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139"
+    },
+    {
+      "id": "2adb6a46-2804-4d98-bb60-c067314449d4",
+      "at": "2026-10-27T11:44:38.037Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-8cf1e17e-65f2-4d8d-989f-bc3570201585",
+      "digest": "97ce3b1b3742eaaeea52549ee31cdb712ca8d527bbc016b4495b17961ad4c139",
+      "status": "unknown"
+    },
+    {
+      "id": "78d19683-ca84-4348-83c4-426285baec20",
+      "at": "2026-10-27T13:06:34.402Z",
+      "type": "proposal",
+      "proposal_id": "AP-b147eabc-7994-41a1-a933-ee55522673e4",
+      "digest": "7723d709bff18fe419654d01d8ad381856d1703fba3e3ea1c6d5c5c02b29244d",
+      "principal": "owner"
+    },
+    {
+      "id": "904de588-c0dd-4fa6-ad4c-9f7ef18ac6c6",
+      "at": "2026-10-27T13:06:36.454Z",
+      "type": "allow-once",
+      "proposal_id": "AP-b147eabc-7994-41a1-a933-ee55522673e4",
+      "principal": "owner"
+    },
+    {
+      "id": "654be919-46dd-409a-94e2-2be6f2f91c75",
+      "at": "2026-10-27T13:06:36.573Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-fdfd003a-bfd1-4ce2-a91b-ff35aaa903d1",
+      "digest": "7723d709bff18fe419654d01d8ad381856d1703fba3e3ea1c6d5c5c02b29244d"
+    },
+    {
+      "id": "6cdcfa38-92d8-40db-ab39-9634c5e4688f",
+      "at": "2026-10-27T13:06:36.818Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-b147eabc-7994-41a1-a933-ee55522673e4",
+      "digest": "7723d709bff18fe419654d01d8ad381856d1703fba3e3ea1c6d5c5c02b29244d",
+      "status": "unknown"
+    },
+    {
+      "id": "80d55656-b5fa-454e-b63e-cb3c2ab599c0",
+      "at": "2026-10-27T13:09:57.618Z",
+      "type": "proposal",
+      "proposal_id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "principal": "owner"
+    },
+    {
+      "id": "37c6f730-c521-4fa5-ba34-d0b095df782b",
+      "at": "2026-10-27T13:09:58.619Z",
+      "type": "allow-once",
+      "proposal_id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
+      "principal": "owner"
+    },
+    {
+      "id": "dba79f56-4be5-45d0-8e59-88c80d0bb299",
+      "at": "2026-10-27T13:09:58.747Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-ad025f53-1e38-4adf-bb16-f0572da16d04",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170"
+    },
+    {
+      "id": "a17d05cb-981a-4dab-9d75-f51835ef423a",
+      "at": "2026-10-27T13:09:58.980Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "status": "exhausted"
+    },
+    {
+      "id": "67320cd7-0abb-4d77-ac18-2d77d7317c77",
+      "at": "2026-10-27T13:11:11.960Z",
+      "type": "proposal",
+      "proposal_id": "AP-a6a1116a-63d1-4e65-8c60-331c485b379f",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "principal": "owner"
+    },
+    {
+      "id": "63ec9a35-8089-42da-9d19-d4f8aed20bc7",
+      "at": "2026-10-27T13:11:24.124Z",
+      "type": "allow-once",
+      "proposal_id": "AP-a6a1116a-63d1-4e65-8c60-331c485b379f",
+      "principal": "owner"
+    },
+    {
+      "id": "7a50c7cb-3249-4309-a456-7611f2b7b753",
+      "at": "2026-10-27T13:11:24.291Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-5d9a6d7d-451f-45c0-8d22-60f920759dc5",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170"
+    },
+    {
+      "id": "758ca2c9-c47f-4f58-a1d8-f3dd9662828d",
+      "at": "2026-10-27T13:11:24.416Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "status": "exhausted"
+    },
+    {
+      "id": "eac495c7-7355-49a2-9bdc-bcc04d9ed3f6",
+      "at": "2026-10-27T13:37:39.785Z",
+      "type": "proposal",
+      "proposal_id": "AP-b93e1887-1299-406c-b193-d76b7521aa7a",
+      "digest": "eeff069b9ffc1f96d2e474459b6fc9f2ba4f9066a540fb2d0273fabd5420f2b6",
+      "principal": "owner"
+    },
+    {
+      "id": "543a9e30-579d-401c-a5a9-749a4699adf6",
+      "at": "2026-10-27T13:37:41.244Z",
+      "type": "allow-once",
+      "proposal_id": "AP-b93e1887-1299-406c-b193-d76b7521aa7a",
+      "principal": "owner"
+    },
+    {
+      "id": "c8f3a903-713d-4e44-b204-40eca56a13da",
+      "at": "2026-10-27T13:37:41.491Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-9d1d9635-a56f-4941-aa54-49a55b3926b3",
+      "digest": "eeff069b9ffc1f96d2e474459b6fc9f2ba4f9066a540fb2d0273fabd5420f2b6"
+    },
+    {
+      "id": "7f41cbf1-b590-4edc-96b6-3b1f12fad7c2",
+      "at": "2026-10-27T13:37:41.588Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-b93e1887-1299-406c-b193-d76b7521aa7a",
+      "digest": "eeff069b9ffc1f96d2e474459b6fc9f2ba4f9066a540fb2d0273fabd5420f2b6",
+      "status": "started"
+    },
+    {
+      "id": "826d7405-5057-4570-a0f6-6d99ad159b13",
+      "at": "2026-10-27T13:41:32.918Z",
+      "type": "proposal",
+      "proposal_id": "AP-41227fa0-a9dd-416d-afbd-3779afad0b6e",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "principal": "owner"
+    },
+    {
+      "id": "c13af929-9848-4cab-ae92-acd17be5721c",
+      "at": "2026-10-27T13:41:34.132Z",
+      "type": "allow-once",
+      "proposal_id": "AP-41227fa0-a9dd-416d-afbd-3779afad0b6e",
+      "principal": "owner"
+    },
+    {
+      "id": "97291d5e-338f-4002-9143-3acfcebf4c0a",
+      "at": "2026-10-27T13:41:34.324Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-9c706f61-9188-47c7-8fc1-a9bc629fc983",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170"
+    },
+    {
+      "id": "fcb16f7d-e8e4-433a-ade3-1d1d4aa1cc13",
+      "at": "2026-10-27T13:41:36.298Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "status": "waiting"
+    },
+    {
+      "id": "c8a7633d-d55e-40a7-88bb-2d4e10c4fde9",
+      "at": "2026-10-27T13:53:49.172Z",
+      "type": "proposal",
+      "proposal_id": "AP-3925bef5-8010-4ae2-a313-9c8a7c449b44",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "principal": "owner"
+    },
+    {
+      "id": "62784ae9-1345-438b-9f65-4fbbf6c5922d",
+      "at": "2026-10-27T13:53:50.465Z",
+      "type": "allow-once",
+      "proposal_id": "AP-3925bef5-8010-4ae2-a313-9c8a7c449b44",
+      "principal": "owner"
+    },
+    {
+      "id": "f7ef3c33-e84f-4d6f-9023-9245d59c4106",
+      "at": "2026-10-27T13:53:50.631Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-e5bcc45f-8c7b-44d9-bd0f-854391f150d6",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170"
+    },
+    {
+      "id": "4bc515b2-1b48-4973-a025-d136161a8ea6",
+      "at": "2026-10-27T14:04:14.589Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
+      "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
+      "status": "waiting"
     }
   ]
 }

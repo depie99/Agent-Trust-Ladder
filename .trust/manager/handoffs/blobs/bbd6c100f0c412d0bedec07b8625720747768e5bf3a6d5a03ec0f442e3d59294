@@ -1,0 +1,66 @@
+// Light theme for the ATL Control Plane — mirror of themes/_dark.scss, same
+// 51 keys. The app is an ops console, so light mode is a crisp cool-gray
+// console: blue-gray chrome, white panels, darkened brand hues for text
+// contrast, pastel washes where dark mode used deep tints.
+//
+// Every token MUST exist in both theme maps — _tokens.scss fails the build
+// otherwise. When adding a token, add it to _dark.scss in the same change.
+
+$theme: (
+  // surfaces
+  "bg": #f2f5f9,
+  "side": #e9eef5,
+  "pane": #ffffff,
+  "raised": #f7fafc,
+  "chip": #e6edf4,
+  "btn-bg": #ffffff,
+  "btn-bg-hover": #eef3f8,
+  "pill-bg": #e8eef5,
+  "field-bg": #ffffff,
+  "step-on-bg": #e2f3ed,
+  "term-bg": #f6f8fb,
+  "dialog-bg": #ffffff,
+  "dock-bg": #e9eef5,
+  "avatar-bg": #e2f3ed,
+  "notice-bg": #faf3e3,
+  "mobile-bg": #e9eef5,
+  "row-hover": #f0f4f9,
+  "nav-on": #dcf0e9,
+  "track": #d5dde6,
+  // text
+  "text": #17212e,
+  "muted": #5c6b7d,
+  "faint": #7d8da0,
+  "nav-ink": #46586c,
+  "btn-ink": #1e2c3c,
+  "label-ink": #5c6b7d,
+  "step-ink": #4e5f72,
+  "term-ink": #2c3e52,
+  "kbd-ink": #7d8da0,
+  "on-accent": #ffffff,
+  // lines
+  "border": #cfd9e4,
+  "row-line": #e3e9f0,
+  "btn-edge": #b9c6d4,
+  "btn-edge-hover": #8fa3b8,
+  "pill-edge": #b9c6d4,
+  "key-edge": #b9c6d4,
+  "field-edge": #b0bfce,
+  "step-on-edge": #9fd4c4,
+  "term-edge": #cfd9e4,
+  "dialog-edge": #9fb0c2,
+  "dock-edge": #cfd9e4,
+  "avatar-edge": #9fd4c4,
+  "notice-edge": #dcbd7e,
+  "plan-edge": #a9bacb,
+  // brand
+  "accent": #0c7d62,
+  "red": #c2372c,
+  "amber": #9a6709,
+  "blue": #2f6bc4,
+  "violet": #7a4fd3,
+  // effects
+  "backdrop": #2a3644b8,
+  "dialog-shadow": #16202b66,
+  "accent-fade": #0c7d6200,
+);

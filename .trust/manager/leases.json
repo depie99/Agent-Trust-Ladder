@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": 577,
+  "revision": 1939,
   "sessions": {
     "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-026": {
       "id": "L-98b9e79e-ba29-4263-9be0-5671afed00f2",
@@ -16,17 +16,82 @@
       "released_at": 1793077494579
     },
     "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-018": {
-      "id": "L-03853e4b-cab0-4f61-9146-34901da98421",
+      "id": "L-b068eba4-c092-4acc-9282-84d6a9fa823a",
       "key": "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-018",
       "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
       "task": "T-018",
       "role": "rowan",
-      "run": "R-1793084828392",
-      "generation": 8,
-      "heartbeat_at": 1793084832269,
+      "run": "R-1793100444947",
+      "generation": 28,
+      "heartbeat_at": 1793100476166,
       "expires_at": 0,
       "status": "released",
-      "released_at": 1793084832303
+      "released_at": 1793100476188
+    },
+    "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-025": {
+      "id": "L-aa58eb1e-166d-468e-85c8-1c44dbd90fb3",
+      "key": "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-025",
+      "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+      "task": "T-025",
+      "role": "rowan",
+      "run": "R-1793088446735",
+      "generation": 4,
+      "heartbeat_at": 1793088479797,
+      "expires_at": 0,
+      "status": "released",
+      "released_at": 1793088479844
+    },
+    "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-019": {
+      "id": "L-1b51f760-37ac-4644-b110-6a1f54280e9b",
+      "key": "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-019",
+      "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+      "task": "T-019",
+      "role": "rowan",
+      "run": "R-1793102183451",
+      "generation": 7,
+      "heartbeat_at": 1793102318129,
+      "expires_at": 0,
+      "status": "released",
+      "released_at": 1793102318145
+    },
+    "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-020": {
+      "id": "L-8db60cc5-ba99-43d1-b329-97771f5d872b",
+      "key": "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-020",
+      "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+      "task": "T-020",
+      "role": "rowan",
+      "run": "R-1793102183451",
+      "generation": 1,
+      "heartbeat_at": 1793102636311,
+      "expires_at": 0,
+      "status": "released",
+      "released_at": 1793102636318
+    },
+    "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-021": {
+      "id": "L-9305d6f0-25ec-4765-ac44-0d6716da8c9b",
+      "key": "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-021",
+      "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+      "task": "T-021",
+      "role": "rowan",
+      "run": "R-1793102183451",
+      "generation": 1,
+      "heartbeat_at": 1793102794307,
+      "expires_at": 0,
+      "status": "released",
+      "released_at": 1793102794334
+    },
+    "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-022": {
+      "id": "L-4a408c9b-e922-4958-bdd3-6ddd6c27cc7e",
+      "key": "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-022",
+      "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+      "task": "T-022",
+      "role": "rowan",
+      "run": "R-1793109231223",
+      "generation": 6,
+      "heartbeat_at": 1793109852866,
+      "expires_at": 0,
+      "status": "released",
+      "released_at": 1793109854555
     }
   }
 }

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="A practical guide to optional Jev smart routing in the Agent Trust Ladder." />
+    <title>ATL Docs — Jev smart routing</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="styles.css?v=7" />
+    <meta name="theme-color" content="#0b0b10" />
+    <script>
+      // Theme no-flash: apply the stored (or system-preferred) theme before first paint.
+      (function () {
+        try {
+          var stored = localStorage.getItem("atl-theme");
+          if (stored === "light" || (!stored && window.matchMedia("(prefers-color-scheme: light)").matches)) {
+            document.documentElement.classList.add("light");
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="site-page">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Documentation navigation">
+        <a class="brand brand-link" href="index.html"><div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div><div><strong>ATL</strong><small>Agent Trust Ladder</small></div></a>
+        <div class="sidebar-caption">Start</div>
+        <nav class="nav-list">
+          <a class="nav-item" href="index.html"><span>⌂</span>Overview</a>
+          <a class="nav-item" href="index.html#quickstart"><span>→</span>Quickstart</a>
+        </nav>
+        <div class="sidebar-caption">Documentation</div>
+        <nav class="nav-list">
+          <a class="nav-item" href="skills.html"><span>✦</span>Skills</a>
+          <a class="nav-item" href="guides.html"><span>▤</span>Guides</a>
+          <a class="nav-item" href="control-room.html"><span>▣</span>Control Room</a>
+          <a class="nav-item" href="brain.html"><span>◈</span>ATL Brain</a>
+          <a class="nav-item" href="team.html"><span>◉</span>Team</a>
+          <a class="nav-subitem" href="team-interfaces.html">Team interfaces</a>
+          <a class="nav-item active" href="jev.html" aria-current="page"><span>◌</span>Jev routing</a>
+          <a class="nav-item" href="reference.html"><span>⌘</span>Reference</a>
+          <a class="nav-item" href="diagrams.html"><span>⌁</span>Diagrams</a>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="status-dot"><i></i>Evidence-first mode</div>
+          <p>Smallest trustworthy route.<br />Clear proof at every gate.</p>
+        </div>
+      </aside>
+      <main id="main-content">
+        <header class="topbar"><div class="crumbs"><a href="index.html">ATL</a><b>/</b><span class="current">Jev routing</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme" aria-pressed="false"></button><button class="search-button" id="search-open" aria-label="Open search"><span>⌕</span> Search <kbd>⌘ K</kbd></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder" aria-label="Open the GitHub repository">GitHub <span>↗</span></a></div></header>
+        <div class="content-wrap">
+          <section class="page-hero">
+            <span class="eyebrow"><span class="pulse"></span> OPTIONAL DECISION AID</span>
+            <h1>Route with<br /><em>less noise.</em></h1>
+            <p class="hero-copy">Use Jev when the right ATL specialist is unclear. Keep local routing as the safe default, and let ATL reject uncertain decisions.</p>
+            <div class="page-meta"><span><strong>1</strong> typed choice</span><span><strong>0</strong> extra skills</span><span><strong>100%</strong> fallback</span></div>
+          </section>
+          <div class="doc-layout">
+            <article class="doc-body">
+              <section class="guide-article" id="choose">
+                <div class="article-label">START HERE</div>
+                <div class="article-body">
+                  <h2>Choose the cheapest route that answers your question.</h2>
+                  <p>For a clear task, use the deterministic router. For an ambiguous task, ask Jev for one bounded routing opinion. Jev does not write code, generate documentation, or replace the worker.</p>
+                  <div class="reference-grid">
+                    <article><span class="ref-key">CLEAR TASK</span><h3><code>atl route T-001</code></h3><p>Use local keyword and label routing. No Jev request.</p></article>
+                    <article><span class="ref-key">AMBIGUOUS TASK</span><h3><code>--smart</code></h3><p>Ask one typed Jev choice, then require confidence.</p></article>
+                    <article><span class="ref-key">HIGH RISK</span><h3>ATL remains owner</h3><p>Jev may suggest a route; it cannot approve risk or evidence.</p></article>
+                  </div>
+                </div>
+              </section>
+              <section class="guide-article" id="setup">
+                <div class="article-label mint-label">01 · SETUP</div>
+                <div class="article-body">
+                  <h2>Enable Jev only when you need it.</h2>
+                  <p>Jev support is already inside ATL. The package does not install the TypeSafe SDK or add a runtime dependency. After <code>atl init</code>, edit the project configuration and set the API key in the current shell.</p>
+                  <div class="code-card"><b>config/jev.json</b><pre><code>{
+  "version": 1,
+  "enabled": true,
+  "model": "jev-latest",
+  "min_confidence": 0.75,
+  "timeout_ms": 2500
+}</code></pre></div>
+                  <div class="code-card"><b>PowerShell</b><pre><code>$env:TYPESAFE_API_KEY = "..."
+atl route T-001 --smart</code></pre></div>
+                  <div class="doc-callout note"><b>Default</b><span>The checked-in config is disabled. Normal intake and normal routing never call Jev.</span></div>
+                </div>
+              </section>
+              <section class="guide-article" id="prompt">
+                <div class="article-label amber-label">02 · PROMPT</div>
+                <div class="article-body">
+                  <h2>Write the task for ATL, not for Jev.</h2>
+                  <p>There is no second prompt. Give ATL the visible problem, affected surface, constraints, and observable checks. ATL builds the compact state and closed route choices.</p>
+                  <div class="code-card"><b>Good ATL task</b><pre><code>Improve the checkout page's loading state. Inspect the rendered UI, preserve the existing visual language, and verify the result at mobile and desktop widths.</code></pre></div>
+                  <div class="code-card"><b>Compact state sent to Jev</b><pre><code>{
+  "title": "Improve the checkout page's loading state",
+  "objective": "Inspect the rendered UI and verify mobile and desktop widths.",
+  "labels": ["ui"]
+}</code></pre></div>
+                  <div class="warning-box"><strong>Keep authority in ATL.</strong><span>Do not ask Jev to approve merges, deployments, destructive actions, permissions, or evidence waivers.</span></div>
+                </div>
+              </section>
+              <section class="guide-article" id="commands">
+                <div class="article-label coral-label">03 · COMMANDS</div>
+                <div class="article-body">
+                  <h2>Make the smart call explicit.</h2>
+                  <div class="steps-row"><div><b>01</b><strong>Inspect</strong><span><code>atl route T-001</code></span></div><div><b>02</b><strong>Ask Jev</strong><span><code>atl route T-001 --smart</code></span></div><div><b>03</b><strong>Triage</strong><span><code>atl triage T-001 --smart</code></span></div><div><b>04</b><strong>Verify</strong><span>Read confidence and fallback.</span></div></div>
+                  <div class="code-card"><b>Accepted decision</b><pre><code>Route: matched (jev)
+  skills: atl-ui-review
+  decision: jev accepted=true
+  confidence: 0.91</code></pre></div>
+                  <div class="code-card"><b>Safe fallback</b><pre><code>Route: matched (skill-routing.json)
+  skills: atl-tech-docs
+  decision: jev-fallback accepted=false
+  confidence: 0.61
+  decision reason: confidence below 0.75</code></pre></div>
+                </div>
+              </section>
+              <section class="guide-article" id="examples">
+                <div class="article-label mint-label">04 · EXAMPLES</div>
+                <div class="article-body">
+                  <h2>Give the router a useful surface.</h2>
+                  <div class="guide-columns">
+                    <div><h3>Docs versus implementation</h3><pre><code>Update the API authentication guide because the token exchange changed. Check runtime configuration, update examples, and verify the documented command.</code></pre><p>Likely route: <code>atl-tech-docs</code>.</p></div>
+                    <div><h3>UI versus implementation</h3><pre><code>The empty state is confusing on mobile. Inspect the rendered page, improve hierarchy and responsive behavior, then verify both widths.</code></pre><p>Likely route: <code>atl-ui-review</code>.</p></div>
+                    <div><h3>Formal verification</h3><pre><code>The manager can reach done without all completion evidence. Model transitions, add a negative control, and verify the invariant.</code></pre><p>Likely route: <code>atl-formal-verification</code>.</p></div>
+                    <div><h3>Content and SEO</h3><pre><code>Rewrite the pricing page for search intent without inventing product claims. Preserve facts and verify metadata and links.</code></pre><p>Likely route: <code>atl-content-quality</code>.</p></div>
+                  </div>
+                </div>
+              </section>
+              <section class="guide-article" id="tokens">
+                <div class="article-label">05 · TOKEN POLICY</div>
+                <div class="article-body">
+                  <h2>One small call, not another skill stack.</h2>
+                  <p>The `--smart` request contains only task fields and route descriptions. It does not contain the repository, skill bodies, or a request for a generated explanation.</p>
+                  <div class="steps-row"><div><b>01</b><strong>Explicit</strong><span>No automatic call.</span></div><div><b>02</b><strong>Compact</strong><span>Title, objective, labels.</span></div><div><b>03</b><strong>Typed</strong><span>One closed choice.</span></div><div><b>04</b><strong>Fallback</strong><span>Local route wins uncertainty.</span></div></div>
+                  <p class="doc-callout tip"><b>Result</b><span>Jev can reduce wasted routing context. It does not reduce the tokens a worker needs to implement a large task.</span></p>
+                </div>
+              </section>
+              <section class="guide-article" id="trust">
+                <div class="article-label coral-label">06 · TRUST</div>
+                <div class="article-body">
+                  <h2>Confidence is routing evidence, not completion proof.</h2>
+                  <p>ATL remains authoritative for scope, skill availability, permissions, status transitions, evidence requirements, review, merge, deployment, and destructive actions. The selected worker must still plan, implement, review, verify, and return the Trust Verdict.</p>
+                </div>
+              </section>
+              <section class="guide-article" id="troubleshooting">
+                <div class="article-label amber-label">07 · TROUBLESHOOTING</div>
+                <div class="article-body">
+                  <h2>Fallback is expected behavior.</h2>
+                  <p>If smart routing falls back, run these checks:</p>
+                  <div class="code-card"><b>Diagnostics</b><pre><code>atl validate
+atl route T-001
+$env:TYPESAFE_API_KEY</code></pre></div>
+                  <p>Then confirm that `config/jev.json` is enabled, the key exists in the current shell, the model is available, the threshold is appropriate, and the candidate skill exists in `config/skill-routing.json`.</p>
+                </div>
+              </section>
+            </article>
+            <aside class="doc-toc"><b>On this page</b><a href="#choose">Choose a route</a><a href="#setup">Setup</a><a href="#prompt">Prompt ATL</a><a href="#commands">Commands</a><a href="#examples">Examples</a><a href="#tokens">Token policy</a><a href="#trust">Trust boundary</a><a href="#troubleshooting">Troubleshooting</a></aside>
+          </div>
+          <section class="callout-panel"><div><span class="section-kicker">SOURCE OF TRUTH</span><h2>Keep the contract visible.</h2><p>The complete Markdown guide and the current runtime implementation live in the repository.</p></div><a class="button primary" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/jev.md">Open Markdown guide <span>↗</span></a></section>
+          <footer id="footer"><span>ATL Docs</span><span>Evidence first · Context aware · Human gated</span><a href="https://github.com/depie99/Agent-Trust-Ladder">View repository ↗</a></footer>
+        </div>
+      </main>
+    </div>
+    <dialog id="search-dialog"><form method="dialog"><div class="search-modal"><input id="search-input" type="search" placeholder="Search ATL docs…" aria-label="Search ATL docs" /><button value="close" aria-label="Close search">Esc</button><p>Try “verify”, “contracts”, “tech docs”, or “production”.</p><div id="search-results" class="search-results" aria-live="polite"></div></div></form></dialog>
+    <script src="app.js?v=7"></script>
+  </body>
+</html>

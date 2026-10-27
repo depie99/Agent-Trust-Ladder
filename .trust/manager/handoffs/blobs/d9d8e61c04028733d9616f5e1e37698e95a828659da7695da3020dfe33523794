@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import * as acorn from "acorn";
+import * as walk from "acorn-walk";
+import * as parse5 from "parse5";
+import { en, fa, t } from "../runtime/control-plane-i18n.js";
+const root = new URL("../", import.meta.url);
+const sourceNames = ["runtime/control-plane.html", "runtime/control-plane-client.js"];
+const sources = sourceNames.map(name => [name, fs.readFileSync(new URL(name, root), "utf8")]);
+const inventoryText = fs.readFileSync(new URL("runtime/control-plane-i18n.inventory.md", root), "utf8");
+function location(source, offset) { const before = source.slice(0, offset); return `${before.split("\n").length}:${offset - before.lastIndexOf("\n")}`; }
+function maskExpressions(source, start, end, expressions) { const chars = source.slice(start, end).split(""); for (const node of expressions) for (let i = Math.max(0, node[0] - start); i < Math.min(chars.length, node[1] - start); i++) if (chars[i] !== "\n" && chars[i] !== "\r") chars[i] = " "; return chars.join(""); }
+function textValue(value) { return value.replace(/\s+/g, " ").trim(); }
+function hidden(node) { return node.parentNode && ["style", "script", "template"].includes(String(node.parentNode.nodeName).toLowerCase()); }
+function collect(fragment, source, base, file, out) { const visit = node => { if (node.nodeName === "#text" && !hidden(node)) { const literal = textValue(node.value); if (literal && node.sourceCodeLocation) { const offset = base + node.sourceCodeLocation.startOffset; out.push({ file, literal, offset, location: location(source, offset) }); } } if (node.nodeName !== "#text" && node.nodeName !== "#comment") for (const attr of node.attrs ?? []) if (["aria-label", "title", "placeholder"].includes(attr.name.toLowerCase()) && attr.value.trim() && node.sourceCodeLocation?.attrs?.[attr.name]) { const a = node.sourceCodeLocation.attrs[attr.name]; const offset = base + a.startOffset + source.slice(a.startOffset, a.endOffset).indexOf(attr.value); out.push({ file, literal: textValue(attr.value), offset, location: location(source, offset) }); } for (const child of node.childNodes ?? []) visit(child); }; for (const node of fragment.childNodes ?? []) visit(node); }
+function html(source, file, start, end, expressions = []) { const masked = maskExpressions(source, start, end, expressions); const fragment = parse5.parseFragment(masked, { sourceCodeLocationInfo: true }); const out = []; collect(fragment, source, start, file, out); return out; }
+function derive(source, file) { if (file.endsWith(".html")) { const out = []; collect(parse5.parse(source, { sourceCodeLocationInfo: true }), source, 0, file, out); return out; } const ast = acorn.parse(source, { ecmaVersion: "latest", sourceType: "module" }); const out = []; walk.simple(ast, { TemplateLiteral(node) { const start = node.start + 1, end = node.end - 1; if (/[<][A-Za-z!/]/.test(source.slice(start, end))) { const ranges = node.expressions.map((_, i) => [node.quasis[i].end, node.quasis[i + 1].start]); out.push(...html(source, file, start, end, ranges)); } } }); return out; }
+export function auditCatalog(inputSources = sources, inputInventory = inventoryText) {
+const derived = inputSources.flatMap(([file, source]) => derive(source, file));
+const rows = inputInventory.split(/\r?\n/).filter(line => /^\|\s*[A-Za-z][\w]*\s*\|/.test(line)).map(line => line.split("|").slice(1, -1).map(v => v.trim())).filter(row => row[0] !== "key");
+const errors = [], occurrences = new Set();
+if (!rows.length) errors.push("inventory is empty");
+if (new Set(rows.map(row => row[0])).size !== rows.length) errors.push("duplicate inventory keys");
+if (JSON.stringify(Object.keys(en).sort()) !== JSON.stringify(Object.keys(fa).sort())) errors.push("en/fa key sets differ");
+const inventoryByLiteral = new Map();
+for (const [key, literal, locations] of rows) {
+  if (en[key] !== literal) errors.push(`${key}: English literal differs from catalog`);
+  if (!fa[key]?.trim()) errors.push(`${key}: missing Persian translation`);
+  inventoryByLiteral.set(literal, { key, locations });
+  for (const loc of locations.split(/;\s*/)) {
+    if (!/^runtime\/control-plane(?:-client\.js|\.html):\d+:\d+$/.test(loc)) errors.push(`${key}: malformed location ${loc}`);
+  }
+}
+// T-018 records pre-wiring source locations. After T-019 replaces literals with
+// t(key)/catalog-backed markup, those offsets are intentionally no longer source
+// occurrences. Preserve lineage by exact catalog phrase/key and require the
+// runtime bridge to be present; mutation probes still fail for new phrases.
+for (const item of derived) {
+  const key = Object.keys(en).find(candidate => en[candidate] === item.literal);
+  if (!key) errors.push(`uncovered ${item.file}:${item.location} :: ${item.literal}`);
+  else if (!inventoryByLiteral.has(item.literal)) errors.push(`missing inventory lineage for ${key} :: ${item.literal}`);
+}
+for (const [literal, row] of inventoryByLiteral) {
+  if (!Object.values(en).includes(literal)) errors.push(`${row.key}: inventory literal is not cataloged`);
+}
+const wiring = inputSources.find(([file]) => file.endsWith("control-plane-client.js"))?.[1] || "";
+if (!/localizeMarkup\s*=/.test(wiring) || !/\bt\(key/.test(wiring)) errors.push("client catalog lookup bridge t(key) is missing");
+return { errors, derived, rows };
+}
+
+if (process.argv[1] && new URL(`file://${process.argv[1].replaceAll("\\", "/")}`).href === import.meta.url) {
+const { errors, derived, rows } = auditCatalog();
+if (process.argv.includes("--dump")) { console.log(JSON.stringify(derived)); process.exit(0); }
+assert.deepEqual(errors, [], errors.join("\n"));
+for (const key of Object.keys(en)) { assert.ok(fa[key]?.trim(), `${key}: Persian value`); assert.equal(t(key, "fa"), fa[key]); assert.equal(t(key, "unknown"), en[key]); }
+const first = Object.keys(en)[0], saved = fa[first]; delete fa[first]; assert.equal(t(first, "fa"), en[first]); fa[first] = saved; assert.equal(t("__missing__", "fa"), "__missing__");
+console.log(`PASS: ${derived.length} source occurrences mapped exactly; ${rows.length} catalog entries and fallback checks passed.`);
+}

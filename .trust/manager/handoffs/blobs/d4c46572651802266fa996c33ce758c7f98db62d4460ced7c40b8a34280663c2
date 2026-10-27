@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL UI Review"
+  short_description: "Inspect and repair real UI with evidence"
+  default_prompt: "Use $atl-ui-review to inspect this implemented UI, prioritize evidence-backed problems, repair authorized issues, and recheck the real rendered states."

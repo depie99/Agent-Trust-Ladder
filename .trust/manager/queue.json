@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-10-27T04:41:03.546Z",
+  "updated_at": "2026-10-27T10:10:15.249Z",
   "active_queue": "plan-add-farsi-persian-planei",
   "queues": {
     "default": {
@@ -166,7 +166,7 @@
         }
       ],
       "created_at": "2026-10-26T06:21:47.742Z",
-      "updated_at": "2026-10-27T04:41:03.545Z",
+      "updated_at": "2026-10-27T10:10:15.248Z",
       "archived_at": null,
       "queue_id": "plan-add-farsi-persian-planei",
       "active_queue": "plan-add-farsi-persian-planei",

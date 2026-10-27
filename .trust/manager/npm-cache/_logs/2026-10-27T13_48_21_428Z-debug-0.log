@@ -1,0 +1,262 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.9.4
+2 info using node@v22.21.1
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\.npmrc
+5 silly config load:file:C:\Users\Sanaz\.npmrc
+6 silly config load:file:C:\Users\Sanaz\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm ci
+8 verbose argv "ci" "--offline" "--ignore-scripts" "--no-audit" "--no-fund" "--cache" "D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\npm-cache"
+9 verbose logfile logs-max:10 dir:D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\npm-cache\_logs\2026-10-27T13_48_21_428Z-
+10 verbose logfile D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\npm-cache\_logs\2026-10-27T13_48_21_428Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+13 silly idealTree buildDeps
+14 silly reify moves {}
+15 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-win32-arm64
+16 silly reify mark deleted [
+16 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-win32-arm64'
+16 silly reify ]
+17 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-linux-x64-musl
+18 silly reify mark deleted [
+18 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-linux-x64-musl'
+18 silly reify ]
+19 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-linux-x64-glibc
+20 silly reify mark deleted [
+20 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-linux-x64-glibc'
+20 silly reify ]
+21 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-linux-arm64-musl
+22 silly reify mark deleted [
+22 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-linux-arm64-musl'
+22 silly reify ]
+23 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-linux-arm64-glibc
+24 silly reify mark deleted [
+24 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-linux-arm64-glibc'
+24 silly reify ]
+25 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-linux-arm-musl
+26 silly reify mark deleted [
+26 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-linux-arm-musl'
+26 silly reify ]
+27 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-linux-arm-glibc
+28 silly reify mark deleted [
+28 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-linux-arm-glibc'
+28 silly reify ]
+29 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-freebsd-x64
+30 silly reify mark deleted [
+30 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-freebsd-x64'
+30 silly reify ]
+31 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-darwin-x64
+32 silly reify mark deleted [
+32 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-darwin-x64'
+32 silly reify ]
+33 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-darwin-arm64
+34 silly reify mark deleted [
+34 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-darwin-arm64'
+34 silly reify ]
+35 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-android-arm64
+36 silly reify mark deleted [
+36 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-android-arm64'
+36 silly reify ]
+37 http cache source-map-js@https://registry.npmmirror.com/source-map-js/-/source-map-js-1.2.2.tgz 1ms (cache hit)
+38 http cache sass@https://registry.npmmirror.com/sass/-/sass-1.106.1.tgz 0ms (cache hit)
+39 http cache readdirp@https://registry.npmmirror.com/readdirp/-/readdirp-5.1.1.tgz 0ms (cache hit)
+40 http cache parse5@https://registry.npmmirror.com/parse5/-/parse5-8.0.1.tgz 0ms (cache hit)
+41 http cache is-glob@https://registry.npmmirror.com/is-glob/-/is-glob-4.0.3.tgz 0ms (cache hit)
+42 http cache picomatch@https://registry.npmmirror.com/picomatch/-/picomatch-4.0.7.tgz 0ms (cache hit)
+43 http cache is-extglob@https://registry.npmmirror.com/is-extglob/-/is-extglob-2.1.1.tgz 0ms (cache hit)
+44 http cache immutable@https://registry.npmmirror.com/immutable/-/immutable-5.1.9.tgz 0ms (cache hit)
+45 http cache node-addon-api@https://registry.npmmirror.com/node-addon-api/-/node-addon-api-7.1.1.tgz 0ms (cache hit)
+46 http cache chokidar@https://registry.npmmirror.com/chokidar/-/chokidar-5.0.0.tgz 0ms (cache hit)
+47 http cache entities@https://registry.npmmirror.com/entities/-/entities-8.1.0.tgz 0ms (cache hit)
+48 http cache detect-libc@https://registry.npmmirror.com/detect-libc/-/detect-libc-2.1.2.tgz 0ms (cache hit)
+49 http cache @parcel/watcher@https://registry.npmmirror.com/@parcel/watcher/-/watcher-2.6.0.tgz 0ms (cache hit)
+50 silly tarball no local data for source-map-js@https://registry.npmmirror.com/source-map-js/-/source-map-js-1.2.2.tgz. Extracting by manifest.
+51 silly tarball no local data for sass@https://registry.npmmirror.com/sass/-/sass-1.106.1.tgz. Extracting by manifest.
+52 silly tarball no local data for readdirp@https://registry.npmmirror.com/readdirp/-/readdirp-5.1.1.tgz. Extracting by manifest.
+53 silly tarball no local data for parse5@https://registry.npmmirror.com/parse5/-/parse5-8.0.1.tgz. Extracting by manifest.
+54 http cache @parcel/watcher-win32-x64@https://registry.npmmirror.com/@parcel/watcher-win32-x64/-/watcher-win32-x64-2.6.0.tgz 0ms (cache hit)
+55 silly tarball no local data for is-glob@https://registry.npmmirror.com/is-glob/-/is-glob-4.0.3.tgz. Extracting by manifest.
+56 silly tarball no local data for picomatch@https://registry.npmmirror.com/picomatch/-/picomatch-4.0.7.tgz. Extracting by manifest.
+57 silly tarball no local data for is-extglob@https://registry.npmmirror.com/is-extglob/-/is-extglob-2.1.1.tgz. Extracting by manifest.
+58 silly tarball no local data for immutable@https://registry.npmmirror.com/immutable/-/immutable-5.1.9.tgz. Extracting by manifest.
+59 silly tarball no local data for node-addon-api@https://registry.npmmirror.com/node-addon-api/-/node-addon-api-7.1.1.tgz. Extracting by manifest.
+60 silly tarball no local data for chokidar@https://registry.npmmirror.com/chokidar/-/chokidar-5.0.0.tgz. Extracting by manifest.
+61 http cache acorn-walk@https://registry.npmmirror.com/acorn-walk/-/acorn-walk-8.3.5.tgz 0ms (cache hit)
+62 silly tarball no local data for entities@https://registry.npmmirror.com/entities/-/entities-8.1.0.tgz. Extracting by manifest.
+63 silly tarball no local data for detect-libc@https://registry.npmmirror.com/detect-libc/-/detect-libc-2.1.2.tgz. Extracting by manifest.
+64 http cache acorn@https://registry.npmmirror.com/acorn/-/acorn-8.19.0.tgz 0ms (cache hit)
+65 silly tarball no local data for @parcel/watcher@https://registry.npmmirror.com/@parcel/watcher/-/watcher-2.6.0.tgz. Extracting by manifest.
+66 silly tarball no local data for @parcel/watcher-win32-x64@https://registry.npmmirror.com/@parcel/watcher-win32-x64/-/watcher-win32-x64-2.6.0.tgz. Extracting by manifest.
+67 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-glob
+68 silly reify mark deleted [
+68 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-glob'
+68 silly reify ]
+69 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher
+70 silly reify mark deleted [
+70 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher'
+70 silly reify ]
+71 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-extglob
+72 silly reify mark deleted [
+72 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-extglob'
+72 silly reify ]
+73 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\detect-libc
+74 silly reify mark deleted [
+74 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\detect-libc'
+74 silly reify ]
+75 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\node-addon-api
+76 silly reify mark deleted [
+76 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\node-addon-api'
+76 silly reify ]
+77 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\picomatch
+78 silly reify mark deleted [
+78 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\picomatch'
+78 silly reify ]
+79 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\picomatch
+80 silly reify mark deleted [
+80 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\picomatch'
+80 silly reify ]
+81 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher
+82 silly reify mark deleted [
+82 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher'
+82 silly reify ]
+83 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\detect-libc
+84 silly reify mark deleted [
+84 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\detect-libc'
+84 silly reify ]
+85 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-glob
+86 silly reify mark deleted [
+86 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-glob'
+86 silly reify ]
+87 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\node-addon-api
+88 silly reify mark deleted [
+88 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\node-addon-api'
+88 silly reify ]
+89 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-extglob
+90 silly reify mark deleted [
+90 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-extglob'
+90 silly reify ]
+91 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-extglob
+92 silly reify mark deleted [
+92 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-extglob'
+92 silly reify ]
+93 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-glob
+94 silly reify mark deleted [
+94 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-glob'
+94 silly reify ]
+95 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher
+96 silly reify mark deleted [
+96 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher'
+96 silly reify ]
+97 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\detect-libc
+98 silly reify mark deleted [
+98 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\detect-libc'
+98 silly reify ]
+99 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\node-addon-api
+100 silly reify mark deleted [
+100 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\node-addon-api'
+100 silly reify ]
+101 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\picomatch
+102 silly reify mark deleted [
+102 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\picomatch'
+102 silly reify ]
+103 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\node-addon-api
+104 silly reify mark deleted [
+104 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\node-addon-api'
+104 silly reify ]
+105 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher
+106 silly reify mark deleted [
+106 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher'
+106 silly reify ]
+107 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\detect-libc
+108 silly reify mark deleted [
+108 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\detect-libc'
+108 silly reify ]
+109 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-glob
+110 silly reify mark deleted [
+110 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-glob'
+110 silly reify ]
+111 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\picomatch
+112 silly reify mark deleted [
+112 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\picomatch'
+112 silly reify ]
+113 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-extglob
+114 silly reify mark deleted [
+114 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-extglob'
+114 silly reify ]
+115 silly tarball no local data for acorn-walk@https://registry.npmmirror.com/acorn-walk/-/acorn-walk-8.3.5.tgz. Extracting by manifest.
+116 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\detect-libc
+117 silly reify mark deleted [
+117 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\detect-libc'
+117 silly reify ]
+118 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher
+119 silly reify mark deleted [
+119 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher'
+119 silly reify ]
+120 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-glob
+121 silly reify mark deleted [
+121 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-glob'
+121 silly reify ]
+122 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\node-addon-api
+123 silly reify mark deleted [
+123 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\node-addon-api'
+123 silly reify ]
+124 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\picomatch
+125 silly reify mark deleted [
+125 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\picomatch'
+125 silly reify ]
+126 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-extglob
+127 silly reify mark deleted [
+127 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-extglob'
+127 silly reify ]
+128 silly tarball no local data for acorn@https://registry.npmmirror.com/acorn/-/acorn-8.19.0.tgz. Extracting by manifest.
+129 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher
+130 silly reify mark deleted [
+130 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher'
+130 silly reify ]
+131 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\detect-libc
+132 silly reify mark deleted [
+132 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\detect-libc'
+132 silly reify ]
+133 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-glob
+134 silly reify mark deleted [
+134 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-glob'
+134 silly reify ]
+135 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\node-addon-api
+136 silly reify mark deleted [
+136 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\node-addon-api'
+136 silly reify ]
+137 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\picomatch
+138 silly reify mark deleted [
+138 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\picomatch'
+138 silly reify ]
+139 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\is-extglob
+140 silly reify mark deleted [
+140 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\is-extglob'
+140 silly reify ]
+141 verbose reify failed optional dependency D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022\node_modules\@parcel\watcher-win32-x64
+142 silly reify mark deleted [
+142 silly reify   'D:\\Projects\\Agentic\\Agent-Trust-Ladder\\.trust\\manager\\workspaces\\T-022\\node_modules\\@parcel\\watcher-win32-x64'
+142 silly reify ]
+143 verbose stack Error: request to https://registry.npmmirror.com/source-map-js/-/source-map-js-1.2.2.tgz failed: cache mode is 'only-if-cached' but no cached response is available.
+143 verbose stack     at cacheFetch (C:\Program Files\nodejs\node_modules\npm\node_modules\make-fetch-happen\lib\cache\index.js:12:13)
+143 verbose stack     at async fetch (C:\Program Files\nodejs\node_modules\npm\node_modules\make-fetch-happen\lib\fetch.js:98:7)
+144 error code ENOTCACHED
+145 error request to https://registry.npmmirror.com/source-map-js/-/source-map-js-1.2.2.tgz failed: cache mode is 'only-if-cached' but no cached response is available.
+146 silly unfinished npm timer reify 1793108901795
+147 silly unfinished npm timer reify:unpack 1793108901811
+148 silly unfinished npm timer reifyNode:node_modules/source-map-js 1793108901811
+149 silly unfinished npm timer reifyNode:node_modules/sass 1793108901811
+150 silly unfinished npm timer reifyNode:node_modules/readdirp 1793108901811
+151 silly unfinished npm timer reifyNode:node_modules/parse5 1793108901811
+152 silly unfinished npm timer reifyNode:node_modules/immutable 1793108901811
+153 silly unfinished npm timer reifyNode:node_modules/entities 1793108901811
+154 silly unfinished npm timer reifyNode:node_modules/chokidar 1793108901811
+155 silly unfinished npm timer reifyNode:node_modules/acorn-walk 1793108901811
+156 silly unfinished npm timer reifyNode:node_modules/acorn 1793108901811
+157 verbose cwd D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-022
+158 verbose os Windows_NT 10.0.26200
+159 verbose node v22.21.1
+160 verbose npm  v10.9.4
+161 verbose exit 1
+162 verbose code 1
+163 error A complete log of this run can be found in: D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\npm-cache\_logs\2026-10-27T13_48_21_428Z-debug-0.log

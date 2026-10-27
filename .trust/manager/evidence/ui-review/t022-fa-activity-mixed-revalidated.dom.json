@@ -1,0 +1,23 @@
+{
+  "route": "Activity & Logs",
+  "viewport": {
+    "width": 1440,
+    "height": 960
+  },
+  "locale": "fa",
+  "direction": "rtl",
+  "observed": {
+    "html": "<div class=\"event\"><span class=\"muted tiny bidi-isolate\" dir=\"auto\" style=\"white-space:nowrap\">05:14:50 PM</span><div><span class=\"pill status-badge \" title=\"CHECK\">CHECK</span> <span class=\"bidi-auto\" dir=\"auto\"><bdi class=\"bidi-isolate\">rowan</bdi></span><div class=\"event-detail\" style=\"margin-top:5px\"><bdi class=\"bidi-isolate\">T-022:</bdi> <span class=\"bidi-auto\" dir=\"auto\">گزارش فارسی: مسیر <bdi class=\"bidi-isolate\">D:\\Projects\\Agentic\\Agent-Trust-Ladder\\runtime\\control-plane-client.js</bdi> در شواهد ثبت شد\nترتیب راست‌به‌چپ حفظ شد.</span></div></div></div>",
+    "text": "05:14:50 PM\nCHECK rowan\nT-022: گزارش فارسی: مسیر D:\\Projects\\Agentic\\Agent-Trust-Ladder\\runtime\\control-plane-client.js در شواهد ثبت شد ترتیب راست‌به‌چپ حفظ شد.",
+    "rootDirection": "rtl",
+    "sentenceDirection": "rtl",
+    "path": "D:\\Projects\\Agentic\\Agent-Trust-Ladder\\runtime\\control-plane-client.js",
+    "pathTag": "BDI",
+    "pathDirection": "ltr",
+    "pathBidi": "isolate",
+    "stampDir": "auto",
+    "stampBidi": "isolate"
+  },
+  "unsafeMarkupRenderedAsText": true,
+  "consoleErrors": []
+}

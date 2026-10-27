@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Frame"
+  short_description: "Turn a vague engineering request into a bounded brief with explicit unknowns, constraints, acceptanc"
+  default_prompt: "Use $atl-frame for this request."

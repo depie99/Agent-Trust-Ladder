@@ -1,0 +1,47 @@
+// Theme token emitter — the single source of colored truth for the docs site.
+//
+// Architecture:
+//   themes/_dark.scss + themes/_light.scss  → two complete token maps
+//   _tokens.scss (this file)                → emits them as CSS custom props
+//   every component partial                 → uses var(--token) only
+//
+// Theme switching is runtime CSS: app.js toggles the `light` class on <html>
+// (see the no-flash script each page carries in <head>). No rebuild, no JS
+// re-render — the custom props simply resolve differently.
+//
+// The two maps are checked for key parity right here: adding a token to one
+// theme and not the other is a compile error, not a silent gap.
+
+@use "sass:map";
+@use "sass:meta";
+@use "themes/dark" as dark;
+@use "themes/light" as light;
+
+@each $name in map.keys(dark.$theme) {
+  @if not map.has-key(light.$theme, $name) {
+    @error "token --#{$name} exists in _dark.scss but not in _light.scss — light mode would be unspecified";
+  }
+}
+
+@each $name in map.keys(light.$theme) {
+  @if not map.has-key(dark.$theme, $name) {
+    @error "token --#{$name} exists in _light.scss but not in _dark.scss — dark theme would drift";
+  }
+}
+
+@mixin emit($theme) {
+  @each $name, $value in $theme {
+    --#{$name}: #{meta.inspect($value)};
+  }
+}
+
+:root {
+  color-scheme: dark;
+  --radius: 18px;
+  @include emit(dark.$theme);
+}
+
+html.light {
+  color-scheme: light;
+  @include emit(light.$theme);
+}

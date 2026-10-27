@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import * as acorn from "acorn";
+import * as walk from "acorn-walk";
+import * as parse5 from "parse5";
+import fs from "node:fs";
+import { auditCatalog } from "./control_plane_catalog_test.mjs";
+
+const source = 'const outer = `<section aria-label="Visible attribute"><span>Inline <b>visible label</b></span><style>.x { content: "hidden css" }</style><script>"hidden script"</script>${`<i>Nested rendered text</i>`}</section>`;';
+const ast = acorn.parse(source, { ecmaVersion: "latest" });
+const templates = [];
+walk.simple(ast, { TemplateLiteral(node) { templates.push(node); } });
+assert.equal(templates.length, 2, "nested templates are independently represented by Acorn");
+const outer = templates.find(node => node.expressions.length === 1);
+const body = source.slice(outer.start + 1, outer.end - 1);
+const masked = body.slice(0, outer.quasis[0].end - (outer.start + 1)) + " ".repeat(outer.quasis[0].end - outer.start - 1 < outer.quasis[1].start - (outer.start + 1) ? outer.quasis[1].start - outer.quasis[0].end : 0) + body.slice(outer.quasis[1].start - (outer.start + 1));
+const fragment = parse5.parseFragment(masked, { sourceCodeLocationInfo: true });
+const text = [], attrs = [];
+const visit = node => { if (node.nodeName === "#text" && !["style", "script"].includes(node.parentNode?.nodeName)) text.push(node.value.trim()); for (const attr of node.attrs ?? []) if (["aria-label", "title", "placeholder"].includes(attr.name)) attrs.push(attr.value); for (const child of node.childNodes ?? []) visit(child); };
+for (const node of fragment.childNodes) visit(node);
+assert.ok(text.includes("Inline")); assert.ok(text.includes("visible label")); assert.ok(!text.includes("hidden css")); assert.ok(!text.includes("hidden script")); assert.deepEqual(attrs, ["Visible attribute"]);
+const mutation = parse5.parseFragment(`<button aria-label="new aria mutation">new visible mutation</button>`, { sourceCodeLocationInfo: true });
+const mutationValues = []; const collectMutation = node => { if (node.value) mutationValues.push(node.value); for (const attr of node.attrs ?? []) mutationValues.push(attr.value); for (const child of node.childNodes ?? []) collectMutation(child); }; collectMutation(mutation);
+assert.ok(mutationValues.includes("new visible mutation")); assert.ok(mutationValues.includes("new aria mutation"));
+
+// Mutation probes exercise the real source-derived bidirectional audit. Neither
+// phrase is in the catalog/inventory, so each must be reported as uncovered.
+const projectRoot = new URL("../", import.meta.url);
+const originalSources = ["runtime/control-plane.html", "runtime/control-plane-client.js"].map(name => [name, fs.readFileSync(new URL(name, projectRoot), "utf8")]);
+const inventory = fs.readFileSync(new URL("runtime/control-plane-i18n.inventory.md", projectRoot), "utf8");
+const textMutated = originalSources.map(([name, value]) => [name, name.endsWith(".html") ? value.replace("<body", '<p>unreviewed mutation text</p><body') : value]);
+const ariaMutated = originalSources.map(([name, value]) => [name, name.endsWith(".html") ? value.replace("<body", '<div aria-label="unreviewed mutation aria"></div><body') : value]);
+const textAudit = auditCatalog(textMutated, inventory);
+const ariaAudit = auditCatalog(ariaMutated, inventory);
+assert.ok(textAudit.errors.some(error => error.includes("unreviewed mutation text")), "real audit reports an uncataloged visible text mutation");
+assert.ok(ariaAudit.errors.some(error => error.includes("unreviewed mutation aria")), "real audit reports an uncataloged aria-label mutation");
+console.log("PASS: parser fixtures cover nested templates, inline text, attributes, style/script exclusion, and visible mutations.");

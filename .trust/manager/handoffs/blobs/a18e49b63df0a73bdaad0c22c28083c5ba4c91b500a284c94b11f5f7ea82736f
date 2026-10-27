@@ -1,0 +1,12 @@
+import { readFile } from "node:fs/promises";
+import assert from "node:assert/strict";
+
+const client = await readFile("runtime/control-plane-client.js", "utf8");
+const scss = await readFile("runtime/scss/_app.scss", "utf8");
+assert.match(client, /dir = "auto"/);
+assert.match(client, /bidi-auto/);
+assert.match(client, /language-toggle/);
+assert.match(scss, /Noto Sans Arabic/);
+assert.match(scss, /unicode-bidi:plaintext/);
+assert.match(scss, /unicode-bidi:isolate/);
+console.log("bidi contract: PASS");

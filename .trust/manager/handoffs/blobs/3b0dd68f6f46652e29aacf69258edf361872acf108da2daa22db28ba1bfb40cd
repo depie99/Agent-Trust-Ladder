@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">ATL</title>
+  <desc id="desc">A glowing geometric A shaped like a trust ladder.</desc>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#211b3b" />
+      <stop offset="1" stop-color="#0b0b10" />
+    </linearGradient>
+    <linearGradient id="mark" x1="18" y1="12" x2="47" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c0b5ff" />
+      <stop offset=".55" stop-color="#9b8cff" />
+      <stop offset="1" stop-color="#5fe0c2" />
+    </linearGradient>
+    <filter id="soft-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.2" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="17" fill="url(#bg)" stroke="#4c467a" stroke-width="1.5" />
+  <path d="M15.5 48 27.2 16h9.6l11.7 32h-7.4l-2.7-7.7H25.6L22.9 48z" fill="url(#mark)" filter="url(#soft-glow)" />
+  <path d="m31.9 23.9-4 11.1h8z" fill="#11111a" />
+  <path d="M24.8 37.3h14.4" stroke="#11111a" stroke-width="3" stroke-linecap="round" />
+  <circle cx="49" cy="15" r="3.5" fill="#5fe0c2" filter="url(#soft-glow)" />
+  <path d="M50 9.5v-2M55 15h2M53.2 10.8l1.5-1.5" stroke="#f4c67e" stroke-width="1.4" stroke-linecap="round" opacity=".9" />
+</svg>

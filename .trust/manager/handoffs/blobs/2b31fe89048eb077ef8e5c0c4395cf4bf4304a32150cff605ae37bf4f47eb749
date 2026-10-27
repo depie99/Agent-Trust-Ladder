@@ -1,0 +1,26 @@
+# Task workspaces are disposable clones/worktrees created per task by atl-manager.
+.trust/manager/workspaces/
+.trust/manager/state.json
+.trust/manager/state.json.tmp
+.trust/manager/feed.jsonl
+.trust/manager/codex-bridge-state.json
+.trust/manager/briefs/
+.trust/manager/learning.json
+.trust/manager/overnight/
+.trust/manager/attachments/
+
+# Generated review handoffs are local artifacts, not repository source.
+.atl/tasks/
+.humanlayer/
+
+# Per-user install state created by local runs must never land in the repo.
+.atl/project.json
+
+# Local dependency install for the docs CSS build (sass devDependency).
+node_modules/
+
+# Local UI-review artifacts and broken tooling output must never be committed:
+# .edge-ui-review holds Edge browser binaries (~400MB, over GitHub's limit);
+# %T%/ is a mis-interpolated duplicate of the tree once staged by a bad tool run.
+.edge-ui-review/
+%T%/

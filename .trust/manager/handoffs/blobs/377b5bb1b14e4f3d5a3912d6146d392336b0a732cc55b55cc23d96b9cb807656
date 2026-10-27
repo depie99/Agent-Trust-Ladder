@@ -1,0 +1,57 @@
+---
+name: atl-tech-docs
+description: Create, update, review, and keep technical documentation synchronized with engineering changes. Use for new docs, stale docs, API/configuration changes, release notes, runbooks, developer guides, documentation impact during implementation, and syncing docs after a batch of code changes.
+---
+
+# ATL technical documentation
+
+Treat documentation as part of the product and the change surface, not as cleanup after code ships. Docs serve two readers: humans completing a task and agents retrieving an answer. This skill owns documentation discovery, content design, source alignment, authoring, and doc-specific verification; ATL still owns dose, authority, lifecycle, and the final trust verdict.
+
+Read only the references needed for the request:
+
+- [content-model.md](references/content-model.md) when choosing a document type or information architecture;
+- [type-chooser.md](references/type-chooser.md) when the user does not know whether they need business, product, technical, operational, tutorial, reference, or explanation content;
+- [writing-guide.md](references/writing-guide.md) when drafting or editing prose;
+- [maintenance-workflow.md](references/maintenance-workflow.md) when docs must track a code/config/API/operational change or a batch of past changes;
+- [verification.md](references/verification.md) when validating examples, links, generated output, retrievability, or freshness;
+- [diagram-workflow.md](references/diagram-workflow.md) when a change is easier to explain as architecture, sequence, lifecycle, ownership, or dependency structure;
+- route actual visual artifact creation and review to the repository's `atl-diagrams` specialist;
+- [research-basis.md](references/research-basis.md) when explaining why these conventions were selected.
+
+## Modes
+
+Pick one entry point from the request; do not run all of them for one ask.
+
+- **Author** — new page or doc set. Run the full Route. For a new doc set, or any page beyond a small edit, build in passes — skeleton, then headings and topic sentences, then full prose — and give the owner a checkpoint between passes; never advance a tier without review when the dose is large.
+- **Sync** — docs must track one change, or a batch of changes since the last documented revision. Establish or read the sync anchor, diff and triage the changes, then update affected doc families in order (maintenance-workflow.md).
+- **Audit** — no change requested. Assess accuracy, freshness, and retrievability of a page or doc set; return findings with the evidence packet and `no doc change` unless a fix is approved.
+
+## Route
+
+1. **Define the doc contract.** Identify the primary audience — one per page, and secondary audiences never outrank it — plus user goal, prerequisite knowledge, scope, non-scope, expected outcome, language/localization needs, and the source of truth.
+2. **Discover before drafting.** Inspect repository instructions, docs conventions, navigation, generated-doc boundaries, existing terminology, the relevant diff/issue, and the commands the project actually provides. Never invent a docs command. If a docs sync anchor exists, read it before planning any update.
+3. **Decide the change.** Return one of: `no doc change`, `update existing`, `create new`, `deprecate/redirect`, or `needs-owner-decision`. Prefer updating the canonical page over creating a duplicate.
+4. **Choose the content shape.** Classify the page as README/entry point, tutorial, how-to, reference, explanation, quickstart, troubleshooting, decision record, release note, or a project-specific equivalent. Organize by what readers are trying to do, not by source directory layout. Do not mix user goals casually; split pages when one page serves conflicting needs.
+5. **Trace technical truth.** Compare claims, commands, configuration, API shapes, examples, screenshots, links, and version/status statements against the current implementation and deployment contract. Take explanation content from comments, naming, and history — stated intent, not invented rationale. Mark anything not directly observed as `OPEN` or `ASSUMPTION (source)`.
+6. **Write for use.** Lead with the reader's goal and result, use scannable headings and ordered steps, keep one idea per paragraph, define unfamiliar terms, use consistent terminology, and show a working example before optional detail. Assume agent readers: self-contained sections, headings that name their question, no dangling pronouns across sections, complete copyable examples.
+7. **Verify the artifact.** Run the repository's available docs/build/lint/link/example checks. Where available, use Markdown linting for structure, Vale or an equivalent for prose style, a link checker for URLs, and executable checks for code examples. Include a retrievability pass: each section must answer its heading without needing the page's earlier sections. If a check is unavailable, report it rather than replacing it with a claim.
+8. **Review the diff.** Check scope, navigation, links, accessibility text, localization impact, generated-file ownership, terminology drift, stale claims, and whether the docs change belongs in the same implementation/release change.
+9. **Return an evidence packet.** Include the doc contract, files changed, sync-anchor movement, source-of-truth observations, checks run, skipped checks, review rubric when applied, unresolved freshness/ownership gaps, and the next safe action.
+
+## Change-lifecycle rule
+
+When a code, API, schema, configuration, deployment, security, or operational change affects what a user or engineer must know, perform a documentation-impact check in the same workflow. Documentation may be updated before, during, or immediately after implementation, but it must not be silently deferred when the change is shipped.
+
+For generated documentation, edit the generator/source and regenerate; do not hand-edit generated output unless the repository explicitly owns it that way. Generate API references from the schema or spec (OpenAPI or equivalent) and review the generated diff; hand-write only the prose around it. For versioned or public interfaces, verify the version, compatibility, migration, deprecation, and release-note story.
+
+After checks pass, advance the sync anchor to the revision the docs were verified against, so the next sync diffs from a real boundary instead of guessing.
+
+## Stop conditions
+
+Stop and report `needs-owner-decision` when audience, supported behavior, source of truth, public compatibility, localization authority, or publication ownership is materially unclear. Do not make documentation look certain when the implementation or runtime contract is unknown.
+
+For a tiny isolated copy/comment change with no user-facing contract or documentation surface, return `no doc change` and let the parent ATL route remain Direct.
+
+## Output
+
+End with: `doc decision`, `mode used`, `audience/goal`, `content type`, `files changed`, `sync anchor`, `technical claims verified`, `checks run`, `checks unavailable`, `retrievability result`, `rubric score when applied`, `freshness/ownership gaps`, and whether the documentation is `current`, `conditionally current`, or `not verified`.

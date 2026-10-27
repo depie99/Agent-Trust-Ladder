@@ -1,0 +1,914 @@
+/** Source-derived Control Plane UI catalog. T-019 owns runtime lookup wiring. */
+const entries = {
+  "ui001": [
+    "ATL — Developer Control Plane Prototype",
+    "ATL — Developer Control Plane Prototype"
+  ],
+  "ui002": [
+    "A",
+    "A"
+  ],
+  "ui003": [
+    "ATL",
+    "ATL"
+  ],
+  "ui004": [
+    "/ CONTROL",
+    "/ CONTROL"
+  ],
+  "ui005": [
+    "agent-trust-ladder",
+    "agent-trust-ladder"
+  ],
+  "ui006": [
+    "●",
+    "●"
+  ],
+  "ui007": [
+    "main · control-plane / demo",
+    "main · control-plane / demo"
+  ],
+  "ui008": [
+    "WORKSPACE",
+    "WORKSPACE"
+  ],
+  "ui009": [
+    "OPERATIONS",
+    "OPERATIONS"
+  ],
+  "ui010": [
+    "Manage providers",
+    "Manage providers"
+  ],
+  "ui011": [
+    "PROVIDER STATUS",
+    "PROVIDER STATUS"
+  ],
+  "ui012": [
+    "Unknown",
+    "Unknown"
+  ],
+  "ui013": [
+    "Configured provider · demo",
+    "Configured provider · demo"
+  ],
+  "ui014": [
+    "No authoritative quota connected",
+    "No authoritative quota connected"
+  ],
+  "ui015": [
+    "M",
+    "M"
+  ],
+  "ui016": [
+    "Workspace Manager",
+    "Workspace Manager"
+  ],
+  "ui017": [
+    "Owner / approvals · Settings",
+    "Owner / approvals · Settings"
+  ],
+  "ui018": [
+    "ATL /",
+    "ATL /"
+  ],
+  "ui019": [
+    "Overview",
+    "Overview"
+  ],
+  "ui020": [
+    "INTERACTIVE DEMO",
+    "INTERACTIVE DEMO"
+  ],
+  "ui021": [
+    "Toggle theme",
+    "Toggle theme"
+  ],
+  "ui022": [
+    "⌕ Command palette",
+    "⌕ Command palette"
+  ],
+  "ui023": [
+    "Ctrl K",
+    "Ctrl K"
+  ],
+  "ui024": [
+    "◈",
+    "◈"
+  ],
+  "ui025": [
+    "3",
+    "3"
+  ],
+  "ui026": [
+    "+ New task",
+    "+ New task"
+  ],
+  "ui027": [
+    "atl ›",
+    "atl ›"
+  ],
+  "ui028": [
+    "ATL command input",
+    "ATL command input"
+  ],
+  "ui029": [
+    "Type help, tasks, plan, queues, team, usage...",
+    "Type help, tasks, plan, queues, team, usage..."
+  ],
+  "ui030": [
+    "↵ run",
+    "↵ run"
+  ],
+  "ui031": [
+    "● Interactive mock · No provider calls, skill execution or real ATL actions",
+    "● Interactive mock · No provider calls, skill execution or real ATL actions"
+  ],
+  "ui032": [
+    "Ctrl K commands · N new task · 1–8 pages · Esc close",
+    "Ctrl K commands · N new task · 1–8 pages · Esc close"
+  ],
+  "ui033": [
+    "· KB ·",
+    "· KB ·"
+  ],
+  "ui034": [
+    "⟳ Model plan request in progress",
+    "⟳ Model plan request in progress"
+  ],
+  "ui035": [
+    "Request sent to . Waiting for its response; this page will update with editable task cards when the schema validates.",
+    "Request sent to . Waiting for its response; this page will update with editable task cards when the schema validates."
+  ],
+  "ui036": [
+    "Bounded to one planning session and 15 minutes. Your existing draft remains unchanged while this runs.",
+    "Bounded to one planning session and 15 minutes. Your existing draft remains unchanged while this runs."
+  ],
+  "ui037": [
+    "Snap back to the generated plan's choice",
+    "Snap back to the generated plan's choice"
+  ],
+  "ui038": [
+    "↺ default",
+    "↺ default"
+  ],
+  "ui039": [
+    "◇",
+    "◇"
+  ],
+  "ui040": [
+    "editing · rev",
+    "editing · rev"
+  ],
+  "ui041": [
+    "Task title",
+    "Task title"
+  ],
+  "ui042": [
+    "Objective",
+    "Objective"
+  ],
+  "ui043": [
+    "Proposed worker",
+    "Proposed worker"
+  ],
+  "ui044": [
+    "Skills (multi select)",
+    "Skills (multi select)"
+  ],
+  "ui045": [
+    "Completion checks (one per line)",
+    "Completion checks (one per line)"
+  ],
+  "ui046": [
+    "Files (comma separated)",
+    "Files (comma separated)"
+  ],
+  "ui047": [
+    "Verifier",
+    "Verifier"
+  ],
+  "ui048": [
+    "Depends on (proposal ids, comma separated)",
+    "Depends on (proposal ids, comma separated)"
+  ],
+  "ui049": [
+    "Correction feedback for regeneration…",
+    "Correction feedback for regeneration…"
+  ],
+  "ui050": [
+    "rev ·",
+    "rev ·"
+  ],
+  "ui051": [
+    "Given",
+    "Given"
+  ],
+  "ui052": [
+    "when",
+    "when"
+  ],
+  "ui053": [
+    "then",
+    "then"
+  ],
+  "ui054": [
+    "Task cards",
+    "Task cards"
+  ],
+  "ui055": [
+    "( canonical tasks on approval)",
+    "( canonical tasks on approval)"
+  ],
+  "ui056": [
+    "Legacy draft without editable cards",
+    "Legacy draft without editable cards"
+  ],
+  "ui057": [
+    "Regenerate this plan (model mode) to get typed, editable task cards. Approval currently maps its implementation step(s) 1:1 to canonical tasks.",
+    "Regenerate this plan (model mode) to get typed, editable task cards. Approval currently maps its implementation step(s) 1:1 to canonical tasks."
+  ],
+  "ui058": [
+    "Files:",
+    "Files:"
+  ],
+  "ui059": [
+    "Verify:",
+    "Verify:"
+  ],
+  "ui060": [
+    "generated",
+    "generated"
+  ],
+  "ui061": [
+    "Acceptance examples",
+    "Acceptance examples"
+  ],
+  "ui062": [
+    "Reference · implementation steps",
+    "Reference · implementation steps"
+  ],
+  "ui063": [
+    "Verifier commands",
+    "Verifier commands"
+  ],
+  "ui064": [
+    "Approval creates the Plan Queue",
+    "Approval creates the Plan Queue"
+  ],
+  "ui065": [
+    "ordered canonical task(s) are created and queued — nothing executes until you preview the queue and confirm a run.",
+    "ordered canonical task(s) are created and queued — nothing executes until you preview the queue and confirm a run."
+  ],
+  "ui066": [
+    "Model response needs repair — review only",
+    "Model response needs repair — review only"
+  ],
+  "ui067": [
+    "The schema gate rejected this response. It is shown in full for correction, but it was not saved as a draft and cannot be approved or queued.",
+    "The schema gate rejected this response. It is shown in full for correction, but it was not saved as a draft and cannot be approved or queued."
+  ],
+  "ui068": [
+    "Full generated plan response",
+    "Full generated plan response"
+  ],
+  "ui069": [
+    "Queue execution",
+    "Queue execution"
+  ],
+  "ui070": [
+    "·",
+    "·"
+  ],
+  "ui071": [
+    "Task lifecycle",
+    "Task lifecycle"
+  ],
+  "ui072": [
+    "Select",
+    "Select"
+  ],
+  "ui073": [
+    "· ·",
+    "· ·"
+  ],
+  "ui074": [
+    "log",
+    "log"
+  ],
+  "ui075": [
+    "Assigned to",
+    "Assigned to"
+  ],
+  "ui076": [
+    "● Manager online ·",
+    "● Manager online ·"
+  ],
+  "ui077": [
+    "blocked",
+    "blocked"
+  ],
+  "ui078": [
+    "SDD / TDD",
+    "SDD / TDD"
+  ],
+  "ui079": [
+    "actionable blockers",
+    "actionable blockers"
+  ],
+  "ui080": [
+    "selected",
+    "selected"
+  ],
+  "ui081": [
+    "Showing queue",
+    "Showing queue"
+  ],
+  "ui082": [
+    ". Counts are",
+    ". Counts are"
+  ],
+  "ui083": [
+    "this queue / all queues",
+    "this queue / all queues"
+  ],
+  "ui084": [
+    ".",
+    "."
+  ],
+  "ui085": [
+    "Search tasks...",
+    "Search tasks..."
+  ],
+  "ui086": [
+    "All",
+    "All"
+  ],
+  "ui087": [
+    "One schema-validated planning call through a configured provider. The call spends a single confirmed planning session; failures and malformed answers leave the current draft untouched.",
+    "One schema-validated planning call through a configured provider. The call spends a single confirmed planning session; failures and malformed answers leave the current draft untouched."
+  ],
+  "ui088": [
+    "Provider",
+    "Provider"
+  ],
+  "ui089": [
+    "Model",
+    "Model"
+  ],
+  "ui090": [
+    "exact model id",
+    "exact model id"
+  ],
+  "ui091": [
+    "Preset suggestions are optional; enter any model id your endpoint accepts.",
+    "Preset suggestions are optional; enter any model id your endpoint accepts."
+  ],
+  "ui092": [
+    "Thinking / effort",
+    "Thinking / effort"
+  ],
+  "ui093": [
+    "Applied when the selected adapter supports reasoning controls; default leaves it unchanged.",
+    "Applied when the selected adapter supports reasoning controls; default leaves it unchanged."
+  ],
+  "ui094": [
+    "is not ready",
+    "is not ready"
+  ],
+  "ui095": [
+    "— manage providers in",
+    "— manage providers in"
+  ],
+  "ui096": [
+    "Settings",
+    "Settings"
+  ],
+  "ui097": [
+    "No key providers yet — model mode stays disabled",
+    "No key providers yet — model mode stays disabled"
+  ],
+  "ui098": [
+    "Open",
+    "Open"
+  ],
+  "ui099": [
+    "Settings → Providers",
+    "Settings → Providers"
+  ],
+  "ui100": [
+    "and add one (template zai, then paste your GLM key). Terminal equivalent:",
+    "and add one (template zai, then paste your GLM key). Terminal equivalent:"
+  ],
+  "ui101": [
+    "atl provider add zai --template zai --model glm-4.6",
+    "atl provider add zai --template zai --model glm-4.6"
+  ],
+  "ui102": [
+    "Confirmed run active · tasks below show their live run state",
+    "Confirmed run active · tasks below show their live run state"
+  ],
+  "ui103": [
+    "Live execution · open queue for task logs",
+    "Live execution · open queue for task logs"
+  ],
+  "ui104": [
+    "Open queue",
+    "Open queue"
+  ],
+  "ui105": [
+    "Select for a multi-queue run",
+    "Select for a multi-queue run"
+  ],
+  "ui106": [
+    "task · % complete",
+    "task · % complete"
+  ],
+  "ui107": [
+    "logs",
+    "logs"
+  ],
+  "ui108": [
+    "A confirmed run appears below. Tasks included in it show",
+    "A confirmed run appears below. Tasks included in it show"
+  ],
+  "ui109": [
+    "In run",
+    "In run"
+  ],
+  "ui110": [
+    "or",
+    "or"
+  ],
+  "ui111": [
+    "Stop",
+    "Stop"
+  ],
+  "ui112": [
+    "instead of another Run button.",
+    "instead of another Run button."
+  ],
+  "ui113": [
+    "Select queue checkboxes for one shared-budget run; open a queue card for its individual actions.",
+    "Select queue checkboxes for one shared-budget run; open a queue card for its individual actions."
+  ],
+  "ui114": [
+    "CURRENT WORK",
+    "CURRENT WORK"
+  ],
+  "ui115": [
+    "Progress · observed",
+    "Progress · observed"
+  ],
+  "ui116": [
+    "%",
+    "%"
+  ],
+  "ui117": [
+    "ATL state",
+    "ATL state"
+  ],
+  "ui118": [
+    "The browser is reading .trust/manager/state.json, queue.json, notifications and usage snapshots through the local bridge.",
+    "The browser is reading .trust/manager/state.json, queue.json, notifications and usage snapshots through the local bridge."
+  ],
+  "ui119": [
+    "Captured",
+    "Captured"
+  ],
+  "ui120": [
+    "Provider probe",
+    "Provider probe"
+  ],
+  "ui121": [
+    "Source",
+    "Source"
+  ],
+  "ui122": [
+    "Last capture",
+    "Last capture"
+  ],
+  "ui123": [
+    "Recorded local runs",
+    "Recorded local runs"
+  ],
+  "ui124": [
+    "Provider quota is displayed only after a provider-specific authenticated response. Local sessions are separate evidence, not a quota estimate.",
+    "Provider quota is displayed only after a provider-specific authenticated response. Local sessions are separate evidence, not a quota estimate."
+  ],
+  "ui125": [
+    "/ ready · default:",
+    "/ ready · default:"
+  ],
+  "ui126": [
+    "built-in · subscription auth · queue runs",
+    "built-in · subscription auth · queue runs"
+  ],
+  "ui127": [
+    "Built-in workers (codex, claude) connect with one CLI login — no key stored. Key providers live in ~/.atl/providers.json on this machine — never in a repo, always masked. The model planner spends one confirmed session per generate or regenerate call.",
+    "Built-in workers (codex, claude) connect with one CLI login — no key stored. Key providers live in ~/.atl/providers.json on this machine — never in a repo, always masked. The model planner spends one confirmed session per generate or regenerate call."
+  ],
+  "ui128": [
+    "Token-efficient code map",
+    "Token-efficient code map"
+  ],
+  "ui129": [
+    "Local navigation hints reduce repeated repository orientation. Source reads and verification still apply.",
+    "Local navigation hints reduce repeated repository orientation. Source reads and verification still apply."
+  ],
+  "ui130": [
+    "Navigation mode",
+    "Navigation mode"
+  ],
+  "ui131": [
+    "Off - existing prompts",
+    "Off - existing prompts"
+  ],
+  "ui132": [
+    "On - bounded map hints",
+    "On - bounded map hints"
+  ],
+  "ui133": [
+    "Prompt budget (tokens)",
+    "Prompt budget (tokens)"
+  ],
+  "ui134": [
+    "Refresh map before each enabled worker launch",
+    "Refresh map before each enabled worker launch"
+  ],
+  "ui135": [
+    "Project-local only; no provider request or spend. Dynamic and unsupported code stays visibly partial.",
+    "Project-local only; no provider request or spend. Dynamic and unsupported code stays visibly partial."
+  ],
+  "ui136": [
+    "· source · checked",
+    "· source · checked"
+  ],
+  "ui137": [
+    "v",
+    "v"
+  ],
+  "ui138": [
+    "Display name",
+    "Display name"
+  ],
+  "ui139": [
+    "Friendly provider name",
+    "Friendly provider name"
+  ],
+  "ui140": [
+    "Base URL",
+    "Base URL"
+  ],
+  "ui141": [
+    "https://…",
+    "https://…"
+  ],
+  "ui142": [
+    "API key",
+    "API key"
+  ],
+  "ui143": [
+    "Leave blank to keep the stored key",
+    "Leave blank to keep the stored key"
+  ],
+  "ui144": [
+    "Provider id",
+    "Provider id"
+  ],
+  "ui145": [
+    "· the key stays masked and blank means keep the current secret.",
+    "· the key stays masked and blank means keep the current secret."
+  ],
+  "ui146": [
+    "· keys remain masked and are never rendered back.",
+    "· keys remain masked and are never rendered back."
+  ],
+  "ui147": [
+    "No connected model yet",
+    "No connected model yet"
+  ],
+  "ui148": [
+    "Choose a provider below to make it the project default, or add a new provider.",
+    "Choose a provider below to make it the project default, or add a new provider."
+  ],
+  "ui149": [
+    "ADD A PROVIDER",
+    "ADD A PROVIDER"
+  ],
+  "ui150": [
+    "Presets are shortcuts. Endpoint, model, adapter, and thought level stay editable.",
+    "Presets are shortcuts. Endpoint, model, adapter, and thought level stay editable."
+  ],
+  "ui151": [
+    "Preset",
+    "Preset"
+  ],
+  "ui152": [
+    "e.g. zai-main",
+    "e.g. zai-main"
+  ],
+  "ui153": [
+    "My Z.ai GLM",
+    "My Z.ai GLM"
+  ],
+  "ui154": [
+    "e.g. glm-5.3",
+    "e.g. glm-5.3"
+  ],
+  "ui155": [
+    "Adapter",
+    "Adapter"
+  ],
+  "ui156": [
+    "Wire protocol",
+    "Wire protocol"
+  ],
+  "ui157": [
+    "Stored outside the repository; never shown again",
+    "Stored outside the repository; never shown again"
+  ],
+  "ui158": [
+    "Install",
+    "Install"
+  ],
+  "ui159": [
+    "Run",
+    "Run"
+  ],
+  "ui160": [
+    ", then",
+    ", then"
+  ],
+  "ui161": [
+    "to connect.",
+    "to connect."
+  ],
+  "ui162": [
+    "No API key and no",
+    "No API key and no"
+  ],
+  "ui163": [
+    "atl provider add",
+    "atl provider add"
+  ],
+  "ui164": [
+    "needed — queue and task runs launch with this CLI.",
+    "needed — queue and task runs launch with this CLI."
+  ],
+  "ui165": [
+    "Press",
+    "Press"
+  ],
+  "ui166": [
+    "Recheck",
+    "Recheck"
+  ],
+  "ui167": [
+    "should list",
+    "should list"
+  ],
+  "ui168": [
+    "· subscription.",
+    "· subscription."
+  ],
+  "ui169": [
+    "built-in",
+    "built-in"
+  ],
+  "ui170": [
+    "BUILT-IN WORKERS · SUBSCRIPTION AUTH",
+    "BUILT-IN WORKERS · SUBSCRIPTION AUTH"
+  ],
+  "ui171": [
+    "One CLI login connects these — no key is stored and nothing is added to the registry.",
+    "One CLI login connects these — no key is stored and nothing is added to the registry."
+  ],
+  "ui172": [
+    "is only for external API providers (Z.ai, OpenRouter, Anthropic, custom) below.",
+    "is only for external API providers (Z.ai, OpenRouter, Anthropic, custom) below."
+  ],
+  "ui173": [
+    "OTHER CONNECTED PROVIDERS",
+    "OTHER CONNECTED PROVIDERS"
+  ],
+  "ui174": [
+    "Built-in workers connect with a single CLI login. Below them: your connected key providers for model planning and alternative endpoints.",
+    "Built-in workers connect with a single CLI login. Below them: your connected key providers for model planning and alternative endpoints."
+  ],
+  "ui175": [
+    "Describe the task",
+    "Describe the task"
+  ],
+  "ui176": [
+    "Objective and acceptance criteria",
+    "Objective and acceptance criteria"
+  ],
+  "ui177": [
+    "Queue",
+    "Queue"
+  ],
+  "ui178": [
+    "Unqueued",
+    "Unqueued"
+  ],
+  "ui179": [
+    "Priority",
+    "Priority"
+  ],
+  "ui180": [
+    "New tasks are added to the active queue by default. Queue membership does not start execution.",
+    "New tasks are added to the active queue by default. Queue membership does not start execution."
+  ],
+  "ui181": [
+    "failed",
+    "failed"
+  ],
+  "ui182": [
+    "✓ Accomplished",
+    "✓ Accomplished"
+  ],
+  "ui183": [
+    "passed",
+    "passed"
+  ],
+  "ui184": [
+    "checks",
+    "checks"
+  ],
+  "ui185": [
+    "BLOCKER",
+    "BLOCKER"
+  ],
+  "ui186": [
+    "Latest task activity",
+    "Latest task activity"
+  ],
+  "ui187": [
+    "The lifecycle picture is derived from persisted task state. Mermaid source documents the underlying relationships; it communicates structure, not proof.",
+    "The lifecycle picture is derived from persisted task state. Mermaid source documents the underlying relationships; it communicates structure, not proof."
+  ],
+  "ui188": [
+    "What happened",
+    "What happened"
+  ],
+  "ui189": [
+    "/ checks passed · recent events ·",
+    "/ checks passed · recent events ·"
+  ],
+  "ui190": [
+    "Change-flow Mermaid",
+    "Change-flow Mermaid"
+  ],
+  "ui191": [
+    "Task data model · Mermaid ER",
+    "Task data model · Mermaid ER"
+  ],
+  "ui192": [
+    "Task change flow",
+    "Task change flow"
+  ],
+  "ui193": [
+    "→",
+    "→"
+  ],
+  "ui194": [
+    "This view explains the task in plain language: what happened and which records support it.",
+    "This view explains the task in plain language: what happened and which records support it."
+  ],
+  "ui195": [
+    "Current outcome",
+    "Current outcome"
+  ],
+  "ui196": [
+    "recent log",
+    "recent log"
+  ],
+  "ui197": [
+    "What is connected to this task?",
+    "What is connected to this task?"
+  ],
+  "ui198": [
+    "These records explain the task and make its result auditable.",
+    "These records explain the task and make its result auditable."
+  ],
+  "ui199": [
+    "queued task .",
+    "queued task ."
+  ],
+  "ui200": [
+    "›",
+    "›"
+  ],
+  "ui201": [
+    "help",
+    "help"
+  ],
+  "ui202": [
+    "Routine id",
+    "Routine id"
+  ],
+  "ui203": [
+    "Approved Gold skill",
+    "Approved Gold skill"
+  ],
+  "ui204": [
+    "Schedule",
+    "Schedule"
+  ],
+  "ui205": [
+    "daily 09:00",
+    "daily 09:00"
+  ],
+  "ui206": [
+    "Idempotency key",
+    "Idempotency key"
+  ],
+  "ui207": [
+    "routine+source+revision",
+    "routine+source+revision"
+  ],
+  "ui208": [
+    "Retry limit",
+    "Retry limit"
+  ],
+  "ui209": [
+    "Registration does not enable execution.",
+    "Registration does not enable execution."
+  ],
+  "ui210": [
+    "The routine remains disabled until a separate manager approval gate exists.",
+    "The routine remains disabled until a separate manager approval gate exists."
+  ],
+  "ui211": [
+    "will leave the active portfolio and all queues.",
+    "will leave the active portfolio and all queues."
+  ],
+  "ui212": [
+    "This is a recoverable archive; active sessions still refuse deletion until stopped or completed.",
+    "This is a recoverable archive; active sessions still refuse deletion until stopped or completed."
+  ],
+  "ui213": [
+    "This removes the selected tasks from active lists and queues, but keeps them recoverable as archived records.",
+    "This removes the selected tasks from active lists and queues, but keeps them recoverable as archived records."
+  ],
+  "ui214": [
+    "Running, review, and verification tasks are skipped for safety.",
+    "Running, review, and verification tasks are skipped for safety."
+  ],
+  "ui215": [
+    "Last 40 transcript lines from the failed planning call. The schema gate refused this output; your draft was untouched.",
+    "Last 40 transcript lines from the failed planning call. The schema gate refused this output; your draft was untouched."
+  ],
+  "ui216": [
+    "is removed from the board (archived).",
+    "is removed from the board (archived)."
+  ],
+  "ui217": [
+    "Its queued task(s) stay in the task portfolio untouched. Nothing executes, and the queue's record remains in queue.json.",
+    "Its queued task(s) stay in the task portfolio untouched. Nothing executes, and the queue's record remains in queue.json."
+  ],
+  "ui218": [
+    "Remove",
+    "Remove"
+  ],
+  "ui219": [
+    "task reference(s) from",
+    "task reference(s) from"
+  ],
+  "ui220": [
+    "Tasks are not deleted or changed, and no work starts. Add tasks back later from their editor.",
+    "Tasks are not deleted or changed, and no work starts. Add tasks back later from their editor."
+  ],
+  "ui221": [
+    "now holds ordered canonical task(s).",
+    "now holds ordered canonical task(s)."
+  ],
+  "ui222": [
+    "Nothing is executing. Preview the queue and confirm a run explicitly when you want the overnight gate opened.",
+    "Nothing is executing. Preview the queue and confirm a run explicitly when you want the overnight gate opened."
+  ],
+  "ui223": [
+    "Nothing has started.",
+    "Nothing has started."
+  ],
+  "ui224": [
+    "Confirm only after reviewing providers, blockers, order, and budget.",
+    "Confirm only after reviewing providers, blockers, order, and budget."
+  ],
+  "ui225": [
+    "Selected queues run round-robin under one shared budget, strictly sequential, global concurrency 1. Paused or unknown queues are skipped for this run.",
+    "Selected queues run round-robin under one shared budget, strictly sequential, global concurrency 1. Paused or unknown queues are skipped for this run."
+  ],
+  "ui226": [
+    "Confirming runs this single task to its next human gate with a one-shot budget (60m / 1 session). Untouched queue work is not affected.",
+    "Confirming runs this single task to its next human gate with a one-shot budget (60m / 1 session). Untouched queue work is not affected."
+  ],
+  "ui227": [
+    "Live role telemetry is shown in Agent Team and Activity & Logs.",
+    "Live role telemetry is shown in Agent Team and Activity & Logs."
+  ]
+};
+export const en = Object.fromEntries(Object.entries(entries).map(([key, [value]]) => [key, value]));
+export const fa = Object.fromEntries(Object.entries(entries).map(([key, [, value]]) => [key, value]));
+export function t(key, locale = "en") { return (locale === "fa" ? fa[key] : en[key]) ?? en[key] ?? key; }

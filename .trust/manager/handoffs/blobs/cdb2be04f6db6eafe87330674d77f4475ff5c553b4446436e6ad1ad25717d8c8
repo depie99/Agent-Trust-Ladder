@@ -1,0 +1,233 @@
+# Control Plane UI literal inventory
+
+Source-derived inventory for T-018. Duplicate occurrences are semicolon-separated; T-019 owns lookup wiring.
+
+| key | English source literal | source |
+| --- | --- | --- |
+| ui001 | ATL — Developer Control Plane Prototype | runtime/control-plane.html:1:373 |
+| ui002 | A | runtime/control-plane.html:801:105 |
+| ui003 | ATL | runtime/control-plane.html:801:119 |
+| ui004 | / CONTROL | runtime/control-plane.html:801:146 |
+| ui005 | agent-trust-ladder | runtime/control-plane.html:801:231 |
+| ui006 | ● | runtime/control-plane.html:801:278 |
+| ui007 | main · control-plane / demo | runtime/control-plane.html:801:316 |
+| ui008 | WORKSPACE | runtime/control-plane.html:801:376 |
+| ui009 | OPERATIONS | runtime/control-plane.html:801:433 |
+| ui010 | Manage providers | runtime/control-plane.html:801:605; runtime/control-plane-client.js:514:101 |
+| ui011 | PROVIDER STATUS | runtime/control-plane.html:801:674; runtime/control-plane-client.js:514:183 |
+| ui012 | Unknown | runtime/control-plane.html:801:721 |
+| ui013 | Configured provider · demo | runtime/control-plane.html:801:750 |
+| ui014 | No authoritative quota connected | runtime/control-plane.html:801:824 |
+| ui015 | M | runtime/control-plane.html:801:976; runtime/control-plane-client.js:514:491 |
+| ui016 | Workspace Manager | runtime/control-plane.html:801:993; runtime/control-plane-client.js:514:508 |
+| ui017 | Owner / approvals · Settings | runtime/control-plane.html:801:1061; runtime/control-plane-client.js:514:576 |
+| ui018 | ATL / | runtime/control-plane.html:801:1202 |
+| ui019 | Overview | runtime/control-plane.html:801:1228 |
+| ui020 | INTERACTIVE DEMO | runtime/control-plane.html:801:1269 |
+| ui021 | Toggle theme | runtime/control-plane.html:801:1367; runtime/control-plane.html:801:1388 |
+| ui022 | ⌕ Command palette | runtime/control-plane.html:801:1480 |
+| ui023 | Ctrl K | runtime/control-plane.html:801:1516 |
+| ui024 | ◈ | runtime/control-plane.html:801:1580; runtime/control-plane-client.js:439:989 |
+| ui025 | 3 | runtime/control-plane.html:801:1602 |
+| ui026 | + New task | runtime/control-plane.html:801:1659 |
+| ui027 | atl › | runtime/control-plane.html:801:1800; runtime/control-plane-client.js:684:152 |
+| ui028 | ATL command input | runtime/control-plane.html:801:1846 |
+| ui029 | Type help, tasks, plan, queues, team, usage... | runtime/control-plane.html:801:1878 |
+| ui030 | ↵ run | runtime/control-plane.html:801:1970 |
+| ui031 | ● Interactive mock · No provider calls, skill execution or real ATL actions | runtime/control-plane.html:801:2017 |
+| ui032 | Ctrl K commands · N new task · 1–8 pages · Esc close | runtime/control-plane.html:801:2105 |
+| ui033 | · KB · | runtime/control-plane-client.js:13:215 |
+| ui034 | ⟳ Model plan request in progress | runtime/control-plane-client.js:154:200 |
+| ui035 | Request sent to . Waiting for its response; this page will update with editable task cards when the schema validates. | runtime/control-plane-client.js:154:367 |
+| ui036 | Bounded to one planning session and 15 minutes. Your existing draft remains unchanged while this runs. | runtime/control-plane-client.js:154:656 |
+| ui037 | Snap back to the generated plan's choice | runtime/control-plane-client.js:214:70 |
+| ui038 | ↺ default | runtime/control-plane-client.js:214:120 |
+| ui039 | ◇ | runtime/control-plane-client.js:222:46; runtime/control-plane-client.js:250:46; runtime/control-plane-client.js:410:1462 |
+| ui040 | editing · rev | runtime/control-plane-client.js:222:104 |
+| ui041 | Task title | runtime/control-plane-client.js:223:41; runtime/control-plane-client.js:629:107 |
+| ui042 | Objective | runtime/control-plane-client.js:224:41 |
+| ui043 | Proposed worker | runtime/control-plane-client.js:225:63 |
+| ui044 | Skills (multi select) | runtime/control-plane-client.js:226:41 |
+| ui045 | Completion checks (one per line) | runtime/control-plane-client.js:227:41 |
+| ui046 | Files (comma separated) | runtime/control-plane-client.js:228:63 |
+| ui047 | Verifier | runtime/control-plane-client.js:228:224 |
+| ui048 | Depends on (proposal ids, comma separated) | runtime/control-plane-client.js:229:41 |
+| ui049 | Correction feedback for regeneration… | runtime/control-plane-client.js:230:77 |
+| ui050 | rev · | runtime/control-plane-client.js:250:112 |
+| ui051 | Given | runtime/control-plane-client.js:259:77 |
+| ui052 | when | runtime/control-plane-client.js:259:116 |
+| ui053 | then | runtime/control-plane-client.js:259:153 |
+| ui054 | Task cards | runtime/control-plane-client.js:262:14 |
+| ui055 | ( canonical tasks on approval) | runtime/control-plane-client.js:262:50 |
+| ui056 | Legacy draft without editable cards | runtime/control-plane-client.js:263:47 |
+| ui057 | Regenerate this plan (model mode) to get typed, editable task cards. Approval currently maps its implementation step(s) 1:1 to canonical tasks. | runtime/control-plane-client.js:263:101 |
+| ui058 | Files: | runtime/control-plane-client.js:264:192 |
+| ui059 | Verify: | runtime/control-plane-client.js:264:273 |
+| ui060 | generated | runtime/control-plane-client.js:265:219 |
+| ui061 | Acceptance examples | runtime/control-plane-client.js:265:442 |
+| ui062 | Reference · implementation steps | runtime/control-plane-client.js:265:498 |
+| ui063 | Verifier commands | runtime/control-plane-client.js:265:547 |
+| ui064 | Approval creates the Plan Queue | runtime/control-plane-client.js:265:659 |
+| ui065 | ordered canonical task(s) are created and queued — nothing executes until you preview the queue and confirm a run. | runtime/control-plane-client.js:265:709 |
+| ui066 | Model response needs repair — review only | runtime/control-plane-client.js:269:98 |
+| ui067 | The schema gate rejected this response. It is shown in full for correction, but it was not saved as a draft and cannot be approved or queued. | runtime/control-plane-client.js:269:158 |
+| ui068 | Full generated plan response | runtime/control-plane-client.js:269:313 |
+| ui069 | Queue execution | runtime/control-plane-client.js:274:80 |
+| ui070 | · | runtime/control-plane-client.js:274:115; runtime/control-plane-client.js:447:230; runtime/control-plane-client.js:636:134; runtime/control-plane-client.js:740:168 |
+| ui071 | Task lifecycle | runtime/control-plane-client.js:293:30 |
+| ui072 | Select | runtime/control-plane-client.js:347:268 |
+| ui073 | · · | runtime/control-plane-client.js:347:575; runtime/control-plane-client.js:464:142; runtime/control-plane-client.js:553:294 |
+| ui074 | log | runtime/control-plane-client.js:347:872 |
+| ui075 | Assigned to | runtime/control-plane-client.js:347:1174 |
+| ui076 | ● Manager online · | runtime/control-plane-client.js:357:81 |
+| ui077 | blocked | runtime/control-plane-client.js:357:165 |
+| ui078 | SDD / TDD | runtime/control-plane-client.js:357:214 |
+| ui079 | actionable blockers | runtime/control-plane-client.js:360:104 |
+| ui080 | selected | runtime/control-plane-client.js:371:94 |
+| ui081 | Showing queue | runtime/control-plane-client.js:378:509 |
+| ui082 | . Counts are | runtime/control-plane-client.js:378:556 |
+| ui083 | this queue / all queues | runtime/control-plane-client.js:378:572 |
+| ui084 | . | runtime/control-plane-client.js:378:599; runtime/control-plane-client.js:395:281; runtime/control-plane-client.js:402:364; runtime/control-plane-client.js:1109:202 |
+| ui085 | Search tasks... | runtime/control-plane-client.js:378:132 |
+| ui086 | All | runtime/control-plane-client.js:378:259 |
+| ui087 | One schema-validated planning call through a configured provider. The call spends a single confirmed planning session; failures and malformed answers leave the current draft untouched. | runtime/control-plane-client.js:392:51 |
+| ui088 | Provider | runtime/control-plane-client.js:393:99 |
+| ui089 | Model | runtime/control-plane-client.js:394:108; runtime/control-plane-client.js:555:468; runtime/control-plane-client.js:578:796 |
+| ui090 | exact model id | runtime/control-plane-client.js:394:270 |
+| ui091 | Preset suggestions are optional; enter any model id your endpoint accepts. | runtime/control-plane-client.js:394:453 |
+| ui092 | Thinking / effort | runtime/control-plane-client.js:394:600; runtime/control-plane-client.js:540:438; runtime/control-plane-client.js:555:649; runtime/control-plane-client.js:578:1413 |
+| ui093 | Applied when the selected adapter supports reasoning controls; default leaves it unchanged. | runtime/control-plane-client.js:394:993 |
+| ui094 | is not ready | runtime/control-plane-client.js:395:82 |
+| ui095 | — manage providers in | runtime/control-plane-client.js:395:140 |
+| ui096 | Settings | runtime/control-plane-client.js:395:264 |
+| ui097 | No key providers yet — model mode stays disabled | runtime/control-plane-client.js:402:58 |
+| ui098 | Open | runtime/control-plane-client.js:402:125 |
+| ui099 | Settings → Providers | runtime/control-plane-client.js:402:179 |
+| ui100 | and add one (template zai, then paste your GLM key). Terminal equivalent: | runtime/control-plane-client.js:402:208 |
+| ui101 | atl provider add zai --template zai --model glm-4.6 | runtime/control-plane-client.js:402:309 |
+| ui102 | Confirmed run active · tasks below show their live run state | runtime/control-plane-client.js:432:1358 |
+| ui103 | Live execution · open queue for task logs | runtime/control-plane-client.js:432:1499 |
+| ui104 | Open queue | runtime/control-plane-client.js:432:107 |
+| ui105 | Select for a multi-queue run | runtime/control-plane-client.js:432:347 |
+| ui106 | task · % complete | runtime/control-plane-client.js:432:727 |
+| ui107 | logs | runtime/control-plane-client.js:432:1200 |
+| ui108 | A confirmed run appears below. Tasks included in it show | runtime/control-plane-client.js:435:514 |
+| ui109 | In run | runtime/control-plane-client.js:435:574 |
+| ui110 | or | runtime/control-plane-client.js:435:584 |
+| ui111 | Stop | runtime/control-plane-client.js:435:591 |
+| ui112 | instead of another Run button. | runtime/control-plane-client.js:435:599 |
+| ui113 | Select queue checkboxes for one shared-budget run; open a queue card for its individual actions. | runtime/control-plane-client.js:435:668 |
+| ui114 | CURRENT WORK | runtime/control-plane-client.js:437:548 |
+| ui115 | Progress · observed | runtime/control-plane-client.js:437:670 |
+| ui116 | % | runtime/control-plane-client.js:437:699; runtime/control-plane-client.js:636:454 |
+| ui117 | ATL state | runtime/control-plane-client.js:438:749 |
+| ui118 | The browser is reading .trust/manager/state.json, queue.json, notifications and usage snapshots through the local bridge. | runtime/control-plane-client.js:438:828 |
+| ui119 | Captured | runtime/control-plane-client.js:438:990 |
+| ui120 | Provider probe | runtime/control-plane-client.js:439:1763 |
+| ui121 | Source | runtime/control-plane-client.js:439:1929 |
+| ui122 | Last capture | runtime/control-plane-client.js:439:2093 |
+| ui123 | Recorded local runs | runtime/control-plane-client.js:439:2302 |
+| ui124 | Provider quota is displayed only after a provider-specific authenticated response. Local sessions are separate evidence, not a quota estimate. | runtime/control-plane-client.js:439:2403 |
+| ui125 | / ready · default: | runtime/control-plane-client.js:444:310 |
+| ui126 | built-in · subscription auth · queue runs | runtime/control-plane-client.js:447:330 |
+| ui127 | Built-in workers (codex, claude) connect with one CLI login — no key stored. Key providers live in ~/.atl/providers.json on this machine — never in a repo, always masked. The model planner spends one confirmed session per generate or regenerate call. | runtime/control-plane-client.js:451:216 |
+| ui128 | Token-efficient code map | runtime/control-plane-client.js:453:501 |
+| ui129 | Local navigation hints reduce repeated repository orientation. Source reads and verification still apply. | runtime/control-plane-client.js:453:567 |
+| ui130 | Navigation mode | runtime/control-plane-client.js:453:803 |
+| ui131 | Off - existing prompts | runtime/control-plane-client.js:453:928 |
+| ui132 | On - bounded map hints | runtime/control-plane-client.js:453:1017 |
+| ui133 | Prompt budget (tokens) | runtime/control-plane-client.js:453:1126 |
+| ui134 | Refresh map before each enabled worker launch | runtime/control-plane-client.js:453:1434 |
+| ui135 | Project-local only; no provider request or spend. Dynamic and unsupported code stays visibly partial. | runtime/control-plane-client.js:453:1645 |
+| ui136 | · source · checked | runtime/control-plane-client.js:462:204 |
+| ui137 | v | runtime/control-plane-client.js:463:130 |
+| ui138 | Display name | runtime/control-plane-client.js:540:153; runtime/control-plane-client.js:555:303; runtime/control-plane-client.js:578:642 |
+| ui139 | Friendly provider name | runtime/control-plane-client.js:540:330 |
+| ui140 | Base URL | runtime/control-plane-client.js:540:670; runtime/control-plane-client.js:555:854; runtime/control-plane-client.js:578:1569 |
+| ui141 | https://… | runtime/control-plane-client.js:540:845; runtime/control-plane-client.js:578:1705 |
+| ui142 | API key | runtime/control-plane-client.js:540:935; runtime/control-plane-client.js:555:1062; runtime/control-plane-client.js:578:1794 |
+| ui143 | Leave blank to keep the stored key | runtime/control-plane-client.js:540:1052; runtime/control-plane-client.js:555:1213 |
+| ui144 | Provider id | runtime/control-plane-client.js:540:1159; runtime/control-plane-client.js:555:1437; runtime/control-plane-client.js:578:493 |
+| ui145 | · the key stays masked and blank means keep the current secret. | runtime/control-plane-client.js:540:1208 |
+| ui146 | · keys remain masked and are never rendered back. | runtime/control-plane-client.js:555:1479 |
+| ui147 | No connected model yet | runtime/control-plane-client.js:566:74 |
+| ui148 | Choose a provider below to make it the project default, or add a new provider. | runtime/control-plane-client.js:566:115 |
+| ui149 | ADD A PROVIDER | runtime/control-plane-client.js:578:117 |
+| ui150 | Presets are shortcuts. Endpoint, model, adapter, and thought level stay editable. | runtime/control-plane-client.js:578:152 |
+| ui151 | Preset | runtime/control-plane-client.js:578:340 |
+| ui152 | e.g. zai-main | runtime/control-plane-client.js:578:553 |
+| ui153 | My Z.ai GLM | runtime/control-plane-client.js:578:709 |
+| ui154 | e.g. glm-5.3 | runtime/control-plane-client.js:578:878 |
+| ui155 | Adapter | runtime/control-plane-client.js:578:1105 |
+| ui156 | Wire protocol | runtime/control-plane-client.js:578:1253 |
+| ui157 | Stored outside the repository; never shown again | runtime/control-plane-client.js:578:1900 |
+| ui158 | Install | runtime/control-plane-client.js:589:92 |
+| ui159 | Run | runtime/control-plane-client.js:589:169; runtime/control-plane-client.js:593:295 |
+| ui160 | , then | runtime/control-plane-client.js:589:245; runtime/control-plane-client.js:593:485 |
+| ui161 | to connect. | runtime/control-plane-client.js:589:299 |
+| ui162 | No API key and no | runtime/control-plane-client.js:591:58 |
+| ui163 | atl provider add | runtime/control-plane-client.js:591:149; runtime/control-plane-client.js:598:335 |
+| ui164 | needed — queue and task runs launch with this CLI. | runtime/control-plane-client.js:591:172 |
+| ui165 | Press | runtime/control-plane-client.js:593:465 |
+| ui166 | Recheck | runtime/control-plane-client.js:593:474 |
+| ui167 | should list | runtime/control-plane-client.js:593:566 |
+| ui168 | · subscription. | runtime/control-plane-client.js:593:610 |
+| ui169 | built-in | runtime/control-plane-client.js:595:303 |
+| ui170 | BUILT-IN WORKERS · SUBSCRIPTION AUTH | runtime/control-plane-client.js:598:113 |
+| ui171 | One CLI login connects these — no key is stored and nothing is added to the registry. | runtime/control-plane-client.js:598:243 |
+| ui172 | is only for external API providers (Z.ai, OpenRouter, Anthropic, custom) below. | runtime/control-plane-client.js:598:358 |
+| ui173 | OTHER CONNECTED PROVIDERS | runtime/control-plane-client.js:600:304 |
+| ui174 | Built-in workers connect with a single CLI login. Below them: your connected key providers for model planning and alternative endpoints. | runtime/control-plane-client.js:600:71 |
+| ui175 | Describe the task | runtime/control-plane-client.js:629:198 |
+| ui176 | Objective and acceptance criteria | runtime/control-plane-client.js:629:277 |
+| ui177 | Queue | runtime/control-plane-client.js:629:463; runtime/control-plane-client.js:1123:57 |
+| ui178 | Unqueued | runtime/control-plane-client.js:629:527 |
+| ui179 | Priority | runtime/control-plane-client.js:629:758 |
+| ui180 | New tasks are added to the active queue by default. Queue membership does not start execution. | runtime/control-plane-client.js:629:1045 |
+| ui181 | failed | runtime/control-plane-client.js:634:269 |
+| ui182 | ✓ Accomplished | runtime/control-plane-client.js:634:98 |
+| ui183 | passed | runtime/control-plane-client.js:634:195 |
+| ui184 | checks | runtime/control-plane-client.js:634:326 |
+| ui185 | BLOCKER | runtime/control-plane-client.js:636:600 |
+| ui186 | Latest task activity | runtime/control-plane-client.js:636:686 |
+| ui187 | The lifecycle picture is derived from persisted task state. Mermaid source documents the underlying relationships; it communicates structure, not proof. | runtime/control-plane-client.js:643:75 |
+| ui188 | What happened | runtime/control-plane-client.js:643:235; runtime/control-plane-client.js:665:178 |
+| ui189 | / checks passed · recent events · | runtime/control-plane-client.js:643:374 |
+| ui190 | Change-flow Mermaid | runtime/control-plane-client.js:643:555 |
+| ui191 | Task data model · Mermaid ER | runtime/control-plane-client.js:643:696 |
+| ui192 | Task change flow | runtime/control-plane-client.js:656:52 |
+| ui193 | → | runtime/control-plane-client.js:664:246 |
+| ui194 | This view explains the task in plain language: what happened and which records support it. | runtime/control-plane-client.js:665:80 |
+| ui195 | Current outcome | runtime/control-plane-client.js:665:271 |
+| ui196 | recent log | runtime/control-plane-client.js:665:421 |
+| ui197 | What is connected to this task? | runtime/control-plane-client.js:665:585 |
+| ui198 | These records explain the task and make its result auditable. | runtime/control-plane-client.js:665:636 |
+| ui199 | queued task . | runtime/control-plane-client.js:676:299 |
+| ui200 | › | runtime/control-plane-client.js:682:476 |
+| ui201 | help | runtime/control-plane-client.js:684:213 |
+| ui202 | Routine id | runtime/control-plane-client.js:740:307 |
+| ui203 | Approved Gold skill | runtime/control-plane-client.js:740:387 |
+| ui204 | Schedule | runtime/control-plane-client.js:740:499 |
+| ui205 | daily 09:00 | runtime/control-plane-client.js:740:553 |
+| ui206 | Idempotency key | runtime/control-plane-client.js:740:609 |
+| ui207 | routine+source+revision | runtime/control-plane-client.js:740:665 |
+| ui208 | Retry limit | runtime/control-plane-client.js:740:733 |
+| ui209 | Registration does not enable execution. | runtime/control-plane-client.js:740:861 |
+| ui210 | The routine remains disabled until a separate manager approval gate exists. | runtime/control-plane-client.js:740:919 |
+| ui211 | will leave the active portfolio and all queues. | runtime/control-plane-client.js:759:85 |
+| ui212 | This is a recoverable archive; active sessions still refuse deletion until stopped or completed. | runtime/control-plane-client.js:759:152 |
+| ui213 | This removes the selected tasks from active lists and queues, but keeps them recoverable as archived records. | runtime/control-plane-client.js:772:51 |
+| ui214 | Running, review, and verification tasks are skipped for safety. | runtime/control-plane-client.js:772:179 |
+| ui215 | Last 40 transcript lines from the failed planning call. The schema gate refused this output; your draft was untouched. | runtime/control-plane-client.js:1061:239 |
+| ui216 | is removed from the board (archived). | runtime/control-plane-client.js:1091:92 |
+| ui217 | Its queued task(s) stay in the task portfolio untouched. Nothing executes, and the queue's record remains in queue.json. | runtime/control-plane-client.js:1091:149 |
+| ui218 | Remove | runtime/control-plane-client.js:1109:74 |
+| ui219 | task reference(s) from | runtime/control-plane-client.js:1109:138 |
+| ui220 | Tasks are not deleted or changed, and no work starts. Add tasks back later from their editor. | runtime/control-plane-client.js:1109:222 |
+| ui221 | now holds ordered canonical task(s). | runtime/control-plane-client.js:1123:116 |
+| ui222 | Nothing is executing. Preview the queue and confirm a run explicitly when you want the overnight gate opened. | runtime/control-plane-client.js:1123:227 |
+| ui223 | Nothing has started. | runtime/control-plane-client.js:1132:384; runtime/control-plane-client.js:1143:161; runtime/control-plane-client.js:1157:486 |
+| ui224 | Confirm only after reviewing providers, blockers, order, and budget. | runtime/control-plane-client.js:1132:411 |
+| ui225 | Selected queues run round-robin under one shared budget, strictly sequential, global concurrency 1. Paused or unknown queues are skipped for this run. | runtime/control-plane-client.js:1143:188 |
+| ui226 | Confirming runs this single task to its next human gate with a one-shot budget (60m / 1 session). Untouched queue work is not affected. | runtime/control-plane-client.js:1157:513 |
+| ui227 | Live role telemetry is shown in Agent Team and Activity & Logs. | runtime/control-plane-client.js:1161:158 |

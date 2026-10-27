@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Verify"
+  short_description: "Verify implemented software with checks that actually run and produce a six-question evidence-backed"
+  default_prompt: "Use $atl-verify for this request."

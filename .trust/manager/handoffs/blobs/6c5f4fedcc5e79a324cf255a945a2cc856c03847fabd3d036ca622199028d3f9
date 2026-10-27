@@ -1,0 +1,805 @@
+<!DOCTYPE html><html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1018"><script>try{var t=localStorage.getItem("atl-cp-theme");if(t==="light"||(!t&&matchMedia("(prefers-color-scheme: light)").matches))document.documentElement.classList.add("light");var l=localStorage.getItem("atl-cp-lang");if(l==="fa"){document.documentElement.lang="fa";document.documentElement.dir="rtl"}}catch(e){}</script><title>ATL — Developer Control Plane Prototype</title><style>
+:root {
+  color-scheme: dark;
+  --bg: #0b1018;
+  --side: #0c131d;
+  --pane: #121b28;
+  --raised: #192535;
+  --chip: #172335;
+  --btn-bg: #1b293a;
+  --btn-bg-hover: #24374c;
+  --pill-bg: #1a2b3e;
+  --field-bg: #0c1520;
+  --step-on-bg: #16342d;
+  --term-bg: #080e17;
+  --dialog-bg: #152131;
+  --dock-bg: #0d1520;
+  --avatar-bg: #1b3b36;
+  --notice-bg: #282319;
+  --mobile-bg: #111b29;
+  --row-hover: #1a2b3b;
+  --nav-on: #20352f;
+  --track: #2b3a4d;
+  --text: #e4ecf7;
+  --muted: #8b9bb0;
+  --faint: #7689a5;
+  --nav-ink: #a9b8cd;
+  --btn-ink: #dbe6f5;
+  --label-ink: #a0b0c8;
+  --step-ink: #abbbd0;
+  --term-ink: #c9d8eb;
+  --kbd-ink: #7790a6;
+  --on-accent: #09231b;
+  --border: #29384b;
+  --row-line: #273347;
+  --btn-edge: #3b4c63;
+  --btn-edge-hover: #6d879d;
+  --pill-edge: #3b4d63;
+  --key-edge: #455773;
+  --field-edge: #40516a;
+  --step-on-edge: #398c76;
+  --term-edge: #314459;
+  --dialog-edge: #536781;
+  --dock-edge: #34445c;
+  --avatar-edge: #3c7f70;
+  --notice-edge: #635036;
+  --plan-edge: #526482;
+  --accent: #4fe1b6;
+  --red: #fb8792;
+  --amber: #f3c073;
+  --blue: #90b4fa;
+  --violet: #bea9ff;
+  --backdrop: rgba(3, 7, 11, 0.8549019607843137);
+  --dialog-shadow: rgba(0, 0, 0, 0.6);
+  --accent-fade: rgba(79, 225, 182, 0);
+}
+
+html.light {
+  color-scheme: light;
+  --bg: #f2f5f9;
+  --side: #e9eef5;
+  --pane: #ffffff;
+  --raised: #f7fafc;
+  --chip: #e6edf4;
+  --btn-bg: #ffffff;
+  --btn-bg-hover: #eef3f8;
+  --pill-bg: #e8eef5;
+  --field-bg: #ffffff;
+  --step-on-bg: #e2f3ed;
+  --term-bg: #f6f8fb;
+  --dialog-bg: #ffffff;
+  --dock-bg: #e9eef5;
+  --avatar-bg: #e2f3ed;
+  --notice-bg: #faf3e3;
+  --mobile-bg: #e9eef5;
+  --row-hover: #f0f4f9;
+  --nav-on: #dcf0e9;
+  --track: #d5dde6;
+  --text: #17212e;
+  --muted: #5c6b7d;
+  --faint: #7d8da0;
+  --nav-ink: #46586c;
+  --btn-ink: #1e2c3c;
+  --label-ink: #5c6b7d;
+  --step-ink: #4e5f72;
+  --term-ink: #2c3e52;
+  --kbd-ink: #7d8da0;
+  --on-accent: #ffffff;
+  --border: #cfd9e4;
+  --row-line: #e3e9f0;
+  --btn-edge: #b9c6d4;
+  --btn-edge-hover: #8fa3b8;
+  --pill-edge: #b9c6d4;
+  --key-edge: #b9c6d4;
+  --field-edge: #b0bfce;
+  --step-on-edge: #9fd4c4;
+  --term-edge: #cfd9e4;
+  --dialog-edge: #9fb0c2;
+  --dock-edge: #cfd9e4;
+  --avatar-edge: #9fd4c4;
+  --notice-edge: #dcbd7e;
+  --plan-edge: #a9bacb;
+  --accent: #0c7d62;
+  --red: #c2372c;
+  --amber: #9a6709;
+  --blue: #2f6bc4;
+  --violet: #7a4fd3;
+  --backdrop: rgba(42, 54, 68, 0.7215686274509804);
+  --dialog-shadow: rgba(22, 32, 43, 0.4);
+  --accent-fade: rgba(12, 125, 98, 0);
+}
+
+:root {
+  font: 13px/1.5 ui-monospace, Consolas, "SFMono-Regular", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  color: inherit;
+}
+
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 229px;
+  background: var(--side);
+  border-inline-end: 1px solid var(--border);
+  padding: 21px 13px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.brand {
+  font-size: 17px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 7px 21px;
+}
+
+.brandicon {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+.subbrand {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.workspace {
+  padding: 12px;
+  background: var(--chip);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 4px 2px 16px;
+}
+
+.tiny {
+  font-size: 11px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.section {
+  font-size: 10px;
+  color: var(--faint);
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  margin: 17px 11px 7px;
+}
+
+.nav {
+  border: 0;
+  background: transparent;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  text-align: start;
+  padding: 10px 13px;
+  width: 100%;
+  border-radius: 7px;
+  color: var(--nav-ink);
+}
+
+.nav:hover, .nav.on {
+  background: var(--nav-on);
+  color: var(--accent);
+}
+
+.nav .ico {
+  width: 17px;
+  font-size: 16px;
+}
+
+.nav b {
+  margin-inline-start: auto;
+  font-size: 10px;
+}
+
+.sidebottom {
+  margin-top: auto;
+  padding: 17px 7px;
+  border-top: 1px solid var(--border);
+}
+
+.provider-summary {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: start;
+  color: inherit;
+}
+
+.provider-summary:hover strong, .provider-summary:focus-visible strong {
+  color: var(--accent);
+}
+
+.provider-summary strong {
+  display: block;
+  margin-top: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-summary .status-detail {
+  display: block;
+  margin-top: 5px;
+  line-height: 1.45;
+}
+
+.provider-manager {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 14px 0 0;
+  text-align: start;
+}
+
+.provider-manager:hover b, .provider-manager:focus-visible b {
+  color: var(--accent);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.topbar {
+  height: 63px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  gap: 10px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.between {
+  justify-content: space-between;
+}
+
+.pill {
+  font-size: 10px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-edge);
+  white-space: nowrap;
+}
+
+.green {
+  color: var(--accent);
+}
+
+.red {
+  color: var(--red);
+}
+
+.amber {
+  color: var(--amber);
+}
+
+.blue {
+  color: var(--blue);
+}
+
+.violet {
+  color: var(--violet);
+}
+
+.btn {
+  border: 1px solid var(--btn-edge);
+  background: var(--btn-bg);
+  color: var(--btn-ink);
+  border-radius: 7px;
+  padding: 8px 11px;
+}
+
+.btn:hover {
+  border-color: var(--btn-edge-hover);
+  background: var(--btn-bg-hover);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  font-weight: 800;
+}
+
+.btn.danger {
+  color: var(--red);
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+}
+
+.btn.sm {
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+#themeBtn::before {
+  content: "☼";
+}
+
+html.light #themeBtn::before {
+  content: "☾";
+}
+
+.key {
+  border: 1px solid var(--key-edge);
+  background: var(--chip);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 10px;
+}
+
+.body {
+  padding: 27px;
+  max-width: 1590px;
+  margin: auto;
+}
+
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.pagehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.pagehead h1 {
+  font-size: 28px;
+  letter-spacing: -1.2px;
+  line-height: 1.2;
+  margin: 7px 0;
+}
+
+h2 {
+  font-size: 13px;
+  margin: 0;
+  font-weight: 800;
+}
+
+p.sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+
+.grid {
+  display: grid;
+  gap: 14px;
+}
+
+.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.twocol {
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+}
+
+.panel {
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panel[data-queue]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pad {
+  padding: 19px;
+}
+
+.paneltitle {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat {
+  padding: 20px;
+}
+
+.stat strong {
+  font-size: 33px;
+  display: block;
+  margin: 3px 0;
+}
+
+.stat small {
+  color: var(--muted);
+}
+
+.space {
+  margin-top: 14px;
+}
+
+.tableitem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px 93px;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 17px;
+  border-bottom: 1px solid var(--row-line);
+  cursor: pointer;
+}
+
+.tableitem:hover {
+  background: var(--row-hover);
+}
+
+.tableitem:last-child {
+  border: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.track {
+  height: 6px;
+  border-radius: 7px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.fill {
+  background: var(--accent);
+  height: 100%;
+  border-radius: 7px;
+}
+
+.task-progress {
+  margin-top: 9px;
+}
+
+.task-progress .row {
+  font-size: 11px;
+}
+
+.running-mark {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.5s infinite;
+  margin-inline-end: 5px;
+}
+
+@keyframes pulse {
+  70% {
+    box-shadow: 0 0 0 7px var(--accent-fade);
+  }
+}
+.event {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--row-line);
+  display: flex;
+  gap: 13px;
+}
+
+.event:last-child {
+  border: 0;
+}
+
+.input {
+  border: 1px solid var(--field-edge);
+  background: var(--field-bg);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+textarea.input {
+  resize: vertical;
+  min-height: 110px;
+}
+
+.label {
+  color: var(--label-ink);
+  font-size: 11px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.field {
+  margin-bottom: 15px;
+}
+
+.bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.flow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.step {
+  padding: 9px;
+  border: 1px solid var(--field-edge);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--step-ink);
+}
+
+.step.current {
+  color: var(--accent);
+  border-color: var(--step-on-edge);
+  background: var(--step-on-bg);
+}
+
+.terminal {
+  background: var(--term-bg);
+  border-radius: 8px;
+  border: 1px solid var(--term-edge);
+  color: var(--term-ink);
+  padding: 15px;
+  min-height: 250px;
+  max-height: 350px;
+  overflow: auto;
+  white-space: pre-wrap;
+  line-height: 1.75;
+}
+
+.footer {
+  border-top: 1px solid var(--border);
+  padding: 12px 21px;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 10px;
+}
+
+.mobile {
+  display: none;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 8vh 14px;
+  overflow: auto;
+}
+
+.dialog {
+  background: var(--dialog-bg);
+  border: 1px solid var(--dialog-edge);
+  border-radius: 13px;
+  width: min(650px, 100%);
+  box-shadow: 0 35px 90px var(--dialog-shadow);
+}
+
+.dialoghead {
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dialogbody {
+  padding: 20px;
+  max-height: 68vh;
+  overflow: auto;
+}
+
+.dialogfoot {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.lined {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  margin-top: 14px;
+}
+
+.cliDock {
+  border-top: 1px solid var(--dock-edge);
+  background: var(--dock-bg);
+  padding: 9px 21px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.cliDock input {
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  outline: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.kbdcaption {
+  font-size: 10px;
+  color: var(--kbd-ink);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: var(--avatar-bg);
+  border: 1px solid var(--avatar-edge);
+  border-radius: 8px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.notice {
+  border: 1px solid var(--notice-edge);
+  background: var(--notice-bg);
+  padding: 14px;
+  border-radius: 7px;
+}
+
+.planout {
+  margin-top: 15px;
+  border: 1px dashed var(--plan-edge);
+  border-radius: 7px;
+  padding: 13px;
+}
+
+.actionrow {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1050px) {
+  .sidebar {
+    width: 185px;
+  }
+  .four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .twocol {
+    grid-template-columns: 1fr;
+  }
+  .body {
+    padding: 20px;
+  }
+}
+@media (max-width: 720px) {
+  .app {
+    display: block;
+  }
+  .sidebar {
+    display: none;
+  }
+  .mobile {
+    display: flex;
+    overflow: auto;
+    gap: 6px;
+    background: var(--mobile-bg);
+    padding: 8px;
+  }
+  .mobile button {
+    white-space: nowrap;
+  }
+  .body {
+    padding: 15px;
+  }
+  .four, .three, .two {
+    grid-template-columns: 1fr;
+  }
+  .pagehead h1 {
+    font-size: 22px;
+  }
+  .topbar {
+    padding: 0 13px;
+  }
+  .topbar .hotkey {
+    display: none;
+  }
+  .tableitem {
+    grid-template-columns: minmax(0, 1fr) 86px;
+  }
+  .tableitem > :last-child {
+    display: none;
+  }
+  .cliDock {
+    padding: 10px;
+  }
+}
+</style></head><body><div class="app"><aside class="sidebar"><div class="brand"><span class="brandicon">A</span><span>ATL <span class="subbrand">/ CONTROL</span></span></div><div class="workspace"><div class="row between"><strong>agent-trust-ladder</strong><span class="green">●</span></div><div class="muted tiny">main · control-plane / demo</div></div><div class="section">WORKSPACE</div><div id="navA"></div><div class="section">OPERATIONS</div><div id="navB"></div><div class="sidebottom" id="provider-status"><button class="provider-summary" type="button" data-action="provider-manager" aria-label="Manage providers"><span class="row between tiny"><span class="muted">PROVIDER STATUS</span><span class="pill amber">Unknown</span></span><strong>Configured provider · demo</strong><span class="muted tiny status-detail">No authoritative quota connected</span></button><button class="provider-manager lined row" type="button" data-action="go:settings"><span class="avatar">M</span><span><b>Workspace Manager</b><span class="tiny muted" style="display:block">Owner / approvals · Settings</span></span></button></div></aside><main class="main"><header class="topbar"><div class="row"><b class="muted">ATL /</b><span id="crumb">Overview</span><span class="pill hotkey">INTERACTIVE DEMO</span></div><div class="row"><button id="themeBtn" class="btn ghost" aria-label="Toggle theme" title="Toggle theme" aria-pressed="false"></button><button id="searchBtn" class="btn ghost hotkey">⌕ Command palette <span class="key">Ctrl K</span></button><button id="noticesBtn" class="btn ghost">◈ <span class="amber">3</span></button><button id="newBtn" class="btn primary">+ New task</button></div><div id="mobile" class="mobile"></div><div class="body" id="content"></div><div class="cliDock"><span class="green">atl ›</span><input id="dockInput" aria-label="ATL command input" placeholder="Type help, tasks, plan, queues, team, usage..." autocomplete="off"><span class="kbdcaption">↵ run</span></div><footer class="footer"><span>● Interactive mock · No provider calls, skill execution or real ATL actions</span><span>Ctrl K commands · N new task · 1–8 pages · Esc close</span></footer></main></div><div id="modal"></div>
+<script type="application/x-atl-legacy-disabled">
+(()=>{'use strict';const $=s=>document.querySelector(s),escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const routes=[['overview','▦','Overview'],['tasks','☷','Tasks'],['studio','◇','Plan Studio'],['queues','≡','Queues'],['team','♙','Agent Team'],['activity','▤','Activity & Logs'],['usage','◉','Usage & Limits'],['settings','⚙','Settings']];let page='overview',filter='All',query='',queueFilter='All',dialogOpen=false,notifications=[['Blocker','T-001 needs user-level installation access'],['Approval','T-005 requires owner approval'],['Usage','Provider quota unavailable: unknown']];let tasks=[{id:'T-001',title:'Refresh user installation and verify integrity',desc:'Refresh the user ATL installation and prove it matches repository artifacts.',status:'Blocked',agent:'Rowan',priority:'High',queue:'Release',block:'EPERM while replacing protected user installation files.'},{id:'T-003',title:'Commit runtime verification workspace',desc:'Commit verified workspace changes without unrelated metadata churn.',status:'Blocked',agent:'Rowan',priority:'High',queue:'Engineering',block:'Shared workspace metadata cannot be written.'},{id:'T-005',title:'Smoke-test owner approval gates',desc:'Validate privileged approval paths before autonomous execution.',status:'Blocked',agent:'Vale',priority:'High',queue:'Quality',block:'Waiting for explicit owner approval.'},{id:'T-002',title:'Synchronize architecture and CLI docs',desc:'Bring documentation and CLI usage examples in line with runtime behavior.',status:'Queued',agent:'Mira',priority:'Medium',queue:'Documentation',block:''},{id:'T-004',title:'Run feedback verification',desc:'Verify end-to-end feedback and recovery behavior.',status:'Done',agent:'Nova',priority:'Medium',queue:'Quality',block:''},{id:'T-006',title:'Publish control-plane improvements',desc:'Expose live execution state and progress to the operator.',status:'Running',agent:'Rowan',priority:'High',queue:'Engineering',stage:'Implementing UI state',progress:64,stats:'12/18 checks � 4m 12s elapsed',block:''}];let queues=['Release','Engineering','Quality','Documentation'];let agents=[['Rowan','Executor','Blocked','T-001 · Installation verification',58],['Mira','Planner','Idle','Ready for next specification',0],['Vale','Reviewer','Review','T-005 · Approval gates',76],['Sage','Researcher','Idle','Research queue clear',0],['Nova','Verifier','Idle','Verification queue ready',0]];let events=[['18:53:12','BLOCKED','Rowan','T-001: EPERM while replacing installation files'],['18:53:04','INFO','Manager','Queue paused for owner intervention'],['18:52:31','VERIFY','Nova','User-install and source parity: mismatch'],['18:51:18','BLOCKED','Rowan','T-003: shared index write denied'],['18:47:05','PASS','Vale','Workspace scope review completed'],['18:42:10','INFO','Mira','Architecture proposal completed'],['02:13:07','PASS','Nova','Overnight verification: 46 passed, 2 skipped']];let cliHistory=['ATL CLI demo ready. Type help.'];const badge=s=>'<span class="pill '+({Blocked:'red',High:'amber',Running:'green',Done:'green',Queued:'blue',Review:'violet',PASS:'green',VERIFY:'violet',INFO:'blue',Idle:'blue'}[s]||'')+'">'+escape(s)+'</span>';const btn=(text,action,cls='')=>'<button class="btn '+cls+'" data-action="'+action+'">'+text+'</button>';const head=(label,title,subtitle,buttons='')=>'<div class="pagehead"><div><div class="eyebrow">'+label+'</div><h1>'+title+'</h1><p class="sub">'+subtitle+'</p></div><div class="bar">'+buttons+'</div></div>';const card=(title,html,extra='')=>'<section class="panel"><div class="paneltitle"><h2>'+title+'</h2>'+extra+'</div>'+html+'</section>';const meter=(n,color='var(--accent)')=>'<div class="track"><div class="fill" style="width:'+n+'%;background:'+color+'"></div></div>';const taskrow=t=>'<div class="tableitem" data-task="'+t.id+'"><div><b class="truncate" style="display:block">'+escape(t.title)+'</b><div class="muted tiny">'+t.id+' · '+escape(t.queue)+'</div></div>'+badge(t.status)+'<div class="muted tiny">'+escape(t.agent)+'</div></div>';const evt=e=>'<div class="event"><span class="muted tiny" style="white-space:nowrap">'+e[0]+'</span><div>'+badge(e[1])+' <span class="muted">'+escape(e[2])+'</span><div style="margin-top:5px">'+escape(e[3])+'</div></div></div>';const stat=(name,value,detail)=>'<div class="panel stat"><small>'+name+'</small><strong>'+value+'</strong><div class="muted tiny">'+detail+'</div></div>';const panels={overview:()=>head('WORKSPACE / CONTROL ROOM','Overview','Tasks, execution health, decisions and live agent activity.',btn('⌕ Commands','palette')+btn('CLI console','cli'))+'<div class="bar" style="margin-bottom:14px"><span class="pill green">● Manager online · demo</span><span class="pill amber">3 blocked</span><span class="pill blue">SDD / TDD</span></div><div class="grid four">'+stat('Portfolio',tasks.length,'Tracked tasks')+stat('Active / available','2 / 5','Agent snapshot')+stat('Blocked',tasks.filter(t=>t.status==='Blocked').length,'Need intervention')+stat('Shipped',tasks.filter(t=>t.status==='Done').length,'Verified sample')+'</div><div class="grid twocol space"><div>'+card('Task portfolio',tasks.slice(0,5).map(taskrow).join(''),btn('Open tasks →','go:tasks','sm'))+'<div class="space">'+card('SDD / TDD lifecycle','<div class="pad"><div class="flow">'+['Intake','Triaged','Spec','Tests','Assigned','Run','Review','Verify','Done'].map((s,i)=>'<span class="step '+(i===5?'current':'')+'">'+s+'</span>').join('')+'</div><p class="sub" style="margin-top:13px">Every delivery is traceable from requirement to test and evidence.</p></div>')+'</div></div><div>'+card('Attention required','<div class="pad"><b class="red">3 actionable blockers</b><p class="sub" style="margin:10px 0 15px">Installation permissions, worktree access and owner approval prevent completion.</p>'+btn('Inspect blockers','blockers')+'</div>')+'<div class="space">'+card('Live activity','<div class="pad">'+events.slice(0,4).map(evt).join('')+'</div>',btn('All events →','go:activity','sm'))+'</div></div></div>',tasks:()=>{let visible=tasks.filter(t=>(filter==='All'||t.status===filter)&&(queueFilter==='All'||t.queue===queueFilter)&&[t.title,t.id,t.agent,t.desc].join(' ').toLowerCase().includes(query.toLowerCase()));return head('WORKSPACE / TASKS','Task management','Author, prioritize, assign and inspect work without leaving the UI.',btn('+ Create task','new','primary'))+'<div class="panel"><div class="pad"><div class="bar"><input style="flex:1;min-width:180px" class="input" id="taskSearch" placeholder="Search tasks..." value="'+escape(query)+'"><select id="queueSelect" class="input" style="width:165px"><option>All</option>'+queues.map(q=>'<option '+(q===queueFilter?'selected':'')+'>'+escape(q)+'</option>').join('')+'</select></div><div class="bar" style="margin-top:13px">'+['All','Queued','Running','Blocked','Review','Done'].map(s=>btn(s+' '+(s==='All'?tasks.length:tasks.filter(t=>t.status===s).length),'filter:'+s,'sm '+(filter===s?'primary':''))).join('')+'</div></div>'+(visible.map(taskrow).join('')||'<div class="pad muted">No matching tasks.</div>')+'</div>'},studio:()=>head('WORKSPACE / PLANNING','Plan Studio','Natural-language task intake → ATL skills → reviewed spec → tests → execution.',btn('Generate local preview','generate','primary'))+'<div class="grid two"><section class="panel pad"><h2>01 / Your objective</h2><p class="sub" style="margin:9px 0 14px">Describe a feature or change. Real provider calls require explicit approval.</p><div class="field"><label class="label" for="goal">Goal and constraints</label><textarea id="goal" class="input" rows="8">Create a multipage terminal-native developer control plane with task editing, skill-driven planning, five-agent orchestration, multiple queues, overnight runs, notifications, logs and verified provider telemetry.</textarea></div><div class="field"><label class="label">Provider</label><select class="input"><option>Configured provider · demo only</option><option>Offline planning preview</option></select></div><div class="label">ATL skill route (proposed)</div><div class="bar">'+['atl-plan','atl-ui-review','atl-implement'].map(s=>'<span class="pill violet">◇ '+s+'</span>').join('')+'</div><p class="sub" style="margin-top:12px">No skill is executed by this standalone HTML file.</p></section>'+card('02 / Planned specification pipeline','<div class="pad">'+['Intake and clarify requirements','Product brief and scope','UI evidence and design system','Acceptance criteria and tests','Implementation work packages','Owner review and approval','Queue dispatch and verification'].map((s,i)=>'<div class="event"><span class="pill">'+(i+1)+'</span>'+s+'</div>').join('')+'</div>')+'</div><div class="space">'+card('03 / Artifact preview','<div class="pad"><div class="grid two">'+['brief.md','ui-review.md','design-system.md','plan.md'].map(s=>'<div class="pill blue" style="padding:13px">▤ '+s+' · proposed</div>').join('')+'</div><div id="planOutput" class="planout muted">Generate to see a local, deterministic breakdown. No provider calls or files are produced.</div></div>')+'</div>',queues:()=>head('OPERATIONS / DISPATCH','Multi-queue manager','Isolated workstreams with fair dispatch, dependency gates and explicit concurrency limits.',btn('+ New queue','newqueue','primary'))+'<div class="grid three">'+stat('Global concurrency','1','Conservative default')+stat('Runnable',tasks.filter(t=>t.status==='Queued').length,'Pending dependency checks')+stat('Paused / blocked','3','Require intervention')+'</div><div class="grid two space">'+queues.map(q=>'<section class="panel pad"><div class="row between"><h2 style="font-size:16px">'+escape(q)+'</h2>'+badge(q==='Quality'?'Running':'Queued')+'</div><p class="sub">Sequential / resource-aware scheduling</p><div class="lined row between"><span class="muted">Items</span><b>'+tasks.filter(t=>t.queue===q).length+'</b></div><div class="row between" style="margin:14px 0"><span class="muted">Worker slot</span><span>0 / 1</span></div>'+meter(q==='Quality'?50:0)+'<div class="actionrow">'+btn('View tasks','queue:'+encodeURIComponent(q),'sm')+(tasks.some(t=>t.queue===q&&t.status==='Running')?'':btn('Run queue','run:'+encodeURIComponent(q),'sm'))+'</div></section>').join('')+'</div>',team:()=>head('OPERATIONS / TEAM','Five-agent team','Understand what each bot is doing, why it is blocked and what comes next.',btn('Agent events →','go:activity'))+'<div class="grid three">'+agents.map(a=>'<section class="panel pad"><div class="row between"><span class="avatar">'+a[0][0]+'</span>'+badge(a[2])+'</div><h2 style="font-size:16px;margin-top:12px">'+a[0]+'</h2><p class="sub">'+a[1]+'</p><div class="lined muted tiny">CURRENT WORK</div><p style="min-height:42px">'+a[3]+'</p><div class="row between tiny"><span class="muted">Progress · sample</span><b>'+a[4]+'%</b></div><div style="margin:9px 0 13px">'+meter(a[4],a[2]==='Blocked'?'var(--amber)':'var(--accent)')+'</div>'+btn('Read agent brief','agent:'+a[0],'sm')+'</section>').join('')+'</div>',activity:()=>head('OPERATIONS / EVIDENCE','Activity & Logs','Searchable decisions, feedback, blockers, verification and overnight handoffs.',btn('Overnight brief','overnight')+btn('Export sample','export'))+'<div class="grid three">'+stat('Events',events.length,'Sample event history')+stat('Blockers','3','Actions awaiting owner')+stat('Overnight tests','46 / 48','46 pass · 2 skip')+'</div><div class="grid twocol space">'+card('Timeline','<div class="pad">'+events.map(evt).join('')+'</div>')+card('Night-shift report','<div class="pad"><div class="row between"><strong>Nightly verification</strong>'+badge('PASS')+'</div><p class="sub">Example, not a real current report</p><div class="lined row between"><span>Passed</span><b class="green">46</b></div><div class="lined row between"><span>Skipped</span><b class="amber">2</b></div><div class="lined row between"><span>Escalations</span><b>0</b></div><div style="margin-top:20px">'+btn('Handoff report','overnight')+'</div></div>')+'</div>',usage:()=>head('OPERATIONS / RESOURCE MONITOR','Usage & Limits','Consumption by agent, provider quota provenance and dispatch risk controls.',btn('Refresh snapshot','refresh'))+'<div class="notice"><b class="amber">◈ No authoritative provider quota attached</b><p class="sub">The prototype never invents live remaining capacity. Real usage requires provider adapters, timestamps and provenance.</p></div><div class="grid three space">'+stat('Provider','Unlinked','Demo configuration only')+stat('Quota remaining','Unknown','Provider has not reported it')+stat('Reset window','Unknown','Cannot infer without source')+'</div><div class="grid two space">'+card('Metrics contract','<div class="pad">'+['Input/output tokens · per run','Cache usage · if reported','Cost · only if provider exposes pricing','Rate limit and retry-after headers','Remaining capacity and reset timestamp','Age of last authoritative sample'].map(s=>'<div class="event"><span class="green">○</span>'+s+'</div>').join('')+'</div>')+card('Preflight safeguards','<div class="pad"><div class="row between"><span>Provider limit</span>'+badge('Unknown')+'</div><div class="lined row between"><span>Dispatch policy</span><span class="amber">Confirm risks</span></div><div class="lined row between"><span>Stop on rate-limit</span><span class="green">Required</span></div><p class="sub" style="margin-top:18px">Distinguish exact provider quota, per-run token counts and local forecasts. Warn before starvation and checkpoint safely.</p></div>')+'</div>',settings:()=>head('WORKSPACE / SETTINGS','Settings','Safety defaults, skills, behavior and accessible terminal keybindings.')+'<div class="grid two">'+card('Proposed execution defaults','<div class="pad">'+[['Global concurrency','1'],['Planning provider calls','Owner confirms'],['Delete behavior','Archive before hard delete'],['Minimum supported columns','60'],['Unreported quota','Unknown']].map(r=>'<div class="event between" style="justify-content:space-between"><span class="muted">'+r[0]+'</span><b>'+r[1]+'</b></div>').join('')+'</div>')+card('Keyboard reference','<div class="pad">'+[['Ctrl / Cmd K','Command palette'],['N','New task'],['1–7','Navigate pages'],['Enter','Run CLI command'],['Esc','Dismiss dialog']].map(r=>'<div class="event between" style="justify-content:space-between"><span class="key">'+r[0]+'</span><span class="muted">'+r[1]+'</span></div>').join('')+'</div>')+'</div>'};function nav(){let row=routes.map(r=>'<button class="nav '+(page===r[0]?'on':'')+'" data-page="'+r[0]+'"><span class="ico">'+r[1]+'</span>'+r[2]+'</button>');$('#navA').innerHTML=row.slice(0,4).join('');$('#navB').innerHTML=row.slice(4).join('');$('#mobile').innerHTML=routes.map(r=>'<button class="btn sm '+(page===r[0]?'primary':'')+'" data-page="'+r[0]+'">'+r[2]+'</button>').join('')}function go(p){if(!panels[p])return;page=p;nav();$('#crumb').textContent=routes.find(r=>r[0]===p)[2];$('#content').innerHTML=panels[p]()}function popup(title,body,actions=''){dialogOpen=true;$('#modal').innerHTML='<div class="overlay" id="overlay"><section class="dialog" role="dialog" aria-modal="true"><div class="dialoghead"><h2 style="font-size:16px">'+title+'</h2>'+btn('✕','close','ghost')+'</div><div class="dialogbody">'+body+'</div>'+(actions?'<div class="dialogfoot">'+actions+'</div>':'')+'</section></div>'}function close(){dialogOpen=false;$('#modal').innerHTML=''}function form(t){popup(t?'Edit '+t.id:'New ATL task','<div class="field"><label class="label">Task title</label><input class="input" id="fTitle" value="'+escape(t?.title||'')+'" placeholder="Describe the task"></div><div class="field"><label class="label">Description and acceptance criteria</label><textarea class="input" id="fDesc">'+escape(t?.desc||'')+'</textarea></div><div class="grid two"><div class="field"><label class="label">Queue</label><select class="input" id="fQueue">'+queues.map(q=>'<option '+(q===t?.queue?'selected':'')+'>'+escape(q)+'</option>').join('')+'</select></div><div class="field"><label class="label">Agent</label><select class="input" id="fAgent">'+agents.map(a=>'<option '+(a[0]===t?.agent?'selected':'')+'>'+a[0]+'</option>').join('')+'</select></div><div class="field"><label class="label">Status</label><select class="input" id="fStatus">'+['Queued','Running','Blocked','Review','Done'].map(s=>'<option '+(s===(t?.status||'Queued')?'selected':'')+'>'+s+'</option>').join('')+'</select></div><div class="field"><label class="label">Priority</label><select class="input" id="fPriority">'+['Low','Medium','High','Critical'].map(s=>'<option '+(s===(t?.priority||'Medium')?'selected':'')+'>'+s+'</option>').join('')+'</select></div></div><p class="sub">Changes remain in memory only; reload resets demo data.</p>',btn('Cancel','close')+btn('Save task','save:'+(t?.id||''),'primary'));$('#fTitle').focus()}function detail(t){popup(t.id+' / Task details','<div class="bar">'+badge(t.status)+badge(t.priority)+'<span class="muted">'+escape(t.queue)+' · '+escape(t.agent)+'</span></div><h2 style="font-size:18px;margin:17px 0">'+escape(t.title)+'</h2><p>'+escape(t.desc)+'</p>'+(t.block?'<div class="notice"><b class="red">BLOCKER</b><p>'+escape(t.block)+'</p></div>':'')+'<div class="lined muted tiny">Skill path: atl-plan → atl-implement → verification</div>',btn('Archive','archive:'+t.id,'danger')+btn('Edit','edit:'+t.id)+btn('Plan task','plan:'+t.id,'primary'))}function commandOptions(q=''){return [...routes.map(r=>['Go to '+r[2],'go:'+r[0]]),['New task','new'],['CLI console','cli'],['Review blockers','blockers']].filter(x=>x[0].toLowerCase().includes(q.toLowerCase())).map(x=>'<button class="nav" data-action="'+x[1]+'">› '+x[0]+'</button>').join('')||'<p class="muted">No matching command</p>'}function palette(){popup('Command palette <span class="muted tiny">Ctrl K</span>','<input class="input" id="paletteQ" placeholder="Find a page or action..."><div id="paletteItems">'+commandOptions()+'</div>');$('#paletteQ').focus()}function cli(){popup('ATL CLI · simulated','<div class="terminal">'+escape(cliHistory.join('\n'))+'</div><div class="row space"><span class="green">atl ›</span><input id="cliInput" class="input" style="flex:1" placeholder="help"></div>');$('#cliInput').focus()}function command(raw){let c=raw.trim().toLowerCase();cliHistory.push('atl › '+raw);if(c==='help')cliHistory.push('Commands: help, tasks, team, queues, plan, usage, new, clear');else if(c==='tasks')cliHistory.push(tasks.map(t=>t.id+' ['+t.status+'] '+t.title).join('\n'));else if(c==='team')cliHistory.push(agents.map(a=>a[0]+' / '+a[1]+' / '+a[2]).join('\n'));else if(c==='queues')cliHistory.push(queues.join(' · '));else if(c==='usage')cliHistory.push('Quota unknown; no authoritative provider telemetry.');else if(c==='new'){close();form();return}else if(c==='plan'){close();go('studio');return}else if(c==='clear')cliHistory=[];else if(c)cliHistory.push('Unknown command. Type help.');cliHistory=cliHistory.slice(-35);cli()}function alertDemo(s){popup('Demo operation','<p>'+escape(s)+'</p>',btn('Close','close'))}function action(a){if(a==='close'){close();return}if(a==='new'){form();return}if(a==='palette'){palette();return}if(a==='cli'){cli();return}if(a.startsWith('go:')){close();go(a.slice(3));return}if(a.startsWith('filter:')){filter=a.slice(7);go('tasks');return}if(a==='blockers'){filter='Blocked';queueFilter='All';close();go('tasks');return}if(a.startsWith('edit:')){form(tasks.find(t=>t.id===a.slice(5)));return}if(a.startsWith('archive:')){tasks=tasks.filter(t=>t.id!==a.slice(8));close();go('tasks');return}if(a.startsWith('plan:')){let t=tasks.find(t=>t.id===a.slice(5));close();go('studio');$('#goal').value=t.desc;return}if(a.startsWith('save:')){let name=$('#fTitle').value.trim();if(!name){$('#fTitle').focus();return}let id=a.slice(5),t=tasks.find(t=>t.id===id);if(!t){t={id:'T-'+String(Math.max(...tasks.map(x=>Number(x.id.slice(2))),0)+1).padStart(3,'0'),block:''};tasks.unshift(t)}Object.assign(t,{title:name,desc:$('#fDesc').value,status:$('#fStatus').value,priority:$('#fPriority').value,queue:$('#fQueue').value,agent:$('#fAgent').value});close();go('tasks');return}if(a==='generate'){let goal=$('#goal').value.trim();$('#planOutput').innerHTML='<b class="green">Local draft breakdown</b><p>'+escape(goal)+'</p><ol><li>Define state and persistence contracts.</li><li>Specify UI pages and interaction behavior.</li><li>Write acceptance and recovery tests.</li><li>Implement bounded tasks with owner approval gates.</li><li>Verify runtime logs, accessibility and provider-limit provenance.</li></ol><span class="muted tiny">Mock only; ATL skills and provider have not been called.</span>';return}if(a.startsWith('queue:')){queueFilter=decodeURIComponent(a.slice(6));filter='All';go('tasks');return}if(a.startsWith('run:')){alertDemo('Real execution requires ATL manager connectivity, an approved plan and queue permissions.');return}if(a.startsWith('agent:')){let agent=agents.find(x=>x[0]===a.slice(6));popup(agent[0]+' / Agent brief','<div class="bar">'+badge(agent[2])+'<span>'+agent[1]+'</span></div><p>Current assignment: '+agent[3]+'</p>'+meter(agent[4])+'<p class="sub space">A production agent brief also links its session, model usage, latest log lines, handoffs, test evidence and checkpoint.</p>',btn('Logs','go:activity')+btn('Close','close'));return}if(a==='newqueue'){popup('Create named queue','<label class="label">Queue name</label><input class="input" id="queueName" placeholder="e.g. Security">',btn('Cancel','close')+btn('Create','savequeue','primary'));return}if(a==='savequeue'){let x=$('#queueName').value.trim();if(x&&!queues.includes(x)){queues.push(x);close();go('queues')}return}if(a==='overnight'){popup('Overnight handoff · sample','<h2>46 tests passed · 2 skipped</h2><p class="sub">Example report. In production include run IDs, code changes, test evidence, failure causes, retries and resume checkpoints.</p>',btn('Close','close'));return}if(a==='refresh'){alertDemo('Authoritative usage sampling requires a connected provider adapter. Remaining capacity is unknown.');return}if(a==='export'){let blob=new Blob([events.map(e=>e.join(' | ')).join('\n')],{type:'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='atl-demo-activity.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return}}
+document.addEventListener('click',e=>{let p=e.target.closest('[data-page]');if(p){go(p.dataset.page);return}let t=e.target.closest('[data-task]');if(t){let found=tasks.find(x=>x.id===t.dataset.task);if(found)detail(found);return}let a=e.target.closest('[data-action]');if(a){action(a.dataset.action);return}if(e.target.id==='overlay')close()});document.addEventListener('input',e=>{if(e.target.id==='paletteQ')$('#paletteItems').innerHTML=commandOptions(e.target.value);if(e.target.id==='taskSearch'){query=e.target.value;let i=e.target.selectionStart;go('tasks');let el=$('#taskSearch');el.focus();el.setSelectionRange(i,i)}});document.addEventListener('change',e=>{if(e.target.id==='queueSelect'){queueFilter=e.target.value;go('tasks')}});document.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.target.id==='cliInput'||e.target.id==='dockInput')){let val=e.target.value;e.target.value='';command(val);return}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();palette();return}if(e.key==='Escape'&&dialogOpen){close();return}if(e.target.matches('input,textarea,select')||e.altKey||e.ctrlKey||e.metaKey)return;if(e.key.toLowerCase()==='n'){form();return}let n=Number(e.key);if(n>=1&&n<=7)go(routes[n-1][0])});$('#searchBtn').onclick=palette;$('#newBtn').onclick=()=>form();$('#noticesBtn').onclick=()=>popup('Notifications',notifications.map(n=>'<div class="event">'+badge(n[0])+' '+escape(n[1])+'</div>').join(''),btn('Close','close'));go('overview');})();
+</script><script src="./control-plane-client.js"></script><script>(()=>{const d=document.documentElement,b=document.getElementById("themeBtn");const sync=()=>{const l=d.classList.contains("light");if(b)b.setAttribute("aria-pressed",String(l));const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#f2f5f9":"#0b1018")};if(b)b.addEventListener("click",()=>{const l=d.classList.toggle("light");try{localStorage.setItem("atl-cp-theme",l?"light":"dark")}catch(e){}sync()});sync()})();</script></body></html>

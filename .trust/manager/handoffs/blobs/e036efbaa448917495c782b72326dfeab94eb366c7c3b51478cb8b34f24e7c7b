@@ -1,0 +1,29 @@
+{
+  "name": "agent-trust-ladder",
+  "version": "0.4.0",
+  "description": "A smart trust control plane plus evidence-gated engineering and UI review workflows.",
+  "author": {
+    "name": "depie99",
+    "url": "https://github.com/depie99"
+  },
+  "homepage": "https://github.com/depie99/Agent-Trust-Ladder",
+  "repository": "https://github.com/depie99/Agent-Trust-Ladder",
+  "license": "MIT",
+  "keywords": ["agents", "trust", "verification", "specification"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Trust Ladder",
+    "shortDescription": "Evidence-gated engineering workflows",
+    "longDescription": "Use ATL as one smart entry point that assesses the project and composes available Trust Ladder, pstack, Matt Pocock, and evidence-driven UI review skills, or invoke individual workflows directly.",
+    "developerName": "depie99",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/depie99/Agent-Trust-Ladder",
+    "defaultPrompt": [
+      "Assess this project and choose the smallest trustworthy workflow.",
+      "Specify observable behavior and acceptance examples.",
+      "Inspect and fix this implemented UI against its real states and requirements.",
+      "Audit this change and give me a trust verdict."
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "enabled": false,
+  "model": "jev-latest",
+  "min_confidence": 0.75,
+  "timeout_ms": 2500,
+  "note": "Opt in per command with route --smart; deterministic routing remains the default and fallback."
+}

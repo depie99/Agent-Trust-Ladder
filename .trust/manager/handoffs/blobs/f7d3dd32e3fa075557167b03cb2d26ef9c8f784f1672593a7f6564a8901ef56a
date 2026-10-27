@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Technical Docs"
+  short_description: "Keep technical docs aligned with engineering changes"
+  default_prompt: "Use $atl-tech-docs to create or update technical documentation with evidence."

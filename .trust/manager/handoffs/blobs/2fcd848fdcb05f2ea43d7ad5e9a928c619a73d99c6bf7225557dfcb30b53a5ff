@@ -1,0 +1,69 @@
+---
+{
+  "id": "R-0002",
+  "title": "Lauren Tan — pstack /create-formal-verification-skill (TLA+, Kani for agent code)",
+  "kind": "post",
+  "priority": "P0",
+  "status": "pending",
+  "published": "2026-10-18",
+  "captured": "2026-10-22T18:56:55.228Z",
+  "updated": "2026-10-22T18:56:55.228Z",
+  "people": [
+    "poteto"
+  ],
+  "concepts": [
+    "formal-verification",
+    "tla-plus",
+    "kani",
+    "invariants",
+    "agent-skills",
+    "concurrency"
+  ],
+  "sources": [
+    "https://twiscan.com/en/x/poteto"
+  ],
+  "repos": [],
+  "evidence": "second-hand",
+  "atl_impact": "Add explicit invariant checks for queue state, agent ownership, retries, concurrency, and crash recovery.",
+  "checks": [
+    "verification suite covers the queue book v2 invariants (active queue, run lease, item uniqueness)",
+    "mutation test (--mutation-test) catches seeded violations of each invariant"
+  ],
+  "objective": "Extend ATL's formal verification suite to cover queue-state, ownership, retry, concurrency, and crash-recovery invariants in the style of pstack's generated verification skills.",
+  "tickets": [],
+  "transcript": null,
+  "decisions": [
+    {
+      "at": "2026-10-22T18:56:55.228Z",
+      "actor": "manager",
+      "action": "captured",
+      "note": ""
+    }
+  ],
+  "dedup": [
+    "url:a46d70e0c69a27fb6b42",
+    "title:0c5c6b9406d721becb9a"
+  ]
+}
+---
+
+## Summary
+
+Per the public archive of Lauren Tan's posts: a recent pstack release
+introduces `/create-formal-verification-skill`, a skill that generates
+verification workflows for coding agents using formal methods — TLA+ for
+state machines, Kani (Rust model checking) for bounded code properties.
+
+## Provenance note
+
+Evidence is second-hand: the claim is read from a public X archive mirror,
+not from pstack's release notes directly. The repo reference needs to be
+confirmed (candidate: github.com/poteto/pstack) before promotion.
+
+## ATL recommendation
+
+P0: ATL already models the task lifecycle (verification/atl_manager_lifecycle_model.py).
+Extend that discipline to the queue: explicit invariants for queue state,
+agent ownership, retries, concurrency (run lease), and crash recovery —
+generated and checked the way pstack does, so runtime waves cannot silently
+violate them.

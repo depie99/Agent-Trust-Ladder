@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Implement"
+  short_description: "Execute an approved engineering plan with bounded diagnose-repair-reverify loops. Use when tasks and"
+  default_prompt: "Use $atl-implement for this request."

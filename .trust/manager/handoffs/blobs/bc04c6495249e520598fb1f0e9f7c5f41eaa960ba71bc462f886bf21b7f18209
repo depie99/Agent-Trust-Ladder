@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Trust"
+  short_description: "Assess or change how much autonomy an engineering agent has earned for a specific task class using r"
+  default_prompt: "Use $atl-trust for this request."

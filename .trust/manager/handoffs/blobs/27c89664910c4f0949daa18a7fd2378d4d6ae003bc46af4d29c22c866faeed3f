@@ -1,0 +1,4 @@
+interface:
+  display_name: "ATL Bootstrap"
+  short_description: "Inspect an existing project and create an honest project brief and conservative starting trust polic"
+  default_prompt: "Use $atl-bootstrap for this request."
