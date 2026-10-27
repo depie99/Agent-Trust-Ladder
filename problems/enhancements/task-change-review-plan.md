@@ -1,10 +1,20 @@
 # Task change review: revision-linked model, files, diffs, and attention
 
 Date: 2026-10-27
-Status: proposed implementation plan and GitHub issue body; not implemented or published.
+Status: core implementation present on 2026-10-27; focused/regression checks passed; rendered browser verification remains open. GitHub issue not published.
 Suggested issue title: `Add revision-linked task change review with file tree, diffs, evidence, and morning attention`
 Target: `depie99/Agent-Trust-Ladder`
 Priority recommendation: P1, after current execution/recovery correctness work. No new autonomous authority.
+
+## Implementation evidence — 2026-10-27
+
+- T1–T5: implemented. See `docs/task-change-review.md` for the actual contracts, capture limits, missing states and operator workflow.
+- T6: documentation and automated validation complete. The new model, capture-store, API and controller suites passed, together with existing dependency, queue recovery/delivery, Control Plane server/contract, run-control and CSS checks. UI controller coverage uses a DOM double.
+- T6 rendered gate: OPEN. Chrome integration failed to connect; diagnostics reported missing extension/native-host setup. Responsive, theme, native keyboard and Persian browser observations were not obtained. No visual/accessibility pass is claimed.
+- T7: deferred as planned; no automatic digest/scheduler introduced.
+- No GitHub issue, commit, branch or push was performed by this implementation session. The repository received concurrent commits during the work; existing changes were preserved and validation used the current working tree.
+
+The sections below retain the original proposal and research context. The implementation documentation describes shipped behavior and current limitations.
 
 ## Decision and phase fit
 

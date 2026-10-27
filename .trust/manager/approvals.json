@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "revision": 120,
+  "revision": 132,
   "rules": [],
   "proposals": [
     {
@@ -697,6 +697,90 @@
       "created_at": "2026-10-27T13:53:49.172Z",
       "decided_at": "2026-10-27T13:53:50.465Z",
       "decided_by": "owner"
+    },
+    {
+      "id": "AP-1f51c287-cabd-42ac-a765-06be569fe039",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": "T-022",
+        "operation": "assistant.diagnose",
+        "target": "codex",
+        "args": {
+          "scope": "T-022",
+          "model": "gpt-6.1-sol",
+          "messageDigest": "6ee768c748eebc2581b00f7407daec50a5df3bb67ff6d780ded96e675494e564",
+          "contextDigest": "d780b24ba5e8213cc29e811ca49dc799722221a3a483b102689a3ab7b1727f59",
+          "mode": "read-only"
+        },
+        "policyVersion": 1
+      },
+      "digest": "b38b6453d24046d0d75d7dea4a5e9d6596a589c6a73b82826524147a74a82fc0",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T14:11:56.150Z",
+      "decided_at": "2026-10-27T14:11:57.054Z",
+      "decided_by": "owner",
+      "execution": {
+        "status": "started",
+        "reason": null,
+        "recorded_at": "2026-10-27T14:11:58.174Z"
+      }
+    },
+    {
+      "id": "AP-3138ae1a-0341-46b4-bda6-c84057be5c5d",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": "T-022",
+        "operation": "assistant.diagnose",
+        "target": "gapgpt",
+        "args": {
+          "scope": "T-022",
+          "model": "gpt-6-luna",
+          "messageDigest": "6ee768c748eebc2581b00f7407daec50a5df3bb67ff6d780ded96e675494e564",
+          "contextDigest": "d780b24ba5e8213cc29e811ca49dc799722221a3a483b102689a3ab7b1727f59",
+          "mode": "read-only"
+        },
+        "policyVersion": 1
+      },
+      "digest": "d2c6508f448c6a32ee900eef50109e4ba2cbcaa2353f214311aeff47e8d705d6",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T14:12:33.907Z",
+      "decided_at": "2026-10-27T14:12:35.015Z",
+      "decided_by": "owner",
+      "execution": {
+        "status": "started",
+        "reason": null,
+        "recorded_at": "2026-10-27T14:12:36.164Z"
+      }
+    },
+    {
+      "id": "AP-1052cd70-235a-46e1-8aff-5cfd4c761f0b",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": "T-022",
+        "operation": "assistant.diagnose",
+        "target": "gapgpt",
+        "args": {
+          "scope": "T-022",
+          "model": "gpt-6-luna",
+          "messageDigest": "d4ab4a2df4fbbe14f2f34892500f99de74904272c8e9db0d2b0dc2edc350ae8f",
+          "contextDigest": "d780b24ba5e8213cc29e811ca49dc799722221a3a483b102689a3ab7b1727f59",
+          "mode": "read-only"
+        },
+        "policyVersion": 1
+      },
+      "digest": "5c6066b8cb3df782ed45ff0b06074f087dc6e68dbefcc556fa68dce509cbde4a",
+      "principal": "owner",
+      "status": "approved",
+      "created_at": "2026-10-27T14:13:35.582Z",
+      "decided_at": "2026-10-27T14:13:36.701Z",
+      "decided_by": "owner",
+      "execution": {
+        "status": "started",
+        "reason": null,
+        "recorded_at": "2026-10-27T14:13:37.659Z"
+      }
     }
   ],
   "grants": [
@@ -1382,6 +1466,78 @@
       "rule": "allow-once",
       "expires_at": "2026-10-27T14:03:50.465Z",
       "used_at": "2026-10-27T13:53:50.631Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-3e78fc92-dc97-4c5e-9a2e-9b31cba436f2",
+      "proposal_id": "AP-1f51c287-cabd-42ac-a765-06be569fe039",
+      "digest": "b38b6453d24046d0d75d7dea4a5e9d6596a589c6a73b82826524147a74a82fc0",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": "T-022",
+        "operation": "assistant.diagnose",
+        "target": "codex",
+        "args": {
+          "scope": "T-022",
+          "model": "gpt-6.1-sol",
+          "messageDigest": "6ee768c748eebc2581b00f7407daec50a5df3bb67ff6d780ded96e675494e564",
+          "contextDigest": "d780b24ba5e8213cc29e811ca49dc799722221a3a483b102689a3ab7b1727f59",
+          "mode": "read-only"
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T14:21:57.054Z",
+      "used_at": "2026-10-27T14:11:57.665Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-02c7f29e-5d85-4a35-b9bc-6f58dec59c85",
+      "proposal_id": "AP-3138ae1a-0341-46b4-bda6-c84057be5c5d",
+      "digest": "d2c6508f448c6a32ee900eef50109e4ba2cbcaa2353f214311aeff47e8d705d6",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": "T-022",
+        "operation": "assistant.diagnose",
+        "target": "gapgpt",
+        "args": {
+          "scope": "T-022",
+          "model": "gpt-6-luna",
+          "messageDigest": "6ee768c748eebc2581b00f7407daec50a5df3bb67ff6d780ded96e675494e564",
+          "contextDigest": "d780b24ba5e8213cc29e811ca49dc799722221a3a483b102689a3ab7b1727f59",
+          "mode": "read-only"
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T14:22:35.015Z",
+      "used_at": "2026-10-27T14:12:35.643Z",
+      "revoked_at": null,
+      "principal": "owner"
+    },
+    {
+      "id": "AG-fe49a1ea-2c6a-4502-b348-64f093063525",
+      "proposal_id": "AP-1052cd70-235a-46e1-8aff-5cfd4c761f0b",
+      "digest": "5c6066b8cb3df782ed45ff0b06074f087dc6e68dbefcc556fa68dce509cbde4a",
+      "action": {
+        "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+        "task": "T-022",
+        "operation": "assistant.diagnose",
+        "target": "gapgpt",
+        "args": {
+          "scope": "T-022",
+          "model": "gpt-6-luna",
+          "messageDigest": "d4ab4a2df4fbbe14f2f34892500f99de74904272c8e9db0d2b0dc2edc350ae8f",
+          "contextDigest": "d780b24ba5e8213cc29e811ca49dc799722221a3a483b102689a3ab7b1727f59",
+          "mode": "read-only"
+        },
+        "policyVersion": 1
+      },
+      "rule": "allow-once",
+      "expires_at": "2026-10-27T14:23:36.701Z",
+      "used_at": "2026-10-27T14:13:37.213Z",
       "revoked_at": null,
       "principal": "owner"
     }
@@ -2286,6 +2442,96 @@
       "proposal_id": "AP-83459944-a929-46cc-879b-3283b6597f1f",
       "digest": "ba4c2813dbb4557471c10fbaf823064d13c313f8a76f85bc874a47e74984f170",
       "status": "waiting"
+    },
+    {
+      "id": "b430c621-a0c1-4606-9847-5cd52dbfd836",
+      "at": "2026-10-27T14:11:56.150Z",
+      "type": "proposal",
+      "proposal_id": "AP-1f51c287-cabd-42ac-a765-06be569fe039",
+      "digest": "b38b6453d24046d0d75d7dea4a5e9d6596a589c6a73b82826524147a74a82fc0",
+      "principal": "owner"
+    },
+    {
+      "id": "a1844b9f-68c4-47fd-adad-770e48ef924d",
+      "at": "2026-10-27T14:11:57.054Z",
+      "type": "allow-once",
+      "proposal_id": "AP-1f51c287-cabd-42ac-a765-06be569fe039",
+      "principal": "owner"
+    },
+    {
+      "id": "ef3ae63b-986c-4e72-b726-e5210afda094",
+      "at": "2026-10-27T14:11:57.665Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-3e78fc92-dc97-4c5e-9a2e-9b31cba436f2",
+      "digest": "b38b6453d24046d0d75d7dea4a5e9d6596a589c6a73b82826524147a74a82fc0"
+    },
+    {
+      "id": "1be979a1-a3cd-41e3-829c-a7afb0b9c8aa",
+      "at": "2026-10-27T14:11:58.174Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1f51c287-cabd-42ac-a765-06be569fe039",
+      "digest": "b38b6453d24046d0d75d7dea4a5e9d6596a589c6a73b82826524147a74a82fc0",
+      "status": "started"
+    },
+    {
+      "id": "d36895e8-3533-4f17-a6d0-0373ddc8ca5f",
+      "at": "2026-10-27T14:12:33.908Z",
+      "type": "proposal",
+      "proposal_id": "AP-3138ae1a-0341-46b4-bda6-c84057be5c5d",
+      "digest": "d2c6508f448c6a32ee900eef50109e4ba2cbcaa2353f214311aeff47e8d705d6",
+      "principal": "owner"
+    },
+    {
+      "id": "4fb7bd80-d231-40b0-b317-d947d934d59d",
+      "at": "2026-10-27T14:12:35.015Z",
+      "type": "allow-once",
+      "proposal_id": "AP-3138ae1a-0341-46b4-bda6-c84057be5c5d",
+      "principal": "owner"
+    },
+    {
+      "id": "8d678e3f-cd7b-4c78-89d3-589cfa7fdf4a",
+      "at": "2026-10-27T14:12:35.643Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-02c7f29e-5d85-4a35-b9bc-6f58dec59c85",
+      "digest": "d2c6508f448c6a32ee900eef50109e4ba2cbcaa2353f214311aeff47e8d705d6"
+    },
+    {
+      "id": "243f75d8-faab-4fe9-8b1b-7da558f6bbd8",
+      "at": "2026-10-27T14:12:36.164Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-3138ae1a-0341-46b4-bda6-c84057be5c5d",
+      "digest": "d2c6508f448c6a32ee900eef50109e4ba2cbcaa2353f214311aeff47e8d705d6",
+      "status": "started"
+    },
+    {
+      "id": "fc669809-e2b9-48b2-8ce6-a2b4a2932add",
+      "at": "2026-10-27T14:13:35.582Z",
+      "type": "proposal",
+      "proposal_id": "AP-1052cd70-235a-46e1-8aff-5cfd4c761f0b",
+      "digest": "5c6066b8cb3df782ed45ff0b06074f087dc6e68dbefcc556fa68dce509cbde4a",
+      "principal": "owner"
+    },
+    {
+      "id": "3c811319-fe65-4725-bb75-1cd1c005e1fe",
+      "at": "2026-10-27T14:13:36.701Z",
+      "type": "allow-once",
+      "proposal_id": "AP-1052cd70-235a-46e1-8aff-5cfd4c761f0b",
+      "principal": "owner"
+    },
+    {
+      "id": "8981913c-c72a-4257-bd30-1b00207028c2",
+      "at": "2026-10-27T14:13:37.213Z",
+      "type": "grant-consumed",
+      "grant_id": "AG-fe49a1ea-2c6a-4502-b348-64f093063525",
+      "digest": "5c6066b8cb3df782ed45ff0b06074f087dc6e68dbefcc556fa68dce509cbde4a"
+    },
+    {
+      "id": "93b1bf1f-3a16-45ff-9f7c-7e0ca786eb00",
+      "at": "2026-10-27T14:13:37.659Z",
+      "type": "execution-outcome",
+      "proposal_id": "AP-1052cd70-235a-46e1-8aff-5cfd4c761f0b",
+      "digest": "5c6066b8cb3df782ed45ff0b06074f087dc6e68dbefcc556fa68dce509cbde4a",
+      "status": "started"
     }
   ]
 }

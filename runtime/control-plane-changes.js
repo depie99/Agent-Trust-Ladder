@@ -46,7 +46,7 @@
   }
   async function open(task, host, initialTab = null) {
     const token = ++generation;
-    const state = views.get(task.id) || { tab: "overview", query: "", filter: "all", expanded: new Set(), diffs: new Map(), fileId: null, nodeId: null, data: null };
+    const state = views.get(task.id) || { tab: "overview", query: "", filter: "all", expanded: new Set(), diffs: new Map(), scrolls: new Map(), fileId: null, nodeId: null, data: null };
     if (initialTab) state.tab = initialTab;
     views.set(task.id, state);
     const focusReturn = document.activeElement;
@@ -58,6 +58,8 @@
     function render() {
       if (!active()) return;
       const scrolls = [...mount.querySelectorAll("[data-review-scroll]")].map((node) => [node.dataset.reviewScroll, node.scrollTop, node.scrollLeft]);
+      for (const [key, top, left] of scrolls) state.scrolls.set(key, [top, left]);
+      const dialogBody = mount.closest(".dialogbody"), dialogScroll = dialogBody?.scrollTop;
       const focused = mount.contains(document.activeElement) ? document.activeElement : null;
       const focusKey = focused?.getAttribute("data-review-action") || focused?.id;
       const selection = focused?.selectionStart;
@@ -77,7 +79,8 @@
         body = header + `<div id="reviewPanel" role="tabpanel" aria-labelledby="reviewTab-${state.tab}" tabindex="0">${panel}</div>`;
       }
       mount.innerHTML = `<div class="bar">${button("Refresh evidence", "refresh", busy ? "disabled" : "")}${button("Capture current changes", "capture", busy || d?.availability === "baseline_missing" ? "disabled" : "")}</div><p class="muted tiny">${label("Capture stores source for inspection. It does not start a worker or approve delivery.")}</p>${busy ? `<p role="status">${label("Loading changes…")}</p>` : ""}${error ? `<p class="red" role="alert">${esc(error)}</p>` : ""}${body}`;
-      for (const [key, top, left] of scrolls) { const node = mount.querySelector(`[data-review-scroll="${key}"]`); if (node) { node.scrollTop = top; node.scrollLeft = left; } }
+      for (const [key, [top, left]] of state.scrolls) { const node = mount.querySelector(`[data-review-scroll="${key}"]`); if (node) { node.scrollTop = top; node.scrollLeft = left; } }
+      if (dialogBody && dialogScroll != null) dialogBody.scrollTop = dialogScroll;
       if (focusKey) {
         const node = [...mount.querySelectorAll("[data-review-action],input,select")].find((element) => (element.getAttribute("data-review-action") || element.id) === focusKey);
         node?.focus({ preventScroll: true });

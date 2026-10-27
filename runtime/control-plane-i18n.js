@@ -37,6 +37,7 @@
     "Record": "رکورد",
     "Identifier": "شناسه",
     "Inspect": "بررسی",
+    "Artifact": "اثر ثبت‌شده",
     "Task": "وظیفه",
     "Change set": "مجموعهٔ تغییرات",
     "has": "دارای",

@@ -30,6 +30,13 @@ try {
   const directory = path.join(f.root, ".trust/manager/change-reviews", f.task.id);
   fs.writeFileSync(path.join(directory, "interrupted.tmp"), "partial data");
   assert.equal(listChangeReviews(f.root, f.task).length, 2, "incomplete writes are ignored");
+  fs.writeFileSync(path.join(directory, `${a.id}.json`), JSON.stringify(b));
+  assert.throws(() => readChangeReview(f.root, f.task, a.id), /identifier does not match/);
+  fs.writeFileSync(path.join(directory, `${a.id}.json`), JSON.stringify(a));
+  const bigFile = path.join(f.workspace, "over-budget.bin");
+  const handle = fs.openSync(bigFile, "w"); fs.ftruncateSync(handle, 33 * 1024 * 1024); fs.closeSync(handle);
+  assert.throws(() => captureChangeReview(f.root, f.task), /source budget/);
+  fs.unlinkSync(bigFile);
   f.task.status = "done";
   const output = snapshot(f.root, f.workspace);
   f.task.evidence = [{ kind: "check", check: "behavior", result: "pass", coverage: "complete", code_revision: output.revision, packet_revision: 1 }];

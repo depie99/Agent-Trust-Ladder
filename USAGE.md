@@ -1,5 +1,7 @@
 # Installing and Using Agent Trust Ladder from GitHub
 
+For the browser's revision-linked file tree, diffs, evidence and task data model, see [Reviewing task changes](docs/task-change-review.md). Open a task and choose **Review changes**; **Diagram** opens its record relationships.
+
 Complete guide to getting the skill running in your AI coding agent, keeping it updated, and troubleshooting. For the full workflow walkthrough (scenarios, dose control, FAQ) see [GUIDE.md](GUIDE.md). راهنمای فارسی: [README.fa.md](README.fa.md)
 
 ---

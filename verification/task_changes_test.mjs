@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { fixture } from "./fixtures/task-changes/project.mjs";
 import { snapshot } from "../runtime/lib/handoffs.mjs";
 import { compareSnapshots, describeChanges, digest, fileDiff, safePath, unifiedDiff } from "../runtime/lib/task-changes.mjs";
@@ -40,7 +41,10 @@ try {
   const secret = snapshot(f.root, f.workspace);
   assert.equal(fileDiff(f.root, { ...record, output: secret }, digest("settings.json")).availability, "redacted");
   for (const unsafe of ["../outside", "C:/outside", "/outside", "folder\\outside", "folder/../outside"]) assert.throws(() => safePath(f.root, unsafe), /Unsafe/);
-  assert.equal(unifiedDiff("a\n", "a", "newline.txt").patch.includes("Final newline changed"), true);
+  assert.match(unifiedDiff("a\n", "a", "newline.txt").patch, /No newline at end of file/);
+  f.write("diff-check.txt", "before\n");
+  execFileSync("git", ["apply", "--check", "--no-index", "-"], { cwd: f.workspace, input: unifiedDiff("before\n", "after\n", "diff-check.txt").patch, windowsHide: true });
+  execFileSync("git", ["apply", "--check", "--no-index", "-"], { cwd: f.workspace, input: unifiedDiff("before\n", "before", "diff-check.txt").patch, windowsHide: true });
   assert.equal(unifiedDiff("a\n".repeat(2000), "b\n".repeat(2000), "large.txt").availability, "diff_limit");
   const many = structuredClone(baseline);
   for (let i = 0; i < 1000; i++) { many.files[`folder/${i}.txt`] = digest(String(i)); many.modes[`folder/${i}.txt`] = "100644"; }

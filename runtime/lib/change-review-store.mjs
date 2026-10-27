@@ -1,10 +1,39 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { snapshot, readHandoff } from "./handoffs.mjs";
 import { ChangeReviewError, changeSetId, compareSnapshots, safePath, validateSnapshot } from "./task-changes.mjs";
 
 const handoffCache = new Map();
+
+function captureBudget(workspace) {
+  let names;
+  try { names = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: workspace, encoding: "utf8", timeout: 5000, maxBuffer: 4 * 1024 * 1024, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }).split("\0"); }
+  catch (error) {
+    // A real git failure is not permission to expand an inspection to ignored files.
+    if (error.code === "ETIMEDOUT" || error.code === "ENOBUFS" || fs.existsSync(path.join(workspace, ".git"))) throw new ChangeReviewError("capture_limit", "Git source enumeration failed or exceeded the capture budget", 409);
+    names = [];
+    const walk = (directory, prefix = "") => {
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        if ([".git", "node_modules", ".atl-inputs", ".atl-evidence"].includes(entry.name) || (prefix === ".trust/" && entry.name === "manager")) continue;
+        const name = prefix + entry.name;
+        if (entry.isSymbolicLink()) throw new ChangeReviewError("unsafe_path", "Symlinked source is unavailable");
+        if (entry.isDirectory()) walk(path.join(directory, entry.name), name + "/"); else names.push(name);
+        if (names.length > 10000) throw new ChangeReviewError("capture_limit", "Capture exceeds 10,000 source files", 413);
+      }
+    };
+    walk(workspace);
+  }
+  let bytes = 0, count = 0;
+  for (const name of new Set(names)) {
+    if (!name || /^(?:\.trust\/manager\/|node_modules\/|\.atl-inputs\/|\.atl-evidence\/|\.atl-(?:workspace|dependencies)\.json$)/.test(name)) continue;
+    const stat = fs.statSync(safePath(workspace, name), { throwIfNoEntry: false });
+    if (!stat?.isFile()) continue;
+    bytes += stat.size; count++;
+    if (count > 10000 || stat.size > 32 * 1024 * 1024 || bytes > 128 * 1024 * 1024) throw new ChangeReviewError("capture_limit", "Capture exceeds its source budget (10,000 files, 32 MiB/file, 128 MiB total)", 413);
+  }
+}
 
 function taskDirectory(root, task) {
   if (!/^T-[A-Za-z0-9-]+$/.test(task.id)) throw new ChangeReviewError("invalid_task", "Invalid task identifier");
@@ -70,8 +99,16 @@ export function captureChangeReview(root, task, { takeSnapshot = snapshot } = {}
   safePath(task.workspace, ".atl-inspection-check");
   safePath(root, ".trust/manager/handoffs/blobs/inspection-check");
   compareSnapshots(task.handoff_baseline, task.handoff_baseline);
+  captureBudget(task.workspace);
+  const started = performance.now();
   const first = takeSnapshot(root, task.workspace), second = takeSnapshot(root, task.workspace);
+  if (performance.now() - started > 10000) throw new ChangeReviewError("capture_limit", "Capture exceeded its ten-second budget; no inspection was published", 409);
   if (first.revision !== second.revision) throw new ChangeReviewError("source_changed", "Source changed during capture. Retry when the worker is idle.", 409);
+  const stateFile = safePath(root, ".trust/manager/state.json");
+  if (fs.existsSync(stateFile)) {
+    const current = JSON.parse(fs.readFileSync(stateFile, "utf8")).tasks?.[task.id];
+    if (!current || current.workspace !== task.workspace || (current.packet_revision || 1) !== (task.packet_revision || 1) || current.handoff_baseline?.revision !== task.handoff_baseline.revision || JSON.stringify(current.input_revisions || {}) !== JSON.stringify(task.input_revisions || {})) throw new ChangeReviewError("task_changed", "Task contract changed during capture; retry from the updated task", 409);
+  }
   const packet = task.packet_revision || 1, id = changeSetId(task.id, packet, task.handoff_baseline, first);
   const existing = safePath(directory, `${id}.json`);
   if (fs.existsSync(existing)) return readChangeReview(root, task, id);
