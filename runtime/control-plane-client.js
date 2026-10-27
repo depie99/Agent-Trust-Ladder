@@ -28,6 +28,13 @@
   };
   const taskLayoutStyle = document.createElement("style");
   taskLayoutStyle.textContent = `
+    html.atl-rtl body { direction: rtl; }
+    html.atl-rtl .sidebar { border-right: 0; border-left: 1px solid var(--border); }
+    html.atl-rtl .topbar, html.atl-rtl .pagehead, html.atl-rtl .paneltitle, html.atl-rtl .event,
+    html.atl-rtl .row, html.atl-rtl .bar { direction: rtl; }
+    html.atl-rtl .status-icon, html.atl-rtl .track .fill { direction: ltr; }
+    html.atl-rtl input, html.atl-rtl textarea, html.atl-rtl select { text-align: right; }
+    html.atl-rtl .btn { letter-spacing: 0; }
     .tableitem.task-row { grid-template-columns:minmax(0,1fr) minmax(220px,auto); align-items:center; gap:20px; overflow:hidden; }
     .task-main { display:grid; grid-template-columns:20px minmax(0,1fr); gap:9px; min-width:0; align-items:start; }
     .task-main-copy { min-width:0; overflow:hidden; }
@@ -110,6 +117,7 @@
   let studioStartedAt = null;
   let studioElapsedTimer = null;
   let studioAttachments = [];
+  let locale = (() => { try { return localStorage.getItem("atl-locale") || "en-US"; } catch { return "en-US"; } })();
   const selectedQueues = new Set();
   const selectedTasks = new Set();
   const selectedProjects = new Set();
@@ -536,7 +544,48 @@
               : "Add a provider to enable model planning.";
     mount.innerHTML = `<button class="provider-summary" type="button" data-action="provider-manager" aria-label="Manage providers"><span class="row between tiny"><span class="muted">PROVIDER STATUS</span><span class="pill ${status.tone}">${escapeHtml(status.label)}</span></span><strong>${escapeHtml(name)}</strong><span class="muted tiny status-detail">${escapeHtml(detail)}</span></button><button class="provider-manager lined row" type="button" data-page="settings"><span class="avatar">M</span><span><b>Workspace Manager</b><span class="tiny muted" style="display:block">Owner / approvals · Settings</span></span></button>`;
   }
-  function render() { nav(); renderProviderStatus(); $("#content").innerHTML = panels[page]?.() || panels.overview(); }
+  const faQueueText = new Map([
+    ["OPERATIONS / DISPATCH", "عملیات / اعزام"], ["Multi-queue manager", "مدیریت چند صف"],
+    ["Open a queue to review, manage, or preview it. Every run remains explicitly confirmed.", "برای بررسی، مدیریت یا پیش‌نمایش یک صف آن را باز کنید. هر اجرا همچنان به تأیید صریح نیاز دارد."],
+    ["+ New queue", "+ صف جدید"], ["Review selected", "بررسی موارد انتخاب‌شده"], ["Global concurrency", "همزمانی سراسری"],
+    ["Conservative default", "پیش‌فرض محافظه‌کارانه"], ["Runnable", "قابل اجرا"], ["Pending dependency checks", "در انتظار بررسی وابستگی‌ها"],
+    ["Paused / blocked", "متوقف / مسدود"], ["Require intervention", "نیازمند مداخله"], ["No active queue selected", "صف فعالی انتخاب نشده است"],
+    ["A confirmed run appears below. Tasks included in it show", "اجرای تأییدشده در ادامه نمایش داده می‌شود. وظایف آن با وضعیت"],
+    ["or", "یا"], ["instead of another Run button.", "به‌جای دکمه اجرای دیگر نمایش داده می‌شوند."],
+    ["Select queue checkboxes for one shared-budget run; open a queue card for its individual actions.", "برای یک اجرای مشترک با بودجه واحد، صف‌ها را انتخاب کنید؛ برای عملیات هر صف، کارت آن را باز کنید."],
+    ["Current active queue", "صف فعال فعلی"], ["Approved plan workstream", "جریان کاری طرح تأییدشده"], ["task", "وظیفه"], ["tasks", "وظیفه"],
+    ["complete", "تکمیل"], ["running", "در حال اجرا"], ["logs", "گزارش"], ["No task logs yet", "هنوز گزارشی ثبت نشده است"],
+    ["Live execution · open queue for task logs", "اجرای زنده · برای گزارش وظایف صف را باز کنید"],
+    ["Confirmed run active · tasks below show their live run state", "اجرای تأییدشده فعال است · وضعیت زنده وظایف در ادامه نمایش داده می‌شود"],
+    ["Running", "در حال اجرا"], ["Queued", "در صف"], ["Stop", "توقف"], ["Delete", "حذف"], ["Clear", "پاک‌سازی"],
+    ["No queues found.", "صفی پیدا نشد."], ["ACTIVE QUEUE", "صف فعال"], ["plan queue", "صف طرح"], ["All", "همه"],
+  ]);
+  function applyLocale() {
+    const fa = locale === "fa-IR";
+    document.documentElement.lang = fa ? "fa-IR" : "en-US";
+    document.documentElement.dir = fa ? "rtl" : "ltr";
+    document.body.classList.toggle("atl-rtl", fa);
+    const control = document.querySelector("#localeBtn");
+    if (control) { control.textContent = fa ? "English" : "فارسی"; control.setAttribute("aria-label", fa ? "Switch to English" : "تغییر به فارسی"); }
+    if (!fa || page !== "queues") return;
+    const walker = document.createTreeWalker(document.querySelector("#content"), NodeFilter.SHOW_TEXT);
+    const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      let value = node.nodeValue;
+      for (const [from, to] of faQueueText) value = value.split(from).join(to);
+      node.nodeValue = value;
+    }
+    const search = document.querySelector("#queueSearch");
+    if (search) search.placeholder = "جست‌وجوی صف‌ها...";
+  }
+  function ensureLocaleControl() {
+    const topbar = document.querySelector(".topbar .row:last-child");
+    if (!topbar || document.querySelector("#localeBtn")) return;
+    const button = document.createElement("button");
+    button.id = "localeBtn"; button.className = "btn ghost"; button.dataset.action = "toggle-locale";
+    topbar.insertBefore(button, topbar.firstChild);
+  }
+  function render() { nav(); renderProviderStatus(); $("#content").innerHTML = panels[page]?.() || panels.overview(); ensureLocaleControl(); applyLocale(); }
   function close() { dialogOpen = false; $("#modal").innerHTML = ""; }
   function popup(title, body, actions = "") { dialogOpen = true; $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog" role="dialog" aria-modal="true"><div class="dialoghead"><h2 style="font-size:16px">${title}</h2>${btn("✕", "close", "ghost")}</div><div class="dialogbody">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`; }
   function popupWide(title, body, actions = "") { dialogOpen = true; $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog" style="width:min(820px,100%)" role="dialog" aria-modal="true"><div class="dialoghead"><h2 style="font-size:16px">${title}</h2>${btn("✕", "close", "ghost")}</div><div class="dialogbody" style="max-height:74vh">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`; }
@@ -752,6 +801,12 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
   async function mutation(command, after = page) { close(); await runCommand(command); await refresh(false); page = after; render(); }
   async function action(value) {
+    if (value === "toggle-locale") {
+      locale = locale === "fa-IR" ? "en-US" : "fa-IR";
+      try { localStorage.setItem("atl-locale", locale); } catch { /* private browsing */ }
+      render();
+      return;
+    }
     const brainMutation = async (body) => {
       const response = await fetch("/api/brain", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
