@@ -17,11 +17,10 @@
   "routines": [],
   "routines_note": "demo routines (readme-doc-fixes, perf-regressions) removed 2026-10-21 for the clean first run; they overrode explicit @priority in inbox files at intake. Re-add deliberately, and decide whether explicit file metadata should win over a keyword routine.",
   "providers": {
-    "default": "codex",
+    "default": "gapgpt",
     "auth": "subscription",
-    "model": "gpt-5.6-luna",
     "by_role": {},
-    "catalog": {},
+    "catalog": { "gapgpt": { "command": "gapcode", "args": ["exec", "--cd", "{cwd}", "-c", "default_permissions=\":workspace\"", "-c", "windows.sandbox=\"unelevated\"", "--ephemeral", "--skip-git-repo-check", "-"] } },
     "note": "spec 014 launch boundary: per-role override, e.g. \"by_role\": { \"sage\": \"claude\" }; custom CLIs/models live under catalog. Discovery validates PATH before any preview/launch; a missing executable blocks the run with an actionable message.",
     "model_by_role": {}
   },

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "revision": 577,
+  "sessions": {
+    "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-026": {
+      "id": "L-98b9e79e-ba29-4263-9be0-5671afed00f2",
+      "key": "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-026",
+      "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+      "task": "T-026",
+      "role": "rowan",
+      "run": "R-1793077121970",
+      "generation": 4,
+      "heartbeat_at": 1793077494574,
+      "expires_at": 0,
+      "status": "released",
+      "released_at": 1793077494579
+    },
+    "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-018": {
+      "id": "L-03853e4b-cab0-4f61-9146-34901da98421",
+      "key": "D:\\Projects\\Agentic\\Agent-Trust-Ladder:T-018",
+      "project": "D:\\Projects\\Agentic\\Agent-Trust-Ladder",
+      "task": "T-018",
+      "role": "rowan",
+      "run": "R-1793084828392",
+      "generation": 8,
+      "heartbeat_at": 1793084832269,
+      "expires_at": 0,
+      "status": "released",
+      "released_at": 1793084832303
+    }
+  }
+}

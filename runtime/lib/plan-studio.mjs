@@ -218,7 +218,21 @@ function validateProposals(artifact) {
       if (!ids.has(dep)) throw new Error(`task proposal ${proposal.id} depends on unknown proposal ${dep}`);
     }
   }
-  return proposals;
+  const ordered = [];
+  const visiting = new Set();
+  const visited = new Set();
+  const byId = new Map(proposals.map((proposal) => [proposal.id, proposal]));
+  function visit(proposal) {
+    if (visiting.has(proposal.id)) throw new Error(`task proposal dependency cycle includes ${proposal.id}`);
+    if (visited.has(proposal.id)) return;
+    visiting.add(proposal.id);
+    for (const dep of proposal.depends_on) visit(byId.get(dep));
+    visiting.delete(proposal.id);
+    visited.add(proposal.id);
+    ordered.push(proposal);
+  }
+  for (const proposal of proposals) visit(proposal);
+  return ordered;
 }
 
 function nextProposalId(proposals) {
@@ -546,7 +560,7 @@ export function approvePlanDraft(root, draft, { note = "approved by manager in P
   const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
   const artifact = loaded.artifact;
   validatePlanArtifact(artifact);
-  const proposals = normalizeProposals(artifact);
+  const proposals = validateProposals(artifact);
   const state = loadState(root);
   const existing = Object.values(state.tasks).filter((task) => task.plan_draft_id === loaded.id);
   if (existing.length) {
@@ -615,7 +629,7 @@ export async function runPlanProvider(root, intent, { role = "pip", provider, co
     task: "Convert the intent into an evidence-gated ATL SDD/TDD plan.",
     intent: String(intent).trim(),
     required: ["title", "objective", "constraints", "risks", "completion_checks", "acceptance_examples", "selected_skills", "proposed_worker", "implementation_steps", "verifier_commands"],
-    rule: "Return JSON only. acceptance_examples must be a list of objects, each with non-empty string fields given, when, then. implementation_steps must be a list of objects, each with non-empty string step, string-array files, string verify. Do not claim checks passed. Do not execute commands or change files.",
+    rule: "Return JSON only. acceptance_examples must be a list of objects, each with non-empty string fields given, when, then. implementation_steps must be a list of objects, each with non-empty string step, string-array files, string verify. Each task must have independently satisfiable completion checks. A prerequisite task must never require implementation owned by one of its downstream dependents; put integration checks on the integration task. Declare all dependencies explicitly and without cycles. Do not claim checks passed. Do not execute commands or change files.",
   };
   const id = draftId || `${Date.now()}-${slug(titleOf(intent))}`;
   const logPath = path.join(path.dirname(paths(root).state), "plan-studio", id, "provider.log");

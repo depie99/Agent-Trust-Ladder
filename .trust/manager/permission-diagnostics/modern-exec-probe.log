@@ -1,0 +1,26 @@
+GapCode v0.161.0
+--------
+workdir: D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\workspaces\T-018
+model: gpt-6-astra
+provider: gapgpt
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: none
+reasoning summaries: none
+session id: 01a17c2a-917c-75d1-a18d-4668232bcd13
+--------
+user
+This is a bounded ATL worker capability check. Use exec_command to run exactly this PowerShell command in the current task workspace: Set-Content -LiteralPath .atl-worker-exec-probe.txt -Value ATL_WORKER_WRITE_OK; Get-Content -LiteralPath .atl-worker-exec-probe.txt . Do not edit any other file, do not change permissions, do not request escalation, and do not inspect other files. Report the actual exit code and result.
+codex
+I’ll run the exact command in the current workspace and report its exit code and output.
+2026-10-27T07:02:29.583938Z ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected(\"`\\\"C:\\\\\\\\Windows\\\\\\\\System32\\\\\\\\WindowsPowerShell\\\\\\\\v1.0\\\\\\\\powershell.exe\\\" -Command 'Set-Content -LiteralPath .atl-worker-exec-probe.txt -Value ATL_WORKER_WRITE_OK; Get-Content -LiteralPath .atl-worker-exec-probe.txt'` rejected: blocked by policy\")" }
+2026-10-27T07:02:51.732995Z ERROR codex_models_manager::manager: failed to refresh available models: request timed out
+codex
+Exit code: unavailable—the process never started.
+
+Result: `exec_command` was rejected as “blocked by policy.” The command did not run; no files were changed.
+tokens usedExit code: unavailable—the process never started.
+
+Result: `exec_command` was rejected as “blocked by policy.” The command did not run; no files were changed.
+
+17,755

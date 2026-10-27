@@ -49,6 +49,17 @@
     .task-owner-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; font-weight:600; }
     .task-actions { display:flex; flex-wrap:nowrap; gap:7px; justify-content:flex-end; }
     .task-row .task-progress { min-width:180px; }
+    .progress-evidence > .row { align-items:flex-start; gap:12px; margin-top:8px; }
+    .progress-evidence > .row > span:first-child { min-width:0; overflow-wrap:anywhere; }
+    .progress-evidence .status-badge { flex-shrink:0; }
+    .approval-request { margin-top:12px; overflow-wrap:anywhere; }
+    .approval-request .row, .approval-request .bar { flex-wrap:wrap; }
+    .approval-request h3 { margin:0; font-size:17px; }
+    .approval-scope { margin-block:12px; padding-inline-start:20px; }
+    .approval-scope li { margin-block:7px; }
+    .approval-request details { margin-top:12px; }
+    .approval-request summary { cursor:pointer; }
+    .approval-request pre { white-space:pre-wrap; overflow-wrap:anywhere; }
     .attachment-list { flex-wrap:wrap; }
     .attachment-card { margin:0; padding:8px; min-width:180px; max-width:260px; flex:1 1 180px; }
     .attachment-preview { display:block; width:100%; max-height:120px; object-fit:contain; margin-top:8px; border-radius:5px; background:var(--field-bg); }
@@ -92,11 +103,17 @@
     usage: { snapshots: [], latest: null }, team: [], brain: { sources: { total: 0, by_result: {}, sources: [] }, claims: [], stale: [], skills: [], routines: [] },
   };
   let snapshot = fallback;
-  let page = "overview";
+  let page = (() => {
+    try {
+      const saved = sessionStorage.getItem("atl-cp-page");
+      return routes.some((route) => route[0] === saved) ? saved : "overview";
+    } catch { return "overview"; }
+  })();
   let filter = "All";
   let query = "";
   let queueFilter = "All";
   let dialogOpen = false;
+  let detailExecution = null;
   let cliHistory = ["ATL control plane connected. Type help."];
   let connected = false;
   let streamCursor = 0;
@@ -228,7 +245,7 @@
   }
 
   function statusLabel(value) {
-    const aliases = { new: "New", triaged: "Queued", assigned: "Queued", in_progress: "Running", in_review: "Review", verifying: "Review", blocked: "Blocked", escalated: "Escalated", done: "Done", rejected: "Rejected", archived: "Archived" };
+    const aliases = { new: "New", triaged: "Queued", assigned: "Queued", in_progress: "In progress", in_review: "Review", verifying: "Review", blocked: "Blocked", escalated: "Escalated", done: "Done", rejected: "Rejected", archived: "Archived" };
     return aliases[String(value || "unknown")] || String(value || "unknown").replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
   }
   function badge(value) {
@@ -305,12 +322,48 @@
     return `<section class="panel pad space"><div class="row between"><div><h2>Queue execution</h2><p class="sub">${escapeHtml(runLabel)} · ${escapeHtml(currentRun.status || "idle")}</p></div>${badge(currentRun.status || "idle")}</div><div class="terminal" style="max-height:320px;overflow:auto">${escapeHtml(lines.join("\n") || "No run started. Preview the queue before confirmation.")}</div>${currentRun.status === "running" ? `<div class="actionrow">${btn("Stop safely", "run-stop", "danger")}</div>` : ""}</section>`;
   }
 
-  function taskProgress(status) {
-    if (status === "done") return 100;
-    if (status === "in_progress") return 55;
-    if (["in_review", "verifying"].includes(status)) return 78;
-    if (status === "blocked") return 35;
-    return 0;
+  function taskProgress(task) {
+    const checks = [...new Set((task.completion_checks || []).map((check) => String(check).trim()).filter(Boolean))];
+    const revision = task.packet_revision || 1;
+    const evidence = (task.evidence || []).filter((item) => (item.packet_revision || 1) === revision);
+    const review = evidence.findLast((item) => item.kind === "review");
+    const rejectedAt = review?.result === "changes-requested" ? evidence.lastIndexOf(review) : -1;
+    const results = new Map();
+    evidence.forEach((item, index) => {
+      if (index > rejectedAt && item.kind === "check") results.set(String(item.check || "").trim(), item.result);
+    });
+    const checkResults = checks.map((check) => ({ check, result: results.get(check) || "pending" }));
+    const passed = checkResults.filter((item) => item.result === "pass").length;
+    const failed = checkResults.filter((item) => item.result === "fail").length;
+    const reviewRequired = Boolean(task.review_required);
+    const reviewPassed = review?.result === "approve";
+    const finished = (task.rawStatus || task.status) === "done";
+    const total = checks.length + (reviewRequired ? 1 : 0) + 1;
+    const completed = passed + (reviewRequired && reviewPassed ? 1 : 0) + (finished ? 1 : 0);
+    return { percent: checks.length ? Math.floor(completed * 100 / total) : null, completed, total, passed, failed,
+      checks: checkResults, reviewRequired, reviewPassed, finished };
+  }
+
+  function taskProgressMarkup(task, detailed = false) {
+    const progress = task.progressDetails || taskProgress(task);
+    const label = progress.percent === null ? "Progress unknown" : `Acceptance progress · ${progress.completed}/${progress.total} gates`;
+    const explanation = "Latest results for the current task revision: completion checks, required review, and final completion. Evidence rejected by review is excluded. This measures acceptance gates, not elapsed time or remaining effort.";
+    const items = detailed ? `<div class="muted tiny" style="margin-top:8px">${escapeHtml(explanation)}</div><div class="progress-evidence">${progress.checks.map((item) => `<div class="row between"><span>${escapeHtml(item.check)}</span>${badge(item.result)}</div>`).join("")}${progress.reviewRequired ? `<div class="row between"><span>Required review</span>${badge(progress.reviewPassed ? "Approved" : "Pending")}</div>` : ""}<div class="row between"><span>Final completion</span>${badge(progress.finished ? "Done" : "Pending")}</div></div>` : "";
+    return `<div class="task-progress" data-task-progress="${escapeHtml(task.id)}" title="${escapeHtml(explanation)}"><div class="row between muted"><span>${escapeHtml(label)}</span><b>${progress.percent === null ? "—" : `${progress.percent}%`}</b></div><div role="progressbar" aria-label="Acceptance progress" aria-valuemin="0" aria-valuemax="100"${progress.percent === null ? ' aria-valuetext="Progress unknown"' : ` aria-valuenow="${progress.percent}" aria-valuetext="${progress.completed}/${progress.total} acceptance gates"`}>${meter(progress.percent)}</div>${items}</div>`;
+  }
+
+  function taskExecution(task) {
+    const live = liveRunState(task);
+    if (live === "running") return { label: "Running", reason: "Worker is executing this task." };
+    if (["done", "archived", "rejected", "blocked", "escalated"].includes(task.rawStatus || task.status)) return { label: statusLabel(task.rawStatus || task.status), reason: "" };
+    if (live === "queued") return { label: "Queued", reason: "Waiting for its turn in the active run." };
+    const result = [...(currentRun.results || [])].reverse().find((item) => item.id === task.id);
+    const included = (currentRun.taskIds || []).includes(task.id) || Boolean(result);
+    if (["in_progress", "in_review", "verifying"].includes(task.rawStatus || task.status) || (included && currentRun.status !== "running")) {
+      const reason = result?.reason || (included && currentRun.reason) || "No active worker. Resume to continue.";
+      return { label: "Stopped", reason: /session budget reached/i.test(reason) ? "Session budget exhausted. Resume to continue." : reason };
+    }
+    return { label: statusLabel(task.rawStatus || task.status), reason: "" };
   }
 
   function workerLabel(task) {
@@ -326,29 +379,28 @@
 
   function taskOutcome(task) {
     const evidence = task.evidence || [];
-    const checks = evidence.filter((item) => item.kind === "check");
-    const passed = checks.filter((item) => item.result === "pass").length;
-    const failed = checks.filter((item) => item.result === "fail").length;
+    const progress = task.progressDetails || taskProgress(task);
     const last = evidence.at(-1);
-    return { passed, failed, total: checks.length, summary: task.lastCheckpoint?.note || last?.detail || (task.rawStatus === "done" ? "Completed with no outcome summary recorded." : "No outcome recorded yet.") };
+    return { passed: progress.passed, failed: progress.failed, total: progress.checks.length, summary: task.lastCheckpoint?.note || last?.detail || (task.rawStatus === "done" ? "Completed with no outcome summary recorded." : "No outcome recorded yet.") };
   }
 
   function derived() {
     const queueByTask = new Map();
     for (const queue of snapshot.queues?.items || []) for (const item of queue.items || []) queueByTask.set(item.id, queue.name || queue.id);
     const tasks = Object.values(snapshot.state?.tasks || {}).map((task) => ({
-      id: task.id, title: task.title, desc: task.objective || "", status: statusLabel(task.status), rawStatus: task.status,
+      id: task.id, title: task.title, desc: task.objective || "", status: taskExecution(task).label, rawStatus: task.status,
       agent: workerLabel(task), priority: statusLabel(task.priority || "normal"),
       queue: queueByTask.get(task.id) || "Unqueued", block: task.blocker?.reason || "", archived: task.status === "archived",
-      stage: task.last_checkpoint?.note || statusLabel(task.status), progress: taskProgress(task.status),
+      stage: taskExecution(task).reason || task.last_checkpoint?.note || statusLabel(task.status), progress: taskProgress(task).percent,
+      progressDetails: taskProgress(task), completion_checks: task.completion_checks || [], packet_revision: task.packet_revision || 1, review_required: task.review_required,
       logs: (snapshot.state?.log_tail || []).filter((entry) => entry.task === task.id).slice(-8),
       evidence: task.evidence || [], lastCheckpoint: task.last_checkpoint || null, workspace: task.workspace || null,
     })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
     const queues = (snapshot.queues?.items || []).map((queue) => ({ ...queue, label: queue.name || queue.id }));
     const agents = (snapshot.team || []).map((agent) => [
-      statusLabel(agent.role), agent.mission || "ATL role", statusLabel(agent.taskStatus || agent.phase || "idle"),
+      statusLabel(agent.role), agent.mission || "ATL role", tasks.find((task) => task.id === agent.taskId)?.status || statusLabel(agent.phase || "idle"),
       agent.taskId ? `${agent.taskId} · ${agent.taskTitle || agent.phase || "assigned"}` : (agent.phase || "Ready for next task"),
-      agent.taskStatus === "done" ? 100 : agent.taskStatus === "in_progress" ? 58 : agent.taskStatus ? 25 : 0,
+      tasks.find((task) => task.id === agent.taskId)?.progress ?? null,
     ]);
     const events = (snapshot.state?.log_tail || []).slice().reverse().map((item) => [
       item.at ? new Date(item.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--:--:--",
@@ -361,23 +413,94 @@
     const liveRun = liveRunState(task);
     if (liveRun === "running") return btn("Stop", "run-stop", "sm danger");
     if (liveRun === "queued") return '<span class="pill blue" title="This task is included in the confirmed queue run">In run</span>';
-    if (["in_progress", "in_review", "verifying"].includes(task.rawStatus)) return currentRun.status === "running" ? btn("Stop", "run-stop", "sm danger") : btn("Resume", `run-task:${task.id}`, "sm primary") + btn("Logs", `task-detail:${task.id}`, "sm");
+    if (["in_progress", "in_review", "verifying"].includes(task.rawStatus)) return btn("Resume", `run-task:${task.id}`, `sm primary${currentRun.status === "running" ? " disabled" : ""}`) + btn("Logs", `task-detail:${task.id}`, "sm");
     if (task.rawStatus === "blocked") return btn("Unblock", `unblock:${task.id}`, "sm") + btn("Logs", `task-detail:${task.id}`, "sm");
     if (["done", "archived"].includes(task.rawStatus)) return btn("Logs", `task-detail:${task.id}`, "sm") + btn("Delete", `task-delete:${task.id}`, "sm danger");
     return btn("Run", `run-task:${task.id}`, "sm primary") + btn("More", `task-actions:${task.id}`, "sm");
   };
   function liveRunState(task) {
     if (currentRun.status !== "running") return null;
-    if (Array.isArray(currentRun.taskIds) && currentRun.taskIds.includes(task.id)) return "running";
+    if (currentRun.currentTaskId === task.id) {
+      const leases = snapshot.leases?.sessions;
+      if (Array.isArray(leases) && !leases.some((lease) => lease.task === task.id && lease.status === "active" && lease.expires_at > Date.now())) return null;
+      return "running";
+    }
+    if ((currentRun.results || []).some((entry) => entry.id === task.id && !entry.waiting)) return null;
+    if (Array.isArray(currentRun.taskIds) && currentRun.taskIds.includes(task.id)) return "queued";
     const queueIds = Array.isArray(currentRun.queueIds) ? currentRun.queueIds : (currentRun.queueId ? [currentRun.queueId] : []);
     const queue = (snapshot.queues?.items || []).find((item) => queueIds.includes(item.id) || queueIds.includes(item.name));
     if (!queue || !(queue.items || []).some((item) => (item.id || item.taskId) === task.id)) return null;
-    const progressEntry = (currentRun.progress || []).find((entry) => entry.taskId === task.id || entry.id === task.id);
-    return progressEntry?.status === "running" ? "running" : "queued";
+    return "queued";
   }
-  const taskRow = (task) => { const outcome = taskOutcome(task); return `<div class="tableitem task-row" data-task="${escapeHtml(task.id)}"><div class="task-main"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><div class="task-main-copy"><b class="truncate">${task.rawStatus === "in_progress" ? '<span class="running-mark" aria-label="running"></span>' : task.rawStatus === "done" ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.title)}</b><div class="muted tiny">${escapeHtml(task.id)} · ${escapeHtml(task.queue)} · ${escapeHtml(task.stage)}</div><div class="task-progress"><div class="row between muted"><span>${task.rawStatus === "done" ? `Accomplished · ${outcome.passed}/${outcome.total} checks passed` : `Lifecycle progress · ${task.progress}%`}</span><b>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</b></div>${meter(task.progress, task.rawStatus === "done" ? "var(--accent)" : undefined)}</div></div></div><div class="task-controls"><div class="task-control-meta">${badge(task.status)}<span class="task-owner"><span class="task-owner-label">Assigned to</span><span class="task-owner-name">${escapeHtml(task.agent)}</span></span></div><div class="task-actions">${taskRowActions(task)}</div></div></div>`; };
+  const taskRow = (task) => { const outcome = taskOutcome(task); return `<div class="tableitem task-row" data-task="${escapeHtml(task.id)}"><div class="task-main"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><div class="task-main-copy"><b class="truncate">${liveRunState(task) === "running" ? '<span class="running-mark" aria-label="running"></span>' : task.rawStatus === "done" ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.title)}</b><div class="muted tiny">${escapeHtml(task.id)} · ${escapeHtml(task.queue)} · ${escapeHtml(task.stage)}</div><div class="row between muted tiny"><span>${task.rawStatus === "done" ? `Accomplished · ${outcome.passed}/${outcome.total} checks passed` : `Stage: ${escapeHtml(statusLabel(task.rawStatus))} · ${escapeHtml(task.status)}`}</span><b>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</b></div>${taskProgressMarkup(task)}</div></div><div class="task-controls"><div class="task-control-meta">${badge(task.status)}<span class="task-owner"><span class="task-owner-label">Assigned to</span><span class="task-owner-name">${escapeHtml(task.agent)}</span></span></div><div class="task-actions">${taskRowActions(task)}</div></div></div>`; };
   const eventRow = (event) => `<div class="event"><span class="muted tiny" style="white-space:nowrap">${escapeHtml(event[0])}</span><div>${badge(event[1])} <span class="muted">${escapeHtml(event[2])}</span><div style="margin-top:5px">${escapeHtml(event[3])}</div></div></div>`;
   const stat = (name, value, detail) => `<div class="panel stat"><small>${name}</small><strong>${value}</strong><div class="muted tiny">${detail}</div></div>`;
+
+  function approvalSummary(item) {
+    const request = item.action || {};
+    const args = request.args || {};
+    const queues = snapshot.queues?.items || [];
+    const taskIds = Array.isArray(args.taskIds) ? args.taskIds : [];
+    const queueIds = Array.isArray(args.queueIds) && args.queueIds.length ? args.queueIds
+      : taskIds.length ? [] : request.target && request.target !== "selected" ? [request.target] : [];
+    const selectedQueues = queueIds.map((id) => queues.find((queue) => queue.id === id) || { id, name: id, missing: true });
+    const ids = taskIds.length ? taskIds : selectedQueues.flatMap((queue) => (queue.items || []).map((task) => task.id || task.taskId));
+    const tasks = [...new Set(ids)].map((id) => snapshot.state?.tasks?.[id] || { id, title: "Task unavailable", status: "unknown" });
+    const grant = [...(snapshot.approvals?.grants || [])].reverse().find((entry) => entry.proposal_id === item.id);
+    const permission = item.status === "pending" ? "Awaiting your decision" : item.status === "denied" ? "Denied"
+      : !grant ? "Permission record unavailable" : grant.revoked_at ? "Revoked" : grant.used_at ? "Used"
+      : !(new Date(grant.expires_at).getTime() > Date.now()) ? "Expired" : "Available once";
+    const continueRun = item.status === "pending" && pendingApprovalAction?.proposalId === item.id;
+    return { title: request.operation === "run.queue" ? (taskIds.length ? "Run selected tasks" : "Run selected queues") : "Other requested action",
+      request, tasks, queues: selectedQueues, directTasks: Boolean(taskIds.length), grant, permission, continueRun,
+      unknownScope: request.operation !== "run.queue" || (!taskIds.length && !queueIds.length) };
+  }
+
+  function approvalCard(item) {
+    const view = approvalSummary(item);
+    const scope = view.queues.map((queue) => `<li><b>Queue</b>: <span dir="auto">${escapeHtml(queue.name || queue.id)}</span>${queue.missing ? ' <span class="muted">Queue unavailable</span>' : ""}</li>`).join("");
+    const tasks = view.tasks.map((task) => `<li><b>${escapeHtml(task.id)}</b> · <span dir="auto">${escapeHtml(task.title)}</span> ${badge(statusLabel(task.status))}</li>`).join("");
+    const effect = view.unknownScope ? "The scope of this request is incomplete. Inspect the technical details before deciding."
+      : "Allows ATL to start worker sessions for the tasks below, using the configured provider. Workers can edit task workspace files. Run limits and task gates still apply.";
+    const next = item.status === "pending" ? (view.continueRun ? "Approving starts this waiting run immediately in this tab. Denying keeps it stopped."
+      : "Approve once grants permission for 10 minutes. It does not start a run from this page. Return to the task or queue, preview it, and confirm Run.")
+      : view.permission === "Available once" ? "Permission is ready for one matching run. Return to its task or queue to preview and start it."
+      : view.permission === "Used" ? "This permission has been used. It does not confirm that the tasks finished."
+      : view.permission === "Expired" || view.permission === "Revoked" ? "This permission cannot start another run. Preview a new run to request approval again."
+      : item.status === "denied" ? "This request was denied. No permission was granted." : "Review the recorded decision and request details.";
+    const outcome = !item.execution || item.execution.status === "unknown" ? "Run result not recorded"
+      : ({ running: "Run in progress", complete: "Run ended", finished: "Run ended", failed: "Run failed", stopped: "Run stopped", aborted: "Run stopped" }[item.execution.status] || item.execution.status);
+    const buttons = item.status === "pending" ? btn(view.continueRun ? "Approve and start this run" : "Approve once", `approval-approve:${item.id}`, "sm primary") + btn("Deny request", `approval-deny:${item.id}`, "sm danger")
+      : view.permission === "Available once" ? btn("Revoke unused permission", `approval-revoke:${view.grant.id}`, "sm danger") : "";
+    return `<article class="panel pad approval-request" data-approval="${escapeHtml(item.id)}"><div class="row between"><h3>${escapeHtml(view.title)}</h3>${badge(view.permission)}</div><p class="sub">${escapeHtml(effect)}</p><p class="muted tiny"><b>Project</b>: <span dir="ltr">${escapeHtml(view.request.project || "Not recorded")}</span></p>${scope ? `<ul class="approval-scope">${scope}</ul>` : ""}${!view.directTasks && view.tasks.length ? '<b>Current queue contents</b><p class="muted tiny">This task list reflects the queue now. Check the run preview if the queue has changed.</p>' : ""}${tasks ? `<ul class="approval-scope">${tasks}</ul>` : ""}<div class="notice"><p>${escapeHtml(next)}</p></div><div class="row between space"><div><b>Decision</b>: ${badge(item.status)}<div class="muted tiny"><b>Requested</b>: ${escapeHtml(item.created_at ? new Date(item.created_at).toLocaleString() : "Not recorded")}${view.grant ? `<br><b>Permission expires</b>: ${escapeHtml(new Date(view.grant.expires_at).toLocaleString())}` : ""}</div></div><div class="bar">${buttons}</div></div><p class="sub"><b>Execution</b>: <span>${escapeHtml(outcome)}</span>${item.execution?.status !== "unknown" && item.execution?.reason ? ` · ${escapeHtml(item.execution.reason)}` : ""}</p><details><summary>Technical details</summary><pre>${escapeHtml(JSON.stringify({ request_id: item.id, fingerprint: item.digest, action: item.action, execution: item.execution || null }, null, 2))}</pre></details></article>`;
+  }
+
+  function approvalCenter() {
+    const proposals = snapshot.approvals?.proposals || [];
+    const pending = proposals.filter((item) => item.status === "pending").reverse();
+    const history = proposals.filter((item) => item.status !== "pending").reverse();
+    const available = proposals.filter((item) => approvalSummary(item).permission === "Available once").length;
+    return head("GOVERNANCE / APPROVALS", "Approval center", "Decide whether ATL may start a requested action. Approval is permission; task completion is shown in Tasks and Queues.", btn("Refresh", "refresh"))
+      + `<div class="notice"><b>How this works</b><p>1. Review the project, queue and tasks. 2. Approve once or deny. 3. Check execution and task results separately.</p><p class="sub">Approve once creates a single-use permission valid for 10 minutes. A button labeled Approve and start this run also resumes the matching request waiting in this tab.</p></div><div class="grid three space">${stat("Needs your decision", pending.length, "Requests waiting for permission")}${stat("Available permissions", available, "Unused and not expired")}${stat("Past decisions", history.length, "Approval does not mean completion")}</div><section class="space"><h2>Needs your decision</h2>${pending.map(approvalCard).join("") || '<p class="muted">No requests are waiting for your decision.</p>'}</section><section class="space"><h2>Previous decisions and execution</h2>${history.map(approvalCard).join("") || '<p class="muted">No past decisions.</p>'}</section>`;
+  }
+
+  function showRunApproval(proposal, command) {
+    pendingApprovalAction = { proposalId: proposal.id, command };
+    popup("Review run permission", approvalCard(proposal), btn("Open approval center", "go:approvals") + btn("Close", "close"));
+    applyLocale();
+  }
+
+  async function applyApprovalDecision(id, approve) {
+    const continuation = pendingApprovalAction?.proposalId === id ? pendingApprovalAction.command : null;
+    try {
+      const response = await fetch("/api/approvals", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "decide", proposal_id: id, decision: approve ? "allow-once" : "deny" }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "approval decision failed");
+      if (continuation) pendingApprovalAction = null;
+      close(); await refresh(false); page = "approvals"; render();
+      if (approve && continuation) await action(continuation);
+    } catch (error) { popup("Approval decision failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+  }
 
   const panels = {
     overview: () => {
@@ -455,8 +578,8 @@
         const active = queue.id === snapshot.queues?.active_queue;
         const queueTaskIds = new Set((queue.items || []).map((item) => item.id || item.taskId));
         const queueTasks = tasks.filter((task) => queueTaskIds.has(task.id));
-        const running = queueTasks.filter((task) => task.rawStatus === "in_progress" || liveRunState(task) === "running").length;
-        const progress = queueTasks.length ? Math.round(queueTasks.reduce((sum, task) => sum + task.progress, 0) / queueTasks.length) : 0;
+        const running = queueTasks.filter((task) => liveRunState(task) === "running").length;
+        const progress = queueTasks.length ? Math.round(queueTasks.filter((task) => task.rawStatus === "done").length * 100 / queueTasks.length) : 0;
         const latestLog = queueTasks.flatMap((task) => task.logs.map((log) => ({ ...log, taskId: task.id }))).at(-1);
         const queueRunning = currentRun.status === "running" && liveQueueIds.has(queue.id);
         const queueAction = queueRunning ? btn("Stop", "run-stop", "sm danger") : queue.id === "default" ? btn("Clear", "queue-clear:default", "sm danger") : btn("Delete", `queue-delete:${queue.id}`, "sm danger");
@@ -465,12 +588,12 @@
       return head("OPERATIONS / DISPATCH", "Multi-queue manager", "Open a queue to review, manage, or preview it. Every run remains explicitly confirmed.", btn("+ New queue", "newqueue", "primary") + (selectedQueues.size ? btn(selectedLabel, "run-confirm-multi") : ""))
         + `<div class="grid three">${stat("Global concurrency", "1", "Conservative default")}${stat("Runnable", tasks.filter((task) => task.rawStatus === "triaged" || task.rawStatus === "assigned").length, "Pending dependency checks")}${stat("Paused / blocked", tasks.filter((task) => ["paused", "blocked"].includes(task.rawStatus)).length, "Require intervention")}</div><div class="notice space"><b>${activeQueue ? `Active queue: ${escapeHtml(activeQueue.label)}` : "No active queue selected"}</b><p class="sub">A confirmed run appears below. Tasks included in it show <b>In run</b> or <b>Stop</b> instead of another Run button.</p></div><p class="muted tiny space">Select queue checkboxes for one shared-budget run; open a queue card for its individual actions.</p><div class="grid two space">${queueCards}</div>${runPanel()}`;
     },
-    team: () => { const { agents } = derived(); return head("OPERATIONS / TEAM", "Five-agent team", "Understand what each bot is doing, why it is blocked and what comes next.", btn("Agent events →", "go:activity")) + `<div class="grid three">${agents.map((agent) => `<section class="panel pad"><div class="row between"><span class="avatar">${escapeHtml(agent[0][0] || "A")}</span>${badge(agent[2])}</div><h2 style="font-size:16px;margin-top:12px">${escapeHtml(agent[0])}</h2><p class="sub">${escapeHtml(agent[1])}</p><div class="lined muted tiny">CURRENT WORK</div><p style="min-height:42px">${escapeHtml(agent[3])}</p><div class="row between tiny"><span class="muted">Progress · observed</span><b>${agent[4]}%</b></div><div style="margin:9px 0 13px">${meter(agent[4], agent[2] === "Blocked" ? "var(--amber)" : "var(--accent)")}</div>${btn("Read agent brief", `agent:${escapeHtml(agent[0])}`, "sm")}</section>`).join("") || '<div class="pad muted">No team state recorded yet.</div>'}</div>`; },
+    team: () => { const { agents } = derived(); return head("OPERATIONS / TEAM", "Five-agent team", "Understand what each bot is doing, why it is blocked and what comes next.", btn("Agent events →", "go:activity")) + `<div class="grid three">${agents.map((agent) => `<section class="panel pad"><div class="row between"><span class="avatar">${escapeHtml(agent[0][0] || "A")}</span>${badge(agent[2])}</div><h2 style="font-size:16px;margin-top:12px">${escapeHtml(agent[0])}</h2><p class="sub">${escapeHtml(agent[1])}</p><div class="lined muted tiny">CURRENT WORK</div><p style="min-height:42px">${escapeHtml(agent[3])}</p><div class="row between tiny"><span class="muted">Acceptance progress</span><b>${agent[4] === null ? "—" : `${agent[4]}%`}</b></div><div style="margin:9px 0 13px">${meter(agent[4], agent[2] === "Blocked" ? "var(--amber)" : "var(--accent)")}</div>${btn("Read agent brief", `agent:${escapeHtml(agent[0])}`, "sm")}</section>`).join("") || '<div class="pad muted">No team state recorded yet.</div>'}</div>`; },
     projects: () => { const projects = snapshot.supervisor?.projects || []; return head("WORKSPACE / PROJECTS", "Project rooms", "Repositories remain authoritative in their own local ATL state directories.", btn("Register repository", "project-register", "primary") + btn("Delete selected", "projects-delete-selected", "danger") + btn("Refresh", "refresh")) + `<div class="grid three">${stat("Registered", projects.length, "Local repositories")}${stat("Shared cap", snapshot.supervisor?.defaults?.maxConcurrent || 2, "Active provider sessions")}${stat("Hard cap", snapshot.supervisor?.defaults?.maxConcurrentCap || 5, "Maximum supported")}</div><div class="panel pad space">${projects.map((project) => `<div class="event between"><div class="row"><input type="checkbox" data-project-select="${escapeHtml(project.id)}"><span><b>${escapeHtml(project.name)}</b><div class="muted tiny">${escapeHtml(project.id)} · ${escapeHtml(project.root)}</div></span></div><span>${badge(`cap ${project.maxConcurrent}`)} ${btn("Delete", `project-delete:${escapeHtml(project.id)}`, "sm danger")}</span></div>`).join("") || '<span class="muted">No repositories registered yet.</span>'}</div>`; },
-    approvals: () => { const approvals = snapshot.approvals || { proposals: [], grants: [], audit: [] }; const rows = [...(approvals.proposals || [])].reverse().map((item) => `<div class="event between"><div><b>${escapeHtml(item.action?.operation || "action")}</b><div class="muted tiny">${escapeHtml(item.id)} · ${escapeHtml(item.digest || "")} · ${escapeHtml(item.created_at || "")}${item.execution ? ` · execution ${escapeHtml(item.execution.status)}` : ""}</div></div><div class="bar">${badge(item.status)}${item.status === "pending" ? btn("Approve once", `approval-approve:${item.id}`, "sm primary") + btn("Deny", `approval-deny:${item.id}`, "sm danger") : ""}</div></div>`).join("") || '<span class="muted">No action proposals recorded.</span>'; const grants = (approvals.grants || []).map((grant) => `<div class="event between"><span><b>${escapeHtml(grant.operation || "action")}</b><span class="muted tiny"> · expires ${escapeHtml(grant.expires_at || "unknown")}</span></span>${grant.used_at || grant.revoked_at ? badge(grant.revoked_at ? "Revoked" : "Used") : btn("Revoke", `approval-revoke:${grant.id}`, "sm danger")}</div>`).join("") || '<span class="muted">No active grants.</span>'; return head("GOVERNANCE / APPROVALS", "Approval center", "Exact actions, revisions, decisions and single-use grants.", btn("Refresh", "refresh")) + `<div class="grid three">${stat("Proposals", (approvals.proposals || []).length, "Persisted decisions")}${stat("Grants", (approvals.grants || []).length, "Single-use or expired")}${stat("Audit", (approvals.audit || []).length, "Recent governance events")}</div>${card("Action history", `<div class="pad">${rows}</div>`)}${card("Grant lifecycle", `<div class="pad">${grants}</div>`, "", "space")}${card("Boundary", '<div class="pad"><p class="sub">A changed target, argument, project, policy version, or code revision requires a fresh approval. Denial, expiry, revocation, and failed executions remain visible and never retry automatically.</p></div>', "", "space")}`; },
+    approvals: approvalCenter,
     operations: () => { const leases = snapshot.leases?.sessions || []; const backups = snapshot.backups || []; const runs = snapshot.routine_runs || []; const scheduler = snapshot.scheduler || {}; return head("OPERATIONS / RECOVERY", "Runtime operations", "Inspect active sessions, durable leases, routine history, and recoverable backups.", btn("Refresh", "refresh")) + `<div class="grid three">${stat("Active leases", leases.filter((lease) => lease.status === "active").length, "Fenced task sessions")}${stat("Backups", backups.length, "Project snapshots")}${stat("Routine runs", runs.length, `Scheduler ${scheduler.status || "stopped"}`)}</div>${card("Leases / sessions", `<div class="pad">${leases.map((lease) => `<div class="event between"><span><b>${escapeHtml(lease.task)}</b><span class="muted tiny"> · ${escapeHtml(lease.role)} · generation ${lease.generation}</span></span>${badge(lease.status)}</div>`).join("") || '<span class="muted">No session leases recorded.</span>'}</div>`)}${card("Routine history", `<div class="pad">${runs.slice().reverse().map((run) => `<div class="event between"><span><b>${escapeHtml(run.routine_id)}</b><span class="muted tiny"> · ${escapeHtml(run.trigger_reason || "manual")} · ${escapeHtml(run.created_at || "")}</span></span>${badge(run.status)}</div>`).join("") || '<span class="muted">No routine runs recorded.</span>'}</div>`, "", "space")}${card("Backups", `<div class="pad">${backups.slice().reverse().map((backup) => `<div class="event between"><span><b>${escapeHtml(backup.label)}</b><span class="muted tiny"> · ${escapeHtml(backup.id)}</span></span>${btn("Restore", `backup-restore:${escapeHtml(backup.id)}`, "sm ghost")}</div>`).join("") || '<span class="muted">No backups recorded.</span>'}<div class="bar" style="margin-top:12px">${btn("Create backup", "backup-create", "sm primary")}</div></div>`, "", "space")}`; },
     activity: () => { const { events } = derived(); const filtered = events.filter((event) => !activityFilter || event.join(" ").toLowerCase().includes(activityFilter.toLowerCase())); return head("OPERATIONS / EVIDENCE", "Activity & Logs", "Searchable decisions, feedback, blockers, verification and overnight handoffs.", btn("Refresh", "refresh") + btn("Export", "export")) + `<div class="grid three">${stat("Events", filtered.length, activityFilter ? "Filtered events" : "Authoritative state log")}${stat("Blockers", derived().tasks.filter((task) => task.rawStatus === "blocked").length, "Actions awaiting owner")}${stat("Connection", connected ? "Live" : "Stale", "Runtime-backed feed")}</div><div class="panel pad"><label class="label" for="activitySearch">Filter audit events</label><input id="activitySearch" class="input" value="${escapeHtml(activityFilter)}" placeholder="actor, task, event, or text"></div><div class="grid twocol space">${card("Timeline", `<div class="pad">${filtered.map(eventRow).join("") || '<span class="muted">No matching events.</span>'}</div>`)}${card("Runtime handoff", `<div class="pad"><div class="row between"><strong>ATL state</strong>${badge(connected ? "Live" : "Unknown")}</div><p class="sub">The browser reads authoritative state through the local bridge and marks it stale when refreshes fail.</p><div class="lined row between"><span>Captured</span><b>${escapeHtml(snapshot.captured_at ? new Date(snapshot.captured_at).toLocaleTimeString() : "unknown")}</b></div></div>`)}</div>`; },
-    usage: () => { const latest = snapshot.usage?.latest; const rows = snapshot.usage?.snapshots || []; const remote = rows.filter((item) => item.source === "provider-adapter").at(-1); const localSessions = rows.filter((item) => item.source === "atl-session").reduce((total, item) => total + Number(item.used?.sessions || 0), 0); const captured = latest?.captured_at ? new Date(latest.captured_at).toLocaleString() : "Never"; const probeState = remote?.confidence === "verified" ? "Provider telemetry verified" : "Provider telemetry unavailable"; const noticeTone = remote?.confidence === "verified" ? "green" : "amber"; const reset = remote?.reset_at ? new Date(remote.reset_at).toLocaleString() : "Not reported"; return head("OPERATIONS / RESOURCE MONITOR", "Usage & Limits", "Provider evidence, local run observations, and dispatch safeguards.", btn("Refresh providers", "usage-refresh", "primary") + btn("Refresh snapshot", "refresh")) + `<div class="notice"><b class="${noticeTone}">◈ ${escapeHtml(probeState)}</b><p class="sub">${escapeHtml(usageNotice || remote?.detail || "Refresh checks configured providers with supported usage adapters. Unsupported providers remain explicitly unknown.")}</p></div><div class="grid three space">${stat("Provider", latest?.provider || "Unlinked", latest?.model || "No current sample")}${stat("Quota remaining", remote?.remaining == null ? "Unknown" : String(remote.remaining), remote?.reset_at ? `Resets · ${reset}` : remote?.detail || "No verified provider quota")}${stat("Local sessions", localSessions, `${rows.length} recorded observations · latest ${captured}`)}</div><div class="grid two space">${card("Telemetry evidence", `<div class="pad"><div class="event between" style="justify-content:space-between"><span>Provider probe</span>${badge(remote?.confidence === "verified" ? "Observed" : "Unknown")}</div><div class="event between" style="justify-content:space-between"><span>Source</span><b class="muted">${escapeHtml(remote?.source || "No provider sample")}</b></div><div class="event between" style="justify-content:space-between"><span>Last capture</span><b class="muted">${escapeHtml(remote?.captured_at ? new Date(remote.captured_at).toLocaleString() : "Never")}</b></div><div class="event between" style="justify-content:space-between"><span>Recorded local runs</span><b>${localSessions}</b></div><p class="muted tiny" style="margin:13px 0 0">Provider quota is displayed only after a provider-specific authenticated response. Local sessions are separate evidence, not a quota estimate.</p></div>`)}${card("Preflight safeguards", '<div class="pad"><div class="row between"><span>Provider limit</span>' + badge(remote?.remaining == null ? "Unknown" : "Observed") + '</div><div class="lined row between"><span>Dispatch policy</span><span class="amber">Confirm risks</span></div><div class="lined row between"><span>Stop on rate-limit</span><span class="green">Required</span></div><div class="lined row between"><span>Quota provenance</span><span class="muted">Provider adapter only</span></div></div>')}</div>`; },
+    usage: () => { const provider = snapshot.usage?.default_provider || "codex"; const rows = (snapshot.usage?.snapshots || []).filter((item) => item.provider === provider); const latest = rows.at(-1); const remote = rows.filter((item) => item.source === "provider-adapter").at(-1); const localSessions = rows.filter((item) => item.source === "atl-session").reduce((total, item) => total + Number(item.used?.sessions || 0), 0); const captured = latest?.captured_at ? new Date(latest.captured_at).toLocaleString() : "Never"; const probeState = remote?.confidence === "verified" ? "Provider telemetry verified" : "Provider telemetry unavailable"; const noticeTone = remote?.confidence === "verified" ? "green" : "amber"; const reset = remote?.reset_at ? new Date(remote.reset_at).toLocaleString() : "Not reported"; return head("OPERATIONS / RESOURCE MONITOR", "Usage & Limits", "Provider evidence, local run observations, and dispatch safeguards.", btn("Refresh providers", "usage-refresh", "primary") + btn("Refresh snapshot", "refresh")) + `<div class="notice"><b class="${noticeTone}">◈ ${escapeHtml(probeState)}</b><p class="sub">${escapeHtml(remote?.detail || `No verified quota data for ${provider}. Local session observations are shown separately.`)}</p></div><div class="grid three space">${stat("Default provider", provider, latest?.model || "No usage sample for this provider")}${stat("Quota remaining", remote?.remaining == null ? "Unknown" : String(remote.remaining), remote?.reset_at ? `Resets · ${reset}` : remote?.detail || "No verified provider quota")}${stat("Local sessions", localSessions, `${rows.length} recorded observations · latest ${captured}`)}</div><div class="grid two space">${card("Telemetry evidence", `<div class="pad"><div class="event between" style="justify-content:space-between"><span>Provider probe</span>${badge(remote?.confidence === "verified" ? "Observed" : "Unknown")}</div><div class="event between" style="justify-content:space-between"><span>Source</span><b class="muted">${escapeHtml(remote?.source || "No provider sample")}</b></div><div class="event between" style="justify-content:space-between"><span>Last capture</span><b class="muted">${escapeHtml(remote?.captured_at ? new Date(remote.captured_at).toLocaleString() : "Never")}</b></div><div class="event between" style="justify-content:space-between"><span>Recorded local runs</span><b>${localSessions}</b></div><p class="muted tiny" style="margin:13px 0 0">Provider quota is displayed only after a provider-specific authenticated response. Local sessions are separate evidence, not a quota estimate.</p></div>`)}${card("Preflight safeguards", '<div class="pad"><div class="row between"><span>Provider limit</span>' + badge(remote?.remaining == null ? "Unknown" : "Observed") + '</div><div class="lined row between"><span>Dispatch policy</span><span class="amber">Confirm risks</span></div><div class="lined row between"><span>Stop on rate-limit</span><span class="green">Required</span></div><div class="lined row between"><span>Quota provenance</span><span class="muted">Provider adapter only</span></div></div>')}</div>`; },
     settings: () => {
       const providers = studioProviders || [];
       const readyCount = providers.filter((provider) => provider.ready).length;
@@ -573,9 +696,22 @@
     button.id = "localeBtn"; button.className = "btn ghost"; button.dataset.action = "toggle-locale";
     topbar.insertBefore(button, topbar.firstChild);
   }
-  function render() { nav(); renderProviderStatus(); $("#content").innerHTML = panels[page]?.() || panels.overview(); ensureLocaleControl(); applyLocale(); }
-  function close() { dialogOpen = false; $("#modal").innerHTML = ""; }
-  function popup(title, body, actions = "") { dialogOpen = true; $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog" role="dialog" aria-modal="true"><div class="dialoghead"><h2 style="font-size:16px">${title}</h2>${btn("✕", "close", "ghost")}</div><div class="dialogbody">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`; }
+  function syncRunSnapshot() {
+    // Also consume the durable snapshot for existing servers that predate
+    // live /api/run polling. A newer launch response must win until its
+    // first snapshot arrives.
+    const durable = snapshot.overnight;
+    if (!durable || (currentRun.startedAt && new Date(durable.startedAt).getTime() < new Date(currentRun.startedAt).getTime())) return;
+    Object.assign(currentRun, {
+      status: durable.status === "finished" ? (durable.resumableTaskIds?.length ? "stopped" : "complete") : durable.status,
+      queueId: durable.queueId || null, queueIds: durable.queueIds || [], taskIds: durable.taskOrder || [],
+      currentTaskId: durable.currentTaskId || null, startedAt: durable.startedAt,
+      results: durable.results || [], reason: durable.reason || durable.recovery || null,
+    });
+  }
+  function render() { try { sessionStorage.setItem("atl-cp-page", page); } catch { /* storage may be unavailable */ } syncRunSnapshot(); nav(); renderProviderStatus(); $("#content").innerHTML = panels[page]?.() || panels.overview(); ensureLocaleControl(); applyLocale(); }
+  function close() { detailExecution = null; dialogOpen = false; $("#modal").innerHTML = ""; }
+  function popup(title, body, actions = "") { detailExecution = null; dialogOpen = true; $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog" role="dialog" aria-modal="true"><div class="dialoghead"><h2 style="font-size:16px">${title}</h2>${btn("✕", "close", "ghost")}</div><div class="dialogbody">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`; }
   function popupWide(title, body, actions = "") { dialogOpen = true; $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog" style="width:min(820px,100%)" role="dialog" aria-modal="true"><div class="dialoghead"><h2 style="font-size:16px">${title}</h2>${btn("✕", "close", "ghost")}</div><div class="dialogbody" style="max-height:74vh">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`; }
   function enhanceCurrentProviderModal() {
     // Save connection is intentionally disabled until an existing field changes.
@@ -648,11 +784,11 @@
       if (!worker.installed) {
         connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">Install ${escapeHtml(worker.label)}</b><p class="sub" style="margin:4px 0 0">Run <code>${escapeHtml(worker.installHint || `install ${worker.id}`)}</code>, then <code>${escapeHtml(worker.loginCommand)}</code> to connect.</p></div>`;
       } else if (state.connected) {
-        connect = `<p class="sub" style="margin-top:8px">${escapeHtml(worker.detail || "Connected via your subscription.")} No API key and no <code>atl provider add</code> needed — queue and task runs launch with this CLI.</p>`;
+        connect = `<p class="sub" style="margin-top:8px">${escapeHtml(worker.detail || "Connected via your subscription.")} Queue and task runs can use this CLI.</p>`;
       } else {
         connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${worker.method === "api-key" ? "Signed in with an API key — switch to your plan" : `Connect ${escapeHtml(worker.label)}`}</b><ol class="sub" style="margin:6px 0 0;padding-left:20px;line-height:1.9"><li>Run <code>${escapeHtml(worker.loginCommand)}</code> ${btn("Copy", `copy:${escapeHtml(worker.loginCommand)}`, "sm ghost")}</li><li>${escapeHtml(worker.loginNote)}</li><li>Press <b>Recheck</b>, then <code>${escapeHtml(worker.verifyCommand || "atl launch --dry-run")}</code> should list <b>${escapeHtml(worker.id)}</b> · subscription.</li></ol></div>`;
       }
-      return `<div style="border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-bottom:10px;background:rgba(8,15,25,.35)"><div class="row between" style="gap:12px;flex-wrap:wrap"><div class="bar" style="gap:7px;min-width:0"><b>${escapeHtml(worker.label)}</b><span class="pill violet">built-in</span><span class="pill ${state.tone}">${escapeHtml(state.label)}</span></div><span class="muted tiny">${meta}</span></div>${connect}</div>`;
+      return `<div style="border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-bottom:10px;background:rgba(8,15,25,.35)"><div class="row between" style="gap:12px;flex-wrap:wrap"><div class="bar" style="gap:7px;min-width:0"><b>${escapeHtml(worker.label)}</b><span class="pill violet">${worker.id === "gapgpt" ? "project worker" : "built-in"}</span><span class="pill ${state.tone}">${escapeHtml(state.label)}</span>${worker.isDefault ? '<span class="pill green">project default</span>' : ""}</div><span class="muted tiny">${meta}</span></div>${connect}</div>`;
     }).join("");
     const builtinSection = (builtinWorkers || []).length
       ? `<div style="margin-bottom:6px"><div class="row between" style="margin-bottom:8px"><div class="eyebrow">BUILT-IN WORKERS · SUBSCRIPTION AUTH</div>${btn("Recheck", "provider-recheck", "sm")}</div><p class="sub" style="margin:0 0 10px">One CLI login connects these — no key is stored and nothing is added to the registry. <code>atl provider add</code> is only for external API providers (Z.ai, OpenRouter, Anthropic, custom) below.</p>${builtinRows}</div>`
@@ -692,11 +828,27 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const outcome = taskOutcome(task);
     const outcomePanel = task.rawStatus === "done"
       ? `<div class="notice" style="margin-top:14px;border-color:var(--accent)"><b class="green">✓ Accomplished</b><p>${escapeHtml(outcome.summary)}</p><div class="bar"><span class="pill green">${outcome.passed} passed</span>${outcome.failed ? `<span class="pill red">${outcome.failed} failed</span>` : ""}<span class="pill">${outcome.total} checks</span></div></div>`
-      : `<div class="notice" style="margin-top:14px"><b>${task.rawStatus === "in_progress" ? '<span class="running-mark"></span>Running now' : "Current stage"}</b><p class="sub">${escapeHtml(task.stage)}</p></div>`;
-    popup(`${escapeHtml(task.id)} / Task details`, `<div class="bar">${badge(task.status)}${badge(task.priority)}<span class="muted">${escapeHtml(task.queue)} · ${escapeHtml(task.agent)}</span></div><h2 style="font-size:18px;margin:17px 0">${escapeHtml(task.title)}</h2><p>${escapeHtml(task.desc)}</p>${lifecycleDiagram(task)}<div class="task-progress"><div class="row between"><b>${task.rawStatus === "done" ? "Completed" : "Lifecycle progress"}</b><b>${task.progress}%</b></div>${meter(task.progress)}</div>${outcomePanel}${task.block ? `<div class="notice" style="margin-top:14px"><b class="red">BLOCKER</b><p>${escapeHtml(task.block)}</p></div>` : ""}<h3 style="margin:18px 0 8px">Latest task activity</h3><pre class="terminal" style="max-height:230px;white-space:pre-wrap">${escapeHtml(logs)}</pre>`, btn("Diagram", `task-diagram:${task.id}`) + btn("Edit task", `edit:${task.id}`) + btn("Actions", `task-actions:${task.id}`, "primary"));
+      : `<div class="notice" style="margin-top:14px"><b>${liveRunState(task) === "running" ? '<span class="running-mark"></span>Running now' : escapeHtml(task.status)}</b><p class="sub">${escapeHtml(task.stage)}</p></div>`;
+    popup(`${escapeHtml(task.id)} / Task details`, `<div class="bar">${badge(task.status)}${badge(task.priority)}<span class="muted">${escapeHtml(task.queue)} · ${escapeHtml(task.agent)}</span></div><h2 style="font-size:18px;margin:17px 0">${escapeHtml(task.title)}</h2><p>${escapeHtml(task.desc)}</p>${lifecycleDiagram(task)}${taskProgressMarkup(task, true)}${outcomePanel}${task.block ? `<div class="notice" style="margin-top:14px"><b class="red">BLOCKER</b><p>${escapeHtml(task.block)}</p></div>` : ""}<h3 style="margin:18px 0 8px">Latest task activity</h3><pre class="terminal" style="max-height:230px;white-space:pre-wrap">${escapeHtml(logs)}</pre>`, btn("Diagram", `task-diagram:${task.id}`) + btn("Edit task", `edit:${task.id}`) + btn("Actions", `task-actions:${task.id}`, "primary"));
+    detailExecution = { id: task.id, fingerprint: JSON.stringify(task) };
+  }
+
+  function refreshTaskDetail() {
+    if (!dialogOpen || !detailExecution) return;
+    syncRunSnapshot();
+    const task = derived().tasks.find((item) => item.id === detailExecution.id);
+    if (!task || JSON.stringify(task) === detailExecution.fingerprint) return;
+    const scrollTop = $("#modal .dialogbody")?.scrollTop || 0;
+    const focusedAction = document.activeElement?.dataset?.action;
+    taskDetail(task);
+    const body = $("#modal .dialogbody");
+    if (body) body.scrollTop = scrollTop;
+    if (focusedAction) [...document.querySelectorAll("#modal [data-action]")].find((node) => node.dataset.action === focusedAction)?.focus();
+    applyLocale();
   }
 
   function taskDiagram(task) {
+    detailExecution = null;
     const outcome = taskOutcome(task);
     const flow = `flowchart LR\n  A[Request] --> B[${task.agent}]\n  B --> C[${task.status}]\n  C --> D[${outcome.passed}/${outcome.total} checks passed]\n  D --> E[Outcome recorded]`;
     const model = `erDiagram\n  TASK ||--o{ LOG_EVENT : records\n  TASK ||--o{ EVIDENCE : proves\n  TASK }o--|| QUEUE : belongs_to\n  TASK }o--o| WORKSPACE : changes_in\n  TASK {\n    string id\n    string status\n    string assigned_worker\n    int attempt_count\n  }`;
@@ -764,11 +916,13 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
   async function refreshRun(renderAfter = true) {
     try { currentRun = await fetch("/api/run", { cache: "no-store" }).then((response) => response.json()); } catch { /* snapshot health reports connection loss */ }
+    refreshTaskDetail();
     if (renderAfter && page === "queues") render();
   }
   async function refresh(renderAfter = true) {
     try { const response = await fetch("/api/snapshot", { cache: "no-store" }); if (!response.ok) throw new Error(`snapshot ${response.status}`); snapshot = await response.json(); connected = true; }
     catch { connected = false; }
+    refreshTaskDetail();
     const editing = dialogOpen || cardDraft || document.activeElement?.matches("input, textarea, select");
     if (renderAfter && !editing) render();
   }
@@ -803,7 +957,12 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       page = "brain"; render(); return result.result;
     };
     if (value.startsWith("brain-approve:")) { try { await brainMutation({ action: "approve-claim", claim_id: value.slice(14), note: "Approved in Control Plane" }); } catch (error) { popup("Approval refused", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
-    if (value.startsWith("approval-approve:") || value.startsWith("approval-deny:")) { const id = value.slice(value.indexOf(":") + 1); try { const response = await fetch("/api/approvals", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "decide", proposal_id: id, decision: value.startsWith("approval-approve:") ? "allow-once" : "deny" }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "approval decision failed"); close(); await refresh(false); page = "approvals"; render(); if (pendingApprovalAction && value.startsWith("approval-approve:")) { const pending = pendingApprovalAction; pendingApprovalAction = null; await action(pending); } } catch (error) { popup("Approval decision failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
+    if (value.startsWith("approval-approve:") || value.startsWith("approval-deny:")) {
+      const id = value.slice(value.indexOf(":") + 1);
+      const approve = value.startsWith("approval-approve:");
+      await applyApprovalDecision(id, approve);
+      return;
+    }
     if (value.startsWith("approval-revoke:")) { const id = value.slice(17); try { const response = await fetch("/api/approvals", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "revoke", grant_id: id }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "revocation failed"); await refresh(false); page = "approvals"; render(); } catch (error) { popup("Revocation failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
     if (value === "project-register") { popup("Register repository", '<label class="label">Repository path<input id="projectRoot" class="input" placeholder="D:\\Projects\\MyRepo"></label><label class="label">Display name<input id="projectName" class="input"></label><label class="label">Project session cap<input id="projectCap" type="number" min="1" max="5" value="1" class="input"></label>', btn("Cancel", "close") + btn("Register", "project-register-save", "primary")); return; }
     if (value === "project-register-save") { try { const response = await fetch("/api/supervisor", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "register", root: $("#projectRoot")?.value.trim(), name: $("#projectName")?.value.trim(), maxConcurrent: Number($("#projectCap")?.value || 1) }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "project registration failed"); close(); await refresh(false); page = "projects"; render(); } catch (error) { popup("Registration failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
@@ -1230,13 +1389,14 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       close();
       const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, queueIds: ids }) });
       const result = await response.json();
+      if (result.approvalRequired) return showRunApproval(result.proposal, `run-start-multi:${encodeURIComponent(JSON.stringify(ids))}`);
       if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close"));
       currentRun = result.run; page = "queues"; render();
       return;
     }
     if (value.startsWith("run-task:")) { const id = value.slice(9); try { const response = await fetch("/api/run/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskIds: [id] }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "preview failed"); popup(`Dispatch preview · ${escapeHtml(id)}`, `<div class="terminal">${escapeHtml((result.lines || []).join("\n"))}</div><div class="notice"><b>Nothing has started.</b><p>Confirming runs this task through its full lifecycle (60m overall / 8 sessions per task). Resume is available if the confirmed budget ends.</p></div>`, btn("Cancel", "close") + btn("Run this task", `run-task-confirm:${id}`, "primary")); } catch (error) { popup("Preview failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
-    if (value.startsWith("run-task-confirm:")) { const id = value.slice(17); close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, taskIds: [id], maxSessions: 8, maxMinutes: 60 }) }); const result = await response.json(); if (result.approvalRequired) { pendingApprovalAction = `run-task-confirm:${id}`; return popup("Owner approval required", `<p>The exact task run is proposed and has not started.</p><p class="muted tiny">Proposal ${escapeHtml(result.proposal.id)} · review it in Approval Center.</p>`, btn("Deny", `approval-deny:${result.proposal.id}`, "danger") + btn("Open Approval Center", "go:approvals", "primary")); } if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
-    if (value.startsWith("run-start:")) { const id = value.slice(10) || snapshot.queues?.active_queue; close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, queueId: id }) }); const result = await response.json(); if (result.approvalRequired) { pendingApprovalAction = `run-start:${id}`; return popup("Owner approval required", `<p>The exact queue run is proposed and has not started.</p><p class="muted tiny">Proposal ${escapeHtml(result.proposal.id)} · review it in Approval Center.</p>`, btn("Deny", `approval-deny:${result.proposal.id}`, "danger") + btn("Open Approval Center", "go:approvals", "primary")); } if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
+    if (value.startsWith("run-task-confirm:")) { const id = value.slice(17); close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, taskIds: [id], maxSessions: 8, maxMinutes: 60 }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, `run-task-confirm:${id}`); if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
+    if (value.startsWith("run-start:")) { const id = value.slice(10) || snapshot.queues?.active_queue; close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, queueId: id }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, `run-start:${id}`); if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
     if (value === "run-stop") { const response = await fetch("/api/run/stop", { method: "POST" }); const result = await response.json(); if (!response.ok) return popup("Stop request", `<p>${escapeHtml(result.error || "No active run")}</p>`, btn("Close", "close")); currentRun = result.run; render(); return; }
     if (value.startsWith("agent:")) { const agent = derived().agents?.find((row) => row[0] === value.slice(6)); popup(`${value.slice(6)} / Agent brief`, `<p>Live role telemetry is shown in Agent Team and Activity & Logs.</p>`, btn("Logs", "go:activity") + btn("Close", "close")); return; }
     if (value === "export") { const blob = new Blob([(snapshot.state?.log_tail || []).map((item) => JSON.stringify(item)).join("\n")], { type: "application/jsonl" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "atl-activity.jsonl"; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); }
@@ -1394,7 +1554,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   $("#newBtn").onclick = () => taskForm();
   $("#noticesBtn").onclick = () => popup("Notifications", (snapshot.notifications?.items || []).map((item) => `<div class="event">${badge(item.severity || "INFO")} ${escapeHtml(item.title || item.detail || item.id)}</div>`).join("") || '<p class="muted">No notifications are due.</p>', btn("Close", "close"));
 
-  void Promise.all([refresh(false), refreshRun(false), loadProviders(true)]).then(() => {
+  void Promise.all([refresh(false), refreshRun(false), loadProviders(true), ...(page === "settings" ? [loadNavigation()] : [])]).then(() => {
     render();
     connectStream();
     setInterval(() => { void refresh(); void refreshRun(); }, 2000);

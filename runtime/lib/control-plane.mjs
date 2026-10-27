@@ -6,7 +6,7 @@ import { listNotifications, notificationUnreadCount } from "./notifications.mjs"
 import { loadUsage, latestUsage } from "./usage.mjs";
 import { pendingFeedback } from "./feedback.mjs";
 import { CONTRACTS } from "./roles.mjs";
-import { readOvernightRun } from "./launch.mjs";
+import { readOvernightRun, readManagerConfig } from "./launch.mjs";
 import { listClaims, sourceStatus } from "./brain.mjs";
 import { listRoutines, listSkills, staleClaims } from "./governance.mjs";
 import { approvalSnapshot } from "./approvals.mjs";
@@ -153,6 +153,7 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
       updated_at: usage.updated_at,
       snapshots: usage.snapshots,
       latest: latestUsage(root),
+      default_provider: readManagerConfig(root).providers?.use || readManagerConfig(root).providers?.default || "codex",
     },
     overnight: readOvernightRun(root),
     team: teamRoles(root, state, queues, latestRoleSessions(root), brief),

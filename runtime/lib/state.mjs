@@ -210,6 +210,7 @@ export function reviseTaskPacket(state, taskId, { actor = "manager", reason = "t
   const task = state.tasks[taskId];
   if (!task) throw new StateError(`Unknown task ${taskId}`);
   task.packet_revision = (task.packet_revision || 1) + 1;
+  task.attempt_count_at_revision = task.attempt_count || 0;
   task.packet_approved_revision = null;
   task.updated_at = new Date().toISOString();
   logEvent(state, { task: taskId, actor, event: "packet-revised", detail: `${reason}; revision=${task.packet_revision}` });

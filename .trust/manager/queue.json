@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-10-26T09:42:09.681Z",
+  "updated_at": "2026-10-27T04:41:03.546Z",
   "active_queue": "plan-add-farsi-persian-planei",
   "queues": {
     "default": {
@@ -116,7 +116,7 @@
     "plan-add-farsi-persian-planei": {
       "id": "plan-add-farsi-persian-planei",
       "name": "Add Farsi/Persian (fa-IR) localization with RTL layout to th",
-      "status": "paused",
+      "status": "idle",
       "policy": {
         "maxMinutes": 120,
         "maxSessions": 5,
@@ -158,13 +158,18 @@
           "id": "T-024",
           "added_at": "2026-10-26T06:21:47.879Z",
           "added_by": "manager"
+        },
+        {
+          "id": "T-026",
+          "added_at": "2026-10-27T04:40:49.165Z",
+          "added_by": "manager"
         }
       ],
       "created_at": "2026-10-26T06:21:47.742Z",
-      "updated_at": "2026-10-26T09:42:09.680Z",
+      "updated_at": "2026-10-27T04:41:03.545Z",
       "archived_at": null,
       "queue_id": "plan-add-farsi-persian-planei",
-      "active_queue": "default",
+      "active_queue": "plan-add-farsi-persian-planei",
       "plan_draft_id": "1792995313655-add-farsi-persian-support-to-atl-control-plane-i"
     }
   },
@@ -202,6 +207,11 @@
     {
       "id": "T-024",
       "added_at": "2026-10-26T06:21:47.879Z",
+      "added_by": "manager"
+    },
+    {
+      "id": "T-026",
+      "added_at": "2026-10-27T04:40:49.165Z",
       "added_by": "manager"
     }
   ]
