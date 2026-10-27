@@ -4,7 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 export const digest = (value) => crypto.createHash("sha256").update(value).digest("hex");
-export const LIMITS = Object.freeze({ page: 100, text: 1024 * 1024, patch: 256 * 1024, cells: 2_000_000, milliseconds: 5000 });
+export const LIMITS = Object.freeze({ page: 100, text: 1024 * 1024, patch: 256 * 1024, lines: 20000, cells: 2_000_000, milliseconds: 5000 });
 export class ChangeReviewError extends Error {
   constructor(code, message, status = 400) { super(message); this.code = code; this.status = status; }
 }
@@ -19,7 +19,7 @@ export function safePath(base, relative) {
   return resolved;
 }
 export function validateSnapshot(snapshot) {
-  if (!snapshot || !snapshot.files || !snapshot.modes || Object.keys(snapshot.files).length > 100000 || digest(JSON.stringify({ files: snapshot.files, modes: snapshot.modes })) !== snapshot.revision) throw new ChangeReviewError("corrupt_manifest", "Snapshot manifest is corrupt", 409);
+  if (!snapshot || !snapshot.files || !snapshot.modes || Array.isArray(snapshot.files) || Array.isArray(snapshot.modes) || Object.keys(snapshot.files).length > 100000 || digest(JSON.stringify({ files: snapshot.files, modes: snapshot.modes })) !== snapshot.revision) throw new ChangeReviewError("corrupt_manifest", "Snapshot manifest is corrupt", 409);
   for (const [name, hash] of Object.entries(snapshot.files)) {
     safePath(".", name);
     if (!/^[a-f0-9]{64}$/.test(hash) || !["100644", "100755"].includes(snapshot.modes[name])) throw new ChangeReviewError("corrupt_manifest", "Invalid snapshot entry", 409);
@@ -49,7 +49,7 @@ export function readBlob(root, hash) {
   return bytes;
 }
 const sensitivePath = (name) => /(^|\/)(?:\.env(?:\..*)?|\.npmrc|\.netrc|credentials(?:\..*)?|secrets?(?:\..*)?|id_(?:rsa|ed25519)|owner-session\.json)$|\.(?:pem|key|p12|pfx)$/i.test(name);
-const sensitiveText = (text) => /-----BEGIN [\w ]*PRIVATE KEY-----|(?:api[_-]?key|access[_-]?token|password|client[_-]?secret)\s*["']?\s*[:=]\s*["']?[^\s"',;}{]{8,}|\b(?:gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,})/.test(text);
+const sensitiveText = (text) => /-----BEGIN [\w ]*PRIVATE KEY-----|(?:api[_-]?key|access[_-]?token|password|client[_-]?secret|secret[_-]?(?:access[_-]?)?key|private[_-]?key)\s*["']?\s*[:=]\s*["']?[^\s"',;}{]{8,}|\b(?:gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,})/i.test(text);
 
 // Bounded line LCS, after removing common prefix/suffix. Large unrelated edits
 // return an explicit limit state rather than freezing the control plane.
@@ -57,6 +57,7 @@ export function unifiedDiff(before, after, name) {
   const started = performance.now();
   const lines = (text) => text === "" ? [] : text.replace(/\n$/, "").split("\n");
   const a = lines(before), b = lines(after);
+  if (a.length > LIMITS.lines || b.length > LIMITS.lines) return { availability: "diff_limit", truncated: true, patch: "", additions: null, deletions: null };
   let prefix = 0, suffix = 0;
   while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix++;
   while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
@@ -76,7 +77,10 @@ export function unifiedDiff(before, after, name) {
   }
   for (const text of a.slice(a.length - suffix)) ops.push([" ", text]);
   // Final-newline-only differences must remain visible.
-  if (!additions && !deletions && before !== after) return { availability: "available", truncated: false, patch: `--- a/${name}\n+++ b/${name}\nFinal newline changed: ${before.endsWith("\n") ? "present" : "absent"} -> ${after.endsWith("\n") ? "present" : "absent"}`, additions: 0, deletions: 0 };
+  if (!additions && !deletions && before !== after) {
+    const last = a.at(-1), line = a.length;
+    return { availability: "available", truncated: false, patch: `--- a/${name}\n+++ b/${name}\n@@ -${line},1 +${line},1 @@\n-${last}\n${before.endsWith("\n") ? "" : "\\ No newline at end of file\n"}+${last}\n${after.endsWith("\n") ? "" : "\\ No newline at end of file\n"}`, additions: 1, deletions: 1 };
+  }
   const ranges = [];
   ops.forEach(([sign], index) => {
     if (sign === " ") return;
@@ -117,7 +121,7 @@ export function fileDiff(root, record, fileId) {
   }
 }
 export function evidenceFor(task, record) {
-  return (task.evidence || []).map((entry, index) => ({ ...entry, id: `evidence-${digest(JSON.stringify([task.id, index, entry])).slice(0, 20)}`, freshness: entry.invalidated ? "invalidated" : !entry.code_revision || entry.packet_revision == null ? "unknown" : entry.code_revision !== record.output.revision || entry.packet_revision !== record.packet_revision ? "stale" : "current" }));
+  return (task.evidence || []).map((entry, index) => ({ ...entry, id: `evidence-${digest(JSON.stringify([task.id, index, entry.at, entry.session_id, entry.kind, entry.code_revision, entry.packet_revision])).slice(0, 20)}`, freshness: entry.invalidated ? "invalidated" : !entry.code_revision || entry.packet_revision == null ? "unknown" : entry.code_revision !== record.output.revision || entry.packet_revision !== record.packet_revision ? "stale" : "current" }));
 }
 export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page } = {}) {
   const files = compareSnapshots(record.baseline, record.output), evidence = evidenceFor(task, record), attention = [];
