@@ -755,11 +755,14 @@
   // field travels once to the server and only the masked ready state returns.
   function providerManagerModal(status) {
     const providers = studioProviders || [];
+    const connectedBuiltin = (builtinWorkers || []).find((worker) => builtinState(worker).connected);
     const activeId = defaultProvider || studioProvider || providers.find((provider) => provider.ready)?.id || providers[0]?.id || null;
     const active = providers.find((provider) => provider.id === activeId) || null;
     const connectedSection = active
       ? renderProviderCard(active, activeId, defaultProvider, pmEditingId, pmRemoveConfirm, pmTemplates)
-      : `<div class="notice" style="margin:14px 0 16px"><b class="amber">No connected model yet</b><p class="sub">Choose a provider below to make it the project default, or add a new provider.</p></div>`;
+      : connectedBuiltin
+        ? `<div class="notice" style="margin:14px 0 16px;border-color:var(--accent)"><b class="green">${escapeHtml(connectedBuiltin.label)} connected</b><p class="sub">${escapeHtml(connectedBuiltin.detail || "Signed-in built-in provider")} · available for task runs.</p><div class="bar" style="margin-top:9px"><span class="pill green">task-run provider</span>${connectedBuiltin.isDefault ? '<span class="muted tiny">Selected for this project</span>' : btn("Use for task runs", `pm-use-builtin:${escapeHtml(connectedBuiltin.id)}`, "sm primary")}</div></div>`
+        : `<div class="notice" style="margin:14px 0 16px"><b class="amber">No connected provider yet</b><p class="sub">Sign in to Codex/Claude for task runs, or choose a configured API provider below to make it the project default.</p></div>`;
     const rows = providers.filter((provider) => provider.id !== activeId).map((provider) => {
       return renderProviderCard(provider, activeId, defaultProvider, pmEditingId, pmRemoveConfirm, pmTemplates);
     }).join("") || (active ? '<p class="muted tiny">No other providers configured. Add another below to switch between providers.</p>' : '<p class="muted">No providers configured yet — add the first one below.</p>');
@@ -796,7 +799,7 @@
     const builtinSection = (builtinWorkers || []).length
       ? `<div style="margin-bottom:6px"><div class="row between" style="margin-bottom:8px"><div class="eyebrow">BUILT-IN WORKERS · SUBSCRIPTION AUTH</div>${btn("Recheck", "provider-recheck", "sm")}</div><p class="sub" style="margin:0 0 10px">One CLI login connects these — no key is stored and nothing is added to the registry. <code>atl provider add</code> is only for external API providers (Z.ai, OpenRouter, Anthropic, custom) below.</p>${builtinRows}</div>`
       : "";
-    popupWide("Providers", `<p class="sub" style="margin-bottom:14px">Built-in workers connect with a single CLI login. Below them: your connected key providers for model planning and alternative endpoints.</p>${builtinSection}${connectedSection}${rows ? `<div class="eyebrow" style="margin:16px 0 8px">OTHER CONNECTED PROVIDERS</div>${rows}` : rows}${addForm}${statusLine}`, btn("Close", "close"));
+    popupWide("Providers", `${statusLine}<p class="sub" style="margin-bottom:14px">Built-in workers connect with a single CLI login. Below them: your connected key providers for model planning and alternative endpoints.</p>${builtinSection}${connectedSection}${rows ? `<div class="eyebrow" style="margin:16px 0 8px">OTHER CONNECTED PROVIDERS</div>${rows}` : rows}${addForm}`, btn("Close", "close"));
   }
   /* old provider modal body intentionally replaced above */
   /*
