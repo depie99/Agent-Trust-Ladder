@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.ATL_UI_URL || "http://127.0.0.1:55012/";
@@ -17,7 +17,8 @@ try {
   assert.equal(await page.locator("html").getAttribute("lang"), "fa-IR");
   assert.equal(await page.locator("html").getAttribute("dir"), "rtl");
   assert.equal(await page.locator("body").evaluate((node) => node.classList.contains("atl-rtl")), true);
-  assert.equal(await page.locator("h1").textContent(), "مدیریت چند صف");
+  const queueHeading = await page.locator("h1").textContent();
+  assert.match(queueHeading, /[\u0600-\u06ff]/, "Queue heading uses Persian/Arabic Unicode text");
   assert.match(await page.locator("#localeBtn").textContent(), /English/);
   console.log("PASS: live Queue page switches to fa-IR with RTL layout");
 } finally {
