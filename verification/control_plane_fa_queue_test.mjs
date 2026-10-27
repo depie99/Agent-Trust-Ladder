@@ -9,7 +9,11 @@ try {
   await page.locator('[data-page="queues"]').first().click();
   await assert.doesNotReject(() => page.locator("h1").waitFor({ state: "visible" }));
   assert.equal(await page.locator("h1").textContent(), "Multi-queue manager");
-  await page.locator("#localeBtn").click();
+  await Promise.all([
+    page.waitForLoadState("networkidle"),
+    page.locator("#localeBtn").click(),
+  ]);
+  await page.locator('[data-page="queues"]').first().click();
   assert.equal(await page.locator("html").getAttribute("lang"), "fa-IR");
   assert.equal(await page.locator("html").getAttribute("dir"), "rtl");
   assert.equal(await page.locator("body").evaluate((node) => node.classList.contains("atl-rtl")), true);

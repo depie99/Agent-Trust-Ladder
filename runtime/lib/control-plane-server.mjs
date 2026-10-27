@@ -61,7 +61,7 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE)) {
   // document listeners active makes route clicks race and can make Tasks
   // appear to open another page. Keep the artifact's DOM/CSS intact while
   // removing only that stale inline controller at the HTTP boundary.
-  let bodyText = source.replace(/<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/, '<script src="./control-plane-client.js"></script>');
+  let bodyText = source.replace(/<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/, '<script src="./control-plane-i18n.js"></script><script src="./control-plane-client.js"></script>');
   // The checked-in standalone artifact predates the live client and places
   // the body inside the flex topbar. Close that shell boundary for the live
   // surface; otherwise the header's flex rules squeeze and center the page.
@@ -84,8 +84,8 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE)) {
   res.end(body);
 }
 
-function sendJavascript(res, assetRoot = path.dirname(CONTROL_PLANE_FILE)) {
-  const body = fs.readFileSync(path.join(assetRoot, "control-plane-client.js"));
+function sendJavascript(res, assetRoot = path.dirname(CONTROL_PLANE_FILE), file = "control-plane-client.js") {
+  const body = fs.readFileSync(path.join(assetRoot, file));
   res.writeHead(200, {
     "content-type": "text/javascript; charset=utf-8",
     "cache-control": "no-store",
@@ -471,6 +471,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       }
       if (req.method === "GET" && url.pathname === "/control-plane-client.js") {
         sendJavascript(res, assetRoot);
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/control-plane-i18n.js") {
+        sendJavascript(res, assetRoot, "control-plane-i18n.js");
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/snapshot") {
