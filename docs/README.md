@@ -33,3 +33,5 @@ The complete explanation is [The ATL Brain — Evidence that survives the sessio
 ## Diagram workflow rule
 
 Use diagrams when architecture, ownership, lifecycle, or change impact is materially easier to understand visually. Keep diagram source alongside the documentation and link it to the evidence packet. A generated diagram communicates structure; it does not prove that the runtime, deployment consumer, or external service behaves as drawn.
+
+The [Evidence & Automation quick guide](brain.html#control-plane) explains the Knowledge workspace, empty-state setup, claim review, freshness, Gold skills, routine registration, and current form limitations.

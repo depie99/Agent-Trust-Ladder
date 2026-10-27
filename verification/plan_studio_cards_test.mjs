@@ -220,7 +220,8 @@ for (const taskId of approved.taskIds) {
 }
 const pausedRunProgress = [];
 const pausedRun = await executeLaunchQueue(root, { confirm: true, queueIds: ["alpha", "beta"], maxMinutes: 5, maxSessions: 3, onProgress: (line) => pausedRunProgress.push(String(line)) });
-assert.match(pausedRun.reason || "", /empty/, "the merged run reports its honest terminal state");
+assert.equal(pausedRun.status, "waiting", "settled task flags cannot imply an integrated delivery");
+assert.equal(pausedRun.delivery.ready, false, "the merged run still requires composed review and browser evidence");
 assert.ok(pausedRunProgress.some((line) => /queue beta: paused/.test(line)), "a paused queue is narrated as skipped inside the confirmed run");
 assert.equal(readRunLock(root), null, "no gate lease is left behind by the merged run");
 queueResume(root, "beta");

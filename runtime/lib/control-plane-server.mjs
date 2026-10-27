@@ -2,6 +2,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createControlPlaneSnapshot } from "./control-plane.mjs";
 import { dispatchTuiCommand } from "./command-console.mjs";
@@ -10,7 +11,7 @@ import { addProposal, addProposalFeedback, editProposal, loadPlanDraft, planDraf
 import { invokePlanningProvider } from "./plan-model.mjs";
 import { builtinProviderStatus, discoverProvider } from "./providers.mjs";
 import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLATES, providerChoices, removeProvider, requireReadyProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
-import { paths } from "./state.mjs";
+import { paths, loadState, saveState, logEvent } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
 import { approveClaim, promoteSkill, registerRoutine, validateSkill } from "./governance.mjs";
 import { approvalSnapshot, authorizeAction, decideProposal, proposeAction, recordActionOutcome, revokeGrant } from "./approvals.mjs";
@@ -21,9 +22,67 @@ import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
 import { ensureOwnerSession, ownerSessionCookie, validateOwnerSession } from "./session-auth.mjs";
 import { approveDraftPr, createDeliveryPacket, listDeliveryPackets } from "./delivery.mjs";
+import { inspectHandoffChain } from "./handoffs.mjs";
+import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
+import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview } from "./change-review-store.mjs";
+import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_PLANE_FILE = path.join(RUNTIME_DIR, "..", "control-plane.html");
+const builtinOperations = new Map();
+
+function startBuiltinOperation(id, action, config) {
+  if (!["codex", "claude", "gapgpt"].includes(id)) throw new Error("Unknown built-in provider");
+  const previous = builtinOperations.get(id);
+  if (previous?.status === "running") throw new Error("An operation is already in progress for this provider");
+  let command;
+  let args;
+  if (action === "login") {
+    const worker = builtinProviderStatus({ providers: config }).find((item) => item.id === id);
+    const executable = discoverProvider(id, { command: worker.command });
+    if (!executable.available) throw new Error("Install the provider before signing in");
+    command = executable.path;
+    args = id === "claude" ? ["auth", "login", "--claudeai"] : ["login"];
+  } else if (action === "install") {
+    if (id === "gapgpt") {
+      if (process.platform === "win32") {
+        command = "powershell.exe";
+        args = ["-NoProfile", "-NonInteractive", "-Command", "& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://gapgpt.app/install.ps1').Content))"];
+      } else {
+        command = "sh";
+        args = ["-c", "curl -fsSL https://gapgpt.app/install.sh | sh"];
+      }
+    } else {
+      command = process.platform === "win32" ? "npm.cmd" : "npm";
+      args = ["install", "--global", id === "codex" ? "@openai/codex" : "@anthropic-ai/claude-code"];
+    }
+  } else throw new Error("Unknown provider operation");
+  const operation = { action, status: "running", message: action === "login" ? "Opening sign-in. Complete the provider's sign-in in your browser." : "Installing provider…", url: null };
+  builtinOperations.set(id, operation);
+  const isCmd = process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
+  const child = isCmd
+    ? spawn("cmd.exe", ["/d", "/s", "/c", `""${command}" ${args.map((arg) => `"${arg}"`).join(" ")}"`], { windowsHide: true, windowsVerbatimArguments: true, stdio: ["ignore", "pipe", "pipe"] })
+    : spawn(command, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  const timeout = setTimeout(() => { operation.status = "error"; operation.message = "Operation timed out. Please try again."; child.kill(); }, action === "install" ? 900000 : 300000);
+  timeout.unref();
+  let pending = "";
+  const capture = (chunk) => {
+    if (action !== "login") return;
+    pending = (pending + chunk.toString()).slice(-8192);
+    const match = pending.match(/https:\/\/[^\s<>"']+/);
+    if (match) operation.url = match[0].replace(/[),.;]+$/, "");
+  };
+  child.stdout.on("data", capture);
+  child.stderr.on("data", capture);
+  child.on("error", () => { clearTimeout(timeout); operation.status = "error"; operation.message = `Could not start ${action}.`; });
+  child.on("close", (code) => {
+    clearTimeout(timeout);
+    if (operation.status !== "running") return;
+    operation.status = code === 0 ? "complete" : "error";
+    operation.message = code === 0 ? (action === "login" ? "Sign-in completed. Refresh the provider status." : "Installation completed. Refresh the provider status.") : `${action === "login" ? "Sign-in" : "Installation"} failed or was cancelled.`;
+  });
+  return operation;
+}
 
 function json(res, status, value) {
   const body = JSON.stringify(value);
@@ -63,6 +122,7 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE)) {
   // appear to open another page. Keep the artifact's DOM/CSS intact while
   // removing only that stale inline controller at the HTTP boundary.
   let bodyText = source.replace(/<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/, '<script src="./control-plane-i18n.js"></script><script src="./control-plane-client.js"></script>');
+  bodyText = bodyText.replace('<script src="./control-plane-client.js">', '<script src="./control-plane-changes.js"></script><script src="./control-plane-client.js">');
   // The checked-in standalone artifact predates the live client and places
   // the body inside the flex topbar. Close that shell boundary for the live
   // surface; otherwise the header's flex rules squeeze and center the page.
@@ -184,7 +244,21 @@ function writeProviderDefault(root, id) {
   config.providers.by_role = config.providers.by_role || {};
   config.providers.model_by_role = config.providers.model_by_role || {};
   config.providers.catalog = config.providers.catalog || {};
+  if ((config.providers.use || config.providers.default || "codex") !== id) delete config.providers.model;
   config.providers.use = id;
+  const tmp = file + ".tmp";
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + "\n");
+  fs.renameSync(tmp, file);
+}
+
+function writeBuiltinModel(root, id, model) {
+  const file = paths(root).config;
+  let config = {};
+  try { config = JSON.parse(fs.readFileSync(file, "utf8")); } catch { config = {}; }
+  config.providers = config.providers || {};
+  config.providers.use = id;
+  config.providers.model = model;
   const tmp = file + ".tmp";
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + "\n");
@@ -208,16 +282,7 @@ function providerView(root) {
   // their sign-in state — the zero-key connection path the registry section
   // cannot show. Read-only local evidence; no secret material is included.
   const config = providerConfig(root);
-  const builtin = builtinProviderStatus(config);
-  const gapgpt = config.catalog?.gapgpt;
-  if (gapgpt) {
-    let signedIn = false;
-    try {
-      const auth = JSON.parse(fs.readFileSync(path.join(process.env.GAPCODE_HOME || path.join(os.homedir(), ".gapcode"), "auth.json"), "utf8"));
-      signedIn = Boolean(auth.OPENAI_API_KEY || auth.tokens);
-    } catch { /* login state is unavailable */ }
-    builtin.push({ id: "gapgpt", label: "GapGPT", installed: discoverProvider("gapgpt", { command: gapgpt.command || "gapcode" }).available, signedIn, method: "gapgpt", detail: signedIn ? "GapGPT login found" : "GapGPT login not found", loginCommand: "gapcode login", loginNote: "Sign in to GapGPT.", defaultModel: gapgpt.model || null, auth: "GapGPT", isDefault: !config.use && config.default === "gapgpt" });
-  }
+  const builtin = builtinProviderStatus({ providers: config }).map((worker) => ({ ...worker, operation: builtinOperations.get(worker.id) || null }));
   return { providers: providerChoices(loadUserProviders()), templates: sanitizedTemplates(), defaultProvider: config.use || null, builtin };
 }
 
@@ -260,6 +325,11 @@ async function handleProvidersEndpoint(root, res, req) {
   const action = String(payload.action || "");
   try {
     const registry = loadUserProviders();
+    if (action === "builtin-login" || action === "builtin-install") {
+      const id = String(payload.id || "").trim().toLowerCase();
+      startBuiltinOperation(id, action === "builtin-login" ? "login" : "install", providerConfig(root));
+      return json(res, 200, { ok: true, ...providerView(root) });
+    }
     if (action === "add") {
       const id = String(payload.id || "").trim();
       if (!id) return json(res, 400, { ok: false, error: "provider add needs an id" });
@@ -293,13 +363,18 @@ async function handleProvidersEndpoint(root, res, req) {
     }
     if (action === "use") {
       const id = String(payload.id || "").trim();
-      const builtin = new Set(["codex", "claude"]);
+      const builtin = new Set(["codex", "claude", "gapgpt"]);
       if (!getProvider(registry, id) && !builtin.has(id.toLowerCase())) return json(res, 400, { ok: false, error: `no provider named "${id}" in the registry or built-in workers` });
       writeProviderDefault(root, id);
       return json(res, 200, { ok: true, ...providerView(root) });
     }
     if (action === "update") {
       const id = String(payload.id || "").trim();
+      if (!getProvider(registry, id) && ["codex", "claude", "gapgpt"].includes(id.toLowerCase())) {
+        if (payload.model === undefined || !String(payload.model).trim()) return json(res, 400, { ok: false, error: "built-in provider update needs a model" });
+        writeBuiltinModel(root, id.toLowerCase(), String(payload.model).trim());
+        return json(res, 200, { ok: true, ...providerView(root) });
+      }
       if (!getProvider(registry, id)) return json(res, 400, { ok: false, error: `no provider named "${id}" in the registry` });
       const patch = {};
       if (payload.label !== undefined) patch.label = String(payload.label).trim() || id;
@@ -447,6 +522,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
 export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE) } = {}) {
   if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) throw new Error("control plane only supports loopback hosts");
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch };
+  const assistant = createAssistant(root, { providerConfig: () => readManagerConfig(root) });
   // A browser server can start after its runner has died. Reconcile the
   // durable run ledger before projecting it, otherwise the UI can show a
   // permanently-running task/progress bar with no live provider process.
@@ -490,9 +566,55 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         sendJavascript(res, assetRoot, "control-plane-i18n.js");
         return;
       }
+      if (req.method === "GET" && url.pathname === "/control-plane-changes.js") {
+        sendJavascript(res, assetRoot, "control-plane-changes.js"); return;
+      }
       if (req.method === "GET" && url.pathname === "/api/snapshot") {
         json(res, 200, createControlPlaneSnapshot(root));
         return;
+      }
+      if (["/api/task-changes", "/api/task-change-diff", "/api/task-changes/capture"].includes(url.pathname)) {
+        // Source previews require the owner session even on GET, including a
+        // CSRF header a cross-origin page cannot obtain through a simple request.
+        const token = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length);
+        if (!validateOwnerSession(root, decodeURIComponent(token || ""), String(req.headers["x-atl-csrf"] || ""))) { json(res, 403, { error: "Owner session is required for source inspection", availability: "forbidden" }); return; }
+        try {
+          const capture = url.pathname.endsWith("/capture");
+          if (req.method !== (capture ? "POST" : "GET")) { json(res, 405, { error: "Method not allowed" }); return; }
+          const payload = capture ? JSON.parse(await readBody(req) || "{}") : null;
+          const task = loadState(root).tasks[capture ? payload.task_id : url.searchParams.get("taskId")];
+          if (!task) { json(res, 404, { error: "Task not found", availability: "task_missing" }); return; }
+          const record = capture ? captureChangeReview(root, task) : readChangeReview(root, task, url.searchParams.get("changeSetId"));
+          if (url.pathname === "/api/task-change-diff") {
+            if (!url.searchParams.get("changeSetId") || !record) throw new ChangeReviewError("change_set_missing", "A pinned change set is required", 400);
+            json(res, 200, { change_set_id: record.id, ...fileDiff(root, record, url.searchParams.get("fileId")) }); return;
+          }
+          json(res, 200, record ? { ...describeChanges(task, record, { cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit") }), revisions: listChangeReviews(root, task) } : unavailableReview(task));
+        } catch (error) {
+          json(res, error instanceof ChangeReviewError ? error.status : 409, { error: error instanceof ChangeReviewError ? error.message : "Source inspection failed; no task state was changed", availability: error instanceof ChangeReviewError ? error.code : "inspection_unavailable" });
+        }
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/task-recovery") {
+        const state = loadState(root); const task = state.tasks[String(url.searchParams.get("taskId") || "")];
+        if (!task) { json(res, 404, { error: "Task not found." }); return; }
+        json(res, 200, { ok: true, proposal: inspectHandoffChain(root, task, state.tasks, { includeFiles: true }) }); return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/assistant") {
+        const payload = JSON.parse(await readBody(req) || "{}"); const scope = String(payload.scope || "global");
+        if (payload.action === "read") { assistantContext(root, scope); json(res, 200, { ok: true, session: assistant.read(scope), providers: builtinProviderStatus(readManagerConfig(root)).filter((item) => ["codex", "gapgpt"].includes(item.id)) }); return; }
+        if (payload.action === "cancel") { json(res, 200, { ok: true, session: assistant.cancel(scope) }); return; }
+        if (payload.action !== "send") { json(res, 400, { error: "Unknown assistant action." }); return; }
+        const context = assistantContext(root, scope); const message = String(payload.message || "");
+        const mode = payload.mode || "diagnose";
+        if (!["diagnose", "fix"].includes(mode)) { json(res, 400, { error: "Unknown assistant mode." }); return; }
+        const workspace = mode === "fix" ? assistantWorkspace(root, scope) : null;
+        if (!message.trim() || message.length > 12000) { json(res, 400, { error: "Enter a message under 12,000 characters." }); return; }
+        const action = { project: path.resolve(root), task: scope === "global" ? null : scope, operation: mode === "fix" ? "assistant.fix" : "assistant.diagnose", target: String(payload.provider || ""), args: { scope, model: String(payload.model || ""), messageDigest: assistantMessageDigest(message), contextDigest: assistantMessageDigest(JSON.stringify(context)), mode, workspace }, policyVersion: 1 };
+        const approval = authorizeAction(root, action);
+        if (!approval.allowed) { const proposal = proposeAction(root, action, { principal: "owner" }); json(res, 202, { ok: true, approvalRequired: true, proposal }); return; }
+        const session = assistant.start({ scope, provider: String(payload.provider || ""), model: String(payload.model || ""), message, mode, workspace });
+        recordActionOutcome(root, action, { status: "started" }); json(res, 202, { ok: true, session }); return;
       }
       if (req.method === "GET" && url.pathname === "/api/events") {
         const snapshot = createControlPlaneSnapshot(root); res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache", connection: "keep-alive" });
@@ -582,6 +704,22 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         json(res, 200, run);
         return;
       }
+      if (req.method === "POST" && url.pathname === "/api/tasks/session-budget") {
+        const payload = JSON.parse(await readBody(req) || "{}");
+        const additional = payload.additionalSessions;
+        if (!Number.isInteger(additional) || additional < 1 || additional > 20) { json(res, 400, { error: "Add between 1 and 20 sessions." }); return; }
+        if (run.status === "running" || planningRunActive(root)) { json(res, 409, { error: "Stop the active queue run before changing a task budget." }); return; }
+        const state = loadState(root);
+        const task = state.tasks[String(payload.taskId || "")];
+        const budget = task?.execution_budget;
+        if (!task || ["done", "archived", "rejected"].includes(task.status) || !budget || !Number.isInteger(budget.used) || !Number.isInteger(budget.max_sessions) || budget.used < 0 || budget.max_sessions < 1 || budget.max_sessions + additional > 1000) { json(res, 400, { error: "This task has no adjustable session budget, or the limit would exceed 1000." }); return; }
+        const previous = budget.max_sessions;
+        budget.max_sessions += additional;
+        logEvent(state, { task: task.id, actor: "owner", event: "session_budget_increased", detail: `Limit increased from ${previous} to ${budget.max_sessions}; ${budget.used} already used` });
+        saveState(root, state, { expectedRevision: state.revision || 0 });
+        json(res, 200, { ok: true, budget });
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/api/run/preview") {
         const payload = JSON.parse(await readBody(req) || "{}");
         const resolved = resolvePreviewSafe(root, {
@@ -604,7 +742,9 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           json(res, 400, { ok: false, error: "queue execution requires explicit confirmation" });
           return;
         }
-        const action = { project: path.resolve(root), task: null, operation: "run.queue", target: payload.queueId || "selected", args: { taskIds: payload.taskIds || null, queueIds: payload.queueIds || null }, revision: createControlPlaneSnapshot(root).state.revision, policyVersion: 1 };
+        const maxSessions = payload.maxSessions === undefined ? 8 : Number(payload.maxSessions);
+        if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 20) { json(res, 400, { error: "Sessions per task must be between 1 and 20." }); return; }
+        const action = { project: path.resolve(root), task: null, operation: "run.queue", target: payload.queueId || "selected", args: { taskIds: payload.taskIds || null, queueIds: payload.queueIds || null, maxSessions, maxMinutes: Number(payload.maxMinutes || (payload.taskIds?.length ? 60 : 120)) }, revision: createControlPlaneSnapshot(root).state.revision, policyVersion: 1 };
         let approval = authorizeAction(root, action);
         if (!approval.allowed) {
           // Browser confirmation proposes the exact action. The owner must
@@ -654,7 +794,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           onProgress: (line) => { run.progress.push(String(line)); run.progress = run.progress.slice(-200); },
         }).then((outcome) => {
           recordActionOutcome(root, action, outcome);
-          Object.assign(run, { status: "complete", finishedAt: new Date().toISOString(), results: outcome.results || [], reason: outcome.reason || null });
+          Object.assign(run, { status: outcome.status || "complete", delivery: outcome.delivery || null, finishedAt: new Date().toISOString(), results: outcome.results || [], reason: outcome.reason || null });
         }).catch((error) => {
           recordActionOutcome(root, action, { status: "failed", reason: error.message, failed: true });
           Object.assign(run, { status: "failed", finishedAt: new Date().toISOString(), error: error.message });

@@ -7,13 +7,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadUserProviders } from "./userProviders.mjs";
 
-export const KNOWN_PROVIDERS = ["codex", "claude"];
+export const KNOWN_PROVIDERS = ["codex", "claude", "gapgpt"];
 
 const CODEX_MODEL_RE = /^\s*model\s*=\s*["']([^"']+)["']\s*$/m;
 
 const INSTALL_HINTS = {
   codex: "npm install -g @openai/codex  (then run: codex login)",
   claude: "npm install -g @anthropic-ai/claude-code  (then run: claude login)",
+  gapgpt: "install GapCode, then run: gapcode login",
 };
 
 function candidateNames(name, platform) {
@@ -43,13 +44,17 @@ export function localDefaultModel(name, { env = process.env } = {}) {
 }
 
 export function providerModels(name, { env = process.env } = {}) {
-  if (String(name || "").toLowerCase() !== "codex") return [];
-  const home = codexHome(env);
+  const clean = String(name || "").toLowerCase();
+  if (!["codex", "gapgpt"].includes(clean)) return [];
+  const home = clean === "codex"
+    ? codexHome(env)
+    : env.GAPCODE_HOME || (env.USERPROFILE && path.join(env.USERPROFILE, ".gapcode")) || (env.HOME && path.join(env.HOME, ".gapcode"));
   if (!home) return [];
   try {
     const cache = JSON.parse(fs.readFileSync(path.join(home, "models_cache.json"), "utf8"));
     const entries = Array.isArray(cache) ? cache : cache?.models;
     return (Array.isArray(entries) ? entries : [])
+      .filter((entry) => entry?.visibility !== "hide" && entry?.visibility !== "hidden")
       .map((entry) => ({
         id: entry?.slug || entry?.id,
         label: entry?.display_name || entry?.name || entry?.slug || entry?.id,
@@ -74,6 +79,12 @@ export const BUILTIN_LOGIN = {
     label: "Claude Code CLI",
     loginCommand: "claude login",
     loginNote: "Sign in with your claude.ai subscription account in the browser flow.",
+    verifyCommand: "atl launch --dry-run",
+  },
+  gapgpt: {
+    label: "GapCode",
+    loginCommand: "gapcode login",
+    loginNote: "Sign in with your GapCode account in the browser flow.",
     verifyCommand: "atl launch --dry-run",
   },
 };
@@ -118,6 +129,14 @@ export function builtinAuthStatus(name, { env = process.env } = {}) {
       } catch { /* still signed out */ }
       return signedOut;
     }
+    if (clean === "gapgpt") {
+      const gapHome = env.GAPCODE_HOME || path.join(home, ".gapcode");
+      const auth = JSON.parse(fs.readFileSync(path.join(gapHome, "auth.json"), "utf8"));
+      if (auth && typeof auth === "object" && (auth.OPENAI_API_KEY || auth.tokens)) {
+        return { signedIn: true, method: "gapgpt", detail: "signed in with GapCode" };
+      }
+      return signedOut;
+    }
   } catch {
     return signedOut;
   }
@@ -142,19 +161,20 @@ export function builtinProviderStatus(config = {}, { env = process.env } = {}) {
       signedIn: auth.signedIn,
       method: auth.method,
       detail: auth.detail,
-      defaultModel: spec.model || localDefaultModel(name, { env }),
+      defaultModel: ((profile.use || profile.defaultWorker) === name ? profile.raw?.model : null) || spec.model || localDefaultModel(name, { env }),
+      models: providerModels(name, { env }),
       loginCommand: login.loginCommand,
       loginNote: login.loginNote,
       verifyCommand: login.verifyCommand,
       installHint: INSTALL_HINTS[name],
-      isDefault: String(config.use || config.default || "codex").toLowerCase() === name,
+      isDefault: String(profile.use || profile.defaultWorker || "codex").toLowerCase() === name,
     };
   });
 }
 
 // Scan PATH for the provider executable. Returns { available, path, error }.
 export function discoverProvider(name, { env = process.env, platform = process.platform, cwd = process.cwd(), command: configuredCommand = null } = {}) {
-  const command = configuredCommand || name;
+  const command = configuredCommand || (name === "gapgpt" ? "gapcode" : name);
   const dirs = String(env.PATH || env.Path || "")
     .split(platform === "win32" ? ";" : ":")
     .map((d) => d.trim())
@@ -163,7 +183,13 @@ export function discoverProvider(name, { env = process.env, platform = process.p
     ? [command]
     : command.includes("\\") || command.includes("/")
       ? [path.resolve(cwd, command)]
-      : dirs.flatMap((dir) => candidateNames(command, platform).map((candidate) => path.join(dir, candidate)));
+      : [
+          ...dirs.flatMap((dir) => candidateNames(command, platform).map((candidate) => path.join(dir, candidate))),
+          ...(name === "gapgpt" && command.toLowerCase() === "gapcode" && platform === "win32" && env.LOCALAPPDATA
+            ? [path.join(env.LOCALAPPDATA, "Programs", "GapGPT", "resources", "bin", "gapcode.exe")] : []),
+          ...(name === "gapgpt" && command.toLowerCase() === "gapcode" && (env.GAPCODE_HOME || env.USERPROFILE || env.HOME)
+            ? candidateNames("gapcode", platform).map((candidate) => path.join(env.GAPCODE_HOME || path.join(env.USERPROFILE || env.HOME, ".gapcode"), "bin", candidate)) : []),
+        ];
   for (const full of configured) {
     try {
       if (fs.statSync(full).isFile()) return { name, command, available: true, path: full, error: null };
@@ -190,7 +216,7 @@ export function providerProfile(config = {}, { env = process.env } = {}) {
   const auth = String(p.auth || "subscription").toLowerCase();
   const use = p.use ? String(p.use).toLowerCase() : null;
   const userProviders = loadUserProviders().providers;
-  const defaultModel = p.model ? String(p.model) : (defaultWorker === "codex" ? localDefaultModel("codex", { env }) : null);
+  const defaultModel = p.model && (!use || use === defaultWorker) ? String(p.model) : (defaultWorker === "codex" ? localDefaultModel("codex", { env }) : null);
   const byRole = {};
   for (const [role, worker] of Object.entries(p.by_role || {})) {
     byRole[String(role).toLowerCase()] = String(worker).toLowerCase();
@@ -246,7 +272,7 @@ export function providerSpec(profile, worker, { env = process.env } = {}) {
   }
   const p = profile?.catalog?.[id];
   return p || {
-    command: id,
+    command: id === "gapgpt" ? "gapcode" : id,
     args: null,
     model: id === profile?.defaultWorker ? (profile?.defaultModel || localDefaultModel(id, { env })) : localDefaultModel(id, { env }),
     models: [],
@@ -282,7 +308,11 @@ export function providerForRole(profile, role) {
   // the worker launched for every role without requiring a role override.
   const worker = override || profile.use || profile.defaultWorker;
   const source = override ? "role-override" : profile.use ? "project provider selection" : "project default";
-  const model = profile.modelOverride || profile.modelByRole[r] || providerSpec(profile, worker).model || null;
+  // `providers.model` pins the currently selected project provider. It must
+  // apply even when `use` differs from `default` (for example, switching the
+  // project from Codex to Claude in the control room).
+  const selectedModel = profile.use === worker ? profile.raw?.model : null;
+  const model = profile.modelOverride || profile.modelByRole[r] || selectedModel || providerSpec(profile, worker).model || null;
   return { worker, auth: authFor(worker), model, source };
 }
 

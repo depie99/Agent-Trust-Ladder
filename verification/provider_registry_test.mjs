@@ -110,5 +110,7 @@ const claudeSelected = providerProfile({ providers: { default: "codex", use: "cl
 assert.deepEqual(providerForRole(claudeSelected, "rowan"), { worker: "claude", auth: "subscription", model: "claude-sonnet", source: "role-override" }, "built-in provider can be selected for Rowan");
 const codexSelectedDefault = providerProfile({ providers: { default: "claude", use: "codex", model: "gpt-5.6-terra" } });
 assert.equal(providerForRole(codexSelectedDefault, "rowan").worker, "codex", "built-in project selection controls the task-run worker");
+const claudeSelectedDefault = providerProfile({ providers: { default: "codex", use: "claude", model: "claude-sonnet" } });
+assert.equal(providerForRole(claudeSelectedDefault, "rowan").model, "claude-sonnet", "a model pin follows the selected built-in provider, not only the configured default");
 
 console.log("PASS: configurable provider registry — GLM/ZCode-style command + model + argv expansion");

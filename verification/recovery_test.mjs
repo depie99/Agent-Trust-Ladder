@@ -6,6 +6,8 @@ import { addEvidence, createTask, emptyState, paths, saveState, transition, load
 import { autoRecoverBlockedTask, unblockTask, approveTask, explainTasks } from "../runtime/lib/recovery.mjs";
 import { queueIds } from "../runtime/lib/queue.mjs";
 import { wakeActions } from "../runtime/lib/render.mjs";
+import { recordBlocker, repairBlocker } from "../runtime/lib/queue-recovery.mjs";
+import { prepareInputs } from "../runtime/lib/handoffs.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-recovery-"));
 fs.mkdirSync(path.dirname(paths(root).state), { recursive: true });
@@ -33,6 +35,37 @@ assert.match(loadState(root).log.at(-1).detail, /recovered for rowan/);
 
 console.log("PASS: blocked task recovery clears the blocker and restores the assigned gate");
 
+const legacyState = emptyState();
+const legacyPredecessor = createTask(legacyState, { title: "Legacy predecessor" });
+legacyPredecessor.status = "done";
+const legacyConsumer = createTask(legacyState, { title: "Dependent task" });
+legacyConsumer.status = "blocked";
+legacyConsumer.assigned_worker = "rowan";
+legacyConsumer.plan_depends_on = [legacyPredecessor.id];
+legacyConsumer.blocker = { cause: "handoff", reason: "missing handoff" };
+saveState(root, legacyState);
+const legacyPreflight = prepareInputs(root, legacyConsumer, legacyState.tasks);
+assert.equal(legacyPreflight.recovery_owner, "owner");
+assert.match(legacyPreflight.reason, /revalidate.*Increasing the session budget/i);
+assert.throws(() => unblockTask(root, legacyConsumer.id), /no valid verified handoff/);
+assert.equal(loadState(root).tasks[legacyConsumer.id].status, "blocked");
+
+// Pre-handoff runners recorded this as an execution error, sometimes only in
+// the recovery projection. Neither persisted shape may bypass input validation.
+for (const separator of ["/", "\\"]) {
+  const reason = `ENOENT: no such file or directory, open 'workspace${separator}.trust${separator}manager${separator}handoffs${separator}${legacyPredecessor.id}.json'`;
+  for (const source of ["blocker", "recovery"]) {
+    legacyConsumer.blocker = { cause: "execution", reason: "runner stopped" };
+    legacyConsumer.recovery = { cause: "execution", reason: "runner stopped", status: "exhausted", attempts: [] };
+    legacyConsumer[source].reason = reason;
+    saveState(root, legacyState);
+    assert.throws(() => unblockTask(root, legacyConsumer.id), /no valid verified handoff/);
+    const persisted = loadState(root).tasks[legacyConsumer.id];
+    assert.equal(persisted.status, "blocked");
+    assert.equal(persisted[source].reason, reason, "rejected recovery preserves the original blocker");
+  }
+}
+
 // Mira may retry a transient blocker once, but must not retry a capability or
 // authority failure under the same restricted identity.
 const transientState = emptyState();
@@ -45,6 +78,13 @@ transition(transientState, transientTask.id, "assigned", { actor: "manager", not
 transientTask.blocker = { reason: "temporary dependency", since: new Date().toISOString(), actor: "rowan" };
 transition(transientState, transientTask.id, "blocked", { actor: "rowan", note: "temporary dependency" });
 saveState(root, transientState);
+assert.equal(autoRecoverBlockedTask(root, transientTask.id, { maxRecoveries: 1 }).kind, "repair-required", "an unchanged failure cannot retry without a successful repair preflight");
+recordBlocker(transientTask, { cause: "dependency", reason: "temporary dependency" }); saveState(root, transientState);
+await repairBlocker(root, transientTask.id, {
+  action: "prepare-local-dependency",
+  remedy: () => { fs.writeFileSync(path.join(root, "dependency.ready"), "ready"); return { artifact: "dependency.ready" }; },
+  preflight: () => ({ ready: fs.existsSync(path.join(root, "dependency.ready")) }),
+});
 const auto = autoRecoverBlockedTask(root, transientTask.id, { maxRecoveries: 1 });
 assert.equal(auto.recovered, true, "Mira auto-recovers a transient blocker");
 assert.equal(loadState(root).tasks[transientTask.id].status, "assigned");

@@ -141,3 +141,40 @@ textarea.input{resize:vertical;min-height:110px}
   .tableitem>:last-child{display:none}
   .cliDock{padding:10px}
 }
+// Revision-pinned task review. Source/path surfaces remain isolated in RTL.
+.dialog.review-dialog { width: min(1180px, 100%) !important; }
+.task-change-review { overflow-wrap: anywhere; }
+.task-change-review .bar { flex-wrap: wrap; }
+.review-revisions { font-size: 11px; line-height: 1.8; }
+.review-path, .review-diff, .review-record { direction: ltr; unicode-bidi: isolate; font-family: "Cascadia Mono", Consolas, monospace; }
+.review-tabs { margin-block: 16px; border-block-end: 1px solid var(--border); padding-block-end: 8px; }
+.review-tabs [aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+.review-files { display: grid; grid-template-columns: minmax(220px, 30%) minmax(0, 1fr); gap: 16px; }
+.review-files > aside { min-width: 0; }
+.review-files label { display: block; margin-block: 8px 4px; }
+.review-tree { max-height: 42vh; overflow: auto; }
+.review-tree details { margin-inline-start: 8px; }
+.review-tree summary { cursor: pointer; padding-block: 7px; }
+.review-file { display: flex; gap: 6px; align-items: start; width: 100%; border: 1px solid transparent; border-radius: 5px; background: transparent; color: inherit; text-align: start; padding: 8px; cursor: pointer; }
+.review-file.selected { border-color: var(--accent); }
+.review-file .pill { flex-shrink: 0; font-size: 9px; }
+.review-patch { min-width: 0; max-height: 58vh; overflow: auto; border: 1px solid var(--border); padding: 12px; border-radius: 7px; }
+.review-diff { white-space: pre; text-align: left; font-size: 12px; line-height: 1.6; tab-size: 4; }
+.review-diff > span { display: inline; }
+.review-add { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.review-delete { color: var(--red); background: color-mix(in srgb, var(--red) 9%, transparent); }
+.review-hunk { color: var(--blue); }
+.review-evidence { margin-block: 10px; border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+.review-evidence summary { cursor: pointer; }
+.review-evidence pre, .review-record { white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }
+.review-model { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 15px; border: 1px solid var(--border); border-radius: 8px; }
+.review-table-wrap { overflow-x: auto; max-height: 38vh; }
+.review-table { width: 100%; border-collapse: collapse; text-align: start; }
+.review-table caption { text-align: start; font-weight: 700; padding-block: 12px; }
+.review-table td, .review-table th { border-block-end: 1px solid var(--border); padding: 8px; text-align: start; }
+.task-change-review :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .review-files { grid-template-columns: minmax(0, 1fr); }
+  .review-tree { max-height: 24vh; }
+  .review-patch { max-height: 40vh; }
+}

@@ -7,6 +7,8 @@ import { queueAdd, queueIds } from "./queue.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { reconcileLeases } from "./leases.mjs";
+import { recordBlocker } from "./queue-recovery.mjs";
+import { readHandoff } from "./handoffs.mjs";
 
 const WORKERS = new Set(["pip", "rowan", "sage", "beacon"]);
 const ACTIVE_STATUSES = new Set(["new", "triaged", "assigned", "in_progress", "in_review", "verifying", "blocked", "escalated"]);
@@ -14,7 +16,7 @@ const APPROVAL_RE = /\bapprov/i;
 // These blockers describe an authority or capability that the bounded team
 // cannot manufacture by retrying. Keep them explicit so Mira does not turn a
 // useful escalation into an infinite retry loop.
-const HUMAN_ACTION_RE = /owner|human approval|permission|access|acl|eperm|read[- ]only|write access|credentials?|authenticate|login|not found on path|install (it|the)|owner-capable|active checkout|main checkout|index\.lock|git .*denied|merge|deploy|push|spend|external message/i;
+const HUMAN_ACTION_RE = /\bowner\b|human approval|permission|access denied|access unavailable|no access|ReadAndExecute access|\bacl\b|eperm|read[- ]only|write access|credentials?|authenticate|login|not found on path|install (it|the)|owner-capable|active checkout|main checkout|index\.lock|git .*denied|merge|deploy|push|spend|external message/i;
 
 export function requiresHumanAction(reason = "") {
   return HUMAN_ACTION_RE.test(String(reason));
@@ -25,11 +27,27 @@ function proposedWorker(task) {
   return WORKERS.has(candidate) ? candidate : null;
 }
 
-export function unblockTask(root, taskId, { to, note = "blocker resolved" } = {}) {
+export function unblockTask(root, taskId, { to, note = "blocker resolved", recoveryOwner = "manager" } = {}) {
   const state = loadState(root);
   const task = state.tasks[taskId];
   if (!task) throw new Error(`Unknown task ${taskId}`);
   if (task.status !== "blocked") throw new Error(`${taskId}: only blocked tasks can be unblocked (currently ${task.status})`);
+  // Older runners persisted missing handoffs as generic execution failures.
+  // Preserve the same prerequisite gate for those records before clearing them.
+  const missingHandoff = /ENOENT[^\r\n]*handoffs[\\/][^\\/\r\n]+\.json/i;
+  if (task.blocker?.cause === "handoff" || task.recovery?.cause === "handoff"
+      || missingHandoff.test(task.blocker?.reason || "") || missingHandoff.test(task.recovery?.reason || "")) {
+    const seen = new Set();
+    const verify = (id) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      const predecessor = state.tasks[id];
+      if (!predecessor || predecessor.status !== "done") throw new Error(`${taskId}: prerequisite ${id} must be completed before unblocking`);
+      for (const parent of predecessor.plan_depends_on || []) verify(parent);
+      try { readHandoff(root, predecessor); } catch { throw new Error(`${taskId}: prerequisite ${id} has no valid verified handoff. Revalidate its output and evidence before unblocking; increasing the session budget will not resolve this.`); }
+    };
+    for (const id of task.plan_depends_on || []) verify(id);
+  }
 
   const worker = proposedWorker(task);
   const target = to || (worker ? "assigned" : "triaged");
@@ -50,6 +68,11 @@ export function unblockTask(root, taskId, { to, note = "blocker resolved" } = {}
     transition(state, taskId, "assigned", { actor: "manager", note: `recovered for ${worker}` });
   }
   task.blocker = null;
+  task.waiting_reason = null;
+  if (task.recovery) {
+    const record = task.recovery_records?.find((item) => item.id === task.recovery.id) || task.recovery;
+    record.status = "resolved"; record.resolved_by = recoveryOwner; record.resolution = note; task.recovery = record;
+  }
   task.next_wake_at = null;
   task.updated_at = new Date().toISOString();
   saveState(root, state);
@@ -69,11 +92,17 @@ export function autoRecoverBlockedTask(root, taskId, { note = "retrying after an
   if (/provider usage limit|usage limit for GapCode|provider quota (?:exhausted|reached)/i.test(reason)) {
     return { recovered: false, kind: "provider-quota", reason, task };
   }
-  if (/contract (?:conflict|contradiction)|conflicting (?:task|contract)|downstream.*(?:owns|owned)|pending manager contract/i.test(reason)) {
+  if (task.recovery?.status !== "resolved" && /contract (?:conflict|contradiction)|conflicting (?:task|contract)|downstream.*(?:owns|owned)|pending manager contract/i.test(reason)) {
     return { recovered: false, kind: "contract-conflict", reason, task };
   }
-  if (requiresHumanAction(reason)) {
+  if (task.recovery?.status !== "resolved" && requiresHumanAction(reason)) {
+    recordBlocker(task, { cause: "owner-capability", reason, recovery_owner: "owner" });
+    saveState(root, state);
     return { recovered: false, kind: "human-action", reason, task };
+  }
+
+  if (!task.recovery || task.recovery.status !== "resolved" || !task.recovery.attempts.some((attempt) => attempt.preflight?.ready)) {
+    return { recovered: false, kind: "repair-required", reason: reason || "successful repair and preflight required", task };
   }
 
   const due = task.next_wake_at ? new Date(task.next_wake_at) : null;
@@ -82,11 +111,11 @@ export function autoRecoverBlockedTask(root, taskId, { note = "retrying after an
   }
 
   const count = Number(task.auto_recovery_count || 0);
-  if (count >= Math.max(0, Number(maxRecoveries) || 0)) {
+  if (Number(maxRecoveries) <= 0) {
     return { recovered: false, kind: "budget-exhausted", reason, task, count };
   }
 
-  const result = unblockTask(root, taskId, { note });
+  const result = unblockTask(root, taskId, { note, recoveryOwner: "mira" });
   const after = loadState(root);
   const recovered = after.tasks[taskId];
   recovered.auto_recovery_count = count + 1;
