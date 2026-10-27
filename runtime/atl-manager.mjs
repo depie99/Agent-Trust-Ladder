@@ -1375,6 +1375,7 @@ async function main() {
     case "dashboard":
     case "tui": {
       await runDashboard(ROOT, { once: flags.once === true, plain: flags.plain === true });
+      if (flags.once === true) process.exit(0);
       return;
     }
 
@@ -1393,6 +1394,10 @@ async function main() {
     case "ui":
     case "control-plane":
     case "web": {
+      if (flags.once === true) {
+        await runDashboard(ROOT, { once: true, plain: flags.plain === true });
+        process.exit(0);
+      }
       const host = String(flags.host || "127.0.0.1");
       const port = Number(flags.port || 0);
       if (!Number.isInteger(port) || port < 0 || port > 65535) throw new StateError("--port must be an integer from 0 to 65535");
