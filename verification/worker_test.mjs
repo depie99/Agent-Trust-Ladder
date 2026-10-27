@@ -112,15 +112,24 @@ assert.equal(claude.args[0], "-p");
 assert.ok(!claude.args.includes(task.objective), "prompt rides on stdin, not the command line");
 assert.ok(claude.args.includes("--permission-prompts"));
 
-// Windows reality check: spawning a .cmd shim must survive (CVE-2024-27980
-// makes a bare spawn EINVAL) and the prompt must arrive on stdin.
-const shimDir = fs.mkdtempSync(path.join(os.tmpdir(), "atl-worker-cmd-"));
-const shim = path.join(shimDir, "fake-worker.cmd");
+// Reality check: spawning a shell-script shim must survive (CVE-2024-27980
+// makes a bare .cmd spawn EINVAL on Windows) and the prompt must arrive on stdin.
+const shimDir = fs.mkdtempSync(path.join(os.tmpdir(), "atl-worker-shim-"));
 const out = path.join(shimDir, "stdin-capture.txt");
-fs.writeFileSync(shim, `@echo off\r\nfind /v "" > "${out}"\r\n`, "utf8");
 const shimLog = path.join(shimDir, "shim.log");
+let shimCommand;
+if (process.platform === "win32") {
+  // CVE-2024-27980 makes a bare .cmd spawn EINVAL; runtime routes via cmd.exe.
+  shimCommand = path.join(shimDir, "fake-worker.cmd");
+  fs.writeFileSync(shimCommand, `@echo off\r\nfind /v "" > "%~1"\r\n`, "utf8");
+} else {
+  // POSIX shims need the exec bit and read stdin with cat instead of find.
+  shimCommand = path.join(shimDir, "fake-worker.sh");
+  fs.writeFileSync(shimCommand, `#!/bin/sh\ncat > "$1"\n`, "utf8");
+  fs.chmodSync(shimCommand, 0o755);
+}
 const shimResult = await runInvocation(
-  { command: shim, args: [out], cwd: shimDir, prompt: "stdin rides to the worker" },
+  { command: shimCommand, args: [out], cwd: shimDir, prompt: "stdin rides to the worker" },
   { logPath: shimLog, timeoutMs: 10000, echo: false, stdinText: "stdin rides to the worker" }
 );
 assert.equal(shimResult.code, 0, `shim exited ${shimResult.code}: ${fs.readFileSync(shimLog, "utf8").slice(0, 400)}`);
