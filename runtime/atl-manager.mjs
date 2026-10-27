@@ -1070,8 +1070,9 @@ async function main() {
         if (!id) throw new StateError("provider use needs a name: provider use <id> [--role role]");
         const registry = loadUserProviders();
         const entry = getProvider(registry, id);
-        if (!entry) throw new StateError(`no provider named "${id}" in ~/.atl/providers.json — add it first (atl provider add)`);
-        flags.provider = entry.id;
+        const builtin = new Set(["codex", "claude"]);
+        if (!entry && !builtin.has(String(id).toLowerCase())) throw new StateError(`no provider named "${id}" in ~/.atl/providers.json or built-in workers`);
+        flags.provider = entry?.id || String(id).toLowerCase();
         updateProviderSelection();
       } else if (sub === "remove") {
         const id = pos[1];
