@@ -788,7 +788,10 @@
       } else {
         connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${worker.method === "api-key" ? "Signed in with an API key — switch to your plan" : `Connect ${escapeHtml(worker.label)}`}</b><ol class="sub" style="margin:6px 0 0;padding-left:20px;line-height:1.9"><li>Run <code>${escapeHtml(worker.loginCommand)}</code> ${btn("Copy", `copy:${escapeHtml(worker.loginCommand)}`, "sm ghost")}</li><li>${escapeHtml(worker.loginNote)}</li><li>Press <b>Recheck</b>, then <code>${escapeHtml(worker.verifyCommand || "atl launch --dry-run")}</code> should list <b>${escapeHtml(worker.id)}</b> · subscription.</li></ol></div>`;
       }
-      return `<div style="border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-bottom:10px;background:rgba(8,15,25,.35)"><div class="row between" style="gap:12px;flex-wrap:wrap"><div class="bar" style="gap:7px;min-width:0"><b>${escapeHtml(worker.label)}</b><span class="pill violet">${worker.id === "gapgpt" ? "project worker" : "built-in"}</span><span class="pill ${state.tone}">${escapeHtml(state.label)}</span>${worker.isDefault ? '<span class="pill green">project default</span>' : ""}</div><span class="muted tiny">${meta}</span></div>${connect}</div>`;
+      const selectBuiltin = worker.id === "codex" || worker.id === "claude"
+        ? `<div class="bar" style="margin-top:9px">${worker.isDefault ? '<span class="muted tiny">Selected for task runs</span>' : btn("Use for task runs", `pm-use-builtin:${escapeHtml(worker.id)}`, "sm primary")}</div>`
+        : "";
+      return `<div style="border:1px solid var(--line);border-radius:9px;padding:13px 15px;margin-bottom:10px;background:rgba(8,15,25,.35)"><div class="row between" style="gap:12px;flex-wrap:wrap"><div class="bar" style="gap:7px;min-width:0"><b>${escapeHtml(worker.label)}</b><span class="pill violet">${worker.id === "gapgpt" ? "project worker" : "built-in"}</span><span class="pill ${state.tone}">${escapeHtml(state.label)}</span>${worker.isDefault ? '<span class="pill green">project default</span>' : ""}</div><span class="muted tiny">${meta}</span></div>${connect}${selectBuiltin}</div>`;
     }).join("");
     const builtinSection = (builtinWorkers || []).length
       ? `<div style="margin-bottom:6px"><div class="row between" style="margin-bottom:8px"><div class="eyebrow">BUILT-IN WORKERS · SUBSCRIPTION AUTH</div>${btn("Recheck", "provider-recheck", "sm")}</div><p class="sub" style="margin:0 0 10px">One CLI login connects these — no key is stored and nothing is added to the registry. <code>atl provider add</code> is only for external API providers (Z.ai, OpenRouter, Anthropic, custom) below.</p>${builtinRows}</div>`
@@ -1152,6 +1155,15 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         studioModel = studioProviders.find((provider) => provider.id === id)?.model || "";
         studioThinking = studioProviders.find((provider) => provider.id === id)?.thinking_level || "";
         providerManagerModal({ ok: true, text: `${id} is now this project's default provider.` });
+      } catch (error) { providerManagerModal({ ok: false, text: error.message }); }
+      return;
+    }
+    if (value.startsWith("pm-use-builtin:")) {
+      const id = value.slice("pm-use-builtin:".length);
+      try {
+        const result = await planApi("/api/providers", { action: "use", id });
+        studioProviders = result.providers; pmTemplates = result.templates; defaultProvider = result.defaultProvider;
+        providerManagerModal({ ok: true, text: `${id} is now the selected built-in provider for task runs.` });
       } catch (error) { providerManagerModal({ ok: false, text: error.message }); }
       return;
     }

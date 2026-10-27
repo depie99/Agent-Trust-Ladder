@@ -208,7 +208,7 @@ function providerView(root) {
   // their sign-in state — the zero-key connection path the registry section
   // cannot show. Read-only local evidence; no secret material is included.
   const config = providerConfig(root);
-  const builtin = builtinProviderStatus();
+  const builtin = builtinProviderStatus(config);
   const gapgpt = config.catalog?.gapgpt;
   if (gapgpt) {
     let signedIn = false;
@@ -293,7 +293,8 @@ async function handleProvidersEndpoint(root, res, req) {
     }
     if (action === "use") {
       const id = String(payload.id || "").trim();
-      if (!getProvider(registry, id)) return json(res, 400, { ok: false, error: `no provider named "${id}" in the registry` });
+      const builtin = new Set(["codex", "claude"]);
+      if (!getProvider(registry, id) && !builtin.has(id.toLowerCase())) return json(res, 400, { ok: false, error: `no provider named "${id}" in the registry or built-in workers` });
       writeProviderDefault(root, id);
       return json(res, 200, { ok: true, ...providerView(root) });
     }

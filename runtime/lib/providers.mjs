@@ -147,6 +147,7 @@ export function builtinProviderStatus(config = {}, { env = process.env } = {}) {
       loginNote: login.loginNote,
       verifyCommand: login.verifyCommand,
       installHint: INSTALL_HINTS[name],
+      isDefault: String(config.use || config.default || "codex").toLowerCase() === name,
     };
   });
 }
@@ -274,8 +275,13 @@ export function providerForRole(profile, role) {
     };
   }
   const authFor = (worker) => profile.authOverride || providerSpec(profile, worker).auth;
-  const worker = override || profile.defaultWorker;
-  const source = override ? "role-override" : "project default";
+  // `providers.use` is the project-wide selection and may point at either a
+  // machine registry provider or a built-in subscription worker (codex/claude).
+  // Registry providers returned above; built-ins must still flow through the
+  // same task-run resolver so selecting `provider use codex` actually changes
+  // the worker launched for every role without requiring a role override.
+  const worker = override || profile.use || profile.defaultWorker;
+  const source = override ? "role-override" : profile.use ? "project provider selection" : "project default";
   const model = profile.modelOverride || profile.modelByRole[r] || providerSpec(profile, worker).model || null;
   return { worker, auth: authFor(worker), model, source };
 }

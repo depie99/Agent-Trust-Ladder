@@ -106,4 +106,9 @@ const codexInvocation = buildInvocation("codex", {
 });
 assert.deepEqual(codexInvocation.args.slice(0, 3), ["exec", "--model", "gpt-5.6-terra"], "built-in Codex receives the selected model flag");
 
+const claudeSelected = providerProfile({ providers: { default: "codex", use: "claude", by_role: { rowan: "claude" }, model_by_role: { rowan: "claude-sonnet" } } });
+assert.deepEqual(providerForRole(claudeSelected, "rowan"), { worker: "claude", auth: "subscription", model: "claude-sonnet", source: "role-override" }, "built-in provider can be selected for Rowan");
+const codexSelectedDefault = providerProfile({ providers: { default: "claude", use: "codex", model: "gpt-5.6-terra" } });
+assert.equal(providerForRole(codexSelectedDefault, "rowan").worker, "codex", "built-in project selection controls the task-run worker");
+
 console.log("PASS: configurable provider registry — GLM/ZCode-style command + model + argv expansion");
