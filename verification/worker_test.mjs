@@ -106,6 +106,18 @@ assert.ok(!codex.args.includes("never"), "codex exec has no --ask-for-approval f
 assert.equal(codex.cwd, "C:\\project\\.trust\\manager\\workspaces\\T-TEST");
 assert.match(codex.prompt, /Bounded ATL worker run/);
 
+const repair = buildInvocation("codex", {
+  root: "C:\\project", role: "rowan",
+  task: { ...task, last_checkpoint: { note: "catalog created" }, evidence: [
+    { kind: "review", result: "changes-requested", detail: "old finding" },
+    { kind: "review", result: "changes-requested", detail: "Client still has unkeyed literals; save executable inventory proof" },
+  ] },
+});
+assert.match(repair.prompt, /Last checkpoint: catalog created/);
+assert.match(repair.prompt, /Client still has unkeyed literals; save executable inventory proof/);
+assert.match(repair.prompt, /Repair every outstanding review finding/);
+assert.ok(!repair.prompt.includes("old finding"), "stale reviews must not replace the current repair contract");
+
 const claude = buildInvocation("claude", { root: "C:\\project", role: "pip", task, auth: "subscription" });
 assert.match(claude.command, /claude/);
 assert.equal(claude.args[0], "-p");

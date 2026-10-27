@@ -249,10 +249,13 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       if (navigation.build_on_launch !== false) buildMap(mapRoot);
       navigationContext = renderNavigationContext(assembleContext(mapRoot, { taskId, query: `${task.title} ${task.objective || ""}`, maxTokens: Number(navigation.max_tokens) || 800, constraints: task.completion_checks || [] }));
     }
-    const invocation = buildInvocation(useWorker, { root, workspace, role, task, auth: useAuth, provider: useProvider, feedback, navigationContext, uiReviewRuntime });
+    const plan_context = task.plan_draft_id ? Object.values(loadState(root).tasks)
+      .filter((peer) => peer.id !== task.id && peer.plan_draft_id === task.plan_draft_id)
+      .map((peer) => ({ id: peer.id, objective: peer.objective, completion_checks: peer.completion_checks, depends_on: peer.plan_depends_on || [], status: peer.status })) : [];
+    const invocation = buildInvocation(useWorker, { root, workspace, role, task: { ...task, plan_context }, auth: useAuth, provider: useProvider, feedback, navigationContext, uiReviewRuntime });
     budget.sessions += 1;
     if (budget.taskSessions) budget.taskSessions.set(taskId, taskSessions() + 1);
-    const logPath = path.join(runDir, `session-${String(budget.sessions).padStart(2, "0")}-${role}.log`);
+    const logPath = path.join(runDir, `session-${String(budget.sessions).padStart(2, "0")}-${role}-${Date.now()}.log`);
     const remainingMs = Math.max(1000, budget.deadline - Date.now());
     const timeoutMs = remainingMs;
     report(`[${taskId}] session ${budget.sessions}/${budget.maxSessions} · ${role} · ${useWorker} · ${useProvider.model || "provider default"}`);
@@ -297,6 +300,8 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       taskId, role, worker: useWorker, model: useProvider.model || null,
       session: budget.sessions, logPath, startedAt: result.startedAt, finishedAt: result.finishedAt,
       exitCode: result.code, timedOut: result.timedOut, signal: result.signal || null,
+      permissionMismatch: result.permissionMismatch || null,
+      providerFailure: result.providerFailure || null,
       statusBefore: task.status, statusAfter: nextTask?.status || task.status,
       checkpoint: nextTask?.last_checkpoint || null,
       evidence: nextTask?.evidence?.slice(evidenceBefore) || [],
@@ -329,6 +334,12 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     // its gate and let the queue unwind without containment blocks.
     if (runAbortRequested) {
       return { status: nextTask?.status || task.status, reason: "run aborted by operator", aborted: true };
+    }
+    if (result.permissionMismatch) {
+      return { status: nextTask?.status || task.status, reason: result.permissionMismatch, failed: true, blockedLaunch: true, blocker: "runtime_permission_mismatch" };
+    }
+    if (result.providerFailure && result.code !== 0) {
+      return { status: nextTask?.status || task.status, reason: result.providerFailure.reason, failed: true, blockedLaunch: true, blocker: result.providerFailure.kind };
     }
     if (result.timedOut || result.code !== 0) {
       return { status: nextTask?.status || task.status, reason: `worker ended unsuccessfully (code ${result.code}${result.timedOut ? ", timeout" : ""})`, failed: true };
@@ -369,7 +380,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
   const present = (taskIds || []).map((id) => byId.get(id)).filter(Boolean);
   // Priority ordering is the default; round-robin multi-queue runs preserve
   // their interleaved queue order instead.
-  const ordered = preserveOrder ? present.filter((t) => t.status && !isTerminal(t.status)) : queueSelect(present);
+  const ordered = queueSelect(present, { preserveOrder });
   const items = [];
   for (const task of ordered) {
     const role = nextRole(task);
@@ -633,7 +644,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
   const present = queue.items.map((item) => state.tasks[item.id]).filter((t) => t && !isTerminal(t.status));
   // Round-robin multi-queue runs keep their interleaved order; single queues
   // stay priority-ordered.
-  const ordered = queue.round_robin ? present : queueSelect(present);
+  const ordered = queueSelect(present, { preserveOrder: Boolean(queue.round_robin) });
   if (!ordered.length) {
     return { results: [], budget: { sessions: 0, maxSessions, deadline: Date.now() }, reason: "the execution queue is empty (queue tasks with `atl queue add <id>`)" };
   }
@@ -648,6 +659,12 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
     queueId: queue.queue_id,
     queueIds: merged?.queues?.map((entry) => entry.id) || (queue.queue_id ? [queue.queue_id] : []),
     status: "running",
+    endedAt: null,
+    reason: null,
+    recovery: null,
+    interruptedAt: null,
+    interruptedTaskId: null,
+    results: [],
     runnerPid: process.pid,
     startedAt: new Date().toISOString(),
     heartbeatAt: new Date().toISOString(),
@@ -727,7 +744,8 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
         },
       }).catch((error) => ({ status: "unknown", reason: `worker could not restart: ${error.message}`, failed: true }));
     }
-    results.push({ id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason, resumable: Boolean(outcome.resumable), nextRole: outcome.nextRole || null, paused: Boolean(outcome.paused), aborted: Boolean(outcome.aborted), blocker: outcome.blocker || null });
+    const entry = { id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason, resumable: Boolean(outcome.resumable), nextRole: outcome.nextRole || null, paused: Boolean(outcome.paused), aborted: Boolean(outcome.aborted), blocker: outcome.blocker || null };
+    results.push(entry);
     writeRunMeta(root, { heartbeatAt: new Date().toISOString(), cursor: results.length, currentTaskId: null, results });
     if (outcome.aborted) {
       // Keep iterating: the runAbortRequested check at the top of the loop
@@ -735,16 +753,19 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       say(root, "runner", `${fresh.id} keeps its gate status — the queue run was aborted by the operator.`, { task: fresh.id });
     }
     const recovery = recoverAfterOutcome(root, fresh.id, outcome, { maxRecoveries: maxAutoRecoveries(root) });
+    entry.status = loadState(root).tasks[fresh.id]?.status || entry.status;
     if (recovery.recovered) {
       pending.push(loadState(root).tasks[fresh.id]);
       results.push({ id: fresh.id, status: "requeued", reason: "Mira auto-recovered a non-human blocker" });
     }
     releaseLease(root, lease);
   }
+  const completionReason = runAbortRequested ? "operator stopped the run"
+    : results.find((entry) => entry.status === "blocked" || entry.status === "unknown" || entry.resumable || entry.waiting)?.reason || "queue run complete";
   writeRunMeta(root, {
     status: runAbortRequested ? "aborted" : (results.some((entry) => entry.paused) ? "paused" : "finished"),
     endedAt: new Date().toISOString(),
-    reason: runAbortRequested ? "operator stopped the run" : (results.find((entry) => entry.resumable)?.reason || "queue run complete"),
+    reason: completionReason,
     currentTaskId: null,
     resumableTaskIds: results.filter((entry) => entry.resumable).map((entry) => entry.id),
     results,
@@ -759,7 +780,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       maxMinutes,
     });
   } catch { /* telemetry must never fail the run summary */ }
-  return { results, budget, runId, reason: "queue run complete" };
+  return { results, budget, runId, reason: completionReason };
   } finally {
     if (runId) endQueueRun(root, runId);
   }

@@ -1,13 +1,14 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { createControlPlaneSnapshot } from "./control-plane.mjs";
 import { dispatchTuiCommand } from "./command-console.mjs";
 import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, reconcileOvernightRun, readRunLock, requestRunAbort } from "./launch.mjs";
 import { addProposal, addProposalFeedback, editProposal, loadPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider } from "./plan-studio.mjs";
 import { invokePlanningProvider } from "./plan-model.mjs";
-import { builtinProviderStatus } from "./providers.mjs";
+import { builtinProviderStatus, discoverProvider } from "./providers.mjs";
 import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLATES, providerChoices, removeProvider, requireReadyProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
 import { paths } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
@@ -206,7 +207,18 @@ function providerView(root) {
   // `builtin` carries the built-in subscription workers (codex/claude) with
   // their sign-in state — the zero-key connection path the registry section
   // cannot show. Read-only local evidence; no secret material is included.
-  return { providers: providerChoices(loadUserProviders()), templates: sanitizedTemplates(), defaultProvider: providerConfig(root).use || null, builtin: builtinProviderStatus() };
+  const config = providerConfig(root);
+  const builtin = builtinProviderStatus();
+  const gapgpt = config.catalog?.gapgpt;
+  if (gapgpt) {
+    let signedIn = false;
+    try {
+      const auth = JSON.parse(fs.readFileSync(path.join(process.env.GAPCODE_HOME || path.join(os.homedir(), ".gapcode"), "auth.json"), "utf8"));
+      signedIn = Boolean(auth.OPENAI_API_KEY || auth.tokens);
+    } catch { /* login state is unavailable */ }
+    builtin.push({ id: "gapgpt", label: "GapGPT", installed: discoverProvider("gapgpt", { command: gapgpt.command || "gapcode" }).available, signedIn, method: "gapgpt", detail: signedIn ? "GapGPT login found" : "GapGPT login not found", loginCommand: "gapcode login", loginNote: "Sign in to GapGPT.", defaultModel: gapgpt.model || null, auth: "GapGPT", isDefault: !config.use && config.default === "gapgpt" });
+  }
+  return { providers: providerChoices(loadUserProviders()), templates: sanitizedTemplates(), defaultProvider: config.use || null, builtin };
 }
 
 function navigationView(root) {
@@ -555,6 +567,17 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/run") {
+        // Read the shared ledger on every poll: another CLI can own the run,
+        // or its worker can have died since this browser server started.
+        const latest = reconcileOvernightRun(root).run;
+        if (latest) Object.assign(run, {
+          status: latest.status === "finished" ? (latest.resumableTaskIds?.length ? "stopped" : "complete") : latest.status,
+          queueId: latest.queueId || null, queueIds: latest.queueIds || [],
+          taskIds: latest.taskOrder || [], currentTaskId: latest.currentTaskId || null,
+          startedAt: latest.startedAt, finishedAt: latest.endedAt || null,
+          results: latest.results || [], reason: latest.reason || latest.recovery || null,
+          resumableTaskIds: latest.resumableTaskIds || [],
+        });
         json(res, 200, run);
         return;
       }

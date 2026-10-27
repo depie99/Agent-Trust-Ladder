@@ -74,8 +74,9 @@ export function wakeActions(state, cfg) {
     if (t.status === "escalated") {
       actions.push({ task: t.id, for: "manager", what: `ESCALATED — needs your decision: ${t.blocker?.reason || "?"}` });
     }
-    if (t.attempt_count >= (budgets.max_attempts ?? 3) && !["done", "rejected", "escalated"].includes(t.status)) {
-      actions.push({ task: t.id, for: "mira", what: `${t.id} hit the attempt budget (${t.attempt_count}) — escalate or change approach` });
+    const revisionAttempts = Math.max(0, (t.attempt_count || 0) - (t.attempt_count_at_revision || 0));
+    if (revisionAttempts >= (budgets.max_attempts ?? 3) && !["done", "rejected", "escalated"].includes(t.status)) {
+      actions.push({ task: t.id, for: "mira", what: `${t.id} hit the attempt budget (${revisionAttempts} for this revision) — escalate or change approach` });
     }
   }
 

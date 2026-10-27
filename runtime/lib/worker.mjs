@@ -44,12 +44,21 @@ export function nextRole(task) {
 const PRIORITY_RANK = { urgent: 0, high: 1, normal: 2, low: 3 };
 
 // Queue order for `overnight --all`: priority first, then task id (numeric).
-export function queueSelect(tasks) {
-  return [...(tasks || [])]
+export function queueSelect(tasks, { preserveOrder = false } = {}) {
+  const candidates = [...(tasks || [])]
     .filter((t) => t && t.status && !TERMINAL.has(t.status))
-    .sort((a, b) =>
+    .sort((a, b) => preserveOrder ? 0 :
       ((PRIORITY_RANK[a.priority] ?? 2) - (PRIORITY_RANK[b.priority] ?? 2)) ||
       String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+  const pending = [...candidates];
+  const ordered = [];
+  while (pending.length) {
+    const ids = new Set(pending.map((task) => task.id));
+    const index = pending.findIndex((task) => !(task.plan_depends_on || []).some((id) => ids.has(id)));
+    if (index < 0) throw new Error(`task dependency cycle: ${pending.map((task) => task.id).join(", ")}`);
+    ordered.push(...pending.splice(index, 1));
+  }
+  return ordered;
 }
 
 export function assertWorkerAuth(worker, auth = "subscription") {
@@ -80,6 +89,11 @@ function promptFor(role, task, root, workspace, feedback = [], navigationContext
   const contract = fs.existsSync(promptPath) ? fs.readFileSync(promptPath, "utf8") : `Act as ATL role: ${role}.`;
   const checks = (task.completion_checks || []).map((check) => `- ${check}`).join("\n") || "- (Pip must define observable checks first)";
   const workdir = workspace || root;
+  const latestReview = [...(task.evidence || [])].reverse().find((item) => item.kind === "review" && (item.packet_revision || 1) === (task.packet_revision || 1));
+  const handoff = [
+    task.last_checkpoint?.note ? `Last checkpoint: ${task.last_checkpoint.note}` : "",
+    latestReview ? `Latest review (${latestReview.result}): ${latestReview.detail || "No detail recorded"}` : "",
+  ].filter(Boolean).join("\n");
   const feedbackBlock = feedback.length ? `\n\n## Human feedback to apply before acting\n${feedback.map((item) => `- [${item.id}] ${item.prompt}`).join("\n")}\nTreat this as a new manager instruction for this bounded stage. Explain how it changed your approach and record the result in your checkpoint or handoff.\n` : "";
   return `${contract.trim()}
 
@@ -102,8 +116,15 @@ Current status: ${task.status}
 Objective: ${task.objective || task.objective_hint || "(not yet bounded)"}
 Completion checks:
 ${checks}
+Attempts used for this contract revision: ${Math.max(0, (task.attempt_count || 0) - (task.attempt_count_at_revision || 0))}; lifetime attempts: ${task.attempt_count || 0}.
+Neighboring task contracts (read-only context; do not implement another task's scope):
+${JSON.stringify(task.plan_context || [], null, 2)}
+Before implementing, check whether any completion check requires work owned by a downstream task. Report a contract conflict once with the task ids and exact checks; repeating unchanged work cannot resolve a contract conflict.
 Assigned worker: ${task.assigned_worker || "not assigned"}
 Task workspace: ${workdir}
+Durable handoff from the previous stage:
+${handoff || "- First stage; no prior handoff"}
+${role === "rowan" && latestReview?.result === "changes-requested" ? "Repair every outstanding review finding before handing back to Sage. Run the exact failed completion check and save its actual output. Repeating the previous handoff or deferring a failed requirement to another task is not a repair. If the contract conflicts with another task, record the conflict as a blocker; do not claim a pass." : ""}
 Resources (project-root-relative paths or URLs):
 ${(task.resources || []).map((resource) => `- [${resource.kind}] ${resource.label}: ${resource.ref}${resource.caption ? ` — ${resource.caption}` : ""}${resource.missing ? " (missing at intake)" : ""}`).join("\n") || "- none"}
 Evidence-linked context (advisory; cite sources and do not treat UNKNOWN or CONFLICTED claims as settled):
@@ -223,6 +244,10 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
   let timedOut = false;
   let settled = false;
   let captured = "";
+  let startupOutput = "";
+  let permissionMismatch = null;
+  let diagnosticTail = "";
+  let providerFailure = null;
   const plan = spawnPlan(invocation.command, invocation.args);
 
   return new Promise((resolve, reject) => {
@@ -251,6 +276,24 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
 
     const write = (chunk, isError = false) => {
       log.write(chunk);
+      diagnosticTail = (diagnosticTail + chunk.toString("utf8")).slice(-2048);
+      if (/^ERROR:\s*You[’']ve hit your usage limit for GapCode\./m.test(diagnosticTail)) {
+        providerFailure = { kind: "provider-quota", reason: "GapCode provider usage limit reached. Select an available model/provider or wait for the quota to reset before retrying." };
+      }
+      // Diagnose the CLI's effective policy before it spends a full worker
+      // session discovering that it cannot perform the requested work.
+      // Only inspect the CLI startup header, never arbitrary prompt/log text.
+      if (!permissionMismatch && startupOutput.length < 4096) {
+        startupOutput += chunk.toString("utf8");
+        const header = startupOutput.split(/\r?\nuser\r?\n/)[0];
+        const requestedIndex = invocation.args.findIndex(arg => arg === "--sandbox" || arg === "-s");
+        const requested = requestedIndex >= 0 ? invocation.args[requestedIndex + 1] : null;
+        const workspaceProfile = invocation.args.some(arg => /^default_permissions\s*=\s*["']?:workspace["']?$/.test(arg));
+        if (/^(?:GapCode|OpenAI Codex) v/m.test(header) && /^sandbox:\s*read-only\s*$/m.test(header) && (requested === "workspace-write" || workspaceProfile)) {
+          permissionMismatch = "Worker CLI started with an effective read-only sandbox although workspace-write was requested. No security policy was bypassed; repair the CLI execution policy before retrying.";
+          killProcess(child);
+        }
+      }
       if (captureStdout && !isError) captured += chunk.toString("utf8");
       if (echo) (isError ? process.stderr : process.stdout).write(chunk);
     };
@@ -276,7 +319,7 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
       settled = true;
       const finishedAt = new Date().toISOString();
       log.end();
-      resolve({ code: code ?? 1, signal, timedOut, startedAt, finishedAt, logPath, text: captured });
+      resolve({ code: code ?? 1, signal, timedOut, startedAt, finishedAt, logPath, text: captured, permissionMismatch, providerFailure });
     });
   });
 }
