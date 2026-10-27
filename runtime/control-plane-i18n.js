@@ -197,7 +197,19 @@
     "تغییر به فارسی": "تغییر زبان به فارسی"
   });
 
-  const exact = (value, locale = "en-US") => locale === "fa-IR" ? (fa[value] || value) : value;
+  // Repair catalog entries that crossed a Latin-1 boundary before reaching
+  // this file, so the UI receives Persian Unicode rather than mojibake.
+  const repairMojibake = (value) => {
+    const source = String(value);
+    if (!/[ÃÂâ€™œžŸ]/.test(source)) return source;
+    try {
+      const bytes = Uint8Array.from(source, (char) => char.charCodeAt(0) & 0xff);
+      const repaired = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      return /[\u0600-\u06ff]/.test(repaired) ? repaired : source;
+    } catch { return source; }
+  };
+  const repairedFa = Object.freeze(Object.fromEntries(Object.entries(fa).map(([key, value]) => [key, repairMojibake(value)])));
+  const exact = (value, locale = "en-US") => locale === "fa-IR" ? (repairedFa[value] || value) : value;
   const translateText = (value, locale = "en-US") => {
     if (locale !== "fa-IR") return value;
     const source = String(value);
@@ -205,7 +217,7 @@
     const trailing = source.match(/\s*$/)?.[0] || "";
     const core = source.trim();
     if (!core) return source;
-    if (fa[core]) return `${leading}${fa[core]}${trailing}`;
+    if (repairedFa[core]) return `${leading}${repairedFa[core]}${trailing}`;
     let translated = core;
     const replacements = [
       [/^(\d+) selected$/, "$1 مورد انتخاب‌شده"],
@@ -218,5 +230,5 @@
     return `${leading}${translated}${trailing}`;
   };
 
-  window.ATL_I18N = Object.freeze({ locale: "fa-IR", messages: fa, exact, translateText });
+  window.ATL_I18N = Object.freeze({ locale: "fa-IR", messages: repairedFa, exact, translateText });
 })();
