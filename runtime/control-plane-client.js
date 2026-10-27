@@ -28,13 +28,16 @@
   };
   const taskLayoutStyle = document.createElement("style");
   taskLayoutStyle.textContent = `
-    html.atl-rtl body { direction: rtl; }
-    html.atl-rtl .sidebar { border-right: 0; border-left: 1px solid var(--border); }
-    html.atl-rtl .topbar, html.atl-rtl .pagehead, html.atl-rtl .paneltitle, html.atl-rtl .event,
-    html.atl-rtl .row, html.atl-rtl .bar { direction: rtl; }
-    html.atl-rtl .status-icon, html.atl-rtl .track .fill { direction: ltr; }
-    html.atl-rtl input, html.atl-rtl textarea, html.atl-rtl select { text-align: right; }
-    html.atl-rtl .btn { letter-spacing: 0; }
+    body.atl-rtl { direction:rtl; font-family:Tahoma,"Segoe UI",Arial,sans-serif; text-align:start; }
+    body.atl-rtl .sidebar { border-inline-end:0; border-inline-start:1px solid var(--border); }
+    body.atl-rtl .topbar, body.atl-rtl .pagehead, body.atl-rtl .paneltitle, body.atl-rtl .event,
+    body.atl-rtl .row, body.atl-rtl .bar { direction:rtl; text-align:start; }
+    body.atl-rtl .status-icon, body.atl-rtl .track .fill { direction:ltr; }
+    body.atl-rtl input, body.atl-rtl textarea, body.atl-rtl select { text-align:start; }
+    body.atl-rtl .btn { letter-spacing:0; font-family:inherit; }
+    body.atl-rtl .eyebrow, body.atl-rtl .label { letter-spacing:.02em; }
+    body.atl-rtl .bidi-isolate { unicode-bidi:isolate; text-align:start; }
+    body.atl-rtl .terminal, body.atl-rtl code { font-family:"Cascadia Mono",Consolas,monospace; }
     .tableitem.task-row { grid-template-columns:minmax(0,1fr) minmax(220px,auto); align-items:center; gap:20px; overflow:hidden; }
     .task-main { display:grid; grid-template-columns:20px minmax(0,1fr); gap:9px; min-width:0; align-items:start; }
     .task-main-copy { min-width:0; overflow:hidden; }
@@ -117,7 +120,7 @@
   let studioStartedAt = null;
   let studioElapsedTimer = null;
   let studioAttachments = [];
-  let locale = (() => { try { return localStorage.getItem("atl-locale") || "en-US"; } catch { return "en-US"; } })();
+  let locale = (() => { try { return localStorage.getItem("atl-cp-lang") || localStorage.getItem("atl-locale") || "en-US"; } catch { return "en-US"; } })();
   const selectedQueues = new Set();
   const selectedTasks = new Set();
   const selectedProjects = new Set();
@@ -544,22 +547,6 @@
               : "Add a provider to enable model planning.";
     mount.innerHTML = `<button class="provider-summary" type="button" data-action="provider-manager" aria-label="Manage providers"><span class="row between tiny"><span class="muted">PROVIDER STATUS</span><span class="pill ${status.tone}">${escapeHtml(status.label)}</span></span><strong>${escapeHtml(name)}</strong><span class="muted tiny status-detail">${escapeHtml(detail)}</span></button><button class="provider-manager lined row" type="button" data-page="settings"><span class="avatar">M</span><span><b>Workspace Manager</b><span class="tiny muted" style="display:block">Owner / approvals · Settings</span></span></button>`;
   }
-  const faQueueText = new Map([
-    ["OPERATIONS / DISPATCH", "عملیات / اعزام"], ["Multi-queue manager", "مدیریت چند صف"],
-    ["Open a queue to review, manage, or preview it. Every run remains explicitly confirmed.", "برای بررسی، مدیریت یا پیش‌نمایش یک صف آن را باز کنید. هر اجرا همچنان به تأیید صریح نیاز دارد."],
-    ["+ New queue", "+ صف جدید"], ["Review selected", "بررسی موارد انتخاب‌شده"], ["Global concurrency", "همزمانی سراسری"],
-    ["Conservative default", "پیش‌فرض محافظه‌کارانه"], ["Runnable", "قابل اجرا"], ["Pending dependency checks", "در انتظار بررسی وابستگی‌ها"],
-    ["Paused / blocked", "متوقف / مسدود"], ["Require intervention", "نیازمند مداخله"], ["No active queue selected", "صف فعالی انتخاب نشده است"],
-    ["A confirmed run appears below. Tasks included in it show", "اجرای تأییدشده در ادامه نمایش داده می‌شود. وظایف آن با وضعیت"],
-    ["or", "یا"], ["instead of another Run button.", "به‌جای دکمه اجرای دیگر نمایش داده می‌شوند."],
-    ["Select queue checkboxes for one shared-budget run; open a queue card for its individual actions.", "برای یک اجرای مشترک با بودجه واحد، صف‌ها را انتخاب کنید؛ برای عملیات هر صف، کارت آن را باز کنید."],
-    ["Current active queue", "صف فعال فعلی"], ["Approved plan workstream", "جریان کاری طرح تأییدشده"], ["task", "وظیفه"], ["tasks", "وظیفه"],
-    ["complete", "تکمیل"], ["running", "در حال اجرا"], ["logs", "گزارش"], ["No task logs yet", "هنوز گزارشی ثبت نشده است"],
-    ["Live execution · open queue for task logs", "اجرای زنده · برای گزارش وظایف صف را باز کنید"],
-    ["Confirmed run active · tasks below show their live run state", "اجرای تأییدشده فعال است · وضعیت زنده وظایف در ادامه نمایش داده می‌شود"],
-    ["Running", "در حال اجرا"], ["Queued", "در صف"], ["Stop", "توقف"], ["Delete", "حذف"], ["Clear", "پاک‌سازی"],
-    ["No queues found.", "صفی پیدا نشد."], ["ACTIVE QUEUE", "صف فعال"], ["plan queue", "صف طرح"], ["All", "همه"],
-  ]);
   function applyLocale() {
     const fa = locale === "fa-IR";
     document.documentElement.lang = fa ? "fa-IR" : "en-US";
@@ -567,16 +554,17 @@
     document.body.classList.toggle("atl-rtl", fa);
     const control = document.querySelector("#localeBtn");
     if (control) { control.textContent = fa ? "English" : "فارسی"; control.setAttribute("aria-label", fa ? "Switch to English" : "تغییر به فارسی"); }
-    if (!fa || page !== "queues") return;
-    const walker = document.createTreeWalker(document.querySelector("#content"), NodeFilter.SHOW_TEXT);
+    if (!fa) return;
+    const translator = window.ATL_I18N?.translateText || ((value) => value);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
-    for (const node of nodes) {
-      let value = node.nodeValue;
-      for (const [from, to] of faQueueText) value = value.split(from).join(to);
-      node.nodeValue = value;
+    for (const node of nodes) node.nodeValue = translator(node.nodeValue, "fa-IR");
+    for (const element of document.querySelectorAll("[placeholder]")) element.placeholder = translator(element.placeholder, "fa-IR");
+    for (const element of document.querySelectorAll("[aria-label]")) element.setAttribute("aria-label", translator(element.getAttribute("aria-label"), "fa-IR"));
+    for (const element of document.querySelectorAll(".task-main-copy b,.task-row .muted,.event .muted,.terminal,code,[data-bidi]")) {
+      element.setAttribute("dir", "auto");
+      element.classList.add("bidi-isolate");
     }
-    const search = document.querySelector("#queueSearch");
-    if (search) search.placeholder = "جست‌وجوی صف‌ها...";
   }
   function ensureLocaleControl() {
     const topbar = document.querySelector(".topbar .row:last-child");
@@ -803,8 +791,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   async function action(value) {
     if (value === "toggle-locale") {
       locale = locale === "fa-IR" ? "en-US" : "fa-IR";
-      try { localStorage.setItem("atl-locale", locale); } catch { /* private browsing */ }
-      render();
+      try { localStorage.setItem("atl-cp-lang", locale); localStorage.removeItem("atl-locale"); } catch { /* private browsing */ }
+      window.location.reload();
       return;
     }
     const brainMutation = async (body) => {
