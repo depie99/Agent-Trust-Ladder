@@ -20,6 +20,15 @@ try {
   const queueHeading = await page.locator("h1").textContent();
   assert.equal(queueHeading, "\u0645\u062f\u06cc\u0631\u06cc\u062a \u0686\u0646\u062f \u0635\u0641", "Queue heading is the approved Persian translation");
   assert.match(await page.locator("#localeBtn").textContent(), /English/);
+  for (const route of ["overview", "tasks", "studio", "queues", "team", "projects", "approvals", "operations", "brain", "activity", "usage", "settings"]) {
+    await page.locator(`[data-page="${route}"]`).first().click();
+    await page.locator("h1").waitFor({ state: "visible" });
+    assert.match(await page.locator("h1").textContent(), /[\u0600-\u06ff]/, `${route} heading is localized`);
+    assert.equal(await page.locator("html").getAttribute("dir"), "rtl", `${route} remains RTL`);
+  }
+  await page.locator('[data-page="tasks"]').first().click();
+  assert.match(await page.locator("body").innerText(), /T-026/, "Task portfolio shows the ATL task");
+  assert.ok(await page.locator(".bidi-isolate").count() > 0, "mixed-direction surfaces are isolated");
   console.log("PASS: live Queue page switches to fa-IR with RTL layout");
 } finally {
   await browser.close();
