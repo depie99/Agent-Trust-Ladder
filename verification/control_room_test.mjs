@@ -16,7 +16,13 @@ import { buildLaunchPlan, containmentBlock, executeLaunchQueue } from "../runtim
 import { discoverProvider, providerForRole, providerProfile } from "../runtime/lib/providers.mjs";
 import { createDashboardSnapshot, renderDashboard } from "../runtime/lib/dashboard.mjs";
 
-const run = promisify(execFile);
+// The dashboard snapshot includes the full task portfolio and can exceed
+// execFile's 1 MiB default buffer in a populated project. Keep the test
+// bounded while allowing the child to flush and exit normally.
+const run = (file, args, options = {}) => promisify(execFile)(file, args, {
+  maxBuffer: 10 * 1024 * 1024,
+  ...options,
+});
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "runtime", "atl-manager.mjs");
 
 // ---------- throwaway project scaffold
