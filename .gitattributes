@@ -1,2 +1,6 @@
+# Keep generated artifacts reproducible across Windows and Linux checkouts.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
 # Preserve the upstream Mermaid bundle without whitespace transformations.
 docs/vendor/mermaid.min.js -whitespace
