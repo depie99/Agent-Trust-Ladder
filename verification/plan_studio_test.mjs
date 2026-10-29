@@ -3,14 +3,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { emptyState, loadState, saveState } from "../runtime/lib/state.mjs";
-import { advanceStage, approvePlanDraft, frameIntent, generateLocalPlan, listPlanDrafts, loadPlanDraft, normalizeModelArtifact, runPlanProvider, savePlanDraft, validatePlanArtifact } from "../runtime/lib/plan-studio.mjs";
+import { advanceStage, approvePlanDraft, frameIntent, generateLocalPlan, listPlanDrafts, loadPlanDraft, normalizeModelArtifact, reviewPlanArtifact, runPlanProvider, savePlanDraft, validatePlanArtifact } from "../runtime/lib/plan-studio.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-studio-"));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
+fs.mkdirSync(path.join(root, "verification"), { recursive: true });
+fs.writeFileSync(path.join(root, "verification", "multi_queue_test.mjs"), "// verifier fixture\n");
 saveState(root, emptyState());
 
 const localPlan = generateLocalPlan("Build the complete browser planning and queue execution flow");
 assert.equal(validatePlanArtifact(localPlan), true, "local generation produces a complete SDD/TDD plan, not a frame placeholder");
+assert.ok(localPlan.task_proposals.every((task) => task.objective.includes(localPlan.objective)), "every local task retains the user request");
+assert.ok(localPlan.planning_limitations.length, "local template discloses its limits");
+assert.throws(() => validatePlanArtifact({ ...localPlan, title: " " }), /title and objective/);
+assert.throws(() => validatePlanArtifact({ ...localPlan, acceptance_examples: [{ given: {}, when: "w", then: "t" }] }), /given\/when\/then/);
+assert.throws(() => validatePlanArtifact({ ...localPlan, verifier_commands: [null] }), /non-empty strings/);
 const localDraft = savePlanDraft(root, { intent: localPlan.objective, artifact: localPlan, stage: "plan" });
 assert.equal(listPlanDrafts(root)[0].id, localDraft.id, "browser-ready plan drafts are discoverable for full preview");
 
@@ -60,14 +67,18 @@ const providerDraft = await runPlanProvider(root, "Make the TUI manage named que
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
     fs.writeFileSync(logPath, "fake provider response\n");
     return { code: 0, text: JSON.stringify({
+      plan_contract_version: 2,
       title: "Manage named queues",
       objective: request.intent,
+      requirements: [{ id: "r1", text: "queue membership persists", source: "original request" }],
+      observed_evidence: [{ description: "Queue verifier exists", path: "verification/multi_queue_test.mjs" }], assumptions: [], open_questions: [],
       constraints: [], risks: [],
       completion_checks: ["queue membership persists"],
       acceptance_examples: [{ given: "two queues exist", when: "one launches", then: "the other is unchanged" }],
       selected_skills: ["atl-plan"], proposed_worker: "pip", skill_route: [],
       implementation_steps: [{ step: "Implement queue book", files: ["runtime/lib/queue.mjs"], verify: "node verification/multi_queue_test.mjs" }],
       verifier_commands: ["node verification/multi_queue_test.mjs"],
+      task_proposals: [{ id: "p1", title: "Implement queue book", objective: request.intent, instructions: "Implement persistent queue membership.", deliverables: ["named queue storage"], requirement_ids: ["r1"], completion_checks: ["queue membership persists"], selected_skills: ["atl-plan"], skill_reasons: { "atl-plan": "Maps requested behavior onto an evidence-backed implementation plan." }, depends_on: [], files: ["runtime/lib/queue.mjs"], verify: "node verification/multi_queue_test.mjs" }],
     }), provider: "codex", model: "glm-5.3" };
   },
 });
@@ -77,10 +88,12 @@ assert.equal(providerDraft.model, "glm-5.3", "the model behind a draft is visibl
 assert.equal(loadPlanDraft(root, providerDraft.id).provider, "codex", "provider selection persists on the draft envelope");
 assert.equal(Object.keys(loadState(root).tasks).length, 0, "unapproved provider output cannot create or mutate canonical tasks");
 
-const approved = approvePlanDraft(root, providerDraft, { note: "approved test plan" });
+assert.throws(() => approvePlanDraft(root, providerDraft, { note: "approved test plan" }), /fresh, passing accuracy review/);
+const reviewedDraft = reviewPlanArtifact(root, providerDraft.id, { verdict: "passed", findings: [] });
+const approved = approvePlanDraft(root, reviewedDraft, { note: "approved test plan" });
 assert.equal(approved.created, true, "approval creates the canonical task");
 assert.equal(loadState(root).tasks[approved.task.id].plan_draft_id, providerDraft.id, "task links to its approved draft");
-assert.equal(approvePlanDraft(root, providerDraft).created, false, "approval is idempotent");
+assert.equal(approvePlanDraft(root, providerDraft.id).created, false, "approval is idempotent");
 
 // Common model output drift is normalized onto given/when/then and
 // step/files/verify before the gate; a still-unrecognizable shape passes
@@ -110,7 +123,7 @@ assert.deepEqual(drifted.implementation_steps[2], { step: "s", files: ["f"], ver
 assert.throws(() => validatePlanArtifact({ ...drifted, acceptance_examples: [{ given: "g", when: "w", then: "t" }], implementation_steps: [{ nonsense: true }] }), /implementation_steps/, "an unrecognizable step shape is still refused");
 assert.throws(() => validatePlanArtifact({ ...drifted, acceptance_examples: [{ given: "g", when: "w", then: "t" }], implementation_steps: ["  "] }), /implementation_steps/, "a blank string step is still refused");
 
-const driftedDraft = await runPlanProvider(root, "drift tolerant run", {
+await assert.rejects(() => runPlanProvider(root, "drift tolerant run", {
   confirm: true,
   provider: "codex",
   invoke: async ({ request }) => ({
@@ -123,12 +136,7 @@ const driftedDraft = await runPlanProvider(root, "drift tolerant run", {
     }),
     provider: "codex", model: "m",
   }),
-});
-assert.deepEqual(driftedDraft.artifact.acceptance_examples[0], { given: "s", when: "c", then: "e" }, "a drifted-but-mappable model answer persists normalized");
-const driftCards = driftedDraft.artifact.task_proposals;
-assert.equal(driftCards.length, 2, "string-shaped model steps still derive one card per step");
-assert.equal(driftCards[0].title, "wire the studio to the registry", "a string step's card carries the step text as its title");
-assert.deepEqual(driftCards[1].files, ["runtime/lib/plan-studio.mjs"], "alias-normalized files reach the card");
+}), /Plan Contract v2/, "mappable legacy-shaped output remains a draft candidate but cannot pass the strict v2 planning contract");
 
 fs.rmSync(root, { recursive: true, force: true });
 console.log("PASS: Plan Studio — staged framing, explicit provider confirmation, schema validation, draft approval");

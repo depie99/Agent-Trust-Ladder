@@ -42,4 +42,14 @@ hold = new Promise((resolve) => { release = resolve; });
 listeners.click({ target: { closest: () => ({ dataset: { reviewAction: "refresh" } }) } });
 mount.isConnected = false; const abandoned = mount.innerHTML;
 release(); await flush(); assert.equal(mount.innerHTML, abandoned, "a late request cannot overwrite a closed dialog");
+
+const unavailableData = { availability: "capture_required", message: "Capture the task workspace to inspect its current changes.", files: [], total_files: null };
+const unavailableMount = { ...mount, isConnected: true, innerHTML: "", addEventListener: (name, fn) => { listeners[name] = fn; } };
+context.document.querySelector = (selector) => selector === "#taskChangeReview" ? unavailableMount : { content: "test-csrf" };
+context.fetch = async () => ({ ok: true, json: async () => structuredClone(unavailableData) });
+await context.window.ATL_CHANGE_REVIEW.open({ id: "T-024" }, host);
+assert.match(unavailableMount.innerHTML, /Capture the task workspace/);
+assert.doesNotMatch(unavailableMount.innerHTML, /Loading changes/);
+await click("refresh");
+assert.match(unavailableMount.innerHTML, /Capture the task workspace/, "uncaptured review remains usable after refresh");
 console.log("PASS: review UI controller — lazy/pinned requests, pagination, selection, escaping and stale evidence (layout unverified)");

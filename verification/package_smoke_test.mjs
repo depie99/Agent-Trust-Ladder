@@ -13,6 +13,10 @@ try {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const packed = JSON.parse(execFileSync(npm, ["pack", "--json", "--pack-destination", scratch], { cwd: root, encoding: "utf8", shell: process.platform === "win32" }));
   execFileSync("tar", ["-xf", path.join(scratch, packed[0].filename), "-C", scratch]);
+  for (const relative of ["docs/index.html", "docs/resource-model.md", "docs/site.json", "docs/site.css", "docs/site.js", "docs/mermaid-loader.js", "docs/vendor/mermaid.min.js", "docs/assets/screenshots/sources.jpg", "docs/assets/screenshots/ask-atl.jpg"]) {
+    assert.ok(fs.existsSync(path.join(scratch, "package", relative)), `distribution includes ${relative}`);
+  }
+  assert.ok(!packed[0].files.some((file) => /^(?:\.trust|\.atl-evidence)\//.test(file.path)), "distribution excludes private execution state");
   const cli = path.join(scratch, "package", "runtime", "atl-manager.mjs");
   const project = path.join(scratch, "project"); fs.mkdirSync(project);
   const env = { ...process.env, ATL_PROJECT: project, ATL_HOME: path.join(scratch, "home"), ATL_NO_OPEN: "1" };

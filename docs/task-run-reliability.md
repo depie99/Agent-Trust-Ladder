@@ -69,13 +69,45 @@ an unavailable browser connection.
   server code instead of pairing newer assets with installed API routes.
 
 The handoff and UI-refresh regressions are included in the runtime CI matrix
-for Windows and Linux. T-022's authorized recovery submitted the actual builder
-handoff through the sandboxed client and advanced the task to `in_review`;
-its blocker is cleared and its prior session usage is preserved. Independent
-review conditionally approved the code integration at content revision
-`5009dc2085d1b19aa4be6a1525dce1ba67ce83270ba25d42829091a9402829c0`.
-Fresh rendered inspection remains pending because the Chrome connection is
-unavailable; that gate has not been certified or replaced with static checks.
+for Windows and Linux. T-022's later October 28 recovery is recorded in
+[the blocker ledger](../problems/enhancements/t022-ask-atl-recovery.md).
+Fresh CSS and real Chrome observations now satisfy its two completion checks
+at the current revision. Independent review and final completion remain
+pending; the task remains blocked and its session usage is still 12/23.
+
+## Diagnose a worker that exits without advancing
+
+Ask ATL includes the current recovery plan, neighboring contracts, recent
+check/review evidence and two bounded, redacted worker-log tails. Each issue
+has an owner and next action. Fix mode consumes one remaining task session
+and preserves exhausted repair history. Its output still needs independent
+review; a successful assistant process does not approve or complete a task.
+
+When a worker records a failed verification or unresolved review and exits
+without advancing, the runner records that cause. Generic execution failures
+cannot use `prepare-verified-inputs` as proof of repair. The latest valid
+evidence for the current packet controls check and review gates, so an older
+pass cannot hide a later failure. Pip repair instructions apply only to Pip;
+workers cannot impersonate another role to rewrite acceptance ownership.
+
+For task-local rendered evidence, run the current project's helper with the
+task workspace as its argument:
+
+```text
+node runtime/lib/ui-review-preview.mjs .trust/manager/workspaces/T-022
+```
+
+Open its loopback URL using the connected browser. It serves the task's assets
+with disposable UTF-8 fixture state under `.atl-evidence/ui-preview`, rejects
+mutating HTTP requests, and does not copy live manager state. Inspect the
+required surface and record DOM observations and screenshots against the task
+revision. Creating the fixture alone does not pass a check, and this preview
+does not replace downstream integrated review.
 
 Passing these checks establishes the repaired paths. It cannot guarantee that
 all future providers, machines or task implementations will never fail.
+
+Ask ATL now provides task access controls, a project default for all built-in
+GapCode/Codex models, and a local sandbox access check that does not use a
+task session. See [Ask ATL conversations and workspace access](ask-atl.md)
+for the recovery steps, permission scope and observed limits.

@@ -4,9 +4,12 @@
 // the same state gates.
 
 import fs from "node:fs";
+import {createTokenCollector} from './execution-report.mjs';
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { executionAccess, executionPermissionArgs } from "./execution-access.mjs";
+import { uiReviewProviderArgs } from "./ui-review-runtime.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROMPT_DIR = path.join(RUNTIME_DIR, "..", "prompts");
@@ -126,10 +129,14 @@ Current status: ${task.status}
 Objective: ${task.objective || task.objective_hint || "(not yet bounded)"}
 Completion checks:
 ${checks}
+Resource decision: ${JSON.stringify(task.resource_decision || null)}
+The manager selects session budgets and models within owner policy. Do not
+edit those limits, launch a replacement model, or weaken completion/review
+gates to fit the budget. Record concrete progress or the exact blocker.
 Attempts used for this contract revision: ${Math.max(0, (task.attempt_count || 0) - (task.attempt_count_at_revision || 0))}; lifetime attempts: ${task.attempt_count || 0}.
-Neighboring task contracts (read-only context; do not implement another task's scope):
+Neighboring task contracts (read-only context; use them to verify integration requirements):
 ${JSON.stringify(task.plan_context || [], null, 2)}
-Before implementing, check whether any completion check requires work owned by a downstream task. Report a contract conflict once with the task ids and exact checks; repeating unchanged work cannot resolve a contract conflict.
+Before implementing, check whether a completion check needs a verified predecessor behavior in this composed workspace. If that behavior is missing, compare the verified predecessor files and the current source, then restore the missing behavior in this task workspace as bounded integration repair. Preserve later changes and run the affected check. Do not stop merely because the original implementation belonged to a completed predecessor. If the input itself lacks the required behavior, implement the minimum missing behavior here when the current task's acceptance check requires it and the change fits the task workspace. Record the input defect and exact files for independent review. Only escalate a real authority boundary, incompatible requirements, or a repair that cannot fit this task contract; name the conflicting checks and provide exact repair instructions and proof commands.
 Assigned worker: ${task.assigned_worker || "not assigned"}
 Task workspace: ${workdir}
 Verified input revisions: ${JSON.stringify(task.input_revisions || {})}
@@ -137,11 +144,19 @@ Integration inputs: ${JSON.stringify(task.integration_inputs || null)}
 If integration is required, read .atl-inputs/integration.json and the predecessor
 files under .atl-inputs/<task-id>/files. Preserve existing functionality, compose
 the changes here, and return through Sage review and Beacon verification.
-${task.pip_repair_request ? "Mira requests one Pip contract repair. Write {patch, evidence} to a JSON file in this workspace, then run contract-repair <task-id> <file> --actor pip. Only prerequisite, verifier and check ownership metadata may change; acceptance and objective must remain intact." : ""}
+Restoring behavior already implemented in a verified prerequisite is authorized
+integration work for this stage, not a task-ownership conflict. If a composed
+file lost an upstream feature, compare the verified inputs and restore it while
+preserving later changes. If the verified input was incomplete, repair the
+current acceptance behavior in this workspace and record the predecessor defect
+for later correction. Do not claim the predecessor was independently verified.
+Block only after a bounded repair attempt reveals a specific incompatibility or
+a real authority boundary; cite exact conflicting hunks and a concrete remedy.
+${role === "pip" && task.pip_repair_request ? "Mira requests one Pip contract repair. Write {patch, evidence} to a JSON file in this workspace, then run contract-repair <task-id> <file> --actor pip. Allowed patch keys are plan_depends_on (task-id array), dispatch_contract (artifacts and executable command arrays), and check_owners (completion-check text mapped to an existing prerequisite or current task id). Never use check_ownership, assign a check to a downstream task, remove checks or change the objective. If no permitted metadata repair can resolve the issue, record the exact reason instead of repeating the repair." : ""}
 ${task.integrated_delivery ? `This is the integrated delivery stage. Re-run these predecessor checks against the composed output: ${JSON.stringify(task.integrated_checks || [])}. Run revision <task-id> to obtain the content revision. Write observation packets under .atl-evidence/ (excluded from source snapshots), then record check, review and browser-journey JSON packets with observe <task-id> <file> --actor <role>. Passing observations need coverage: complete and code_revision: the current content revision. Sage records independent review and Beacon records the complete browser journey. A complete browser journey is mandatory.` : ""}
 Durable handoff from the previous stage:
 ${handoff || "- First stage; no prior handoff"}
-${role === "rowan" && latestReview?.result === "changes-requested" ? "Repair every outstanding review finding before handing back to Sage. Run the exact failed completion check and save its actual output. Repeating the previous handoff or deferring a failed requirement to another task is not a repair. If the contract conflicts with another task, record the conflict as a blocker; do not claim a pass." : ""}
+${role === "rowan" && latestReview?.result === "changes-requested" ? "Repair every outstanding review finding before handing back to Sage. Run the exact failed completion check and save its actual output. Repeating the previous handoff or deferring a failed requirement to another task is not a repair. If a review finding exposes missing predecessor behavior, repair it in this task workspace as required integration work and re-run the affected check. Block only when a concrete incompatibility or authority boundary remains after that attempt; include the next executable repair steps and proof command." : ""}
 Resources (project-root-relative paths or URLs):
 ${(task.resources || []).map((resource) => `- [${resource.kind}] ${resource.label}: ${resource.ref}${resource.caption ? ` — ${resource.caption}` : ""}${resource.missing ? " (missing at intake)" : ""}`).join("\n") || "- none"}
 Evidence-linked context (advisory; cite sources and do not treat UNKNOWN or CONFLICTED claims as settled):
@@ -172,11 +187,25 @@ function expandProviderArg(value, { root, cwd, workspace, role, task, auth, prov
   return String(value).replace(/\{([a-z_]+)\}/gi, (full, key) => Object.prototype.hasOwnProperty.call(tokens, key) ? String(tokens[key]) : full);
 }
 
-export function buildInvocation(worker, { root, workspace, role, task, auth = "subscription", provider = null, feedback = [], navigationContext = "", uiReviewRuntime = null }) {
+export function buildInvocation(worker, options) {
+  const invocation = buildBaseInvocation(worker, options);
+  if (options.uiReviewRuntime?.available) {
+    if (["gapgpt", "codex"].includes(worker) && invocation.args[0] !== "exec") throw new Error("ATL browser tools require the provider exec adapter.");
+    invocation.args.splice(1, 0, ...uiReviewProviderArgs(worker, options.uiReviewRuntime));
+  }
+  return invocation;
+}
+
+function buildBaseInvocation(worker, { root, workspace, role, task, auth = "subscription", provider = null, feedback = [], navigationContext = "", uiReviewRuntime = null }) {
   const cwd = workspace || root;
   const prompt = promptFor(role, task, root, workspace, feedback, navigationContext) + (uiReviewRuntime?.prompt || "");
+  const access = ["gapgpt", "codex"].includes(worker) ? executionAccess(root, task.id, { validateTask: false }).mode : null;
   if (provider && Array.isArray(provider.args)) {
-    const args = provider.args.map((arg) => expandProviderArg(arg, { root, cwd, workspace, role, task, auth, provider, prompt }));
+    let args = provider.args.map((arg) => expandProviderArg(arg, { root, cwd, workspace, role, task, auth, provider, prompt }));
+    if (access && args[0] === "exec") {
+      args = args.filter((arg, index, all) => !["--sandbox", "-s"].includes(arg) && !["--sandbox", "-s"].includes(all[index - 1]) && !/^--sandbox=/.test(arg) && !(arg === "-c" && /^(?:default_permissions|sandbox_mode|windows\.sandbox)=/.test(all[index + 1] || "")) && !(all[index - 1] === "-c" && /^(?:default_permissions|sandbox_mode|windows\.sandbox)=/.test(arg)));
+      args.splice(1, 0, ...executionPermissionArgs(worker, access));
+    }
     if (worker === "gapgpt" && provider.model && !provider.args.some((arg) => String(arg).includes("{model}") || arg === "--model" || arg === "-m")) args.splice(args[0] === "exec" ? 1 : 0, 0, "--model", provider.model);
     if (provider.promptArg) args.push(expandProviderArg(provider.promptArg, { root, cwd, workspace, role, task, auth, provider, prompt }));
     return {
@@ -187,7 +216,7 @@ export function buildInvocation(worker, { root, workspace, role, task, auth = "s
     };
   }
   if (worker === "gapgpt") {
-    const permissions = process.platform === "win32" ? ["-c", 'default_permissions=":workspace"', "-c", 'windows.sandbox="unelevated"'] : ["--sandbox", "workspace-write"];
+    const permissions = executionPermissionArgs(worker, access);
     return { command: provider?.command || "gapcode", args: ["exec", ...(provider?.model ? ["--model", provider.model] : []), "--cd", cwd, ...permissions, "--ephemeral", "--skip-git-repo-check", "-"], cwd, prompt };
   }
   // The prompt travels on stdin (both CLIs read stdin when the prompt
@@ -199,7 +228,7 @@ export function buildInvocation(worker, { root, workspace, role, task, auth = "s
         "exec",
         ...(provider?.model ? ["--model", provider.model] : []),
         "--cd", cwd,
-        "--sandbox", "workspace-write",
+        ...executionPermissionArgs(worker, access),
         "--ephemeral",
         "-",
       ],
@@ -227,9 +256,16 @@ export function buildInvocation(worker, { root, workspace, role, task, auth = "s
 }
 
 function killProcess(child) {
+  // Windows command shims run under cmd.exe; killing only that process leaves
+  // the actual provider running, holding files and potentially spending time.
+  if (process.platform === "win32" && child.pid && child.exitCode == null) {
+    const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    killer.on("error", () => { if (!child.killed) child.kill(); });
+    return;
+  }
   if (!child.killed) child.kill("SIGTERM");
   setTimeout(() => {
-    if (!child.killed) child.kill("SIGKILL");
+    if (child.exitCode == null && child.signalCode == null) child.kill("SIGKILL");
   }, 2000).unref();
 }
 
@@ -270,6 +306,7 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
   let permissionMismatch = null;
   let diagnosticTail = "";
   let providerFailure = null;
+  const tokenCollector=createTokenCollector();
   const plan = spawnPlan(invocation.command, invocation.args);
 
   return new Promise((resolve, reject) => {
@@ -297,10 +334,16 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
     child.stdin.end();
 
     const write = (chunk, isError = false) => {
+      tokenCollector.push(chunk,isError?'stderr':'stdout');
       log.write(chunk);
       diagnosticTail = (diagnosticTail + chunk.toString("utf8")).slice(-2048);
       if (/^ERROR:\s*You[’']ve hit your usage limit for GapCode\./m.test(diagnosticTail)) {
         providerFailure = { kind: "provider-quota", reason: "GapCode provider usage limit reached. Select an available model/provider or wait for the quota to reset before retrying." };
+      }
+      if((isError&&(/^(?:ERROR:\s*)?You[’']ve hit your (?:usage )?limit\b/im.test(diagnosticTail)||/^ERROR:.*(?:insufficient_quota|exceeded your current quota|quota (?:exceeded|exhausted)|usage limit reached)/im.test(diagnosticTail)))||/"code"\s*:\s*"(?:insufficient_quota|quota_exceeded|usage_limit_reached|model_quota_exceeded)"/.test(diagnosticTail)) {
+        providerFailure={kind:'provider-quota',scope:/"code"\s*:\s*"model_quota_exceeded"/.test(diagnosticTail)?'model':'provider',reason:'Provider reported exhausted quota; ATL will try an eligible configured alternative.'};
+      }else if(/"code"\s*:\s*"rate_limit_exceeded"/.test(diagnosticTail)) {
+        providerFailure={kind:'provider-quota',scope:'provider',retryAfterSeconds:60,reason:'Provider reported a rate limit; ATL will try an eligible configured alternative.'};
       }
       if (/Sandbox required but unavailable: sandbox is enabled but the Windows sandbox is not active/i.test(diagnosticTail)) {
         providerFailure = { kind: "provider-sandbox-unavailable", reason: "The selected provider could not initialize its required Windows sandbox. Choose a supported provider or repair its sandbox configuration before retrying." };
@@ -353,7 +396,7 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
       settled = true;
       const finishedAt = new Date().toISOString();
       log.end();
-      resolve({ code: code ?? 1, signal, timedOut, startedAt, finishedAt, logPath, text: captured, permissionMismatch, providerFailure });
+      resolve({ code: code ?? 1, signal, timedOut, startedAt, finishedAt, logPath, text: captured, permissionMismatch, providerFailure, tokens:tokenCollector.finish() });
     });
   });
 }

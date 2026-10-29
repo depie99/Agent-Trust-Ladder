@@ -1,20 +1,25 @@
 {
   "name": "@depie99/atl",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Evidence-gated autonomous engineering workflow, browser Control Plane, and team runtime",
-  "homepage": "https://depie99.github.io/Agent-Trust-Ladder/team-interfaces.html",
+  "homepage": "https://depie99.github.io/Agent-Trust-Ladder/",
   "repository": {
     "type": "git",
     "url": "https://github.com/depie99/Agent-Trust-Ladder.git"
   },
   "type": "module",
   "scripts": {
-    "docs:css": "sass --no-source-map docs/scss/styles.scss docs/styles.css",
+    "docs:css": "sass --no-source-map docs/scss/styles.scss docs/site.css",
     "docs:css:check": "node scripts/check-docs-css.mjs",
     "docs:diagrams": "node scripts/make-diagram-light-variants.mjs",
     "docs:diagrams:check": "node scripts/make-diagram-light-variants.mjs --check",
     "ui:css": "node scripts/build-control-plane-css.mjs",
-    "ui:css:check": "node scripts/build-control-plane-css.mjs --check"
+    "ui:css:check": "node scripts/build-control-plane-css.mjs --check",
+    "docs:references": "node scripts/docs-reference.mjs",
+    "docs:build": "node scripts/docs-reference.mjs && node scripts/build-docs.mjs",
+    "docs:check": "node scripts/docs-reference.mjs --check && node scripts/build-docs.mjs --check && node scripts/check_docs.mjs",
+    "docs:serve": "node scripts/serve-docs.mjs",
+    "docs:test": "node verification/docs_site_test.mjs"
   },
   "bin": {
     "atl": "runtime/atl-manager.mjs"
@@ -32,7 +37,14 @@
     "skills",
     "verification",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs",
+    "GUIDE.md",
+    "USAGE.md",
+    "README.fa.md",
+    "research/README.md",
+    "research/index.json",
+    "research/records"
   ],
   "engines": {
     "node": ">=22"
@@ -41,7 +53,17 @@
     "registry": "https://npm.pkg.github.com"
   },
   "devDependencies": {
+    "markdown-it": "15.0.3",
+    "mermaid": "12.2.0",
     "playwright": "^1.64.1",
     "sass": "^1.106.1"
-  }
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "engineering",
+    "task-queue",
+    "control-plane",
+    "verification"
+  ]
 }

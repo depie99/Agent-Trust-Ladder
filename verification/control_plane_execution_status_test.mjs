@@ -11,7 +11,7 @@ import { buildLaunchPlan } from '../runtime/lib/launch.mjs';
 const source = fs.readFileSync(new URL('../runtime/control-plane-client.js', import.meta.url), 'utf8');
 const functions = ['statusLabel', 'badge', 'taskProgress', 'taskProgressMarkup', 'taskExecution', 'liveRunState', 'taskOutcome', 'taskDetail', 'syncRunSnapshot', 'refreshTaskDetail'];
 const scope = vm.createContext({ currentRun: {}, snapshot: { queues: { items: [] } }, selectedTasks: new Set(),
-  escapeHtml: (v) => String(v ?? ''), btn: (text) => text, meter: (value) => `<div class="track" data-value="${value}"></div>`, taskRowActions: () => '', lifecycleDiagram: () => '', popup: (_title, html) => { scope.detail = html; },
+  escapeHtml: (v) => String(v ?? ''), btn: (text) => text, meter: (value) => `<div class="track" data-value="${value}"></div>`, taskRowActions: () => '', lifecycleDiagram: () => '', executionTokenBadge: () => '', executionReportMarkup: () => '', resourceSummary: () => '', popup: (_title, html) => { scope.detail = html; },
 });
 for (const name of functions) {
   const start = source.indexOf(`  function ${name}(`);
@@ -20,6 +20,8 @@ for (const name of functions) {
   vm.runInContext(source.slice(start, end), scope);
 }
 const rowStart = source.indexOf('  const taskRow =');
+scope.browserAccessFor = () => ({ mode: 'pending' });
+scope.browserAccessControls = () => '';
 vm.runInContext(source.slice(rowStart, source.indexOf('\n', rowStart)) + '\nglobalThis.renderRow = taskRow;', scope);
 
 // Acceptance percentages come from unique, current-revision gates. A retry

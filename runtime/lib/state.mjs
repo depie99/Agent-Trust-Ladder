@@ -4,6 +4,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { latestTaskEvidence } from "./task-diagnostics.mjs";
 
 const contractFile = new URL("../../config/manager-state-contract.json", import.meta.url);
 export const STATE_CONTRACT = JSON.parse(fs.readFileSync(contractFile, "utf8"));
@@ -98,6 +99,8 @@ export function createTask(state, fields) {
     proposed_worker: fields.proposed_worker || null,
     skill_route: fields.skill_route || null,
     review_required: fields.risk === "risky",
+    plan_review_required: Boolean(fields.plan_review_required),
+    plan_reviewed_by_draft: fields.plan_reviewed_by_draft || null,
     assigned_worker: null,                      // pip | rowan | sage | beacon
     workspace: null,
     attempt_count: 0,
@@ -127,28 +130,33 @@ function fail(required, task) {
     if (r === "evidence" && !(task.evidence.some((e) => e.kind === "check")))
       throw new StateError(`${task.id}: at least one observed check result is required (--evidence-pass "...")`);
     if (r === "review") {
-      const ok = task.evidence.some((e) => e.kind === "review" && e.result === "approve");
+      const ok = latestTaskEvidence(task, "review")?.result === "approve";
       if (!ok) throw new StateError(`${task.id}: an approved review must be recorded first (--review "approve: ...")`);
     }
     if (r === "review_approved") {
-      const ok = task.evidence.some((e) => e.kind === "review" && e.result === "approve");
+      const ok = latestTaskEvidence(task, "review")?.result === "approve";
       if (!ok) throw new StateError(`${task.id}: an approved review must be recorded first (--review "approve: ...")`);
     }
     if (r === "review_changes_requested") {
-      const ok = task.evidence.some((e) => e.kind === "review" && e.result === "changes-requested");
+      const ok = latestTaskEvidence(task, "review")?.result === "changes-requested";
       if (!ok) throw new StateError(`${task.id}: a changes-requested review must be recorded first (--review "changes-requested: ...")`);
     }
     if (r === "blocker" && !task.blocker)
       throw new StateError(`${task.id}: --reason "..." is required to block a task`);
     if (r === "all_checks_pass") {
       const missing = (task.completion_checks || []).filter(
-        (c) => !task.evidence.some((e) => e.kind === "check" && e.check === c && e.result === "pass" && !e.invalidated && e.coverage !== "partial" && (task.evidence_contract !== 2 || (e.coverage === "complete" && e.code_revision)) && (e.packet_revision || 1) === (task.packet_revision || 1))
+        (c) => {
+          const e = latestTaskEvidence(task, "check", c);
+          const review = latestTaskEvidence(task, "review");
+          const rejected = review?.result === "changes-requested" && task.evidence.indexOf(e) < task.evidence.indexOf(review);
+          return !e || e.result !== "pass" || e.coverage === "partial" || rejected || (task.evidence_contract === 2 && (e.coverage !== "complete" || !e.code_revision));
+        }
       );
       if (missing.length > 0)
         throw new StateError(
           `${task.id}: cannot finish, these checks have no passing evidence: ${missing.join(" | ")}`
         );
-      if ((task.review_required || false) && !task.evidence.some((e) => e.kind === "review" && e.result === "approve" && (e.packet_revision || 1) === (task.packet_revision || 1)))
+      if ((task.review_required || false) && latestTaskEvidence(task, "review")?.result !== "approve")
         throw new StateError(`${task.id}: review_required is set but no approved review exists`);
     }
   }

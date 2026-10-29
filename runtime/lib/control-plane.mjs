@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { loadState, paths } from "./state.mjs";
+import { browserAccessPolicy } from "./browser-access.mjs";
+import { resourcePolicy, taskResourcePreview } from "./resource-policy.mjs";
+import {executionReports,loadResourceLearning} from './execution-report.mjs';
+import { providerProfile } from './providers.mjs';
 import { loadQueueBook, queueList } from "./queue.mjs";
 import { listNotifications, notificationUnreadCount } from "./notifications.mjs";
 import { loadUsage, latestUsage } from "./usage.mjs";
@@ -150,26 +154,32 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
   const notifications = listNotifications(root, { limit: notificationLimit });
   const usage = loadUsage(root);
   const brief = latestBriefRecord(root);
+  const resourceConfig=readManagerConfig(root);
+  const resourceProfile=providerProfile(resourceConfig);
+  const reports=executionReports(root,state,queues);
   return {
     version: CONTROL_PLANE_VERSION,
     captured_at: new Date().toISOString(),
+    browser_access: browserAccessPolicy(root),
+    resource_policy: resourcePolicy(resourceConfig),
     state: {
       version: state.version,
       updated_at: state.updated_at,
       task_count: Object.keys(state.tasks || {}).length,
-      tasks: state.tasks,
+      tasks: Object.fromEntries(Object.entries(state.tasks).map(([id,task])=>[id,{...task,execution_report:reports.tasks[id],resource_preview:taskResourcePreview(resourceConfig,task,null,{profile:resourceProfile})}])),
       log_tail: (state.log || []).slice(-50),
     },
     queues: {
       active_queue: activeQueueId,
       book_updated_at: queueBook.updated_at,
-      items: queues,
+      items: queues.map(queue=>({...queue,execution_report:reports.queues[queue.id]})),
     },
     notifications: {
       unread: notificationUnreadCount(root),
       items: notifications,
     },
     usage: {
+      learning:loadResourceLearning(root),
       updated_at: usage.updated_at,
       snapshots: usage.snapshots,
       latest: latestUsage(root),

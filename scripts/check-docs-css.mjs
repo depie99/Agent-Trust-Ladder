@@ -1,4 +1,4 @@
-// Fails when docs/styles.css is stale relative to docs/scss/styles.scss.
+// Fails when docs/site.css is stale relative to docs/scss/styles.scss.
 // Companion to scripts/check_docs.mjs (HTML integrity). Run from the repo
 // root: npm run docs:css:check — or rebuild with npm run docs:css.
 import { compile } from "sass";
@@ -8,13 +8,13 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const entry = path.join(root, "docs", "scss", "styles.scss");
-const target = path.join(root, "docs", "styles.css");
+const target = path.join(root, "docs", "site.css");
 
 const expected = compile(entry, { sourceMap: false }).css.trimEnd();
 const actual = fs.readFileSync(target, "utf8").trimEnd();
 
 if (actual !== expected) {
-  console.log("FAIL: docs/styles.css is stale — run: npm run docs:css");
+  console.log("FAIL: docs/site.css is stale — run: npm run docs:css");
   process.exit(1);
 }
-console.log("ALL OK: docs/styles.css matches docs/scss source");
+console.log("ALL OK: docs/site.css matches docs/scss source");

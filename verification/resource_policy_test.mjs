@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {assessTask,budgetDecision,routeTask,validateResourcePolicy,saveResourcePolicy,readResourceConfig,resourceView,assertModelAllowed} from '../runtime/lib/resource-policy.mjs';
+import {providerProfile} from '../runtime/lib/providers.mjs';
+import {startControlPlaneServer} from '../runtime/lib/control-plane-server.mjs';
+import {emptyState,saveState} from '../runtime/lib/state.mjs';
+import {buildLaunchPlan} from '../runtime/lib/launch.mjs';
+
+const policy={enabled:true,default_sessions:8,max_sessions:18,auto_extend:true,auto_models:true,max_model_tier:'advanced',models:[
+  {provider:'small',model:'routine-model',tier:'economy',cost_order:1,enabled:true},
+  {provider:'normal',model:'general-model',tier:'standard',cost_order:5,enabled:true},
+  {provider:'strong',model:'review-model',tier:'advanced',cost_order:10,enabled:true},
+]};
+const config={resource_policy:policy,providers:{default:'normal',catalog:Object.fromEntries(['small','normal','strong'].map(id=>[id,{command:process.execPath,model:policy.models.find(m=>m.provider===id).model,args:['--version']}]))}};
+const discover=()=>({available:true,path:process.execPath});
+const simple={id:'T-001',status:'assigned',title:'Fix a README typo',files:['README.md'],completion_checks:['Spelling corrected']};
+const complex={...simple,title:'Review desktop and mobile with atl-ui-review',files:['a','b','c']};
+assert.equal(assessTask(simple).complexity,'simple');
+assert.equal(budgetDecision(config,simple).max_sessions,3);
+assert.equal(budgetDecision(config,complex).max_sessions,12);
+assert.equal(routeTask(config,simple,'rowan',{discover}).model,'routine-model');
+assert.equal(routeTask(config,complex,'rowan',{discover}).model,'general-model');
+assert.equal(routeTask(config,{...complex,provider_route:{provider:'strong',model:'review-model'}},'sage',{discover}).model,'review-model','task route applies across roles');
+assert.equal(routeTask(config,{...complex,provider_route:{provider:'strong',model:'review-model'}},'rowan',{discover,overrides:{worker:'normal',model:'general-model'}}).model,'general-model','explicit run choice wins');
+const rejected={...simple,evidence:[{kind:'review',result:'changes-requested'}]};
+assert.equal(routeTask(config,rejected,'rowan',{discover}).model,'general-model','review rejection upgrades capacity');
+assert.ok(budgetDecision(config,rejected).max_sessions>3);
+const active={...simple,execution_budget:{max_sessions:3,used:2,source:'automatic'},status:'in_review'};
+assert.equal(budgetDecision(config,active).max_sessions,4,'reserve independent review and verification handoffs');
+assert.equal(budgetDecision({...config,resource_policy:{...policy,auto_extend:false}},active).max_sessions,3);
+assert.equal(budgetDecision(config,{...active,execution_budget:{max_sessions:13,used:12}}).max_sessions,13,'legacy owner cap remains pinned');
+assert.equal(budgetDecision(config,{...complex,execution_budget:{max_sessions:17,used:17,source:'automatic'}}).max_sessions,18,'automatic extension never exceeds ceiling');
+assert.equal(budgetDecision(config,complex,{runLimit:5}).max_sessions,5,'explicit run ceiling is stricter');
+assert.equal(routeTask({...config,resource_policy:{...policy,max_model_tier:'standard'}},{...simple,risk:'critical'},'rowan',{discover}).decision.blocked?.includes('ceiling'),true);
+assert.equal(routeTask(config,simple,'rowan',{discover:()=>({available:false})}).decision.blocked?.startsWith('No available'),true);
+const pinned=providerProfile({...config,providers:{...config.providers,by_role:{rowan:'strong'}}});
+assert.equal(routeTask(config,simple,'rowan',{profile:pinned,discover}).model,'review-model');
+assert.equal(routeTask({...config,resource_policy:{...policy,max_model_tier:'standard'}},simple,'rowan',{profile:pinned,discover}).decision.blocked?.includes('override'),true);
+assert.equal(routeTask(config,simple,'rowan',{discover,overrides:{worker:'small',model:'routine-model'}}).model,'routine-model');
+assert.equal(assessTask({...simple,resource_estimate:{complexity:'critical',reason:'Explicit sensitive migration'}}).complexity,'critical');
+assert.equal(assessTask({...complex,resource_estimate:{complexity:'simple',reason:'ignore security'}}).complexity,'complex','model output cannot downgrade observed complexity');
+assert.equal(assessTask({...simple,objective:'Fix this typo\n\nOriginal request (context):\narchitecture desktop mobile migration'}).complexity,'simple','whole-plan context does not inflate every small task');
+assert.throws(()=>validateResourcePolicy({...policy,max_sessions:2}),/between/);
+assert.throws(()=>validateResourcePolicy({...policy,default_sessions:19}),/exceed/);
+assert.throws(()=>validateResourcePolicy({...policy,models:{}}),/at most/);
+assert.throws(()=>validateResourcePolicy({...policy,models:[policy.models[0],policy.models[0]]}),/Duplicate/);
+assert.throws(()=>validateResourcePolicy({...policy,models:[]}),/enabled model/);
+assert.throws(()=>assertModelAllowed(config,'small','unapproved'),/outside/);
+assert.throws(()=>assertModelAllowed({...config,resource_policy:{...policy,max_model_tier:'standard'}},'strong','review-model'),/ceiling/);
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'atl-resource-policy-'));
+let server;
+try {
+  fs.mkdirSync(path.join(root,'config'));fs.writeFileSync(path.join(root,'config/manager.json'),JSON.stringify({...config,unrelated:{keep:true}}));
+  const state=emptyState();state.tasks[simple.id]={...simple};saveState(root,state);
+  saveResourcePolicy(root,policy);assert.equal(readResourceConfig(root).unrelated.keep,true);
+  const preview=buildLaunchPlan(root,{taskIds:[simple.id],discover});
+  assert.equal(preview.items[0].resources.budget.max_sessions,3);assert.equal(preview.items[0].provider.model,'routine-model');
+  const started=await startControlPlaneServer(root);server=started.server;
+  const get=await fetch(started.url+'api/resource-policy').then(r=>r.json());assert.equal(get.policy.max_sessions,18);
+  assert.ok(!JSON.stringify(get).includes('api_key'),'resource inventory exposes no credential objects');
+  const routeResponse=await fetch(started.url+'api/tasks/provider-route',{method:'POST',body:JSON.stringify({taskId:simple.id,provider:'normal',model:'general-model'})});assert.equal(routeResponse.status,200);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root,'.trust/manager/state.json'),'utf8')).tasks[simple.id].provider_route,{provider:'normal',model:'general-model'});
+  assert.equal((await fetch(started.url+'api/tasks/provider-route',{method:'POST',body:JSON.stringify({taskId:simple.id,provider:'missing',model:'x'})})).status,400);
+  const pinnedPreview=buildLaunchPlan(root,{taskIds:[simple.id],discover});assert.equal(pinnedPreview.items[0].provider.model,'general-model');
+  const clearRoute=await fetch(started.url+'api/tasks/provider-route',{method:'POST',body:JSON.stringify({taskId:simple.id,provider:null})});assert.equal(clearRoute.status,200);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root,'.trust/manager/state.json'),'utf8')).tasks[simple.id].provider_route,undefined);
+  const bad=await fetch(started.url+'api/resource-policy',{method:'POST',body:JSON.stringify({...policy,default_sessions:99})});assert.equal(bad.status,400);
+  const res=await fetch(started.url+'api/resource-policy',{method:'POST',body:JSON.stringify({...policy,default_sessions:9})});assert.equal(res.status,200);
+  assert.equal(resourceView(root).policy.default_sessions,9);
+  const lock=path.join(root,'.trust/manager/run-lock.json');
+  fs.writeFileSync(lock,JSON.stringify({pid:process.pid,runId:'resource-policy-test'}));
+  const activeRoute=await fetch(started.url+'api/tasks/provider-route',{method:'POST',body:JSON.stringify({taskId:simple.id,provider:'normal',model:'general-model'})});assert.equal(activeRoute.status,409);
+  const activeChange=await fetch(started.url+'api/resource-policy',{method:'POST',body:JSON.stringify({...policy,default_sessions:10})});
+  assert.equal(activeChange.status,409);
+  assert.equal(resourceView(root).policy.default_sessions,9,'an active queue keeps its resource policy');
+  fs.unlinkSync(lock);
+  const local=await fetch(started.url+'api/plan/local',{method:'POST',body:JSON.stringify({intent:'Fix a typo in README'})}).then(r=>r.json());
+  assert.equal(local.ok,true,local.error);assert.ok(Object.keys(local.draft.resources).length,'Plan Studio returns per-card resource previews');
+  const snapshot=await fetch(started.url+'api/snapshot').then(r=>r.json());
+  assert.ok(JSON.stringify(snapshot).includes('resource_preview'));
+} finally {if(server)await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}
+console.log('PASS: adaptive budgets, model routing, owner ceilings, explicit overrides, no-spend blockers and Settings/Plan Studio API');

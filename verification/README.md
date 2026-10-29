@@ -1,5 +1,7 @@
 # ATL formal verification suite
 
+Read [development](../docs/development.md) for setup and the [feature map](../docs/guides.md) for executable regression entry points. This page retains formal-model procedures and their limits.
+
 Task change review: run `node verification/task_changes_test.mjs`, `node verification/change_review_store_test.mjs`, `node verification/task_changes_api_test.mjs`, and `node verification/task_changes_ui_test.mjs`. These cover baseline attribution, immutable captures, lazy/pinned previews, revision freshness, bounds, redaction, corruption and controller state. The UI test uses a DOM double; rendered/accessibility checks remain separate. See [task change review](../docs/task-change-review.md) for the isolated fixture and known validation limits.
 
 The executable queue recovery and delivery regression is documented in [queue preparation and delivery](../docs/queue-recovery.md). Run `node verification/queue_recovery_delivery_test.mjs` to exercise verified handoffs, offline prerequisites, bounded repair, restart replay, and the integrated browser delivery gate using deterministic local providers.

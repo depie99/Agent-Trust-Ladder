@@ -45,7 +45,7 @@ export function dispatchPreflight(root, task, tasks, { providerReady = true, pro
         if (result.status !== 0) return { ready: false, cause: "local-dependencies-unavailable", recovery_owner: "owner", reason: `locked packages unavailable in local cache; network is not authorized: ${String(result.stderr || result.error || "npm ci failed").slice(-2000)}` };
         fs.writeFileSync(receipt, dependencyReceipt); fresh = true;
       }
-      if (!fresh) return { ready: false, cause: "local-dependencies", reason: "locked local dependencies require runtime preparation" };
+      if (!fresh) return { ready: false, cause: "local-dependencies", reason: "Locked dependencies are not prepared in this task workspace: node_modules/.package-lock.json or the matching .atl-dependencies.json receipt is missing or stale. Automatic offline preparation is disabled (workspaces.provisionLocal is not true). Enable workspaces.provisionLocal and run recovery; ATL will run npm ci --offline --ignore-scripts --no-audit --no-fund from its local cache without a model session." };
     }
   }
   for (const command of contract.commands || []) {

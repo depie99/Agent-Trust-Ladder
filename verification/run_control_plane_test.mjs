@@ -114,7 +114,7 @@ function makeProject(label) {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-// ---------- bounded retry: stalled worker gets one Mira recovery, then honest block
+// ---------- unchanged stall: no retry without a successful repair and preflight
 {
   const root = makeProject("retry");
   const run = await executeLaunchQueue(root, {
@@ -123,12 +123,12 @@ function makeProject(label) {
     maxSessions: 5,
     onProgress: () => {},
   });
-  assert.ok(run.results.some((row) => row.status === "requeued"), "the stalled task was retried through Mira's recovery");
+  assert.ok(!run.results.some((row) => row.status === "requeued"), "an unchanged stalled worker cannot be retried without repair evidence");
   const after = loadState(root);
   assert.equal(after.tasks["T-001"].status, "blocked", `a twice-stalled task ends blocked, not silently running: ${JSON.stringify(run.results)} ${JSON.stringify(after.tasks["T-001"].recovery)}`);
   assert.equal(after.tasks["T-001"].blocker.actor, "manager", "containment is recorded under the confirming human's authority");
   const feed = fs.readFileSync(path.join(root, ".trust", "manager", "feed.jsonl"), "utf8");
-  assert.match(feed, /auto-recovered/, "the retry is narrated in the team feed");
+  assert.match(feed, /blocked/, "the unresolved stall is narrated in the team feed");
   fs.rmSync(root, { recursive: true, force: true });
 }
 
@@ -146,9 +146,11 @@ function makeProject(label) {
   assert.match(untouched[0].reason, /worker did not advance|task session budget reached/, "later work reports its own honest outcome");
   assert.notEqual(untouched[0].status, "failed", "later work is never marked failed by another task's budget");
   const after = loadState(root);
-  assert.equal(after.tasks["T-002"].status, "assigned", "the untouched task keeps its pre-run state");
+  assert.equal(run.budget.sessions, 2, 'each task receives its own single-session allowance');
+  assert.equal(after.tasks["T-002"].status, "blocked", "the second worker also stalled and is contained under its own outcome");
   const runMeta = JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "overnight", "run.json"), "utf8"));
-  assert.equal(runMeta.status, "exhausted", "a consumed session allowance is persisted distinctly from completed delivery");
+  assert.notEqual(runMeta.status, "completed", "stalled tasks cannot be reported as completed delivery");
+  assert.equal(runMeta.delivery?.ready || false, false, 'no failed queue is ready to ship');
   fs.rmSync(root, { recursive: true, force: true });
 }
 

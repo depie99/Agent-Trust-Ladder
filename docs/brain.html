@@ -1,111 +1,21 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="The ATL Brain: source-linked knowledge, provenance, freshness, approvals, skills, and bounded routines." />
-    <title>The ATL Brain — Evidence that survives the session</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=3" />
-    <link rel="stylesheet" href="styles.css?v=7" />
-    <meta name="theme-color" content="#0b0b10" />
-    <script>(function(){try{var s=localStorage.getItem("atl-theme");if(s==="light"||(!s&&matchMedia("(prefers-color-scheme: light)").matches))document.documentElement.classList.add("light")}catch(e){}})();</script>
-  </head>
-  <body>
-    <a class="skip-link" href="#main-content">Skip to content</a>
-    <div class="app-shell">
-      <aside class="sidebar" aria-label="Documentation navigation">
-        <a class="brand brand-link" href="index.html"><div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div><div><strong>ATL</strong><small>Agent Trust Ladder</small></div></a>
-        <div class="sidebar-caption">Start</div>
-        <nav class="nav-list">
-          <a class="nav-item" href="index.html"><span>⌂</span>Overview</a>
-          <a class="nav-item" href="index.html#quickstart"><span>→</span>Quickstart</a>
-        </nav>
-        <div class="sidebar-caption">Documentation</div>
-        <nav class="nav-list">
-          <a class="nav-item" href="skills.html"><span>✦</span>Skills</a>
-          <a class="nav-item" href="guides.html"><span>▤</span>Guides</a>
-          <a class="nav-item" href="control-room.html"><span>▣</span>Control Room</a>
-          <a class="nav-item active" href="brain.html" aria-current="page"><span>◈</span>ATL Brain</a>
-          <a class="nav-item" href="team.html"><span>◉</span>Team</a>
-          <a class="nav-subitem" href="team-interfaces.html">Team interfaces</a>
-          <a class="nav-item" href="jev.html"><span>◌</span>Jev routing</a>
-          <a class="nav-item" href="reference.html"><span>⌘</span>Reference</a>
-          <a class="nav-item" href="diagrams.html"><span>⌁</span>Diagrams</a>
-        </nav>
-        <div class="sidebar-footer">
-          <div class="status-dot"><i></i>Evidence-first mode</div>
-          <p>Smallest trustworthy route.<br />Clear proof at every gate.</p>
-        </div>
-      </aside>
-      <main id="main-content">
-        <header class="topbar"><div class="crumbs"><span>ATL</span><b>/</b><span class="current">The Brain</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme" aria-pressed="false"></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder">GitHub ↗</a></div></header>
-        <div class="content-wrap">
-          <section class="hero" id="overview">
-            <div class="eyebrow"><span class="pulse"></span> PERSISTENT ENGINEERING KNOWLEDGE</div>
-            <h1>The ATL Brain:<br /><em>evidence that survives.</em></h1>
-            <p class="hero-copy">The Brain gives ATL durable project memory without turning memory into authority. It preserves sources, links claims to revisions, surfaces disagreement and staleness, and supplies bounded context to workers.</p>
-            <div class="hero-actions"><a class="button primary" href="control-room.html">Open the Control Room ↗</a><a class="button secondary" href="#control-plane">Use the Evidence page →</a></div>
-            <div class="hero-note"><span>◈</span> The manager approves knowledge. Workers use it. ATL still requires observed evidence.</div>
-          </section>
-
-          <section class="stats-grid" aria-label="Brain principles"><div class="stat-card"><span class="stat-icon violet">◉</span><div><strong>1</strong><span>source of truth</span></div><small>raw evidence remains available</small></div><div class="stat-card"><span class="stat-icon mint">↔</span><div><strong>0</strong><span>silent conflicts</span></div><small>disagreement stays visible</small></div><div class="stat-card"><span class="stat-icon amber">30</span><div><strong>days</strong><span>default freshness</span></div><small>stale claims need review</small></div></section>
-
-          <section class="section-block" id="why"><div class="section-heading"><div><span class="section-kicker">WHY IT EXISTS</span><h2>Context is useful. Context is not proof.</h2></div></div><div class="guide-grid"><article class="guide-card"><span class="guide-number">01</span><div><h3>Sessions end; evidence should not.</h3><p>Research records, source bytes, revisions, claims, and decisions remain available after an agent restart or context compaction.</p></div></article><article class="guide-card"><span class="guide-number mint-number">02</span><div><h3>Interpretations can disagree.</h3><p>ATL preserves both claims and marks the subject conflicted instead of overwriting one interpretation with the other.</p></div></article><article class="guide-card"><span class="guide-number amber-number">03</span><div><h3>Workers need bounded context.</h3><p>Each launch receives only a task-scoped context pack with claim IDs, statuses, source IDs, revisions, and checked times.</p></div></article></div></section>
-
-          <section class="section-block" id="flow"><div class="section-heading"><div><span class="section-kicker">THE FLOW</span><h2>From source to safe worker context.</h2></div><span class="section-note">Every arrow has a durable artifact.</span></div><div class="workflow-card"><div class="flow-diagram" aria-label="Source, archive, claim, review, context, worker"><div class="flow-node"><b>01</b><strong>Source</strong><small>URL, file, record</small></div><div class="flow-node"><b>02</b><strong>Archive</strong><small>bytes + SHA-256</small></div><div class="flow-node"><b>03</b><strong>Claim</strong><small>status + provenance</small></div><div class="flow-node"><b>04</b><strong>Review</strong><small>freshness + approval</small></div><div class="flow-node last"><b>05</b><strong>Context</strong><small>bounded worker pack</small></div></div><div class="workflow-copy"><span class="mini-label">AUTHORITATIVE BOUNDARY</span><h3>Brain context informs work.<br /><span>ATL evidence closes it.</span></h3><p>A claim marked UNKNOWN, PARTIAL, CONFLICTED, or stale can guide investigation, but it cannot satisfy a completion check. Only an observed task evidence entry can do that.</p></div></div></section>
-
-          <section class="split-section" id="implementation"><div class="evidence-panel"><span class="section-kicker">IMPLEMENTED STORE</span><h2>Small, inspectable,<br /><em>rebuildable.</em></h2><p>The current store is project-local and file-based. Writes use atomic replacement; source snapshots are content-addressed; duplicate replay is idempotent.</p><div class="quote">“.trust/manager/brain/” is the runtime home.</div></div><div class="ledger-panel"><div class="panel-title"><span>STORE LAYOUT</span><span class="live-chip"><i></i> LOCAL</span></div><div class="ledger-row"><span class="check">✓</span><div><strong>raw/&lt;sha256&gt;/content</strong><small>original source bytes</small></div><b class="proven">RETAINED</b></div><div class="ledger-row"><span class="check">✓</span><div><strong>sources.json</strong><small>revision, URI, result, observed time</small></div><b class="proven">LINKED</b></div><div class="ledger-row"><span class="check">✓</span><div><strong>claims.json</strong><small>claim status and provenance</small></div><b class="proven">ATOMIC</b></div><div class="ledger-row"><span class="check">✓</span><div><strong>events.jsonl</strong><small>append-only intake history</small></div><b class="proven">AUDITABLE</b></div></div></section>
-
-          <section class="section-block" id="control-plane">
-            <div class="section-heading"><div><span class="section-kicker">QUICK GUIDE</span><h2>How to use Evidence &amp; Automation.</h2></div><a href="control-room.html">Control Room guide &rarr;</a></div>
-            <p>Open <strong>Knowledge</strong> in the local Control Plane to reach <strong>Evidence &amp; Automation</strong>. Use this page to review saved project facts, check whether they are still current, and manage reusable skills and routine registrations. It keeps useful knowledge available across sessions while preserving the source behind each claim. Task completion still requires its own observed evidence.</p>
-            <div class="example-grid">
-              <article class="example-card"><h3>Sources and Claims</h3><p>A source is an archived evidence record. A claim is a statement linked to a source revision. The cards count stored source records and claims; multiple revisions can belong to the same source.</p></article>
-              <article class="example-card"><h3>Stale</h3><p>Counts claims last checked more than 30 days ago, or observed more than 30 days ago if never checked. Stale means review is due; it does not automatically mean false or change the claim status.</p></article>
-              <article class="example-card"><h3>Routines</h3><p>Counts registered routines, including disabled ones. Registration stores a proposed schedule and approved skill version; it does not start scheduled execution.</p></article>
-            </div>
-            <h3>Start with the empty page</h3>
-            <p>Zeros mean no records are present in the current snapshot. Confirm the Control Plane is live and connected to the intended project, then click <strong>Refresh</strong>. Refresh reloads saved data; it does not research the project or create claims. The browser currently has no source or claim creation form. Use the terminal commands below from the same project to add a small record, then refresh.</p>
-            <h3>Review and approve a claim</h3>
-            <ol>
-              <li>Read the statement in <strong>Claims &amp; freshness</strong>. Note its claim ID, source ID, status, and checked time.</li>
-              <li>Use <code>atl brain list</code> and <code>atl brain status</code> to inspect the source revision and archived content path. Compare the claim with that evidence before approving it.</li>
-              <li>Click <strong>Approve</strong> for an UNKNOWN or PARTIAL claim only after review. Approval changes it to VERIFIED and records the manager and current checked time.</li>
-              <li>Investigate CONFLICTED claims before approval; the backend refuses approval while conflicted. SUPERSEDED means the claim has been replaced. Neither status has an Approve button.</li>
-            </ol>
-            <p>For a stale VERIFIED claim, recheck the source first, then use <code>atl brain approve &lt;claim-id&gt;</code> to record renewed approval. The page only offers approval buttons for UNKNOWN and PARTIAL claims.</p>
-            <h3>Validate a skill and register a routine</h3>
-            <p>A Gold skill is a versioned reusable procedure with complete contracts, a passing validation run linked to an artifact hash, and an independent review approving it. Run and review the fixtures before promotion; entering fixture names does not execute tests.</p>
-            <ol>
-              <li><strong>Validate / promote skill</strong> opens fields for skill ID, version, input contract, and comma-separated regression fixtures.</li>
-              <li><strong>Register routine</strong> asks for routine ID, an approved Gold skill version, schedule text, an idempotency key (a key used to identify repeat work), and a retry limit. For example, use schedule text <code>daily 09:00</code> and a key shaped like <code>routine+source+revision</code>.</li>
-              <li>Registration remains disabled and approval gated. There is no enable or execution control on this page.</li>
-            </ol>
-            <p><strong>Current form limitations:</strong> the promotion form does not submit <code>capabilities</code> or <code>validation_evidence</code>, which the backend requires for Gold. The routine form does not submit the required <code>project</code>. These submissions are refused by the current backend; a refusal is not a successful registration. A complete skill record must include all required metadata, observed run evidence, and independent review. Once an approved skill exists, the CLI routine command below supplies the missing project field. Stored retries are capped at two even though the form allows values up to five.</p>
-          </section>
-
-          <section class="section-block" id="cli">
-            <div class="section-heading"><div><span class="section-kicker">TERMINAL QUICKSTART</span><h2>Add your first source and claim.</h2></div></div>
-            <p>Run from your ATL project. This example records a demonstration note, not a verified project fact. Use identical source content in both commands so the claim refers to the archived revision. Replace the note with real evidence for normal use.</p>
-            <div class="code-card"><b><span>archive, record, and inspect</span><button class="copy-code" type="button">Copy</button></b><pre>atl brain source --set source_id=guide-demo --set source_content="Demo note: review evidence before approval."
-atl brain claim --set source_id=guide-demo --set source_content="Demo note: review evidence before approval." --set text="The demo note asks for evidence review." --set status=UNKNOWN
-atl brain status
-atl brain list
-atl brain stale</pre></div>
-            <p>Click <strong>Refresh</strong> in Knowledge to see the source and claim. Review the archived note, then approve the example claim if it matches. For terminal approval, substitute the actual claim ID returned by <code>atl brain list</code>:</p>
-            <div class="code-card"><b><span>record manager review</span></b><pre>atl brain approve &lt;claim-id&gt;</pre></div>
-            <h3>Register a disabled routine for an existing Gold skill</h3>
-            <p>Inspect <code>atl brain skill</code> first. Replace the example project, skill ID, and version with your own values; the exact approved skill version must already exist.</p>
-            <div class="code-card"><b><span>register and inspect</span></b><pre>atl brain routine register --set id=daily-summary --set project=my-project --set skill_id=summary --set skill_version=1.0.0 --set schedule="daily 09:00" --set idempotency_key=daily-summary+source+revision --set retry_limit=2
-atl brain routine</pre></div>
-            <p><strong>Safety boundary:</strong> the manager owns approval, routine registration requires an approved Gold skill version, and new routines remain disabled. Knowledge is advisory; task evidence and explicit run confirmation remain authoritative.</p>
-          </section>
-
-          <section class="callout-panel" id="limits"><div><span class="section-kicker">HONEST LIMITS</span><h2>What is deliberately not automatic.</h2><p>The current Brain does not send messages, deploy, spend money, change policy, or enable routines on its own. Provider quota remains unknown unless provider telemetry directly proves it. Browser context is advisory, not a security boundary.</p></div><a class="button secondary" href="reference.html#evidence">Read the evidence model →</a></section>
-          <footer id="footer"><span>ATL Docs</span><span>Evidence first · Context aware · Human gated</span><a href="https://github.com/depie99/Agent-Trust-Ladder">View repository →</a></footer>
-        </div>
-      </main>
-    </div>
-    <script src="app.js?v=7"></script>
-  </body>
-</html>
+<!-- Generated by scripts/build-docs.mjs from docs/brain.md. Do not edit this HTML. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Knowledge and learning · ATL Docs</title><meta name="description" content="ATL retains source-backed claims, context, and lessons locally. Learning means recorded knowledge and bounded policy calibration; it does not retrain provider model weigh"><link rel="canonical" href="https://depie99.github.io/Agent-Trust-Ladder/brain.html"><link rel="icon" href="favicon.svg"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><script type="module" src="mermaid-loader.js"></script></head>
+<body><a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><a class="brand" href="index.html"><span class="brand-mark">A</span> ATL <span>Documentation</span></a><div class="header-actions"><button id="menu-toggle" aria-expanded="false" aria-controls="sidebar">Menu</button><button id="search-open">Search <kbd>Ctrl K</kbd></button><button id="theme-toggle" aria-label="Toggle theme">Theme</button><a href="https://github.com/depie99/Agent-Trust-Ladder">GitHub ↗</a></div></header>
+<div class="docs-layout"><aside id="sidebar" class="sidebar"><nav aria-label="Documentation"><section class="nav-group"><h2>Start here</h2><a href="index.html">Overview</a><a href="getting-started.html">Getting started</a><a href="control-room.html">Control Plane</a><a href="guides.html">Feature and how-to map</a></section><section class="nav-group"><h2>Workflows</h2><a href="issue-sources.html">Issue sources</a><a href="plan-studio.html">Plan Studio</a><a href="tasks-and-queues.html">Tasks and queues</a><a href="overnight-runs.html">Overnight runs</a><a href="ask-atl.html">Ask ATL</a><a href="task-change-review.html">Review changes</a><a href="queue-recovery.html">Queue recovery</a><a href="task-run-reliability.html">Run reliability</a><a href="plan-studio-contract.html">Plan contract</a></section><section class="nav-group"><h2>Operations</h2><a href="providers.html">Providers and access</a><a href="resource-policy.html">Resource policy</a><a href="model-routing.html">Model routing</a><a href="execution-reports.html">Execution reports</a><a href="projects-and-backups.html">Projects and backups</a><a href="research-and-navigation.html">Research and navigation</a><a href="codex-history-bridge.html">Codex history bridge</a><a href="troubleshooting.html">Troubleshooting</a></section><section class="nav-group"><h2>Concepts</h2><a href="architecture.html">Architecture</a><a href="resource-model.html">Resource and file model</a><a href="team.html">Agent team</a><a href="brain.html" aria-current="page">Knowledge and learning</a><a href="jev.html">Jev routing</a><a href="diagrams.html">Diagram library</a></section><section class="nav-group"><h2>Reference</h2><a href="skills.html">Skill catalog</a><a href="reference.html">Trust vocabulary</a><a href="configuration.html">Configuration</a><a href="state-contract.html">Lifecycle reference</a><a href="cli-reference.html">CLI reference</a><a href="api-reference.html">Local API reference</a><a href="repository-map.html">File catalog</a></section><section class="nav-group"><h2>Contributing</h2><a href="development.html">Development and verification</a><a href="documentation.html">Documentation workflow</a><a href="docs-refresh-verification.html">Documentation verification</a></section></nav><p class="version">Package 0.1.3 · Node &gt;=22<br>Source snapshot: October 29, 2026</p></aside><main id="main-content"><div class="breadcrumbs"><a href="index.html">Docs</a> / Concepts</div><article><h1 id="knowledge-and-learning">Knowledge and learning</h1>
+<p>ATL retains source-backed claims, context, and lessons locally. Learning means recorded knowledge and bounded policy calibration; it does not retrain provider model weights.</p>
+<h2 id="inspect-and-recall">Inspect and recall</h2>
+<p>Open <strong>Knowledge</strong> and inspect a claim's source and revision before reuse.</p>
+<div class="code-block"><button class="copy-code" type="button" aria-label="Copy code">Copy</button><pre><code class="language-sh">atl memory status
+atl memory recall &quot;queue recovery&quot;
+</code></pre>
+</div><p>Read the <a href="cli-reference.html">CLI reference</a> before adding or forgetting memory. Preserve failed attempts as well as successes.</p>
+<h2 id="trace-evidence">Trace evidence</h2>
+<p>Brain stores sources, immutable raw snapshots, claims, events, and context packs under <code>.trust/manager/brain/</code>. Remembered claims do not bypass task checks. See <a href="resource-model.html">resource model</a>.</p>
+<h2 id="learn-from-execution">Learn from execution</h2>
+<p>Execution records preserve configured provider/model, sessions, and observed usage. Resource calibration uses qualifying verified history within configured limits. Missing tokens stay unknown. See <a href="execution-reports.html">execution reports</a> for eligibility, sample minimums, and anti-self-training rules.</p>
+<h2 id="record-a-useful-lesson">Record a useful lesson</h2>
+<p>Include the original condition, action, output/failure, remedy, verification result, and reusable scope. Avoid secrets and universal conclusions from one fixture. The <a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/mock-system-e2e-2026-10-29.md">mock report</a> records failures and accomplishments separately. Review research before promotion through <a href="research-and-navigation.html">research and navigation</a>.</p>
+<p>Source: <code>runtime/lib/brain.mjs</code>, <code>memory.mjs</code>, <code>execution-report.mjs</code>, <code>resource-policy.mjs</code>. Locate corresponding verifiers in the <a href="repository-map.html">catalog</a>.</p>
+</article><nav class="adjacent" aria-label="Adjacent pages"><a href="team.html"><small>Previous</small>Agent team</a><a href="jev.html"><small>Next</small>Jev routing</a></nav><footer><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/brain.md">View Markdown source ↗</a><a href="documentation.html">Improve this documentation</a><span>MIT</span></footer></main><aside class="page-toc"><h2>On this page</h2><nav aria-label="On this page"><a class="h2" href="#inspect-and-recall">Inspect and recall</a><a class="h2" href="#trace-evidence">Trace evidence</a><a class="h2" href="#learn-from-execution">Learn from execution</a><a class="h2" href="#record-a-useful-lesson">Record a useful lesson</a></nav></aside></div>
+<dialog id="search-dialog"><div class="search-heading"><label for="search-input">Search documentation</label><button id="search-close" aria-label="Close search">Esc</button></div><input id="search-input" type="search" placeholder="Try Jira, queue, Ask ATL, or models" autocomplete="off"><div id="search-results" aria-live="polite"></div></dialog></body></html>

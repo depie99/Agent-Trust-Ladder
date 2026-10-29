@@ -1,5 +1,7 @@
 # Installing and Using Agent Trust Ladder from GitHub
 
+For the current browser-first path, follow [getting started](docs/getting-started.md). See [issue sources](docs/issue-sources.md) for Jira, GitHub, and Azure setup and the [CLI reference](docs/cli-reference.md) for commands.
+
 For the browser's revision-linked file tree, diffs, evidence and task data model, see [Reviewing task changes](docs/task-change-review.md). Open a task and choose **Review changes**; **Diagram** opens its record relationships.
 
 Complete guide to getting the skill running in your AI coding agent, keeping it updated, and troubleshooting. For the full workflow walkthrough (scenarios, dose control, FAQ) see [GUIDE.md](GUIDE.md). راهنمای فارسی: [README.fa.md](README.fa.md)
@@ -10,7 +12,7 @@ Complete guide to getting the skill running in your AI coding agent, keeping it 
 
 - Any AI coding agent that supports the [Agent Skills](https://agentskills.io) convention (skills folders) — Claude Code, Codex CLI, Cursor, Copilot CLI, Gemini CLI, opencode, Windsurf, and more.
 - Git (for manual install and updates).
-- Node.js 18+ (only for the `npx skills` installer).
+- Node.js 22+ for the ATL runtime, documentation tooling, and examples in this guide.
 
 ---
 
@@ -94,7 +96,7 @@ cd Agent-Trust-Ladder
 scripts\install-atl.cmd        # Windows    (macOS/Linux: ./scripts/install-atl.sh)
 ~~~
 
-Requires Node 18+. The installer copies the runtime and skills to the per-user install directory (`%USERPROFILE%\.atl` on Windows, `~/.atl` on macOS/Linux), adds an **`atl`** command to your user PATH (`--no-path` to skip), and ships paste-ready role prompts. The clone is only the installer source; do not copy it into every project. Then, in **any target project**:
+Requires Node 22+. The installer copies the runtime and skills to the per-user install directory (`%USERPROFILE%\.atl` on Windows, `~/.atl` on macOS/Linux), adds an **`atl`** command to your user PATH (`--no-path` to skip), and ships paste-ready role prompts. The clone is only the installer source; do not copy it into every project. Then, in **any target project**:
 
 ~~~bash
 cd your-project

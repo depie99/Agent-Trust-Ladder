@@ -89,7 +89,7 @@ export function autoRecoverBlockedTask(root, taskId, { note = "retrying after an
   if (task.status !== "blocked") return { recovered: false, kind: "not-blocked", task };
 
   const reason = typeof task.blocker === "string" ? task.blocker : task.blocker?.reason || "";
-  if (/provider usage limit|usage limit for GapCode|provider quota (?:exhausted|reached)/i.test(reason)) {
+  if (/provider usage limit|usage limit for GapCode|provider quota (?:exhausted|reached)|provider reported (?:exhausted quota|a rate limit)|(?:hit|reached|exhausted).{0,30}usage limit/i.test(reason)) {
     return { recovered: false, kind: "provider-quota", reason, task };
   }
   if (task.recovery?.status !== "resolved" && /contract (?:conflict|contradiction)|conflicting (?:task|contract)|downstream.*(?:owns|owned)|pending manager contract/i.test(reason)) {

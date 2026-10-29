@@ -21,19 +21,27 @@ fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-api-"));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
+fs.mkdirSync(path.join(root, "verification"), { recursive: true });
+fs.writeFileSync(path.join(root, "verification", "plan_studio_api_test.mjs"), "// verifier fixture\n");
 saveState(root, emptyState());
 
 let planningCalls = 0;
 const validPlan = {
+  plan_contract_version: 2,
   title: "Model-planned feature",
   objective: "Plan the bounded feature end to end",
+  requirements: [{ id: "r1", text: "The feature works", source: "original request" }],
+  constraints: [], observed_evidence: [{ description: "Relevant project verification exists", path: "verification/plan_studio_api_test.mjs" }],
+  assumptions: [], open_questions: [],
   completion_checks: ["the feature is observable"],
   acceptance_examples: [{ given: "g", when: "w", then: "t" }],
   implementation_steps: [{ step: "Implement it", files: ["src/"], verify: "node verification/plan_studio_api_test.mjs" }],
   verifier_commands: ["node verification/plan_studio_api_test.mjs"],
+  task_proposals: [{ id: "p1", title: "Implement it", objective: "Implement the feature", instructions: "Implement the requested behavior and preserve existing contracts.", deliverables: ["working feature"], requirement_ids: ["r1"], completion_checks: ["the feature is observable"], proposed_worker: "pip", selected_skills: ["atl-verify"], skill_reasons: { "atl-verify": "Plans verifiable acceptance evidence." }, depends_on: [], files: ["verification/plan_studio_api_test.mjs"], verify: "node verification/plan_studio_api_test.mjs" }],
 };
 const fakeInvoke = async ({ request }) => {
   planningCalls += 1;
+  if (request.review) return { code: 0, text: JSON.stringify({ verdict: "passed", findings: [] }), provider: "testprov", model: "m-1" };
   if (request.current_proposal) {
     return { code: 0, text: JSON.stringify({ title: "Regenerated card", objective: "Regenerated objective", completion_checks: ["regen check"] }), provider: "testprov", model: "m-2" };
   }
@@ -136,24 +144,30 @@ try {
   assert.ok(regen.body.draft.artifact.task_proposals[0].revisions.length >= 2, "regeneration keeps prior versions");
 
   const approved = await command(`plan approve ${draftId}`);
-  assert.equal(approved.body.ok, true, "approval works through the command bridge");
-  assert.equal(approved.body.created, true, "approval reports creation");
-  assert.ok(String(approved.body.queueId || "").startsWith("plan-"), "approval returns the plan queue id");
-  assert.equal(approved.body.taskIds.length, 1, "approval returns the generated task ids");
+  assert.equal(approved.body.ok, false, "approval without a fresh accuracy review is blocked");
+  assert.match(approved.body.lines.join(" "), /fresh, passing accuracy review/);
+  const reviewed = await post("/api/plan/review", { draftId, provider: "testprov" });
+  assert.equal(reviewed.status, 200, "the separate model review runs through the API");
+  assert.equal(reviewed.body.review.verdict, "passed");
+  const approvedAfterReview = await command(`plan approve ${draftId}`);
+  assert.equal(approvedAfterReview.body.ok, true, "reviewed approval works through the command bridge");
+  assert.equal(approvedAfterReview.body.created, true, "approval reports creation");
+  assert.ok(String(approvedAfterReview.body.queueId || "").startsWith("plan-"), "approval returns the plan queue id");
+  assert.equal(approvedAfterReview.body.taskIds.length, 1, "approval returns the generated task ids");
   const reapproved = await command(`plan approve ${draftId}`);
   assert.equal(reapproved.body.created, false, "browser re-approval creates no duplicates");
-  assert.deepEqual(reapproved.body.taskIds, approved.body.taskIds, "re-approval returns the same ids");
+  assert.deepEqual(reapproved.body.taskIds, approvedAfterReview.body.taskIds, "re-approval returns the same ids");
 
   const paused = await command("queue create sidequeue --name Side");
   assert.equal(paused.body.ok, true, "a second queue can be created for the multi-queue flow");
   await command("queue pause sidequeue");
-  const multiPreview = await post("/api/run/preview", { queueIds: [approved.body.queueId, "sidequeue"] });
+  const multiPreview = await post("/api/run/preview", { queueIds: [approvedAfterReview.body.queueId, "sidequeue"] });
   assert.equal(multiPreview.status, 200, "the multi-queue preview works");
   assert.ok(multiPreview.body.lines.some((line) => /queue sidequeue: paused/.test(line)), "a paused selected queue is narrated as skipped");
   assert.equal(multiPreview.body.preview.roundRobin, true, "the multi preview is labelled round-robin");
   const badQueue = await post("/api/run/preview", { queueIds: ["ghost-queue"] });
   assert.equal(badQueue.status, 400, "an unknown-only selection refuses the preview");
-  const unconfirmedRun = await post("/api/run", { queueIds: [approved.body.queueId] });
+  const unconfirmedRun = await post("/api/run", { queueIds: [approvedAfterReview.body.queueId] });
   assert.equal(unconfirmedRun.status, 400, "multi-queue execution still requires explicit confirmation");
 
   // queue delete = archive: leaves the board, tasks untouched, default protected
@@ -177,6 +191,8 @@ try {
 {
   const root2 = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-api-malformed-"));
   fs.mkdirSync(path.join(root2, ".trust", "manager"), { recursive: true });
+  fs.mkdirSync(path.join(root2, "verification"), { recursive: true });
+  fs.writeFileSync(path.join(root2, "verification", "plan_studio_api_test.mjs"), "// verifier fixture\n");
   saveState(root2, emptyState());
   process.env.USERPROFILE = fakeHome;
   fs.mkdirSync(path.join(fakeHome, ".atl"), { recursive: true });

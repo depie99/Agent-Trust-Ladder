@@ -14,7 +14,7 @@ surface and do not document its interaction model in this change.
 | --- | --- |
 | Primary audience | An ATL project owner who wants to use the browser interface safely. |
 | Primary goal | Start the local web Control Plane, understand its spaces, create/review work, configure a provider, preview a run, and explicitly start or stop it. |
-| Prerequisites | Node 18+, ATL installed, and an initialized project. A provider is needed only to execute a run. |
+| Prerequisites | Node 22+, ATL installed, and an initialized project. A provider is needed only to execute a run. |
 | Expected result | The reader can operate the web interface without confusing a preview with execution or a built-in Codex subscription with an API-key provider. |
 | In scope | `atl ui`, browser spaces, command palette, task and queue workflow, Plan Studio, local provider status, Codex subscription sign-in, safe previews, and CLI equivalents. |
 | Out of scope | Terminal-TUI UX, keyboard maps for `atl tui`, undocumented provider integrations, deployment of the localhost web server, and guarantees about a provider's quota. |

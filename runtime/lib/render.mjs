@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { paths } from "./state.mjs";
+import { latestTaskEvidence } from "./task-diagnostics.mjs";
 import { requiresHumanAction } from "./recovery.mjs";
 
 const AGE = (iso) => {
@@ -148,8 +149,10 @@ export function renderTask(task) {
   if (t.completion_checks.length) {
     L.push("  completion checks:");
     for (const c of t.completion_checks) {
-      const ev = t.evidence.filter((e) => e.kind === "check" && e.check === c);
-      const mark = ev.some((e) => e.result === "pass") ? "PASS" : ev.some((e) => e.result === "fail") ? "FAIL" : "----";
+      const ev = latestTaskEvidence(t, "check", c);
+      const review = latestTaskEvidence(t, "review");
+      const rejected = review?.result === "changes-requested" && t.evidence.indexOf(ev) < t.evidence.indexOf(review);
+      const mark = ev?.result === "fail" ? "FAIL" : ev?.result === "pass" && ev.coverage !== "partial" && !rejected ? "PASS" : "----";
       L.push(`    [${mark}] ${c}`);
     }
   }

@@ -1,74 +1,65 @@
 <!doctype html>
-<html lang="en">
-  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="description" content="How ATL projects team feed and provider transcripts into Codex history, including token-free app-server imports, writer-lock rollover, and the explicit queue transport." /><title>ATL Docs — Codex History Bridge</title><link rel="icon" type="image/svg+xml" href="favicon.svg?v=3" /><link rel="stylesheet" href="styles.css?v=7" />
-    <meta name="theme-color" content="#0b0b10" />
-    <script>
-      // Theme no-flash: apply the stored (or system-preferred) theme before first paint.
-      (function () {
-        try {
-          var stored = localStorage.getItem("atl-theme");
-          if (stored === "light" || (!stored && window.matchMedia("(prefers-color-scheme: light)").matches)) {
-            document.documentElement.classList.add("light");
-          }
-        } catch (e) {}
-      })();
-    </script></head>
-  <body class="site-page"><a class="skip-link" href="#main-content">Skip to content</a><div class="app-shell">
-    <aside class="sidebar" aria-label="Documentation navigation">
-        <a class="brand brand-link" href="index.html"><div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div><div><strong>ATL</strong><small>Agent Trust Ladder</small></div></a>
-        <div class="sidebar-caption">Start</div>
-        <nav class="nav-list">
-          <a class="nav-item" href="index.html"><span>⌂</span>Overview</a>
-          <a class="nav-item" href="index.html#quickstart"><span>→</span>Quickstart</a>
-        </nav>
-        <div class="sidebar-caption">Documentation</div>
-        <nav class="nav-list">
-          <a class="nav-item" href="skills.html"><span>✦</span>Skills</a>
-          <a class="nav-item" href="guides.html"><span>▤</span>Guides</a>
-          <a class="nav-item" href="control-room.html"><span>▣</span>Control Room</a>
-          <a class="nav-item" href="brain.html"><span>◈</span>ATL Brain</a>
-          <a class="nav-item" href="team.html"><span>◉</span>Team</a>
-          <a class="nav-subitem" href="team-interfaces.html">Team interfaces</a>
-          <a class="nav-item" href="jev.html"><span>◌</span>Jev routing</a>
-          <a class="nav-item" href="reference.html"><span>⌘</span>Reference</a>
-          <a class="nav-item" href="diagrams.html"><span>⌁</span>Diagrams</a>
-        </nav>
-        <div class="sidebar-footer">
-          <div class="status-dot"><i></i>Evidence-first mode</div>
-          <p>Smallest trustworthy route.<br />Clear proof at every gate.</p>
-        </div>
-      </aside>
-    <main id="main-content"><header class="topbar"><div class="crumbs"><a href="index.html">ATL</a><b>/</b><span class="current">Codex history bridge</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme" aria-pressed="false"></button><button class="search-button" id="search-open" aria-label="Open search"><span>⌕</span> Search <kbd>⌘ K</kbd></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder" aria-label="Open the GitHub repository">GitHub <span>↗</span></a></div></header><div class="content-wrap">
-      <section class="page-hero"><span class="eyebrow"><span class="pulse"></span> PROVIDER HISTORY</span><h1>Bring the team<br /><em>into Codex history.</em></h1><p class="hero-copy">ATL keeps the authoritative team feed and provider transcripts locally, then projects new material into Codex through the app-server protocol. This page explains which path to choose, what is actually visible, and why the bridge never guesses a destination.</p><div class="page-meta"><div><strong>0</strong>tokens in projection mode</div><div><strong>1</strong>canonical ATL source</div><div><strong>Δ</strong>new material only</div><div><strong>2</strong>transport modes</div></div></section>
-
-      <section class="reference-block" id="goal"><div class="section-heading"><div><span class="section-kicker">THE CONTRACT</span><h2>What this bridge guarantees.</h2></div></div><div class="guide-columns"><div><h3>Source of truth</h3><p><code>.trust/manager/feed.jsonl</code> and the provider session logs under <code>.trust/manager/overnight/&lt;task&gt;</code> remain authoritative. Codex history is a provider-facing projection, not a replacement for ATL state, evidence, or gates.</p></div><div><h3>Sync behavior</h3><p>Each completed <code>run</code>, <code>overnight</code>, or <code>launch</code> session leaves its feed and transcript material for the bridge; <code>codex bridge sync</code> imports it — manually, or automatically where the runtime session hook is wired. Checkpoints make repeated syncs idempotent, so only new material is injected.</p></div></div></section>
-      <section class="diagram-feature bridge-diagram" id="architecture-map"><div class="diagram-preview"><span class="themesvg"><img class="fig-dark" src="diagrams/codex-history-bridge.svg" alt="Architecture map showing ATL feed and provider transcripts flowing through the bridge into a dedicated Codex history thread or an explicit queue turn" /><img class="fig-light" src="diagrams/codex-history-bridge.light.svg" alt="" aria-hidden="true" /></span></div><div class="diagram-copy"><span class="section-kicker">ARCHITECTURE MAP</span><h2>One source, two Codex surfaces.</h2><p>The local feed and provider transcripts stay authoritative. The bridge builds an incremental context item, records a checkpoint, and chooses the safe Codex surface: a token-free dedicated history thread or an explicit visible queue turn.</p><div class="diagram-links"><a class="button primary" href="diagrams/codex-history-bridge.svg">Open SVG <span>↗</span></a><a class="button secondary" href="#display">See the rendered interface <span>↓</span></a></div></div></section>
-
-      <section class="guide-article" id="quickstart"><div class="article-label mint-label">01 · RECOMMENDED</div><div class="article-body"><h2>Create a dedicated ATL history thread.</h2><p>This is the token-free path. ATL creates a persistent Codex thread, names it <code>ATL Team History</code>, and imports context with <code>thread/inject_items</code>. It does not start a model turn.</p><div class="code-card"><b><span>PowerShell</span><button class="copy-code" type="button">Copy</button></b><pre>node runtime/atl-manager.mjs codex bridge start
-node runtime/atl-manager.mjs codex bridge status
-node runtime/atl-manager.mjs codex bridge sync</pre></div><p class="section-note" style="margin-top:12px">The command prints the created thread id and a <code>codex://threads/&lt;id&gt;</code> deep link. The desktop app can open that thread, while ATL keeps the local feed and transcripts as the durable source.</p></div></section>
-
-      <section class="reference-block" id="steps"><div class="section-heading"><div><span class="section-kicker">STEP BY STEP</span><h2>From TUI work to Codex display.</h2></div><span class="section-note">Each step has a visible checkpoint.</span></div><div class="steps-row"><div><b>01 · RUN</b><strong>Finish a bounded ATL session.</strong><span>The worker writes feed events and a provider transcript under <code>.trust/manager</code>.</span></div><div><b>02 · BUILD</b><strong>Build only new context.</strong><span>ATL combines the feed and session log, then advances the per-thread cursor.</span></div><div><b>03 · PROJECT</b><strong>Inject or queue deliberately.</strong><span>Dedicated mode is token-free; queue mode is the visible-turn option and spends usage.</span></div><div><b>04 · INSPECT</b><strong>Open the Codex thread.</strong><span>Use the printed deep link or <code>atl history --source codex</code> to confirm persistence.</span></div></div></section>
-
-      <section class="reference-block" id="display"><div class="section-heading"><div><span class="section-kicker">WHAT YOU SEE IN CODEX</span><h2>Projection mode is context, queue mode is chat.</h2></div></div><div class="codex-ui-preview" role="img" aria-label="Mock Codex history view showing an ATL team context projection, checkpoint status, and a note that queue mode creates a visible user turn"><div class="codex-ui-head"><span><i></i> ATL Team History</span><b>CODEX · DEDICATED</b></div><div class="codex-ui-body"><div class="codex-message codex-message-context"><small>ATL BRIDGE · ASSISTANT CONTEXT</small><strong>[ATL TEAM CONTEXT — imported from local ATL TUI]</strong><p>T-004 · Rowan session completed · feed + transcript cursor advanced</p><em>model-visible context · no model turn started</em></div><div class="codex-message codex-message-system"><small>BRIDGE STATUS</small><p><span class="status-pill">SYNCED</span> 0 new items on repeat sync · checkpoint retained locally</p></div></div><div class="codex-ui-foot"><span>app-server / thread/inject_items</span><span>source: .trust/manager</span></div></div><div class="doc-callout tip"><b>Visible chat?</b><span>Use <code>codex bridge link &lt;thread&gt; --mode queue</code>. It will appear as a normal user message in the exact open conversation, then the model responds. That is intentionally separate from the background projection.</span></div></section>
-
-      <section class="guide-article" id="sync"><div class="article-label amber-label">02 · DAILY OPERATION</div><div class="article-body"><h2>Inspect status or import one task.</h2><div class="code-card"><b><span>PowerShell</span><button class="copy-code" type="button">Copy</button></b><pre>node runtime/atl-manager.mjs codex bridge status
-node runtime/atl-manager.mjs codex bridge sync
-node runtime/atl-manager.mjs codex bridge sync --task T-004
-node runtime/atl-manager.mjs history --source codex --n 10</pre></div><p>The bridge records per-thread feed and log cursors in <code>.trust/manager/codex-bridge-state.json</code>. A second sync with no new feed or transcript returns <code>no new context</code> instead of duplicating the previous import.</p></div></section>
-
-      <section class="reference-block" id="modes"><div class="section-heading"><div><span class="section-kicker">CHOOSE THE SURFACE</span><h2>Projection, rollover, or visible turn?</h2></div></div><div class="evidence-table" style="margin-top:22px"><div class="table-row table-head"><span>Mode</span><span>What happens</span><span>Cost / trade-off</span></div><div class="table-row"><span><code>dedicated</code></span><span>Injects assistant context into an ATL-owned persistent thread.</span><span>No model turn; model-visible context.</span></div><div class="table-row"><span><code>new-thread</code> fallback</span><span>If the desktop opens the target and owns its writer lock, ATL creates the next history thread and updates the target.</span><span>No model turn; history is split across rollover threads.</span></div><div class="table-row"><span><code>queue</code></span><span>Queues a normal message into an exact existing Codex session.</span><span>Visible user turn; model usage and response cost apply.</span></div></div><p class="section-note" style="margin-top:16px">Use queue only when the exact current desktop conversation must contain a normal chat message. The automatic fallback never selects it silently.</p></section>
-
-      <section class="guide-article" id="current-thread"><div class="article-label coral-label">03 · EXACT CURRENT CHAT</div><div class="article-body"><h2>Use the visible queue transport deliberately.</h2><p>To put an import into one already-open desktop conversation, link that thread with <code>--mode queue</code>. This is the only supported path in this repository that intentionally creates a normal visible turn.</p><div class="code-card"><b><span>PowerShell</span><button class="copy-code" type="button">Copy</button></b><pre>node runtime/atl-manager.mjs codex bridge link &lt;CURRENT_THREAD_ID&gt; --mode queue
-node runtime/atl-manager.mjs codex bridge sync --task T-004</pre></div><div class="doc-callout warn"><b>Token boundary</b><span>Every queue import starts a model turn. Do not enable it as a background default unless the owner explicitly accepts the usage and the extra model response.</span></div></div></section>
-
-      <section class="reference-block" id="architecture"><div class="section-heading"><div><span class="section-kicker">WHY THIS SHAPE</span><h2>Ownership and failure boundaries.</h2></div></div><div class="guide-columns"><div><h3>Why not write the rollout file?</h3><p>Codex persists thread metadata and history through its app-server/session store. Directly appending JSONL while the desktop owns a writer can race the store, leave metadata stale, or corrupt the conversation. ATL does not use that shortcut.</p></div><div><h3>Why does rollover exist?</h3><p>The desktop app may keep the currently open thread's writer lock. An external app-server process can still create and persist a new thread, so ATL rolls forward instead of silently dropping the update or starting a paid turn.</p></div></div><div class="doc-callout note"><b>Official protocol boundary</b><span><code>thread/inject_items</code> appends prebuilt Responses items without starting a user turn. <code>codex queue</code> queues a text message for an existing session and therefore follows the visible-turn path. See the <a href="https://learn.chatgpt.com/docs/app-server">official app-server documentation ↗</a> and <a href="https://learn.chatgpt.com/docs/developer-commands">developer commands ↗</a>.</span></div></section>
-
-      <section class="reference-block" id="troubleshooting"><div class="section-heading"><div><span class="section-kicker">TROUBLESHOOTING</span><h2>When the bridge does not import.</h2></div></div><div class="evidence-table" style="margin-top:22px"><div class="table-row table-head"><span>Symptom</span><span>Meaning</span><span>Next action</span></div><div class="table-row"><span><code>reason: disabled</code></span><span>No target transport is enabled.</span><span>Run <code>codex bridge start</code> or explicitly <code>codex bridge link &lt;id&gt;</code>.</span></div><div class="table-row"><span><code>reason: no new context</code></span><span>The checkpoint has already imported the current feed and logs.</span><span>Complete a new ATL session and run <code>codex bridge sync</code>, or use <code>--task</code> for a scoped import.</span></div><div class="table-row"><span>Active writer conflict</span><span>The desktop app owns the target thread.</span><span>Dedicated mode rolls to a new thread; queue mode is the explicit visible-turn alternative.</span></div><div class="table-row"><span>Provider transcript missing</span><span>The worker did not leave a session log or the path is outside ATL's overnight directory.</span><span>Inspect <code>atl feed --roster</code>, the task session screen, and the provider launch log.</span></div></div></section>
-
-      <section class="callout-panel"><div><span class="section-kicker">SOURCE FILES</span><h2>Keep the code and docs aligned.</h2><p>The implementation lives in <code>runtime/lib/codex-bridge.mjs</code>, the commands in <code>runtime/atl-manager.mjs</code>, the operator guide in <code>runtime/README.md</code>, and the focused contract test in <code>verification/codex_bridge_test.mjs</code>.</p></div><div class="callout-actions"><a class="button primary" href="team.html#doc-control-room">Team runtime <span>↗</span></a><a class="button secondary" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/README.md">GitHub source <span>↗</span></a></div></section>
-
-      <footer><span>ATL · Agent Trust Ladder</span><span><a href="https://github.com/depie99/Agent-Trust-Ladder/issues/new?title=Docs:+Codex+history+bridge">Report a docs issue ↗</a> · <a href="https://github.com/depie99/Agent-Trust-Ladder">GitHub ↗</a></span></footer>
-    </div></main></div><dialog id="search-dialog"><form method="dialog"><div class="search-modal"><input id="search-input" type="search" placeholder="Search ATL docs…" aria-label="Search ATL docs" /><button value="close" aria-label="Close search">Esc</button><p>Try “Codex history”, “app-server”, “queue”, or “provider transcript”.</p><div id="search-results" class="search-results" aria-live="polite"></div></div></form></dialog><script src="app.js?v=7"></script>
-  </body>
-</html>
+<!-- Generated by scripts/build-docs.mjs from docs/codex-history-bridge.md. Do not edit this HTML. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Codex history bridge · ATL Docs</title><meta name="description" content="ATL keeps the authoritative feed and provider transcripts locally, then optionally projects incremental context into a selected Codex thread. Projection and visible queue"><link rel="canonical" href="https://depie99.github.io/Agent-Trust-Ladder/codex-history-bridge.html"><link rel="icon" href="favicon.svg"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><script type="module" src="mermaid-loader.js"></script></head>
+<body><a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><a class="brand" href="index.html"><span class="brand-mark">A</span> ATL <span>Documentation</span></a><div class="header-actions"><button id="menu-toggle" aria-expanded="false" aria-controls="sidebar">Menu</button><button id="search-open">Search <kbd>Ctrl K</kbd></button><button id="theme-toggle" aria-label="Toggle theme">Theme</button><a href="https://github.com/depie99/Agent-Trust-Ladder">GitHub ↗</a></div></header>
+<div class="docs-layout"><aside id="sidebar" class="sidebar"><nav aria-label="Documentation"><section class="nav-group"><h2>Start here</h2><a href="index.html">Overview</a><a href="getting-started.html">Getting started</a><a href="control-room.html">Control Plane</a><a href="guides.html">Feature and how-to map</a></section><section class="nav-group"><h2>Workflows</h2><a href="issue-sources.html">Issue sources</a><a href="plan-studio.html">Plan Studio</a><a href="tasks-and-queues.html">Tasks and queues</a><a href="overnight-runs.html">Overnight runs</a><a href="ask-atl.html">Ask ATL</a><a href="task-change-review.html">Review changes</a><a href="queue-recovery.html">Queue recovery</a><a href="task-run-reliability.html">Run reliability</a><a href="plan-studio-contract.html">Plan contract</a></section><section class="nav-group"><h2>Operations</h2><a href="providers.html">Providers and access</a><a href="resource-policy.html">Resource policy</a><a href="model-routing.html">Model routing</a><a href="execution-reports.html">Execution reports</a><a href="projects-and-backups.html">Projects and backups</a><a href="research-and-navigation.html">Research and navigation</a><a href="codex-history-bridge.html" aria-current="page">Codex history bridge</a><a href="troubleshooting.html">Troubleshooting</a></section><section class="nav-group"><h2>Concepts</h2><a href="architecture.html">Architecture</a><a href="resource-model.html">Resource and file model</a><a href="team.html">Agent team</a><a href="brain.html">Knowledge and learning</a><a href="jev.html">Jev routing</a><a href="diagrams.html">Diagram library</a></section><section class="nav-group"><h2>Reference</h2><a href="skills.html">Skill catalog</a><a href="reference.html">Trust vocabulary</a><a href="configuration.html">Configuration</a><a href="state-contract.html">Lifecycle reference</a><a href="cli-reference.html">CLI reference</a><a href="api-reference.html">Local API reference</a><a href="repository-map.html">File catalog</a></section><section class="nav-group"><h2>Contributing</h2><a href="development.html">Development and verification</a><a href="documentation.html">Documentation workflow</a><a href="docs-refresh-verification.html">Documentation verification</a></section></nav><p class="version">Package 0.1.3 · Node &gt;=22<br>Source snapshot: October 29, 2026</p></aside><main id="main-content"><div class="breadcrumbs"><a href="index.html">Docs</a> / Operations</div><article><h1 id="codex-history-bridge">Codex history bridge</h1>
+<p>ATL keeps the authoritative feed and provider transcripts locally, then optionally projects incremental context into a selected Codex thread. Projection and visible queue turns have different effects.</p>
+<h2 id="choose-a-transport">Choose a transport</h2>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Effect</th>
+<th>Boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dedicated projection</td>
+<td>Inject context into an ATL-owned thread</td>
+<td>Projection starts no model turn</td>
+</tr>
+<tr>
+<td>New-thread fallback</td>
+<td>Roll to a new thread when the writer is owned</td>
+<td>History spans rollover threads</td>
+</tr>
+<tr>
+<td>Explicit queue</td>
+<td>Queue a normal message into an exact linked session</td>
+<td>Starts a visible model turn and consumes usage</td>
+</tr>
+</tbody>
+</table>
+<p>Projection does not make later model use of that context free. Automatic fallback does not silently select queue mode.</p>
+<p><a id="start"></a></p>
+<h2 id="start-a-dedicated-history-thread">Start a dedicated history thread</h2>
+<p>From the managed application:</p>
+<div class="code-block"><button class="copy-code" type="button" aria-label="Copy code">Copy</button><pre><code class="language-sh">atl codex bridge start
+atl codex bridge status
+atl codex bridge sync
+</code></pre>
+</div><p>Inspect the returned thread identifier and target. ATL checkpoints imported feed/transcript cursors. Repeating sync without new material should report no new context rather than duplicate imports.</p>
+<p><a id="sync"></a></p>
+<h2 id="inspect-a-task-import">Inspect a task import</h2>
+<div class="code-block"><button class="copy-code" type="button" aria-label="Copy code">Copy</button><pre><code class="language-sh">atl codex bridge sync --task T-001
+atl history --source codex --n 10
+</code></pre>
+</div><p>Replace the task ID. Verify local events and transcripts before assuming projected history contains a completion result.</p>
+<p><a id="current-thread"></a></p>
+<h2 id="use-an-exact-existing-conversation">Use an exact existing conversation</h2>
+<p>Only when a visible turn is intended:</p>
+<div class="code-block"><button class="copy-code" type="button" aria-label="Copy code">Copy</button><pre><code class="language-sh">atl codex bridge link &lt;CURRENT_THREAD_ID&gt; --mode queue
+atl codex bridge sync --task T-001
+</code></pre>
+</div><p>Confirm the target and usage boundary. A guessed thread or background queue transport can send work to the wrong conversation or spend unplanned usage.</p>
+<p><a id="architecture"></a></p>
+<h2 id="locate-the-records">Locate the records</h2>
+<p>Bridge cursors and targets live under <code>.trust/manager/codex-bridge-state.json</code>. Local feed and provider transcripts remain the durable source. See <a href="resource-model.html">resource model</a>.</p>
+<p><img src="diagrams/codex-history-bridge.svg" alt="Local history projection and explicit queue transport"></p>
+<p><a id="display"></a></p>
+<h2 id="recover-an-import-failure">Recover an import failure</h2>
+<p>For disabled transport, inspect the target. For no new context, compare checkpoints with source events. For writer conflicts, inspect rollover rather than editing provider rollout files. For missing transcripts, inspect the task session log and feed.</p>
+<p>Source: <code>runtime/lib/codex-bridge.mjs</code> and <code>runtime/atl-manager.mjs</code>. Run <code>node verification/codex_bridge_test.mjs</code> for the contract check. Installed provider protocol compatibility needs separate live validation.</p>
+</article><nav class="adjacent" aria-label="Adjacent pages"><a href="research-and-navigation.html"><small>Previous</small>Research and navigation</a><a href="troubleshooting.html"><small>Next</small>Troubleshooting</a></nav><footer><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/codex-history-bridge.md">View Markdown source ↗</a><a href="documentation.html">Improve this documentation</a><span>MIT</span></footer></main><aside class="page-toc"><h2>On this page</h2><nav aria-label="On this page"><a class="h2" href="#choose-a-transport">Choose a transport</a><a class="h2" href="#start-a-dedicated-history-thread">Start a dedicated history thread</a><a class="h2" href="#inspect-a-task-import">Inspect a task import</a><a class="h2" href="#use-an-exact-existing-conversation">Use an exact existing conversation</a><a class="h2" href="#locate-the-records">Locate the records</a><a class="h2" href="#recover-an-import-failure">Recover an import failure</a></nav></aside></div>
+<dialog id="search-dialog"><div class="search-heading"><label for="search-input">Search documentation</label><button id="search-close" aria-label="Close search">Esc</button></div><input id="search-input" type="search" placeholder="Try Jira, queue, Ask ATL, or models" autocomplete="off"><div id="search-results" aria-live="polite"></div></dialog></body></html>

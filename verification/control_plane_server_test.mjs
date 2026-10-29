@@ -35,7 +35,7 @@ try {
   assert.match(client, /queue-clear-confirm:/, "queues expose a confirmed clear action");
   assert.match(client, /Reset default queue/, "the protected default queue can be reset without being deleted");
   assert.match(client, /Review selected/, "multi-queue actions stay contextual instead of occupying the page header");
-  assert.match(client, /Codebase navigation/, "Settings exposes the token-efficient navigation controls");
+  assert.match(client, /Codebase Navigation/i, "Settings exposes the token-efficient navigation controls");
   assert.match(client, /navigation-save/, "Settings has an explicit save action for navigation configuration");
   assert.match(client, /usage-refresh/, "Usage page can request a provider telemetry refresh");
   assert.match(client, /Provider telemetry verified/, "Usage page distinguishes provider-verified telemetry from local observations");
@@ -45,7 +45,7 @@ try {
   assert.match(client, /Keep the source objective and references visible/, "Plan Studio preserves the prompt after generation");
   assert.match(client, /value === "studio-clear"/, "Plan Studio retains an explicit user-controlled clear action");
   assert.match(client, /class="task-controls"/, "task rows group status, ownership, and actions in one control region");
-  assert.match(client, /class="task-owner-label">Assigned to/, "task ownership is explicitly labelled");
+  assert.match(client, /class="task-prop-key">Assigned to/, "task ownership is explicitly labelled in task properties");
   assert.match(client, /class="task-actions"/, "task actions have a distinct visual group");
   assert.match(client, /WORKSPACE \/ KNOWLEDGE/, "Control Plane exposes the Knowledge workspace");
   assert.match(client, /brain-approve:/, "claim approval is available in the primary UI");
