@@ -72,7 +72,7 @@ This is a configuration interpretation only; it was not saved to the real worksp
 
 ## Failures, repairs and lessons
 
-Every failed attempt remains in the [aggregate](../.atl-evidence/mock-regression/aggregate-2026-10-29.json), including intermediate repair attempts. There are **22 recorded failed verifier invocations** across the retained history; they are not 22 independent product bugs.
+Every failed attempt remains in the aggregate (local artifact: `../.atl-evidence/mock-regression/aggregate-2026-10-29.json`), including intermediate repair attempts. There are **22 recorded failed verifier invocations** across the retained history; they are not 22 independent product bugs.
 
 | Finding | Repair / disposition | Re-observed proof |
 | --- | --- | --- |
@@ -96,12 +96,12 @@ The override was removed, credential variables were scrubbed, external Node tran
 
 ## Evidence locations
 
-- [Latest result for every verifier, with raw-log links](../.atl-evidence/mock-regression/aggregate-2026-10-29.md)
-- [All latest results, historical failures and learning receipts](../.atl-evidence/mock-regression/aggregate-2026-10-29.json)
-- [Full-operation scenario report](../.atl-evidence/full-operation/2026-10-29/report.json)
-- [Lifecycle/dependency models, stylesheet parity and 179 syntax checks](../.atl-evidence/mock-regression/non-js-checks-2026-10-29.json)
-- [Three-queue delivery trace, tasks, dependencies and evidence](../.atl-evidence/issue-overnight/2026-10-29T16-49-20-172Z.json)
-- [Desktop source forms](../.atl-evidence/issue-sources/sources-desktop.png) and [mobile source forms](../.atl-evidence/issue-sources/sources-mobile.png)
+- Latest result for every verifier, with raw-log links (local artifact: `../.atl-evidence/mock-regression/aggregate-2026-10-29.md`)
+- All latest results, historical failures and learning receipts (local artifact: `../.atl-evidence/mock-regression/aggregate-2026-10-29.json`)
+- Full-operation scenario report (local artifact: `../.atl-evidence/full-operation/2026-10-29/report.json`)
+- Lifecycle/dependency models, stylesheet parity and 179 syntax checks (local artifact: `../.atl-evidence/mock-regression/non-js-checks-2026-10-29.json`)
+- Three-queue delivery trace, tasks, dependencies and evidence (local artifact: `../.atl-evidence/issue-overnight/2026-10-29T16-49-20-172Z.json`)
+- Desktop source forms (local artifact: `../.atl-evidence/issue-sources/sources-desktop.png`) and mobile source forms (local artifact: `../.atl-evidence/issue-sources/sources-mobile.png`)
 - Local retained lessons: `.trust/manager/learning.json`; the recorder verified recall.
 
 Independent Chrome inspection also confirmed the rendered Issue sources page exposes all three providers and the Azure collection/project/iteration/PAT fields. This was read-only navigation against an isolated local server. The supplied SVG was inspected as a source-form/preview design reference; this session did not undertake a complete visual redesign.
