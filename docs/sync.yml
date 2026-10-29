@@ -20,7 +20,7 @@ last_sync:
   date: '2026-10-29'
   scope: public guides, project entry points, generated site, package docs, Pages gates
   public_pages: 37
-  maintained_markdown_files_checked: 161
+  maintained_markdown_files_checked: 158
   rendered_mermaid_diagrams: 7
   current_control_plane_captures: 7
 verification:
