@@ -7,4 +7,17 @@ import { queueAdd } from "../runtime/lib/queue.mjs";
 import { executeSupervisor, requestSupervisorStop } from "../runtime/lib/supervisor-runner.mjs";
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-runner-home-")); process.env.ATL_HOME = home;
 const make = (id) => { const root = fs.mkdtempSync(path.join(os.tmpdir(), `atl-runner-${id}-`)); fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true }); const state = emptyState(); state.tasks.T = { id: "T", title: id, status: "assigned", priority: "normal", assigned_worker: "rowan", completion_checks: [], evidence: [], attempt_count: 0 }; saveState(root, state); queueAdd(root, "T"); return { id, name: id, root, maxConcurrent: 1 }; };
-const projects = [make("a"), make("b")]; requestSupervisorStop(); const started = []; const stopped = await executeSupervisor(projects[0].root, { projects, maxMinutes: 1, maxSessions: 1, launch: async (root, options) => { started.push({ root, options }); const state = loadState(root); state.tasks.T.status = "done"; saveState(root, state); return { results: [{ id: options.taskIds[0], status: "done" }] }; } }); assert.equal(stopped.stopped, false, "a fresh supervisor run clears a prior stop request"); assert.equal(started.length, 2, "two eligible projects dispatch concurrently within the cap"); requestSupervisorStop(); assert.equal(typeof stopped.cap, "number"); for (const project of projects) fs.rmSync(project.root, { recursive: true, force: true }); fs.rmSync(home, { recursive: true, force: true }); console.log("PASS: supervisor runner owns bounded project dispatch and coordinated stop state");
+const projects = [make("a"), make("b")]; requestSupervisorStop(); const started = []; const stopped = await executeSupervisor(projects[0].root, { projects, maxMinutes: 1, maxSessions: 1, launch: async (root, options) => { started.push({ root, options }); const state = loadState(root); state.tasks.T.status = "done"; saveState(root, state); return { results: [{ id: options.taskIds[0], status: "done" }] }; } }); assert.equal(stopped.stopped, false, "a fresh supervisor run clears a prior stop request"); assert.equal(started.length, 2, "two eligible projects dispatch concurrently within the cap");
+for (const project of projects) { const state = loadState(project.root); state.tasks.T.status = "assigned"; saveState(project.root, state); }
+const attempts = [];
+const bounded = await executeSupervisor(projects[0].root, { projects, maxMinutes: 1, maxSessions: 1, launch: async (root, options) => {
+  attempts.push(root);
+  assert.ok(attempts.length <= 2, "a no-progress result must not spin");
+  assert.ok(options.maxMinutes <= 1);
+  if (root === projects[0].root) throw new Error("provider unavailable");
+  return { status: "waiting", reason: "owner decision needed" };
+} });
+assert.equal(attempts.length, 2, "independent work is still attempted after a launch failure");
+assert.equal(bounded.results.length, 2);
+assert.ok(bounded.results.some((entry) => entry.outcome.reason === "provider unavailable"));
+requestSupervisorStop(); assert.equal(typeof stopped.cap, "number"); for (const project of projects) fs.rmSync(project.root, { recursive: true, force: true }); fs.rmSync(home, { recursive: true, force: true }); console.log("PASS: supervisor runner owns bounded project dispatch and coordinated stop state");

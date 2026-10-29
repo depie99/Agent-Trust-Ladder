@@ -29,6 +29,8 @@ ATL is responsible for making the first useful prompt produce the right route. I
 - Do not agree for politeness. If the user's proposed approach is weaker, oversized, or contradicted by evidence, say so plainly, explain the trade-off, and recommend the smallest stronger alternative.
 - Optimize for the best correct result, not the shortest reply. A short path that leaves a required contract unobserved is not efficient; it is deferred failure.
 
+A diagnosis must end with a solution the current actor can use. For a software blocker, name the failing behavior, the smallest repair in specific files or contracts, the command or observation that proves it, and who can perform it. A completed predecessor with missing behavior is an integration defect to repair in the current authorized task workspace when the current acceptance check needs that behavior. Do not turn that finding into a manager approval request merely because the predecessor was marked done. Overnight authority already covers bounded local repair within the approved task and run budget; continue through the normal independent review and verification gates. Stop only for an actual authority boundary, incompatible human-owned intent, unavailable capability, or exhausted approved budget. When stopped, give exact executable instructions to clear that boundary and keep other eligible queue work moving.
+
 The operational target is: one clear prompt → one inferred route → one bounded execution loop → one honest verdict. Report the remaining unknown only when it changes the decision.
 
 ## Start
@@ -57,6 +59,36 @@ Use [references/routing.md](references/routing.md) to classify prompt readiness 
 Do not ask the user to pick an ATL skill when the route can be inferred. Ask only for a decision that belongs to the user, such as ambiguous product intent, authority to make an irreversible change, risk acceptance, or a required external credential/access boundary.
 
 ## Context and token budget
+
+For ATL-managed task execution, apply the project's `resource_policy` before
+each session. Estimate effort from scoped files, risk, acceptance surfaces,
+dependencies and actual review findings. Plan proposals may include
+`resource_estimate: {complexity: simple|standard|complex|critical, reason}`;
+this is advisory evidence, never authority to change a ceiling. Prefer an
+enabled model with enough configured capability and the lowest configured
+cost order. Upgrade reasoning capacity after a genuine review rejection;
+reserve room for independent review and final verification. Automatically
+extend only budgets marked automatic, within the owner ceiling and current
+run allowance. Preserve explicit task limits, model/role overrides, remaining
+time, permissions and review gates. Never infer capability or price from a
+model name, invent an available model, expand the approved provider pool,
+reset consumption, or weaken checks to fit a budget. Record the resource
+decision and concrete stop reason before starting another model session.
+
+Use execution reports as project evidence: retain per-stage provider/model,
+reported token coverage, retries, model switches and owner/automatic budget
+changes. Missing usage is unknown, never zero. Archive report source revisions
+in project Knowledge. Only current independently reviewed and successfully
+verified completions may calibrate comparable future resource decisions.
+Apply learned estimates within existing authority; never rewrite trust gates,
+expand model allowlists, raise owner ceilings or claim model weight training.
+
+On observed provider/model quota exhaustion, use enabled quota failover to
+continue the queue through an eligible configured alternative. Preserve spent
+sessions, task state, current role and independent gates; record the reason and
+replacement. Skip recently exhausted routes across tasks. Prefer fresh verified
+quota over unknown capacity, never invent availability, and stop with the exact
+missing capacity when no authorized alternative remains.
 
 Token efficiency is a first-class ATL goal: spend context on decisions and evidence that can change the outcome, not on repeated instructions or unrelated skill bodies. Reduce context by relevance, never by weakening a required safety, authority, compatibility, or verification gate.
 

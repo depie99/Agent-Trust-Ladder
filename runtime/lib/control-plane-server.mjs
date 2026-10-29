@@ -1,5 +1,6 @@
 import http from "node:http";
 import fs from "node:fs";
+import crypto from 'node:crypto';
 import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
@@ -7,9 +8,9 @@ import { fileURLToPath } from "node:url";
 import { createControlPlaneSnapshot } from "./control-plane.mjs";
 import { dispatchTuiCommand } from "./command-console.mjs";
 import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, reconcileOvernightRun, readRunLock, requestRunAbort } from "./launch.mjs";
-import { addProposal, addProposalFeedback, editProposal, generateLocalPlan, savePlanDraft, loadPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider } from "./plan-studio.mjs";
+import { addProposal, addProposalFeedback, editProposal, generateLocalPlan, savePlanDraft, normalizeProposals, loadPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider, reviewPlanArtifact, answerPlanQuestion, planningEvidence, approvePlanDraft, validatePlanArtifact, validatePlanGrounding } from "./plan-studio.mjs";
 import { invokePlanningProvider } from "./plan-model.mjs";
-import { builtinProviderStatus, discoverProvider } from "./providers.mjs";
+import { builtinProviderStatus, discoverProvider, providerProfile, providerNames } from "./providers.mjs";
 import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLATES, providerChoices, removeProvider, requireReadyProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
 import { paths, loadState, saveState, logEvent } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
@@ -26,7 +27,16 @@ import { inspectHandoffChain } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview } from "./change-review-store.mjs";
 import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
+import { previewPlanPublish, publishPlan, verifyImportedSource } from "./plan-publish.mjs";
 import { installSkill, designateSkill } from "./skill-install.mjs";
+import { executionAccess, saveExecutionAccess, probeWorkspaceAccess } from "./execution-access.mjs";
+import { browserAccess, saveBrowserAccess, checkBrowserRuntime } from "./browser-access.mjs";
+import { resourcePolicy, resourceView, saveResourcePolicy, taskResourcePreview, routeTask } from "./resource-policy.mjs";
+import {recordExecution,publishPlanningExecution} from './execution-report.mjs';
+import {recordQuotaFailure} from './provider-quota.mjs';
+import { runIntake, normalizeGitHubRepo } from './intake.mjs';
+import { importCandidates } from './composer.mjs';
+import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_PLANE_FILE = path.join(RUNTIME_DIR, "..", "control-plane.html");
@@ -166,11 +176,12 @@ function previewLines(preview) {
   for (const skip of preview.skipped || []) lines.push(`  queue ${skip.id}: ${skip.reason}`);
   for (const item of preview.items) {
     lines.push(`  ${item.taskId} [${item.status}] -> ${item.role || "-"} ${item.blockers.length ? `BLOCKED: ${item.blockers[0]}` : "ready"}`);
+    if(item.resources)lines.push(`    ${item.resources.budget.max_sessions} task sessions (ceiling ${item.resources.budget.ceiling}); ${item.provider.worker}/${item.provider.model||'provider default'}; ${item.resources.routing.reasons.join('; ')}`);
   }
   return lines;
 }
 
-function resolvePreview(root, { taskIds = null, queueId = null, queueIds = null, maxMinutes = 120, maxSessions = 8 } = {}) {
+function resolvePreview(root, { taskIds = null, queueId = null, queueIds = null, maxMinutes = 120, maxSessions = null } = {}) {
   if (Array.isArray(taskIds) && taskIds.length) {
     const state = createControlPlaneSnapshot(root).state?.tasks || {};
     const unknown = taskIds.filter((id) => !state[id] || state[id].status === "archived");
@@ -205,16 +216,41 @@ function planningRunActive(root) {
 }
 
 // The browser Studio draft response: artifact plus the honest source label.
-function draftResponse(loaded) {
+function draftResponse(loaded, root) {
   const { dir, intentPath, artifactPath, ...safe } = loaded;
-  return { ...safe, label: planDraftLabel(loaded) };
+  const config=readManagerConfig(root);
+  const resources=Object.fromEntries(normalizeProposals(loaded.artifact).map(p=>[p.id,taskResourcePreview(config,{...p,risk:loaded.artifact?.risk||'normal'})]));
+  return { ...safe, resources, intent: loaded.intent ?? (loaded.intentPath && fs.existsSync(loaded.intentPath) ? fs.readFileSync(loaded.intentPath, "utf8") : null), label: planDraftLabel(loaded) };
 }
 
 // The planning invoke seam: production spawns the configured user provider;
 // verification injects a deterministic fake so no real CLI is ever launched.
-function planningCall({ planningInvoke, planningRoot }, entry, call) {
-  if (planningInvoke) return planningInvoke({ ...call, root: planningRoot });
-  return invokePlanningProvider(planningRoot, entry, { request: call.request, logPath: call.logPath });
+async function planningCall({ planningInvoke, planningRoot }, entry, call) {
+  const start={id:`planning:${crypto.randomUUID()}`,draftId:path.basename(path.dirname(call.logPath)),role:call.request.review?'planning-review':call.request.current_proposal?'planning-regenerate':'planning',provider:entry.id,model:entry.model,startedAt:new Date().toISOString(),logPath:call.logPath};
+  recordExecution(planningRoot,start);
+  try {
+    const result=planningInvoke?await planningInvoke({ ...call, root: planningRoot }):await invokePlanningProvider(planningRoot, entry, { request: call.request, logPath: call.logPath });
+    recordExecution(planningRoot,{...start,finishedAt:result.finishedAt||new Date().toISOString(),exitCode:result.code??0,timedOut:result.timedOut,tokens:result.tokens,providerFailure:result.providerFailure});
+    if(result.providerFailure?.kind==='provider-quota')recordQuotaFailure(planningRoot,{provider:entry.id,model:entry.model,...result.providerFailure});
+    try{publishPlanningExecution(planningRoot,start.draftId);}catch(error){result.knowledge_error=error.message;}
+    return {...result,provider:entry.id,model:entry.model,resource_decision:entry.resource_decision||null};
+  }catch(error){recordExecution(planningRoot,{...start,finishedAt:new Date().toISOString(),exitCode:1});throw error;}
+}
+
+function planningEntry(root,payload,task,role='planning',fallback=null) {
+  const config=readManagerConfig(root),p=resourcePolicy(config);
+  const id=payload.provider||fallback;
+  if(id==='auto' || p.enabled&&p.auto_models) {
+    if(!p.enabled||!p.auto_models)throw Error('Enable automatic model routing in Settings first');
+    const profile=providerProfile(config);
+    if(id&&id!=='auto') {profile.byRole[role]=id;if(payload.model)profile.modelByRole[role]=String(payload.model);}
+    const route=routeTask(config,task,role,{profile});
+    if(route.decision.blocked)throw Error(route.decision.blocked);
+    if(route.userProvider)return {...route.userProvider,resource_decision:route.decision};
+    if(!['codex','gapgpt','claude'].includes(route.worker))throw Error('This custom adapter does not support model planning; select a built-in or configured key provider');
+    return {id:route.worker,worker:route.worker,model:route.model,builtin:true,command:route.provider.command,resource_decision:route.decision};
+  }
+  return requireReadyProvider(id,{registry:loadUserProviders()}).withModel(payload.model);
 }
 
 // Browser provider management: add / key / use / remove against the
@@ -459,7 +495,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
   if (pathname === "/api/plan/local") {
     const intent = String(payload.intent || "").trim();
     if (!intent) return json(res, 400, { ok: false, error: "plan generation needs an intent" });
-    try { const artifact = generateLocalPlan(intent); const draft = savePlanDraft(root, { intent, artifact, stage: "plan" }); return json(res, 200, { ok: true, draft: draftResponse(draft) }); }
+    try { const artifact = generateLocalPlan(intent); artifact.task_proposals = normalizeProposals(artifact); const draft = savePlanDraft(root, { intent, artifact, stage: "plan", sourceTaskId: payload.sourceTaskId || null }); return json(res, 200, { ok: true, draft: draftResponse(draft, root) }); }
     catch (error) { return json(res, 400, { ok: false, error: error.message }); }
   }
   if (pathname === "/api/plan/generate") {
@@ -469,20 +505,73 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       // Provider-backed generation is always an explicit, bounded spend: the
       // provider must be configured and ready, no queue run may be active,
       // and the call itself is one confirmed planning session with a timeout.
-      const selected = requireReadyProvider(payload.provider, { registry: loadUserProviders() });
-      const entry = selected.withModel(payload.model);
+      const entry = planningEntry(root,payload,{title:intent});
       if (payload.thinking_level !== undefined && payload.thinking_level !== null) entry.thinking_level = normalizeThinkingLevel(payload.thinking_level);
       if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — planning calls wait until the run gate is free" });
       const draft = await runPlanProvider(root, intent, {
         confirm: payload.confirm === true,
         role: "pip",
         provider: entry.id,
+        sourceTaskId: payload.sourceTaskId || null,
         invoke: (call) => planningCall(seam, entry, call),
       });
-      return json(res, 200, { ok: true, draft: draftResponse(draft) });
+      return json(res, 200, { ok: true, draft: draftResponse(draft, root) });
     } catch (error) {
       return json(res, 400, { ok: false, error: error.message, providerResponse: error.providerResponse || null, providerLogLines: providerLogTail(error) });
     }
+  }
+  if (pathname === "/api/plan/review") {
+    const draftId = String(payload.draftId || "");
+    try {
+      const loaded = loadPlanDraft(root, draftId);
+      const artifact = loaded.artifact;
+      const providerId = payload.provider || loaded.provider;
+      if (!providerId) return json(res, 400, { ok: false, error: "select a configured provider for the separate accuracy review" });
+      if (artifact.plan_contract_version !== 2) return json(res, 409, { ok: false, error: "legacy and local template drafts need a version 2 model plan before accuracy review" });
+      validatePlanArtifact(artifact);
+      validatePlanGrounding(root, artifact);
+      const entry = planningEntry(root,payload,{...artifact,title:artifact.title||loaded.intent},'planning-review',providerId);
+      if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free" });
+      const sourceRevision = loaded.source_task_id ? await verifyImportedSource(root, loaded.source_task_id, { fetchImpl: seam.publishFetch }) : null;
+      const logPath = path.join(loaded.dir, "review.log");
+      const evidence = { ...planningEvidence(root, artifact), external_source: sourceRevision };
+      const response = await planningCall(seam, entry, { logPath, request: { review: true, task: "Review the proposed plan only. Return JSON with verdict ('passed' or 'blocked') and findings [{severity, requirement_id, task_id, message, correction}]. Do not edit files or claim checks passed.", intent: loaded.intent, artifact, project_evidence: evidence, required: ["verdict", "findings"], rule: "Be strict and evidence-based. Findings must identify the affected requirement or task. Any blocker or major finding means blocked." } });
+      if (!response || response.code !== 0) throw new Error(`Plan review provider failed (code ${response?.code ?? "unknown"})`);
+      const text = String(response.text || response.output || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+      const result = JSON.parse(text);
+      if (!["passed", "blocked"].includes(result.verdict) || !Array.isArray(result.findings)) throw new Error("review response must contain verdict and findings");
+      const updated = reviewPlanArtifact(root, loaded, { ...result, source_revision: sourceRevision, provider: response.provider || providerId, model: response.model || payload.model || null });
+      return json(res, 200, { ok: true, draft: draftResponse(updated, root), review: updated.review });
+    } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
+  }
+  if (pathname === "/api/plan/clarify") {
+    try {
+      const updated = answerPlanQuestion(root, String(payload.draftId || ""), String(payload.questionId || ""), payload.answer);
+      return json(res, 200, { ok: true, draft: draftResponse(updated, root) });
+    } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
+  }
+  if (pathname === "/api/plan/publish-preview") {
+      try { return json(res, 200, { ok: true, preview: await previewPlanPublish(root, String(payload.draftId || ""), payload.destination || {}, { fetchImpl: seam.publishFetch }) }); }
+    catch (error) { return json(res, 400, { ok: false, error: error.message }); }
+  }
+  if (pathname === "/api/plan/approve") {
+    try {
+      const draftId = String(payload.draftId || "");
+      const draft = loadPlanDraft(root, draftId);
+      if (draft.source_task_id) {
+        const current = await verifyImportedSource(root, draft.source_task_id, { fetchImpl: seam.publishFetch });
+        const reviewed = draft.review?.source_revision || draft.artifact.review?.source_revision;
+        if (!reviewed?.current || current.remote_id !== reviewed.remote_id || current.revision !== reviewed.revision) throw new Error("Imported source revision changed after review; reconcile the task and review the plan again");
+      }
+      const approved = approvePlanDraft(root, draft, { sourceRevisionCurrent: Boolean(draft.source_task_id) });
+      return json(res, 200, { ok: true, approved: { queueId: approved.queueId, taskIds: approved.taskIds, created: approved.created, draft: draftResponse(approved.draft, root) } });
+    } catch (error) { return json(res, 409, { ok: false, error: error.message }); }
+  }
+  if (pathname === "/api/plan/publish") {
+    try {
+      const result = await publishPlan(root, String(payload.draftId || ""), payload.destination || {}, payload.previewToken, { confirm: payload.confirm === true, fetchImpl: seam.publishFetch });
+      return json(res, 200, { ok: true, result });
+    } catch (error) { return json(res, 409, { ok: false, error: error.message }); }
   }
   if (pathname === "/api/plan/regenerate") {
     const draftId = String(payload.draftId || "");
@@ -492,8 +581,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       const loaded = loadPlanDraft(root, draftId);
       const providerId = payload.provider || loaded.provider;
       if (!providerId) return json(res, 400, { ok: false, error: "this draft has no retained provider — select one before regenerating" });
-      const selected = requireReadyProvider(providerId, { registry: loadUserProviders() });
-      const entry = selected.withModel(payload.model);
+      const entry = planningEntry(root,payload,normalizeProposals(loaded.artifact).find(p=>p.id===proposalId)||{title:loaded.intent},'planning',providerId);
       if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — planning calls wait until the run gate is free" });
       const updated = await regenerateProposal(root, draftId, proposalId, {
         confirm: payload.confirm === true,
@@ -502,7 +590,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
         model: payload.model || null,
         invoke: (call) => planningCall(seam, entry, call),
       });
-      return json(res, 200, { ok: true, draft: draftResponse(updated) });
+      return json(res, 200, { ok: true, draft: draftResponse(updated, root) });
     } catch (error) {
       return json(res, 400, { ok: false, error: error.message, providerResponse: error.providerResponse || null, providerLogLines: providerLogTail(error) });
     }
@@ -518,7 +606,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       else if (payload.action === "reorder") updated = reorderProposals(root, draftId, proposalId, Number(payload.position) || 0);
       else if (payload.action === "feedback") updated = addProposalFeedback(root, draftId, proposalId, payload.text);
       else return json(res, 400, { ok: false, error: "card action must be edit, add, remove, reorder, or feedback" });
-      return json(res, 200, { ok: true, draft: draftResponse(updated) });
+      return json(res, 200, { ok: true, draft: draftResponse(updated, root) });
     } catch (error) {
       return json(res, 400, { ok: false, error: error.message });
     }
@@ -526,9 +614,10 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
   return json(res, 404, { ok: false, error: "not found" });
 }
 
-export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE) } = {}) {
+export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {} } = {}) {
   if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) throw new Error("control plane only supports loopback hosts");
-  const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch };
+  const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters };
+  const intakePreviews = new Map();
   const assistant = createAssistant(root, { providerConfig: () => readManagerConfig(root) });
   // A browser server can start after its runner has died. Reconcile the
   // durable run ledger before projecting it, otherwise the UI can show a
@@ -553,6 +642,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   return http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url || "/", `http://${host}`);
+      if (readOnlyPreview && !["GET", "HEAD", "OPTIONS"].includes(req.method || "GET")) { json(res, 403, { ok: false, error: "Synthetic UI preview is read-only; live task actions are unavailable." }); return; }
       // A browser may only mutate this loopback service from its own origin.
       // Command-line clients have no Origin header and remain supported.
       if (!["GET", "HEAD", "OPTIONS"].includes(req.method || "GET") && req.headers.origin) {
@@ -607,17 +697,39 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         if (!task) { json(res, 404, { error: "Task not found." }); return; }
         json(res, 200, { ok: true, proposal: inspectHandoffChain(root, task, state.tasks, { includeFiles: true }) }); return;
       }
+      if (url.pathname === "/api/browser-access" && ["GET", "POST"].includes(req.method)) {
+        try {
+          if (req.method === "GET") { json(res, 200, { ok: true, access: browserAccess(root, url.searchParams.get("task") || null) }); return; }
+          const payload = JSON.parse(await readBody(req) || "{}");
+          if (payload.action === "check") { json(res, 200, { ok: true, check: await checkBrowserRuntime(root, payload.task ?? null) }); return; }
+          if (payload.action !== "save") throw new Error("Unknown browser access action.");
+          json(res, 200, { ok: true, access: saveBrowserAccess(root, { task: payload.task ?? null, mode: payload.mode }) });
+        } catch (error) { json(res, 400, { ok: false, error: error.message }); }
+        return;
+      }
+      if (url.pathname === "/api/execution-access" && ["GET", "POST"].includes(req.method)) {
+        try {
+          if (req.method === "GET") { json(res, 200, { ok: true, access: executionAccess(root, url.searchParams.get("task") || null) }); return; }
+          const payload = JSON.parse(await readBody(req) || "{}");
+          if (payload.action === "check") { json(res, 200, { ok: true, check: await probeWorkspaceAccess(root, String(payload.task || ""), { provider: payload.provider || "gapgpt" }) }); return; }
+          if (payload.action !== "save") throw new Error("Unknown access action.");
+          json(res, 200, { ok: true, access: saveExecutionAccess(root, { task: payload.task || null, mode: payload.mode }) });
+        } catch (error) { json(res, 400, { ok: false, error: error.message }); }
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/api/assistant") {
         const payload = JSON.parse(await readBody(req) || "{}"); const scope = String(payload.scope || "global");
-        if (payload.action === "read") { assistantContext(root, scope); json(res, 200, { ok: true, session: assistant.read(scope), providers: builtinProviderStatus(readManagerConfig(root)).filter((item) => ["codex", "gapgpt"].includes(item.id)) }); return; }
+        if (payload.action === "read") { const context = assistantContext(root, scope); json(res, 200, { ok: true, guidance: context.guidance, recovery: context.recovery_plan || null, access: executionAccess(root, scope === "global" ? null : scope), session: assistant.read(scope), providers: builtinProviderStatus(readManagerConfig(root)).filter((item) => ["codex", "gapgpt"].includes(item.id)) }); return; }
         if (payload.action === "cancel") { json(res, 200, { ok: true, session: assistant.cancel(scope) }); return; }
         if (payload.action !== "send") { json(res, 400, { error: "Unknown assistant action." }); return; }
         const context = assistantContext(root, scope); const message = String(payload.message || "");
         const mode = payload.mode || "diagnose";
         if (!["diagnose", "fix"].includes(mode)) { json(res, 400, { error: "Unknown assistant mode." }); return; }
         const workspace = mode === "fix" ? assistantWorkspace(root, scope) : null;
+        const access = executionAccess(root, scope === "global" ? null : scope);
+        if (mode === "fix" && access.mode !== "workspace-write") { json(res, 409, { ok: false, error: "Task access is read-only. Authorize workspace writes in Workspace access before retrying." }); return; }
         if (!message.trim() || message.length > 12000) { json(res, 400, { error: "Enter a message under 12,000 characters." }); return; }
-        const action = { project: path.resolve(root), task: scope === "global" ? null : scope, operation: mode === "fix" ? "assistant.fix" : "assistant.diagnose", target: String(payload.provider || ""), args: { scope, model: String(payload.model || ""), messageDigest: assistantMessageDigest(message), contextDigest: assistantMessageDigest(JSON.stringify(context)), mode, workspace }, policyVersion: 1 };
+        const action = { project: path.resolve(root), task: scope === "global" ? null : scope, operation: mode === "fix" ? "assistant.fix" : "assistant.diagnose", target: String(payload.provider || ""), args: { scope, model: String(payload.model || ""), messageDigest: assistantMessageDigest(message), contextDigest: assistantMessageDigest(JSON.stringify(context)), mode, workspace, access: mode === "fix" ? access.mode : "read-only" }, policyVersion: 1 };
         const approval = authorizeAction(root, action);
         if (!approval.allowed) { const proposal = proposeAction(root, action, { principal: "owner" }); json(res, 202, { ok: true, approvalRequired: true, proposal }); return; }
         const session = assistant.start({ scope, provider: String(payload.provider || ""), model: String(payload.model || ""), message, mode, workspace });
@@ -659,7 +771,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       if (req.method === "POST" && url.pathname === "/api/supervisor/run") {
         const payload = JSON.parse(await readBody(req) || "{}"); const supervisor = supervisorSnapshot();
         if (payload.confirm !== true) { json(res, 400, { ok: false, error: "supervisor execution requires explicit confirmation" }); return; }
-        executeSupervisor(root, { projects: supervisor.projects, maxMinutes: Number(payload.max_minutes || 120), maxSessions: Number(payload.max_sessions || 8), onProgress: () => {} }).catch(() => {});
+        executeSupervisor(root, { projects: supervisor.projects, maxMinutes: Number(payload.max_minutes || 120), maxSessions: payload.max_sessions===undefined?null:Number(payload.max_sessions), onProgress: () => {} }).catch(() => {});
         json(res, 202, { ok: true, status: "running", cap: supervisor.defaults.maxConcurrent }); return;
       }
       if (req.method === "POST" && url.pathname === "/api/supervisor/stop") { requestSupervisorStop(); json(res, 202, { ok: true, status: "stopping" }); return; }
@@ -713,6 +825,96 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         json(res, 200, run);
         return;
       }
+      if (url.pathname === "/api/intake/sources" && ["GET", "POST"].includes(req.method)) {
+        try {
+          if (req.method === "POST") {
+            if (run.status === "running" || planningRunActive(root)) { json(res, 409, { ok: false, error: "Wait for the active run before changing issue sources." }); return; }
+            const payload = JSON.parse(await readBody(req) || "{}"), source = String(payload.source || "");
+            const config = readManagerConfig(root); config.intake ||= {};
+            if (source === "github") {
+              const repos = [...new Set(String(payload.repos || "").split(/[\s,]+/).map(normalizeGitHubRepo).filter(Boolean))];
+              if (repos.length > 20 || repos.some((repo) => !/^[\w.-]+\/[\w.-]+$/.test(repo))) throw new Error("Enter up to 20 GitHub repositories as owner/name.");
+              config.intake.github = { enabled: Boolean(payload.enabled), repos };
+            } else if (source === "jira") {
+              const base = new URL(String(payload.base_url || ""));
+              if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash) throw new Error("Jira needs a plain HTTPS base URL.");
+              const projects = [...new Set(String(payload.projects || "").split(/[\s,]+/).map((key) => key.toUpperCase()).filter(Boolean))];
+              if (!projects.length || projects.length > 20 || projects.some((key) => !/^[A-Z][A-Z0-9_]{1,19}$/.test(key))) throw new Error("Enter 1?20 Jira project keys.");
+              const token_env = String(payload.token_env || "JIRA_TOKEN").trim();
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(token_env)) throw new Error("Choose a valid token environment variable name.");
+              config.intake.jira = { enabled: Boolean(payload.enabled), base_url: base.href.replace(/\/$/, ""), projects, token_env };
+            } else if (source === "azure") {
+              const base = new URL(String(payload.org_url || ""));
+              if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash || /\/_workitems|\/_sprints/i.test(base.pathname)) throw new Error("Azure needs a plain HTTPS collection URL, before the project and taskboard path.");
+              const project = String(payload.project || "").trim();
+              if (!project || project.length > 128 || /[\\/\r\n]/.test(project)) throw new Error("Enter an Azure project name.");
+              const token_env = String(payload.token_env || "AZDO_PAT").trim();
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(token_env)) throw new Error("Choose a valid token environment variable name.");
+              const iteration_path = String(payload.iteration_path || "").trim();
+              config.intake.azure = { ...config.intake.azure, enabled: Boolean(payload.enabled), org_url: base.href.replace(/\/$/, ""), project, iteration_path, token_env };
+            } else throw new Error("Unknown issue source.");
+            const file = path.join(root, "config", "manager.json"); fs.mkdirSync(path.dirname(file), { recursive: true });
+            fs.writeFileSync(`${file}.tmp`, JSON.stringify(config, null, 2) + "\n"); fs.renameSync(`${file}.tmp`, file);
+          }
+          const intake = readManagerConfig(root).intake || {};
+          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [] }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(process.env[intake.azure?.token_env || "AZDO_PAT"]) } } });
+        } catch (error) { json(res, 400, { ok: false, error: error.message }); }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/intake/preview") {
+        try {
+          const payload = JSON.parse(await readBody(req) || "{}"), source = String(payload.source || "");
+          if (!["github", "jira", "azure"].includes(source)) throw new Error("Choose GitHub, Jira, or Azure Boards.");
+          const config = readManagerConfig(root);
+          if (!config.intake?.[source]?.enabled) throw new Error(`${source} source is not enabled.`);
+          const results = await runIntake(config, source, seam.intakeAdapters);
+          const candidates = results.flatMap((entry) => entry.tasks);
+          const token = crypto.randomUUID(); intakePreviews.set(token, { source, candidates, at: Date.now() });
+          json(res, 200, { ok: true, token, candidates: candidates.map((item, index) => ({ index, title: item.title, objective_hint: item.objective_hint, source: item.source, priority: item.priority })) });
+        } catch (error) { json(res, 400, { ok: false, error: error.message }); }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/intake/import") {
+        try {
+          if (run.status === "running" || planningRunActive(root)) { json(res, 409, { ok: false, error: "Wait for the active run before importing issues." }); return; }
+          const payload = JSON.parse(await readBody(req) || "{}"), preview = intakePreviews.get(String(payload.token || ""));
+          if (!preview || Date.now() - preview.at > 600000) throw new Error("Issue preview expired. Refresh it before importing.");
+          const ids = [...new Set(payload.indices || [])];
+          if (!Array.isArray(payload.indices) || ids.some((id) => !Number.isInteger(id) || id < 0 || id >= preview.candidates.length)) throw new Error("Choose valid previewed issues.");
+          const queueId = String(payload.queueId || `${preview.source}-intake`).toLowerCase();
+          if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(queueId)) throw new Error("Queue id must use letters, numbers, _ or -.");
+          const state = loadState(root), selected = ids.map((id) => preview.candidates[id]);
+          const imported = importCandidates(root, state, selected, { cfg: readManagerConfig(root) });
+          saveState(root, state, { expectedRevision: state.revision || 0 });
+          if (!loadQueueBook(root).queues[queueId]) queueCreate(root, queueId, { name: `${preview.source.toUpperCase()} intake` });
+          for (const item of imported.created) queueAdd(root, item.task.id, { queueId });
+          intakePreviews.delete(String(payload.token));
+          json(res, 200, { ok: true, queueId, added: imported.added, skipped: imported.skipped, taskIds: imported.created.map((item) => item.task.id) });
+        } catch (error) { json(res, 400, { ok: false, error: error.message }); }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/tasks/provider-route") {
+        const payload = JSON.parse(await readBody(req) || "{}");
+        if (run.status === "running" || planningRunActive(root)) { json(res, 409, { ok: false, error: "Wait for the active run to finish before changing a task route." }); return; }
+        const state = loadState(root), task = state.tasks[String(payload.taskId || "")];
+        if (!task || ["archived", "rejected"].includes(task.status)) { json(res, 404, { ok: false, error: "Task is unavailable." }); return; }
+        let route = null;
+        if (payload.provider !== null) {
+          const provider = String(payload.provider || "").trim().toLowerCase(), model = String(payload.model || "").trim();
+          if (!provider || !model || model.length > 200 || !/^[a-z0-9][a-z0-9._-]*$/.test(provider)) { json(res, 400, { ok: false, error: "Choose a configured provider and exact model id." }); return; }
+          const config = readManagerConfig(root);
+          if (!providerNames(providerProfile(config)).includes(provider)) { json(res, 400, { ok: false, error: "Provider is not configured." }); return; }
+          const preview = routeTask(config, { ...task, provider_route: { provider, model } }, "rowan");
+          if (preview.decision.blocked) { json(res, 400, { ok: false, error: preview.decision.blocked }); return; }
+          route = { provider, model };
+        }
+        const previous = task.provider_route || null;
+        if (route) task.provider_route = route; else delete task.provider_route;
+        logEvent(state, { task: task.id, actor: "owner", event: "task_provider_route_changed", detail: `${previous ? `${previous.provider}/${previous.model}` : "automatic/project route"} ? ${route ? `${route.provider}/${route.model}` : "automatic/project route"}` });
+        saveState(root, state, { expectedRevision: state.revision || 0 });
+        json(res, 200, { ok: true, route, preview: taskResourcePreview(readManagerConfig(root), task) });
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/api/tasks/session-budget") {
         const payload = JSON.parse(await readBody(req) || "{}");
         const additional = payload.additionalSessions;
@@ -724,6 +926,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         if (!task || ["done", "archived", "rejected"].includes(task.status) || !budget || !Number.isInteger(budget.used) || !Number.isInteger(budget.max_sessions) || budget.used < 0 || budget.max_sessions < 1 || budget.max_sessions + additional > 1000) { json(res, 400, { error: "This task has no adjustable session budget, or the limit would exceed 1000." }); return; }
         const previous = budget.max_sessions;
         budget.max_sessions += additional;
+        budget.source = 'owner';
         logEvent(state, { task: task.id, actor: "owner", event: "session_budget_increased", detail: `Limit increased from ${previous} to ${budget.max_sessions}; ${budget.used} already used` });
         saveState(root, state, { expectedRevision: state.revision || 0 });
         json(res, 200, { ok: true, budget });
@@ -736,7 +939,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           queueId: payload.queueId || null,
           queueIds: Array.isArray(payload.queueIds) ? payload.queueIds.map((id) => String(id)) : null,
           maxMinutes: Number(payload.maxMinutes || 120),
-          maxSessions: Number(payload.maxSessions || 8),
+          maxSessions: payload.maxSessions === undefined ? null : Number(payload.maxSessions),
         });
         if (resolved.error) {
           json(res, 400, { ok: false, error: resolved.error });
@@ -751,8 +954,9 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           json(res, 400, { ok: false, error: "queue execution requires explicit confirmation" });
           return;
         }
-        const maxSessions = payload.maxSessions === undefined ? 8 : Number(payload.maxSessions);
-        if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 20) { json(res, 400, { error: "Sessions per task must be between 1 and 20." }); return; }
+        const policy=resourcePolicy(readManagerConfig(root));
+        const maxSessions = payload.maxSessions === undefined ? (policy.enabled?policy.max_sessions:policy.default_sessions) : Number(payload.maxSessions);
+        if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 50) { json(res, 400, { error: "Sessions per task must be between 1 and 50." }); return; }
         const action = { project: path.resolve(root), task: null, operation: "run.queue", target: payload.queueId || "selected", args: { taskIds: payload.taskIds || null, queueIds: payload.queueIds || null, maxSessions, maxMinutes: Number(payload.maxMinutes || (payload.taskIds?.length ? 60 : 120)) }, revision: createControlPlaneSnapshot(root).state.revision, policyVersion: 1 };
         let approval = authorizeAction(root, action);
         if (!approval.allowed) {
@@ -799,7 +1003,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           queueIds,
           taskIds,
           maxMinutes: Number(payload.maxMinutes || (taskIds ? 60 : 120)),
-          maxSessions: Number(payload.maxSessions || defaultSessions),
+          maxSessions,
           onProgress: (line) => { run.progress.push(String(line)); run.progress = run.progress.slice(-200); },
         }).then((outcome) => {
           recordActionOutcome(root, action, outcome);
@@ -837,6 +1041,15 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         await handleNavigationEndpoint(root, res, req);
         return;
       }
+      if ((req.method === 'GET' || req.method === 'POST') && url.pathname === '/api/resource-policy') {
+        try {
+          if(req.method==='POST') {
+            if(planningRunActive(root))return json(res,409,{ok:false,error:'Resource policy applies to new sessions. Wait for the active queue run to finish before changing it.'});
+            saveResourcePolicy(root,JSON.parse(await readBody(req)||'{}'));
+          }
+          return json(res,200,{ok:true,...resourceView(root)});
+        }catch(error){return json(res,400,{ok:false,error:error.message});}
+      }
       if (req.method === "POST" && url.pathname.startsWith("/api/plan/")) {
         await handlePlanEndpoint(root, res, url.pathname, req, seam);
         return;
@@ -848,8 +1061,8 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   });
 }
 
-export async function startControlPlaneServer(root, { host = "127.0.0.1", port = 0, planningInvoke = null, usageFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE) } = {}) {
-  const server = createControlPlaneServer(root, { host, planningInvoke, usageFetch, assetRoot });
+export async function startControlPlaneServer(root, { host = "127.0.0.1", port = 0, planningInvoke = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {} } = {}) {
+  const server = createControlPlaneServer(root, { host, planningInvoke, usageFetch, publishFetch, assetRoot, readOnlyPreview, intakeAdapters });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen({ host, port }, resolve);

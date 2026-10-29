@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-28",
+  "scope": "local working tree; not a release or remote CI result",
+  "sha256": {
+    "runtime/lib/task-diagnostics.mjs": "e0137ba339be96baa4017dd36bd33b72b0072cd28c88bd12dd4ddb146278d0c1",
+    "runtime/lib/launch.mjs": "4903ffa32439ca2df3ebf7484ae8be1215a51c091c0ed6143e0deb2989544c66",
+    "runtime/lib/control-assistant.mjs": "c363a558bc39f7e03860258dbce506770c839851abea65d60f2b77bea8e6b924",
+    "runtime/lib/ui-review-preview.mjs": "5581b11116d9e4daadd918acb5af9868a3b6923509c04565d3c81e97af4e7305",
+    "runtime/lib/ui-review-runtime.mjs": "dc9527f0e33b1c2f0b419e64fa0c74d6ee80513b615f1c3bbafbad6d2f2e26e3",
+    "runtime/lib/state.mjs": "f07cd4e444685097a900d90d6cb386d5e4cd33ba9ec85e3c5c61f923848ea63f",
+    "runtime/lib/render.mjs": "f557ae3e70a512912d1f161801d6e16272ed7df45364e87663a1f150b1cd7866",
+    "runtime/lib/worker.mjs": "7060c3520611364bea4e65c93353e9d6339bd88f83eaf0e0d17912401911c983",
+    "runtime/lib/queue-recovery.mjs": "fe08f513a8e1e9e80fcb71d9966640fb452efc8025338bcfa2ec5aceef39b8d6",
+    "runtime/lib/control-plane-server.mjs": "ede502bd32de33b8b7637f7a8b171ec13295f1942aadbcc6e2ddda3fe78fa7a4",
+    "runtime/control-plane-client.js": "bb544ab05babb0fa3dcba6882802033bde5fd3357b163bfe557209822377948e",
+    "verification/task_diagnostics_test.mjs": "6a4fa11168b0ffd917ce926e44e9b83d0ca33b45a49e5cc1c018dc06edd70445",
+    "verification/ui_review_preview_test.mjs": "9f84de5a57d48b66b00de0d09fd28baadf39ac202cda79e54940d6952b999fe2",
+    "verification/control_assistant_test.mjs": "01059390b1ad47f96f76c78e61f1ea9a9bfd4cf00d96ae53d639e3b4fcb69dd3",
+    "runtime/control-plane.html": "1101d489169b0ffe3dacde2989ea08676a1abc25e257f2c76b60b265e9f977eb",
+    "runtime/lib/execution-access.mjs": "c9441f459e73660a9caddcbefeba9991bd95e2a525436cb52f70d7f35d9479aa",
+    "runtime/scss/_app.scss": "852bffc2c9bcaf91182da3e615e693d6bf60d777ee45a1c97485eba44a3218e4",
+    "verification/execution_access_test.mjs": "b9ea5d5cf2959a58f350a02a29be010d8ee3adafed84fa8f242bccf95b10f42e",
+    "docs/ask-atl.md": "596e10f42a21c0f2d99390a8af8542630978dcac177f2d35a29ccf7e989f900a"
+  }
+}

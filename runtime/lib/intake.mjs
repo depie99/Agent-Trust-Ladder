@@ -158,6 +158,7 @@ export function intakeFromFiles(cfg) {
 // `owner/name` from "https://github.com/owner/name.git", "owner/name/issues", …
 export function normalizeGitHubRepo(entry) {
   return String(entry || "").trim()
+    .replace(/\/+$/, "")
     .replace(/^https:\/\/github\.com\//i, "")
     .replace(/\.git$/i, "")
     .replace(/\/issues$/i, "")
@@ -170,7 +171,7 @@ async function ghCliList(repo) {
   const run = promisify(execFile);
   const { stdout } = await run("gh", [
     "issue", "list", "-R", repo, "--state", "open", "--limit", "50",
-    "--json", "number,title,url,labels,body",
+    "--json", "number,title,url,labels,body,updatedAt",
   ]);
   return JSON.parse(stdout);
 }
@@ -194,31 +195,31 @@ async function ghRestList(repo) {
   return data
     .filter((i) => !i.pull_request)
     .map((i) => ({
-      number: i.number, title: i.title, url: i.html_url,
+      number: i.number, title: i.title, url: i.html_url, updated_at: i.updated_at,
       labels: (i.labels || []).map((l) => (typeof l === "string" ? l : l.name)),
       body: i.body || "",
     }));
 }
 
-export async function intakeFromGitHub(ghCfg) {
+export async function intakeFromGitHub(ghCfg, { cliListImpl = ghCliList, restListImpl = ghRestList } = {}) {
   const out = [];
   for (const entry of ghCfg.repos || []) {
     const repo = normalizeGitHubRepo(entry);
     let issues;
     try {
-      issues = await ghCliList(repo);
+      issues = await cliListImpl(repo);
     } catch {
-      issues = await ghRestList(repo); // unauthenticated works for public repos
+      issues = await restListImpl(repo); // unauthenticated works for public repos
     }
     for (const i of issues) {
-      const labels = (i.labels || []).map(String);
+      const labels = (i.labels || []).map(label => typeof label === "string" ? label : label?.name).filter(Boolean);
       const priority = normalizePriority(labels.find((l) => /^(urgent|critical|high|p1|p2)$/i.test(l)) || "");
       out.push({
         title: `#${i.number} ${i.title}`,
         objective_hint: String(i.body || "").slice(0, 800),
         completion_checks: [],
         priority, risk: "normal", labels,
-        source: { type: "github", url: i.url, thread: i.url, repo, excerpt: String(i.body || "").slice(0, 300) },
+        source: { type: "github", url: i.url, thread: i.url, repo, remote_id: i.number, revision: i.updated_at || i.updatedAt || null, excerpt: String(i.body || "").slice(0, 300) },
         resources: extractResources(i.body || "", { source: "github", baseUrl: i.url }),
         intake_key: i.url,
       });
@@ -260,7 +261,7 @@ export async function probeGitHubRepo(repo) {
 
 // cfg: { org_url (includes collection), project, iteration_path, token_env,
 //        types, wiql, tls_allow_untrusted }
-export async function intakeFromAzure(cfg) {
+export async function intakeFromAzure(cfg, { requestImpl = requestJson } = {}) {
   const tokenEnv = cfg.token_env || "AZDO_PAT";
   const pat = process.env[tokenEnv];
   if (!pat) {
@@ -272,27 +273,29 @@ export async function intakeFromAzure(cfg) {
     );
   }
   const auth = "Basic " + Buffer.from(":" + pat).toString("base64");
-  const base = `${cfg.org_url.replace(/\/$/, "")}/${cfg.project}`;
+  const org = new URL(String(cfg.org_url || ""));
+  if (org.protocol !== "https:" || org.username || org.password || org.search || org.hash) throw new IntakeError("Azure collection URL must be a plain HTTPS URL");
+  const base = `${org.href.replace(/\/$/, "")}/${encodeURIComponent(cfg.project)}`;
   const headers = { Authorization: auth, "Content-Type": "application/json" };
   const tls = { allowUntrusted: !!cfg.tls_allow_untrusted };
 
   const iteration = cfg.iteration_path || `${cfg.project}\\${cfg.sprint || "Current"}`;
   const wiql =
     cfg.wiql ||
-    `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' ` +
+    `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${String(cfg.project).replace(/'/g, "''")}' ` +
     `AND [System.IterationPath] = '${iteration.replace(/'/g, "''")}' ` +
-    `AND [System.WorkItemType] IN (${(cfg.types || ["Task", "Bug", "User Story"]).map((t) => `'${t}'`).join(", ")})`;
+    `AND [System.WorkItemType] IN (${(cfg.types || ["Task", "Bug", "User Story"]).map((t) => `'${String(t).replace(/'/g, "''")}'`).join(", ")})`;
 
-  const query = await requestJson(`${base}/_apis/wit/wiql?api-version=6.0`, {
+  const query = await requestImpl(`${base}/_apis/wit/wiql?api-version=6.0`, {
     method: "POST", headers, body: { query: wiql }, ...tls,
   });
   const ids = (query.workItems || []).map((w) => w.id).slice(0, 100);
   if (ids.length === 0) return [];
 
-  const batch = await requestJson(`${base}/_apis/wit/workitemsbatch?api-version=6.0`, {
+  const batch = await requestImpl(`${base}/_apis/wit/workitemsbatch?api-version=6.0`, {
     method: "POST",
     headers,
-    body: { ids, fields: ["System.Id", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "Microsoft.VSTS.Common.Priority", "System.Description"], "$expand": "Relations" },
+    body: { ids, fields: ["System.Id", "System.Rev", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "Microsoft.VSTS.Common.Priority", "System.Description"], "$expand": "Relations" },
     ...tls,
   });
 
@@ -311,7 +314,7 @@ export async function intakeFromAzure(cfg) {
         type: "azure",
         url: `${base}/_workitems/edit/${w.id}`,
         thread: `${cfg.org_url}/${cfg.project}/_workitems/edit/${w.id}`,
-        project: cfg.project, iteration,
+        project: cfg.project, iteration, remote_id: w.id, revision: f["System.Rev"] || null,
         excerpt: String(f["System.Title"] || ""),
       },
       resources: [
@@ -323,14 +326,43 @@ export async function intakeFromAzure(cfg) {
             source: "azure",
           })),
       ].filter(Boolean),
-      intake_key: `azure:${cfg.project}:${w.id}:${f["System.Rev"] || 0}`,
+      intake_key: `azure:${org.href.replace(/\/$/, "")}:${cfg.project}:${w.id}:${f["System.Rev"] || 0}`,
     };
+  });
+}
+
+// ---------- adapter: Jira issues (read-only search)
+
+const jiraText = (value) => typeof value === "string" ? value : value && typeof value === "object"
+  ? [value.text, ...(value.content || []).map(jiraText)].filter(Boolean).join(" ") : "";
+
+export async function intakeFromJira(cfg, { fetchImpl = globalThis.fetch } = {}) {
+  const base = new URL(String(cfg.base_url || ""));
+  if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash) throw new IntakeError("Jira base URL must be a plain HTTPS URL");
+  const projects = (cfg.projects || []).map((key) => String(key).trim().toUpperCase()).filter((key) => /^[A-Z][A-Z0-9_]{1,19}$/.test(key));
+  if (!projects.length) throw new IntakeError("Choose at least one Jira project key");
+  const tokenEnv = cfg.token_env || "JIRA_TOKEN", token = process.env[tokenEnv];
+  if (!token) throw new IntakeError(`Jira intake needs ${tokenEnv} in the server environment`);
+  const jql = `project in (${projects.join(",")}) AND statusCategory != Done ORDER BY updated DESC`;
+  const url = new URL("rest/api/2/search", base.href.endsWith("/") ? base : `${base.href}/`);
+  url.searchParams.set("jql", jql); url.searchParams.set("maxResults", "50");
+  url.searchParams.set("fields", "summary,description,issuetype,priority,updated,labels,status");
+  const response = await fetchImpl(url.href, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+  if (!response.ok) throw new IntakeError(`Jira search failed (HTTP ${response.status})`);
+  const data = await response.json();
+  return (data.issues || []).filter((issue) => projects.some((key) => String(issue.key || "").startsWith(`${key}-`))).map((issue) => {
+    const fields = issue.fields || {}, description = jiraText(fields.description).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const issueUrl = new URL(`browse/${encodeURIComponent(issue.key)}`, base.href.endsWith("/") ? base : `${base.href}/`).href;
+    return { title: `${issue.key} ${fields.summary || "Untitled issue"}`, objective_hint: description.slice(0, 800), completion_checks: [],
+      priority: normalizePriority(fields.priority?.name || ""), risk: "normal", labels: (fields.labels || []).map(String),
+      source: { type: "jira", url: issueUrl, thread: issueUrl, base_url: base.href.replace(/\/$/, ""), remote_id: issue.key, revision: fields.updated || null, excerpt: description.slice(0, 300) },
+      resources: extractResources(description, { source: "jira", baseUrl: issueUrl }), intake_key: `jira:${base.host}:${issue.key}` };
   });
 }
 
 // ---------- top-level intake
 
-export async function runIntake(cfg, which = "all") {
+export async function runIntake(cfg, which = "all", adapters = {}) {
   const results = [];
   const sources = cfg.intake || {};
   const want = (name) => which === "all" || which === name;
@@ -339,10 +371,11 @@ export async function runIntake(cfg, which = "all") {
     results.push({ source: "file", tasks: intakeFromFiles({ inbox_dir: cfg.inbox_dir }) });
   }
   if (want("github") && sources.github?.enabled) {
-    results.push({ source: "github", tasks: await intakeFromGitHub(sources.github) });
+    results.push({ source: "github", tasks: await (adapters.github || intakeFromGitHub)(sources.github) });
   }
   if (want("azure") && sources.azure?.enabled) {
-    results.push({ source: "azure", tasks: await intakeFromAzure(sources.azure) });
+    results.push({ source: "azure", tasks: await (adapters.azure || intakeFromAzure)(sources.azure) });
   }
+  if (want("jira") && sources.jira?.enabled) results.push({ source: "jira", tasks: await (adapters.jira || intakeFromJira)(sources.jira) });
   return results;
 }

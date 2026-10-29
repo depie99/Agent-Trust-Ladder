@@ -35,6 +35,7 @@ import { applyDeterministicRoute, composeTask, importCandidates } from "./lib/co
 import { queueAdd, queueClear, queueIds, queueRemove, loadQueue } from "./lib/queue.mjs";
 import { buildLaunchPlan, driveTaskUntilGate, executeLaunchQueue, recoverAfterOutcome, recoverDueBlockedTasks, reconcileOvernightRun, resumeOvernightRun } from "./lib/launch.mjs";
 import { discoverProvider, localDefaultModel, providerForRole, providerModels, providerNames, providerProfile, providerSpec } from "./lib/providers.mjs";
+import { resourcePolicy, routeTask } from './lib/resource-policy.mjs';
 import {
   credentialContext, getProvider, loadUserProviders, maskKey, PROVIDER_TEMPLATES,
   removeProvider, saveUserProviders, templateById, upsertProvider, registryPath, validateProviderEntry, wireMismatches,
@@ -460,12 +461,13 @@ function parseWorkerFlags({ overnight }) {
   // Sage -> Beacon relay. Five sessions starves the next stage as soon as a
   // reviewer requests one repair pass, so use a bounded eight-session default;
   // operators can still choose a smaller or larger budget explicitly.
-  const maxSessions = Number(flags["max-sessions"] || (overnight ? 8 : 1));
+  const resources=resourcePolicy(loadConfig());
+  const maxSessions = Number(flags["max-sessions"] || (resources.enabled?resources.max_sessions:(overnight?resources.default_sessions:1)));
   if (!Number.isFinite(maxMinutes) || maxMinutes <= 0 || maxMinutes > 24 * 60) {
     throw new StateError(`--max-minutes must be between 1 and ${24 * 60}`);
   }
-  if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 20) {
-    throw new StateError("--max-sessions must be an integer between 1 and 20");
+  if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 50) {
+    throw new StateError("--max-sessions must be an integer between 1 and 50");
   }
   return { dryRun, worker, workerLabel, auth: provider.auth || auth, envPolicy, provider, maxMinutes, maxSessions };
 }
@@ -497,7 +499,7 @@ async function runWorkerLoop(taskId, { overnight }) {
     overnight,
     dryRun: opts.dryRun,
     onSession: syncBridgeSession,
-    resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
+    resolveWorker: (role,task) => (resourcePolicy(loadConfig()).enabled||task?.provider_route)?routeTask(loadConfig(),task,role,{overrides:{worker:flags.worker,model:flags.model}}):({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
   }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
 
   const finalState = loadState(ROOT);
@@ -561,7 +563,7 @@ async function runQueueLoop({ overnight }) {
       overnight: true,
       dryRun: false,
       onSession: syncBridgeSession,
-      resolveWorker: () => ({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
+      resolveWorker: (role,task) => (resourcePolicy(loadConfig()).enabled||task?.provider_route)?routeTask(loadConfig(),task,role,{overrides:{worker:flags.worker,model:flags.model}}):({ worker: opts.worker, auth: opts.auth, envPolicy: opts.envPolicy, provider: opts.provider, userProvider: opts.provider.userProvider }),
     }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
     results.push({ id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason });
     const recovery = recoverAfterOutcome(ROOT, fresh.id, outcome, {
@@ -1831,7 +1833,7 @@ async function main() {
         const resumed = await resumeOvernightRun(ROOT, {
           confirm: flags.confirm === true || flags.confirm === "true",
           maxMinutes: Number(flags["max-minutes"] || 120),
-          maxSessions: Number(flags["max-sessions"] || 5),
+          maxSessions: flags["max-sessions"] ? Number(flags["max-sessions"]) : null,
         });
         console.log(JSON.stringify(resumed, null, 2));
       } else if (flags.all === true) {

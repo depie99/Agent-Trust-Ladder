@@ -1,91 +1,63 @@
-// Docs-site integrity checks. Run from the repo root: node scripts/check_docs.mjs
-//
-// Covers the checks the docs sync anchor claims: balanced tags, link/anchor
-// targets that resolve, and one shared Documentation nav across pages.
-// Exit code 1 on any failure.
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const docsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "docs");
-const PAGES = ["index.html", "skills.html", "guides.html", "control-room.html", "brain.html", "team.html", "team-interfaces.html", "jev.html", "reference.html", "diagrams.html", "codex-history-bridge.html"];
-const PAIRED = ["section", "div", "figure", "figcaption", "aside", "nav", "main", "header", "footer", "table", "button", "a", "pre", "code", "b", "span", "h1", "h2", "h3", "dialog", "form", "article"];
-let failures = 0;
-const fail = (message) => { failures += 1; console.log("FAIL:", message); };
-
-for (const page of PAGES) {
-  const file = path.join(docsDir, page);
-  if (!fs.existsSync(file)) { fail(`${page}: missing`); continue; }
-  const html = fs.readFileSync(file, "utf8");
-
-  // 1. Paired-tag balance (void elements excluded).
-  const stack = [];
-  const re = /<\/?([a-zA-Z][a-zA-Z0-9-]*)(\s[^<>]*)?>/g;
-  for (const match of html.matchAll(re)) {
-    const tag = match[1].toLowerCase();
-    if (!PAIRED.includes(tag)) continue;
-    if (match[0].endsWith("/>")) continue;
-    if (match[0][1] === "/") {
-      const top = stack.pop();
-      if (top !== tag) { fail(`${page}: </${tag}> closes <${top || "nothing"}> (line ${html.slice(0, match.index).split("\n").length})`); }
-    } else {
-      stack.push(tag);
-    }
-  }
-  if (stack.length) fail(`${page}: unclosed tags ${[...new Set(stack)].join(", ")}`);
-
-  // 2. Local href/src targets resolve (query strings stripped; #anchor checked in-page).
-  for (const match of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
-    const raw = match[1];
-    if (raw.startsWith("http") || raw.startsWith("mailto:")) continue;
-    const [rawTarget, hash] = raw.split("#");
-    const target = rawTarget.split("?")[0];
-    if (target && !fs.existsSync(path.join(docsDir, target))) fail(`${page}: broken target ${raw}`);
-    if (hash) {
-      const host = target || page;
-      let hostHtml = html;
-      if (target) hostHtml = fs.readFileSync(path.join(docsDir, target), "utf8");
-      if (!hostHtml.includes(`id="${hash}"`) && !hostHtml.includes(`name="${hash}"`)) fail(`${page}: missing #${hash} in ${host}`);
-    }
-  }
-
-  // 3. Every page shares one Documentation nav (ordered page ids).
-  const navOrder = [...html.matchAll(/<nav class="nav-list">([\s\S]*?)<\/nav>/g)]
-    .map((m) => [...m[1].matchAll(/href="([a-z-]+\.html)/g)].map((n) => n[1]))
-    .find((links) => links.includes("team.html"));
-  if (!navOrder) { fail(`${page}: documentation nav not found`); }
-  else {
-    const expected = ["skills.html", "guides.html", "control-room.html", "brain.html", "team.html", "team-interfaces.html", "jev.html", "reference.html", "diagrams.html"];
-    const docNav = navOrder.filter((l) => expected.includes(l));
-    if (JSON.stringify(docNav) !== JSON.stringify(expected)) fail(`${page}: doc nav is ${docNav.join(",")}`);
-  }
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import MarkdownIt from 'markdown-it';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const docs=path.join(root,'docs');
+const pages=JSON.parse(fs.readFileSync(path.join(docs,'site.json'),'utf8'));
+const md=new MarkdownIt({html:true});
+let failures=0, links=0;
+const fail=message=>{failures++;console.error('FAIL: '+message);};
+const slug=text=>text.toLowerCase().replace(/<[^>]*>/g,'').replace(/[^\p{L}\p{N}\s_-]/gu,'').trim().replace(/\s/g,'-');
+const ignored=new Set(['node_modules','.git','.trust','.atl-evidence','%T%']);
+function walk(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()?(ignored.has(entry.name)?[]:walk(path.join(dir,entry.name))):entry.name.endsWith('.md')?[path.join(dir,entry.name)]:[]);}
+const sources=walk(root);
+const anchors=new Map();
+function ids(file){
+ if(anchors.has(file))return anchors.get(file);
+ const text=fs.readFileSync(file,'utf8'), set=new Set([...text.matchAll(/\b(?:id|name)=["']([^"']+)["']/g)].map(m=>m[1]));
+ if(file.endsWith('.md')){const tokens=md.parse(text,{}),used=new Map();for(let i=0;i<tokens.length;i++)if(tokens[i].type==='heading_open'){const base=slug(tokens[i+1].content),n=used.get(base)||0;set.add(base+(n?'-'+n:''));used.set(base,n+1);}}
+ anchors.set(file,set);return set;
 }
-
-// 4. Generated TUI images referenced by the pages exist and carry dimensions.
-for (const name of ["tui-dashboard", "tui-compose", "tui-review", "tui-queue", "tui-launch", "tui-run", "tui-providers"]) {
-  const file = path.join(docsDir, "diagrams", `${name}.svg`);
-  if (!fs.existsSync(file)) { fail(`diagrams/${name}.svg missing`); continue; }
-  const svg = fs.readFileSync(file, "utf8");
-  if (!/^<svg[^>]*width="\d+" height="\d+"/.test(svg)) fail(`diagrams/${name}.svg: no intrinsic width/height`);
+function check(from,raw){
+ if(!raw||/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(raw))return;
+ if(/[<>]|\{\{/.test(raw))return;
+ links++;
+ const [location,fragment]=raw.split('#');let target;
+ try{target=location?path.resolve(path.dirname(from),decodeURIComponent(location.split('?')[0])):from;}catch{fail(`${path.relative(root,from)} invalid URL ${raw}`);return;}
+ if(!fs.existsSync(target)){fail(`${path.relative(root,from)} -> ${raw}`);return;}
+ if(fragment&&fs.statSync(target).isFile()&&/\.(md|html)$/.test(target)){
+  let decoded;try{decoded=decodeURIComponent(fragment);}catch{decoded=fragment;}
+  if(!ids(target).has(decoded))fail(`${path.relative(root,from)} -> missing anchor ${raw}`);
+ }
 }
-
-// Browser Control Plane visual is source-owned SVG and must remain directly
-// previewable by GitHub Pages, just like the generated terminal figures.
-const webControlPlane = path.join(docsDir, "diagrams", "atl-web-control-plane.svg");
-if (!fs.existsSync(webControlPlane)) fail("diagrams/atl-web-control-plane.svg missing");
-else {
-  const svg = fs.readFileSync(webControlPlane, "utf8");
-  if (!/^<svg[^>]*width="\d+" height="\d+"/.test(svg)) fail("diagrams/atl-web-control-plane.svg: no intrinsic width/height");
-  if (!svg.includes("<title") || !svg.includes("<desc")) fail("diagrams/atl-web-control-plane.svg: missing accessible title/description");
+for(const source of sources){
+ const tokens=md.parse(fs.readFileSync(source,'utf8'),{});
+ for(const token of tokens){
+  for(const child of token.children||[]){if(child.type==='link_open')check(source,child.attrGet('href'));if(child.type==='image')check(source,child.attrGet('src'));}
+  if(token.type==='html_block')for(const match of token.content.matchAll(/(?:href|src)=["']([^"']+)["']/g))check(source,match[1]);
+ }
 }
-
-const webControlPlanePreview = path.join(docsDir, "diagrams", "atl-web-control-plane-preview.svg");
-if (!fs.existsSync(webControlPlanePreview)) fail("diagrams/atl-web-control-plane-preview.svg missing");
-else {
-  const svg = fs.readFileSync(webControlPlanePreview, "utf8");
-  if (!/^<svg[^>]*width="\d+" height="\d+"/.test(svg)) fail("diagrams/atl-web-control-plane-preview.svg: no intrinsic width/height");
-  if (!svg.includes("<title") || !svg.includes("<desc")) fail("diagrams/atl-web-control-plane-preview.svg: missing accessible title/description");
+const routes=new Set(),sourceSet=new Set();
+const search=JSON.parse(fs.readFileSync(path.join(docs,'search-index.json'),'utf8'));
+for(const page of pages){
+ if(routes.has(page.url)||sourceSet.has(page.source))fail('Duplicate manifest entry '+page.url);
+ routes.add(page.url);sourceSet.add(page.source);
+ const target=path.join(docs,page.url);if(!fs.existsSync(target)){fail('Missing page '+page.url);continue;}
+ const html=fs.readFileSync(target,'utf8');
+ if(!html.includes('Generated by scripts/build-docs.mjs'))fail(page.url+' lacks generated-source marker');
+ if((html.match(/<h1\b/g)||[]).length!==1)fail(page.url+' must have exactly one h1');
+ if(!html.includes('<meta name="description"')||!html.includes('<html lang="en"'))fail(page.url+' lacks metadata');
+ if((html.match(/aria-current="page"/g)||[]).length!==1)fail(page.url+' must have exactly one current navigation item');
+ for(const other of pages)if(!html.includes(`href="${other.url}"`))fail(page.url+' missing navigation '+other.url);
+ for(const tag of html.matchAll(/<(?:a|img|script|link)\b[^>]*>/g))for(const match of tag[0].matchAll(/(?:href|src)="([^"]+)"/g))check(target,match[1].replaceAll('&amp;','&'));
+ if(!search.some(record=>record.url.split('#')[0]===page.url))fail(page.url+' missing from search');
 }
-
-if (failures) { console.log(`\n${failures} failure(s)`); process.exit(1); }
-console.log("ALL OK: tags balanced, links resolve, navs consistent, TUI images intact");
+for(const record of search)check(path.join(docs,'index.html'),record.url);
+for(const name of ['overview','tasks','sources','studio','queues','team','ask-atl']){
+ const file=path.join(docs,'assets','screenshots',name+'.jpg');
+ if(!fs.existsSync(file))fail('Missing Control Plane screenshot '+name);
+ else{const bytes=fs.readFileSync(file);if(bytes[0]!==0xff||bytes[1]!==0xd8||bytes.length<10000)fail('Invalid screenshot '+name);}
+}
+console.log(`${sources.length} Markdown files, ${pages.length} public pages, ${search.length} search entries, ${links} local links checked; ${failures} failure(s).`);
+if(failures)process.exitCode=1;

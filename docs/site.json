@@ -1,0 +1,261 @@
+[
+  {
+    "source": "docs/overview.md",
+    "url": "index.html",
+    "title": "Overview",
+    "group": "Start here",
+    "description": "ATL coordinates engineering work through explicit requirements, bounded execution, independent review, and recorded evidence. Use its agent skills to guide an engineering"
+  },
+  {
+    "source": "docs/getting-started.md",
+    "url": "getting-started.html",
+    "title": "Getting started",
+    "group": "Start here",
+    "description": "Open a local ATL project and create your first reviewed task. Skills provide engineering instructions; the runtime stores and coordinates work. Install them separately as"
+  },
+  {
+    "source": "docs/control-room.md",
+    "url": "control-room.html",
+    "title": "Control Plane",
+    "group": "Start here",
+    "description": "The Control Plane is ATL’s local browser interface. It presents the same task, queue, provider, and evidence records used by the CLI."
+  },
+  {
+    "source": "docs/guides.md",
+    "url": "guides.html",
+    "title": "Feature and how-to map",
+    "group": "Start here",
+    "description": "Find the reader procedure, implementing boundary, and verification entry point for each feature. Module names are under runtime/lib/ unless a full path is given; tests ar"
+  },
+  {
+    "source": "docs/issue-sources.md",
+    "url": "issue-sources.html",
+    "title": "Issue sources",
+    "group": "Workflows",
+    "description": "Configure a connector, preview issues, then import selected candidates into a queue. Imported text needs an executable objective and completion checks before it becomes t"
+  },
+  {
+    "source": "docs/plan-studio.md",
+    "url": "plan-studio.html",
+    "title": "Plan Studio",
+    "group": "Workflows",
+    "description": "Use Plan Studio when a request describes an outcome but lacks independently executable tasks. Planning proposes work; review and owner approval decide whether it can ente"
+  },
+  {
+    "source": "docs/tasks-and-queues.md",
+    "url": "tasks-and-queues.html",
+    "title": "Tasks and queues",
+    "group": "Workflows",
+    "description": "A task defines a bounded outcome and acceptance evidence. A queue chooses the work considered by a bounded run. Order does not remove prerequisite or approval gates."
+  },
+  {
+    "source": "docs/overnight-runs.md",
+    "url": "overnight-runs.html",
+    "title": "Overnight runs",
+    "group": "Workflows",
+    "description": "An overnight run executes approved work within session, concurrency, and time limits. It needs a running machine, a ready provider, and execution authority. It cannot gua"
+  },
+  {
+    "source": "docs/ask-atl.md",
+    "url": "ask-atl.html",
+    "title": "Ask ATL",
+    "group": "Workflows",
+    "description": "1. Open a task and choose Ask ATL, or open the project conversation from navigation. 2. Inspect the suggested focus and its evidence source. Use it as a starting hypothes"
+  },
+  {
+    "source": "docs/task-change-review.md",
+    "url": "task-change-review.html",
+    "title": "Review changes",
+    "group": "Workflows",
+    "description": "Open a task in the live browser Control Plane and select Review changes. Diagram opens the Relationships tab. Inspection does not start workers, change task status, or gr"
+  },
+  {
+    "source": "docs/queue-recovery.md",
+    "url": "queue-recovery.html",
+    "title": "Queue recovery",
+    "group": "Workflows",
+    "description": "ATL prepares prerequisite outputs inside each worker's isolated workspace before starting a provider. Mira owns recovery, Pip owns one bounded contract repair, Rowan owns"
+  },
+  {
+    "source": "docs/task-run-reliability.md",
+    "url": "task-run-reliability.html",
+    "title": "Run reliability",
+    "group": "Workflows",
+    "description": "Observed 2026-10-27. Audience: maintainers operating task runs. Sources: T-022 worker transcripts and recovery records in .trust/manager/overnight/T-022/, the task feed, "
+  },
+  {
+    "source": "docs/plan-studio-contract.md",
+    "url": "plan-studio-contract.html",
+    "title": "Plan contract",
+    "group": "Workflows",
+    "description": "Follow Plan Studio to generate, clarify, review, and approve a plan. Inspect the current artifact, source revision, and review binding before approval. If validation fail"
+  },
+  {
+    "source": "docs/providers.md",
+    "url": "providers.html",
+    "title": "Providers and access",
+    "group": "Operations",
+    "description": "Choose a ready provider and an eligible model before execution. Authentication, model capability, workspace access, and browser access are separate launch inputs."
+  },
+  {
+    "source": "docs/resource-policy.md",
+    "url": "resource-policy.html",
+    "title": "Resource policy",
+    "group": "Operations",
+    "description": "Settings → Autonomous resources controls the project-local resource_policy in config/manager.json. Save does not start a provider or queue. Existing projects retain their"
+  },
+  {
+    "source": "docs/model-routing.md",
+    "url": "model-routing.html",
+    "title": "Model routing",
+    "group": "Operations",
+    "description": "ATL treats model choice as an engineering policy, not a prestige ranking. Route by the work:"
+  },
+  {
+    "source": "docs/execution-reports.md",
+    "url": "execution-reports.html",
+    "title": "Execution reports",
+    "group": "Operations",
+    "description": "1. Open a task or queue and inspect Execution & resources and its session history. 2. Read provider/model, stage, allowance, retry, and quota-switch records together. 3. "
+  },
+  {
+    "source": "docs/projects-and-backups.md",
+    "url": "projects-and-backups.html",
+    "title": "Projects and backups",
+    "group": "Operations",
+    "description": "Project registration supports multi-repository supervision. Approval records preserve owner decisions. Backups support recovery. Inspect each resource separately."
+  },
+  {
+    "source": "docs/research-and-navigation.md",
+    "url": "research-and-navigation.html",
+    "title": "Research and navigation",
+    "group": "Operations",
+    "description": "Research records hold reviewed improvement proposals. Source maps support code navigation. Both assist planning; neither replaces reading source and running verifiers."
+  },
+  {
+    "source": "docs/codex-history-bridge.md",
+    "url": "codex-history-bridge.html",
+    "title": "Codex history bridge",
+    "group": "Operations",
+    "description": "ATL keeps the authoritative feed and provider transcripts locally, then optionally projects incremental context into a selected Codex thread. Projection and visible queue"
+  },
+  {
+    "source": "docs/troubleshooting.md",
+    "url": "troubleshooting.html",
+    "title": "Troubleshooting",
+    "group": "Operations",
+    "description": "Preserve the failing operation, exact message, task ID, and revision. Repeating an unchanged launch is not recovery."
+  },
+  {
+    "source": "docs/architecture.md",
+    "url": "architecture.html",
+    "title": "Architecture",
+    "group": "Concepts",
+    "description": "ATL combines declarative engineering skills with a local stateful runtime. Skills guide decisions; the runtime validates persisted work, dispatches bounded sessions, and "
+  },
+  {
+    "source": "docs/resource-model.md",
+    "url": "resource-model.html",
+    "title": "Resource and file model",
+    "group": "Concepts",
+    "description": "Use this model to locate a resource and trace the evidence behind a task. Relationships describe local JSON, JSONL, files, and Git workspaces; ATL does not require a rela"
+  },
+  {
+    "source": "docs/team.md",
+    "url": "team.html",
+    "title": "Agent team",
+    "group": "Concepts",
+    "description": "ATL separates coordination, task definition, implementation, review, and verification. Roles define responsibilities; provider configuration chooses the worker/model."
+  },
+  {
+    "source": "docs/brain.md",
+    "url": "brain.html",
+    "title": "Knowledge and learning",
+    "group": "Concepts",
+    "description": "ATL retains source-backed claims, context, and lessons locally. Learning means recorded knowledge and bounded policy calibration; it does not retrain provider model weigh"
+  },
+  {
+    "source": "docs/jev.md",
+    "url": "jev.html",
+    "title": "Jev routing",
+    "group": "Concepts",
+    "description": "> Use Jev when the best ATL specialist is unclear. Keep deterministic routing as the default, and let ATL reject uncertain decisions."
+  },
+  {
+    "source": "docs/diagrams.md",
+    "url": "diagrams.html",
+    "title": "Diagram library",
+    "group": "Concepts",
+    "description": "Use a focused model to answer a question, then follow the implementing source for exact policy and fields. Mermaid lives in the corresponding Markdown and renders with a "
+  },
+  {
+    "source": "docs/skills.md",
+    "url": "skills.html",
+    "title": "Skill catalog",
+    "group": "Reference",
+    "description": "Skills are engineering instruction contracts. Installing them does not start the stateful runtime or grant remote execution authority."
+  },
+  {
+    "source": "docs/reference.md",
+    "url": "reference.html",
+    "title": "Trust vocabulary",
+    "group": "Reference",
+    "description": "Use these terms consistently in task packets, reviews, and delivery reports."
+  },
+  {
+    "source": "docs/configuration.md",
+    "url": "configuration.html",
+    "title": "Configuration",
+    "group": "Reference",
+    "description": "Configuration defines policy and defaults; state records what happened. Prefer supported browser/CLI operations, then inspect effective launch preview."
+  },
+  {
+    "source": "docs/state-contract.md",
+    "url": "state-contract.html",
+    "title": "Lifecycle reference",
+    "group": "Reference",
+    "description": "Generated from config/manager-state-contract.json, consumed directly by runtime/lib/state.mjs. These are literal runtime values, separate from the conceptual diagrams."
+  },
+  {
+    "source": "docs/cli-reference.md",
+    "url": "cli-reference.html",
+    "title": "CLI reference",
+    "group": "Reference",
+    "description": "Generated from runtime/atl-manager.mjs usage text. Run atl --help for your installed version. Do not edit this reference by hand."
+  },
+  {
+    "source": "docs/api-reference.md",
+    "url": "api-reference.html",
+    "title": "Local API reference",
+    "group": "Reference",
+    "description": "This route index is extracted from literal API paths in runtime/lib/control-plane-server.mjs. It is a source-navigation aid, not a versioned OpenAPI schema. Parameterized"
+  },
+  {
+    "source": "docs/repository-map.md",
+    "url": "repository-map.html",
+    "title": "File catalog",
+    "group": "Reference",
+    "description": "Generated by scripts/docs-reference.mjs. This inventories maintained public source families, including skill references and verifiers. Local state, dependencies, private "
+  },
+  {
+    "source": "docs/development.md",
+    "url": "development.html",
+    "title": "Development and verification",
+    "group": "Contributing",
+    "description": "Make a bounded change, run a verifier that observes its behavior, and record results and limits. Preserve unrelated modifications and use synthetic projects for remote or"
+  },
+  {
+    "source": "docs/documentation.md",
+    "url": "documentation.html",
+    "title": "Documentation workflow",
+    "group": "Contributing",
+    "description": "Markdown is the editable source for public guides. A generator produces the GitHub Pages HTML and section search index. The package also includes the guides for local rea"
+  },
+  {
+    "source": "docs/docs-refresh-verification.md",
+    "url": "docs-refresh-verification.html",
+    "title": "Documentation verification",
+    "group": "Contributing",
+    "description": "This record covers the October 29, 2026 documentation refresh. It is separate from the earlier mock runtime E2E report. Results are added only after the corresponding che"
+  }
+]

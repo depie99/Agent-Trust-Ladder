@@ -1,13 +1,166 @@
 import fs from "node:fs";
 import path from "node:path";
-import { paths, loadState } from "./state.mjs";
+import crypto from "node:crypto";
+import { paths, loadState, saveState } from "./state.mjs";
 import { createTaskInWorkspace } from "./task-workspace.mjs";
 import { queueAdd, queueCreate, loadQueue, loadQueueBook, saveQueue } from "./queue.mjs";
 import { usageGate } from "./usage.mjs";
 import { validateContracts } from "./queue-recovery.mjs";
+import { isSkillAvailable } from "./skill-router.mjs";
+import { readResourceConfig, budgetDecision } from "./resource-policy.mjs";
 
 export const PLAN_STAGES = Object.freeze(["intent", "frame", "specify", "route", "plan", "review", "approved"]);
 export const PLAN_SCHEMA_VERSION = 1;
+export const PLAN_CONTRACT_VERSION = 2;
+
+function planFingerprint(artifact, intent, evidence) {
+  return crypto.createHash("sha256").update(JSON.stringify({ artifact, intent, evidence })).digest("hex");
+}
+
+export function reviewPlanArtifact(root, draft, review) {
+  const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
+  const normalized = normalizePlanContract(loaded.artifact, loaded.intent);
+  delete normalized.review;
+  const findings = Array.isArray(review?.findings) ? review.findings : [];
+  if (!findings.every((item) => item && ["blocker", "major", "minor", "info"].includes(item.severity) && String(item.message || "").trim())) throw new Error("review findings must include a severity and message");
+  const unresolved = normalized.open_questions.filter((item) => !item.resolved);
+  const passed = review?.verdict === "passed" && !unresolved.length && !findings.some((item) => ["blocker", "major"].includes(item.severity));
+  const sourceRevision = review.source_revision || null;
+  const result = { schema: PLAN_CONTRACT_VERSION, verdict: passed ? "passed" : "blocked", findings, reviewed_at: new Date().toISOString(), fingerprint: planFingerprint(normalized, loaded.intent, { project: planningEvidence(root, normalized), source_revision: sourceRevision }), provider: review.provider || null, model: review.model || null, source_revision: sourceRevision };
+  const file = path.join(loaded.dir, "artifact.json");
+  const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
+  envelope.artifact = normalized;
+  envelope.review = result;
+  envelope.artifact.review = result;
+  envelope.saved_at = new Date().toISOString();
+  fs.writeFileSync(file, JSON.stringify(envelope, null, 2) + "\n");
+  return { ...loaded, artifact: envelope.artifact, review: result, saved_at: envelope.saved_at };
+}
+
+export function normalizePlanContract(artifact, intent = "") {
+  const result = { ...artifact, plan_contract_version: artifact?.plan_contract_version || 1 };
+  result.requirements = Array.isArray(result.requirements) ? result.requirements : result.plan_contract_version === PLAN_CONTRACT_VERSION ? [] : [{ id: "r1", text: String(result.objective || intent).trim(), source: "original request" }];
+  result.constraints = Array.isArray(result.constraints) ? result.constraints : [];
+  result.observed_evidence = Array.isArray(result.observed_evidence) ? result.observed_evidence : [];
+  result.assumptions = Array.isArray(result.assumptions) ? result.assumptions : [];
+  result.clarifications = Array.isArray(result.clarifications) ? result.clarifications : [];
+  result.open_questions = (Array.isArray(result.open_questions) ? result.open_questions : []).map((question, index) => {
+    const item = typeof question === "string" ? { question } : { ...question };
+    const id = String(item.id || `q${index + 1}`);
+    const answered = result.clarifications.some((entry) => entry.question_id === id && String(entry.answer || "").trim());
+    return { ...item, id, resolved: answered, ...(answered ? {} : { answer: "" }) };
+  });
+  result.task_proposals = (Array.isArray(result.task_proposals) ? result.task_proposals : []).map((proposal) => ({
+    ...proposal,
+    requirement_ids: Array.isArray(proposal.requirement_ids) ? proposal.requirement_ids : result.plan_contract_version === PLAN_CONTRACT_VERSION ? [] : result.requirements.map((item) => item.id),
+    instructions: String(proposal.instructions || (result.plan_contract_version === PLAN_CONTRACT_VERSION ? "" : proposal.objective) || ""),
+    deliverables: Array.isArray(proposal.deliverables) ? proposal.deliverables : [],
+    skill_reasons: proposal.skill_reasons || {},
+  }));
+  return result;
+}
+
+export function planningEvidence(root, artifact = null) {
+  const read = (file, limit = 6000) => {
+    try { return fs.readFileSync(path.join(root, file), "utf8").slice(0, limit); } catch { return null; }
+  };
+  let packageInfo = null;
+  try { packageInfo = JSON.parse(read("package.json", 100_000) || "null"); } catch { /* malformed manifest is shown as unavailable */ }
+  let skills = [];
+  try {
+    skills = fs.readdirSync(path.join(root, "skills"), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => {
+      const manifest = read(path.join("skills", entry.name, "SKILL.md"), 3000) || "";
+      return { id: entry.name, description: /^description:\s*(.+)$/mi.exec(manifest)?.[1]?.trim() || "Description unavailable" };
+    });
+  } catch { /* no project skill directory */ }
+  let entries = [];
+  try { entries = fs.readdirSync(root, { withFileTypes: true }).filter((entry) => !entry.name.startsWith(".") && !["node_modules", "vendor", "dist", "build"].includes(entry.name)).map((entry) => `${entry.isDirectory() ? "dir" : "file"}: ${entry.name}`).slice(0, 80); } catch { /* root may be unavailable */ }
+  const evidencePaths = [...new Set([
+    ...(artifact?.observed_evidence || []).map((item) => typeof item === "string" ? item : item.path),
+    ...(artifact?.task_proposals || []).flatMap((proposal) => proposal.files || []),
+  ].filter(Boolean))].slice(0, 100);
+  const fileEvidence = evidencePaths.map((relative) => {
+    const full = path.resolve(root, relative);
+    const rootPrefix = path.resolve(root) + path.sep;
+    if (!full.startsWith(rootPrefix)) return { path: relative, status: "outside-project" };
+    try {
+      const stat = fs.statSync(full);
+      if (stat.isFile()) return { path: relative, sha256: crypto.createHash("sha256").update(fs.readFileSync(full)).digest("hex") };
+      if (stat.isDirectory()) {
+        const files = [];
+        const visit = (directory) => {
+          if (files.length >= 200) return;
+          for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+            if (files.length >= 200 || [".git", "node_modules", "vendor", "dist", "build"].includes(entry.name)) continue;
+            const child = path.join(directory, entry.name);
+            if (entry.isDirectory()) visit(child);
+            else if (entry.isFile()) files.push({ path: path.relative(root, child).replaceAll(path.sep, "/"), sha256: crypto.createHash("sha256").update(fs.readFileSync(child)).digest("hex") });
+          }
+        };
+        visit(full);
+        return { path: relative, status: "directory", files, truncated: files.length >= 200 };
+      }
+      return { path: relative, status: "not-file" };
+    } catch { return { path: relative, status: "missing" }; }
+  });
+  return {
+    root_entries: entries,
+    package: packageInfo ? { name: packageInfo.name || null, scripts: packageInfo.scripts || {} } : null,
+    repository_instructions: read("AGENTS.md", 6000),
+    readme_excerpt: read("README.md", 6000),
+    available_project_skills: skills,
+    referenced_file_fingerprints: fileEvidence,
+  };
+}
+
+export function validatePlanGrounding(root, artifact) {
+  const base = path.resolve(root);
+  const plannedFiles = new Set((artifact.task_proposals || []).flatMap((proposal) => proposal.files || []).map((file) => path.relative(base, path.resolve(base, file)).replaceAll(path.sep, "/")));
+  const evidenceByPath = new Map(planningEvidence(root, artifact).referenced_file_fingerprints.map((item) => [item.path, item]));
+  for (const item of artifact.observed_evidence || []) {
+    const evidencePath = typeof item === "string" ? null : item.path;
+    if (!evidencePath) throw new Error("observed evidence must identify a project path or a source URL and revision");
+    if (/^https:\/\//i.test(evidencePath)) {
+      if (!item.revision && !item.source_revision) throw new Error(`external observed evidence needs a captured revision: ${evidencePath}`);
+      continue;
+    }
+    const resolved = path.resolve(base, evidencePath);
+    if (!resolved.startsWith(base + path.sep)) throw new Error(`observed evidence path is outside the project: ${evidencePath}`);
+    const captured = evidenceByPath.get(evidencePath);
+    if (!captured || ["missing", "outside-project", "not-file"].includes(captured.status)) throw new Error(`observed evidence path was not found in the project: ${evidencePath}`);
+  }
+  for (const proposal of artifact.task_proposals || []) for (const file of proposal.files || []) {
+    const resolved = path.resolve(base, file);
+    if (!resolved.startsWith(base + path.sep)) throw new Error(`task ${proposal.id} has a path outside the project: ${file}`);
+  }
+  const commands = [...(artifact.verifier_commands || []), ...(artifact.task_proposals || []).map((proposal) => proposal.verify)];
+  if (commands.some((command) => /not determined|identify actual|placeholder|\bunknown\b/i.test(command))) throw new Error("verification commands cannot be placeholders or unknown");
+  const manifest = planningEvidence(root).package;
+  for (const command of commands) {
+    const npmScript = /^(?:npm|pnpm|yarn)\s+run\s+([\w:-]+)/i.exec(String(command));
+    if (npmScript && !manifest?.scripts?.[npmScript[1]]) throw new Error(`verification command references an unknown package script: ${npmScript[1]}`);
+    const executableFile = /^(?:node|python(?:3)?)\s+([^\s]+)/i.exec(String(command));
+    if (executableFile && !executableFile[1].startsWith("-")) {
+      const target = path.resolve(base, executableFile[1]);
+      const relative = path.relative(base, target).replaceAll(path.sep, "/");
+      if (!target.startsWith(base + path.sep) || (!fs.existsSync(target) && !plannedFiles.has(relative))) throw new Error(`verification command references a file not found in the project or task plan: ${executableFile[1]}`);
+    }
+  }
+  return true;
+}
+
+export function answerPlanQuestion(root, draft, questionId, answer) {
+  const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
+  const text = String(answer || "").trim();
+  if (!text) throw new Error("a clarification answer is required");
+  const artifact = cloneArtifact(loaded);
+  const index = (artifact.open_questions || []).findIndex((item, i) => String(item.id || `q${i + 1}`) === String(questionId));
+  if (index < 0) throw new Error(`open question ${questionId} not found`);
+  const prior = artifact.open_questions[index];
+  artifact.clarifications = [...(artifact.clarifications || []), { question_id: questionId, question: prior.question || prior.text || String(prior), answer: text, answered_at: new Date().toISOString() }];
+  artifact.open_questions[index] = typeof prior === "string" ? { id: questionId, question: prior, resolved: true, answer: text } : { ...prior, id: questionId, resolved: true, answer: text };
+  return persistArtifact(root, loaded, artifact);
+}
 
 function slug(value) {
   return String(value || "intent").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "intent";
@@ -154,6 +307,28 @@ export function validatePlanArtifact(artifact) {
   if (!Array.isArray(artifact.implementation_steps) || !artifact.implementation_steps.every((item) => item && typeof item === "object" && typeof item.step === "string" && item.step.trim())) throw new Error("implementation_steps must contain non-empty step descriptions");
   if (!Array.isArray(artifact.verifier_commands) || !artifact.verifier_commands.length || !artifact.verifier_commands.every((command) => typeof command === "string" && command.trim())) throw new Error("verifier_commands must be non-empty strings");
   validateProposals(artifact);
+  if (artifact.plan_contract_version === PLAN_CONTRACT_VERSION) {
+    if (!Array.isArray(artifact.requirements) || !artifact.requirements.length || !artifact.requirements.every((item) => item && /^r\d+$/.test(item.id || "") && String(item.text || "").trim())) throw new Error("requirements must contain identified, non-empty requirement statements");
+    if (!["observed_evidence", "assumptions", "open_questions"].every((key) => Array.isArray(artifact[key]))) throw new Error("plan contract requires evidence, assumptions, and open_questions lists");
+    const reqIds = new Set(artifact.requirements.map((item) => item.id));
+    if (!Array.isArray(artifact.task_proposals) || !artifact.task_proposals.length) throw new Error("version 2 plans must provide explicit task_proposals");
+    for (const proposal of artifact.task_proposals) {
+      if (!proposal.requirement_ids?.length || proposal.requirement_ids.some((id) => !reqIds.has(id))) throw new Error(`task ${proposal.id} must link to known requirements`);
+      if (String(proposal.instructions || "").trim().length < 30 || !proposal.deliverables?.length || proposal.deliverables.some((item) => !String(item).trim())) throw new Error(`task ${proposal.id} needs concrete implementation instructions and deliverables`);
+      if (!(proposal.selected_skills || []).length || (proposal.selected_skills || []).some((skill) => !String(proposal.skill_reasons?.[skill] || "").trim())) throw new Error(`task ${proposal.id} needs a skill and a reason for each assignment`);
+      if ((proposal.files || []).some((file) => /responsible|affected|project specification/i.test(file))) throw new Error(`task ${proposal.id} contains an ungrounded placeholder path`);
+      if (/not determined|identify actual project/i.test(proposal.verify || "")) throw new Error(`task ${proposal.id} has no project-grounded verifier`);
+    }
+    const covered = new Set(artifact.task_proposals.flatMap((proposal) => proposal.requirement_ids));
+    const uncovered = artifact.requirements.filter((item) => !covered.has(item.id));
+    if (uncovered.length) throw new Error(`requirements lack task coverage: ${uncovered.map((item) => item.id).join(", ")}`);
+    const checks = artifact.task_proposals.flatMap((proposal) => proposal.completion_checks);
+    const normalizeCheck = (check) => ({ negative: /\b(not|never|cannot|must not|should not)\b/i.test(check), words: String(check).toLowerCase().replace(/\b(not|never|cannot|must|should)\b/g, "").replace(/[^a-z0-9]+/g, " ").trim() });
+    for (let i = 0; i < checks.length; i++) for (let j = i + 1; j < checks.length; j++) {
+      const left = normalizeCheck(checks[i]), right = normalizeCheck(checks[j]);
+      if (left.words && left.words === right.words && left.negative !== right.negative) throw new Error(`contradictory completion checks: ${checks[i]} / ${checks[j]}`);
+    }
+  }
   return true;
 }
 
@@ -166,7 +341,7 @@ export function normalizeProposals(artifact) {
   const raw = explicit || (Array.isArray(artifact?.implementation_steps) ? artifact.implementation_steps : []).map((step, index) => ({
     id: `p${index + 1}`,
     title: step.step,
-    objective: step.step,
+    objective: `${step.step}\n\nOverall request:\n${artifact.objective || "Not recorded"}`,
     // Steps without a model-supplied verify fall back to the step text as
     // their completion definition — the proposal gate requires one check,
     // and the manager edits it during card review.
@@ -184,9 +359,14 @@ export function normalizeProposals(artifact) {
     completion_checks: (Array.isArray(proposal.completion_checks) ? proposal.completion_checks : [proposal.verify].filter(Boolean)).map((item) => String(item).trim()).filter(Boolean),
     proposed_worker: String(proposal.proposed_worker || artifact?.proposed_worker || "pip").trim() || "pip",
     selected_skills: (Array.isArray(proposal.selected_skills) ? proposal.selected_skills : []).map((item) => String(item).trim()).filter(Boolean),
+    requirement_ids: Array.isArray(proposal.requirement_ids) ? proposal.requirement_ids.map(String) : [],
+    instructions: String(proposal.instructions || "").trim(),
+    deliverables: Array.isArray(proposal.deliverables) ? proposal.deliverables.map(String) : [],
+    skill_reasons: proposal.skill_reasons && typeof proposal.skill_reasons === "object" ? proposal.skill_reasons : {},
     depends_on: (Array.isArray(proposal.depends_on) ? proposal.depends_on : []).map((item) => String(item).trim()).filter(Boolean),
     check_owners: proposal.check_owners || {},
     dispatch_contract: proposal.dispatch_contract || {},
+    resource_estimate: proposal.resource_estimate && ['simple','standard','complex','critical'].includes(proposal.resource_estimate.complexity) ? {complexity:proposal.resource_estimate.complexity,reason:String(proposal.resource_estimate.reason||'').slice(0,500)} : null,
     files: (Array.isArray(proposal.files) ? proposal.files : []).map((item) => String(item).trim()).filter(Boolean),
     verify: String(proposal.verify || "").trim(),
     revision: Number(proposal.revision) || 1,
@@ -259,6 +439,8 @@ function persistArtifact(root, loaded, artifact, envelopePatch = {}) {
   const file = path.join(loaded.dir, "artifact.json");
   const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
   envelope.artifact = artifact;
+  delete envelope.review;
+  if (envelope.artifact) delete envelope.artifact.review;
   envelope.saved_at = new Date().toISOString();
   for (const [key, value] of Object.entries(envelopePatch)) envelope[key] = value;
   fs.writeFileSync(file, JSON.stringify(envelope, null, 2) + "\n");
@@ -269,7 +451,7 @@ function cloneArtifact(loaded) {
   return JSON.parse(JSON.stringify(loaded.artifact || {}));
 }
 
-const ARRAY_FIELDS = new Set(["completion_checks", "selected_skills", "depends_on", "files"]);
+const ARRAY_FIELDS = new Set(["completion_checks", "selected_skills", "depends_on", "files", "requirement_ids", "deliverables"]);
 const asArray = (field, value) => {
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
   if (typeof value === "string") {
@@ -294,12 +476,14 @@ export function editProposal(root, draft, proposalId, patch = {}) {
   for (const [rawField, value] of Object.entries(patch || {})) {
     const field = FIELD_ALIASES[rawField] || rawField;
     if (value === undefined) continue;
-    if (field === "title" || field === "objective" || field === "verify" || field === "proposed_worker") {
+    if (field === "title" || field === "objective" || field === "verify" || field === "proposed_worker" || field === "instructions") {
       const text = String(value).trim();
       if (!text && field !== "verify") throw new Error(`proposal ${field} must not be empty`);
       next[field] = field === "title" ? text.slice(0, 240) : text;
     } else if (ARRAY_FIELDS.has(field)) {
       next[field] = asArray(field, value);
+    } else if (field === "skill_reasons" && value && typeof value === "object" && !Array.isArray(value)) {
+      next.skill_reasons = Object.fromEntries(Object.entries(value).map(([skill, reason]) => [String(skill), String(reason).trim()]));
     } else if (field !== "id" && field !== "revision" && field !== "source" && field !== "revisions" && field !== "feedback") {
       throw new Error(`unknown proposal field ${field}`);
     }
@@ -425,6 +609,7 @@ export async function regenerateProposal(root, draft, proposalId, { invoke, conf
     depends_on: (Array.isArray(body.depends_on) ? body.depends_on : prior.depends_on).map((item) => String(item).trim()).filter((dep) => dep !== proposalId && proposals.some((item) => item.id === dep)),
     files: asArray("files", body.files ?? prior.files),
     verify: String(body.verify || prior.verify || "").trim(),
+    resource_estimate: body.resource_estimate || prior.resource_estimate || null,
   };
   if (!next.title || !next.objective || !next.completion_checks.length) throw new Error("Plan provider returned an incomplete task proposal");
   next.revision = prior.revision + 1;
@@ -438,6 +623,7 @@ export async function regenerateProposal(root, draft, proposalId, { invoke, conf
   return persistArtifact(root, loaded, artifact, {
     provider: response.provider || provider || loaded.provider || null,
     model: response.model || model || loaded.model || null,
+    resource_decision: response.resource_decision || null,
     last_regenerated: { proposal_id: proposalId, at: new Date().toISOString() },
   });
 }
@@ -531,7 +717,7 @@ export function advanceStage(root, draft, stage, patch = {}) {
   return { ...loaded, stage, artifact, stages: readStages(root, { dir }) };
 }
 
-export function savePlanDraft(root, { intent, artifact, stage = "plan", id = null } = {}) {
+export function savePlanDraft(root, { intent, artifact, stage = "plan", id = null, sourceTaskId = null } = {}) {
   if (!intent) throw new Error("plan draft needs intent");
   // Every persisted stage is schema-checked: frames stay deliberately
   // incomplete, specify/route artifacts must bound behavior and route, and
@@ -541,7 +727,7 @@ export function savePlanDraft(root, { intent, artifact, stage = "plan", id = nul
   const dir = path.join(path.dirname(paths(root).state), "plan-studio", draftId);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "intent.md"), String(intent).trimEnd() + "\n");
-  fs.writeFileSync(path.join(dir, "artifact.json"), JSON.stringify({ schema: PLAN_SCHEMA_VERSION, stage, artifact: artifact || null, saved_at: new Date().toISOString() }, null, 2) + "\n");
+  fs.writeFileSync(path.join(dir, "artifact.json"), JSON.stringify({ schema: PLAN_SCHEMA_VERSION, stage, artifact: artifact || null, source_task_id: sourceTaskId || null, saved_at: new Date().toISOString() }, null, 2) + "\n");
   return { id: draftId, dir, intentPath: path.join(dir, "intent.md"), artifactPath: path.join(dir, "artifact.json"), stage, artifact: artifact || null };
 }
 
@@ -561,11 +747,24 @@ function planQueueId(loaded) {
   return `plan-${slug(title).slice(0, 17) || "draft"}-${String(loaded.id).replace(/[^a-z0-9]/gi, "").slice(-6).toLowerCase()}`;
 }
 
-export function approvePlanDraft(root, draft, { note = "approved by manager in Plan Studio" } = {}) {
+export function approvePlanDraft(root, draft, { note = "approved by manager in Plan Studio", sourceRevisionCurrent = false } = {}) {
   const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
   const artifact = loaded.artifact;
   validatePlanArtifact(artifact);
+  const review = loaded.review || artifact.review;
+  if (artifact.plan_contract_version !== PLAN_CONTRACT_VERSION || !review || review.verdict !== "passed" || review.fingerprint !== planFingerprint({ ...artifact, review: undefined }, loaded.intent, { project: planningEvidence(root, artifact), source_revision: review.source_revision || null })) throw new Error("Plan approval blocked: this draft needs a fresh, passing accuracy review");
+  validatePlanGrounding(root, artifact);
   const proposals = validateProposals(artifact);
+  if (loaded.source_task_id) {
+    const sourceTask = loadState(root).tasks[loaded.source_task_id];
+    if (!sourceTask || (!["github", "azure", "jira"].includes(sourceTask.source?.type)) || (!sourceTask.plan_review_required && sourceTask.plan_reviewed_by_draft !== loaded.id)) throw new Error("Plan approval blocked: the imported GitHub/Azure/Jira source task is missing or no longer awaits review");
+    if (!sourceRevisionCurrent) throw new Error("Plan approval blocked: imported sources must be rechecked live through Plan Studio before approval");
+    if (review.source_revision?.current !== true || String(review.source_revision.remote_id) !== String(sourceTask.source.remote_id) || String(review.source_revision.revision) !== String(sourceTask.source.revision)) throw new Error("Plan approval blocked: the imported source revision was not freshly verified");
+  }
+  if (artifact.plan_contract_version === PLAN_CONTRACT_VERSION) for (const proposal of proposals) {
+    for (const skill of proposal.selected_skills) if (!isSkillAvailable(root, skill)) throw new Error(`Plan approval blocked: task ${proposal.id} selects unavailable skill ${skill}`);
+    for (const skill of proposal.selected_skills) if (!String(proposal.skill_reasons?.[skill] || "").trim()) throw new Error(`Plan approval blocked: task ${proposal.id} needs a reason for ${skill}`);
+  }
   validateContracts(Object.fromEntries(proposals.map((proposal) => [proposal.id, proposal])));
   const state = loadState(root);
   const existing = Object.values(state.tasks).filter((task) => task.plan_draft_id === loaded.id);
@@ -589,10 +788,13 @@ export function approvePlanDraft(root, draft, { note = "approved by manager in P
     saveQueue(root, queue);
   }
   const createdIds = new Map();
+  const originalIntent = String(loaded.intent || (loaded.intentPath && fs.existsSync(loaded.intentPath) ? fs.readFileSync(loaded.intentPath, "utf8") : "")).trim();
   for (const proposal of proposals) {
+    const proposalObjective = proposal.objective || artifact.objective;
+    const objective = originalIntent && !proposalObjective.includes(originalIntent) ? `${proposalObjective}\n\nOriginal request (context):\n${originalIntent}` : proposalObjective;
     const task = createTaskInWorkspace(root, {
       title: proposal.title,
-      objective: proposal.objective || artifact.objective,
+      objective,
       completion_checks: proposal.completion_checks,
       risk: artifact.risk || "normal",
       labels: [...new Set([...(artifact.labels || []), "plan-studio"])],
@@ -610,6 +812,8 @@ export function approvePlanDraft(root, draft, { note = "approved by manager in P
     stored.plan_approval_note = note;
     stored.plan_depends_on = (proposal.depends_on || []).map((dep) => createdIds.get(dep)).filter(Boolean);
     stored.dispatch_contract = proposal.dispatch_contract;
+    stored.files = proposal.files;
+    stored.resource_estimate = proposal.resource_estimate;
     stored.check_owners = Object.fromEntries(Object.entries(proposal.check_owners || {}).map(([check, owner]) => [check, createdIds.get(owner) || (owner === proposal.id ? task.id : owner)]));
     if (proposal.id === proposals.at(-1).id) {
       stored.integrated_delivery = true;
@@ -617,6 +821,9 @@ export function approvePlanDraft(root, draft, { note = "approved by manager in P
       stored.plan_depends_on = [...createdIds.values()];
       stored.review_required = true;
     }
+    const allocation=budgetDecision(readResourceConfig(root),stored);
+    stored.resource_estimate = {...(stored.resource_estimate||{}),assessment:allocation.assessment};
+    // Runtime owns the first actual allocation so an explicit run limit still applies.
     nextState.updated_at = new Date().toISOString();
     nextState.log.push({ at: new Date().toISOString(), task: task.id, actor: "manager", event: "plan_approve", detail: `${note} (card ${proposal.id}, rev ${proposal.revision})` });
     fs.writeFileSync(paths(root).state + ".tmp", JSON.stringify(nextState, null, 2) + "\n");
@@ -626,10 +833,19 @@ export function approvePlanDraft(root, draft, { note = "approved by manager in P
   }
   const after = loadState(root);
   const taskIds = proposals.map((proposal) => createdIds.get(proposal.id)).filter(Boolean);
+  if (loaded.source_task_id) {
+    const sourceState = loadState(root);
+    const sourceTask = sourceState.tasks[loaded.source_task_id];
+    sourceTask.plan_review_required = false;
+    sourceTask.plan_reviewed_by_draft = loaded.id;
+    sourceState.log.push({ at: new Date().toISOString(), task: sourceTask.id, actor: "manager", event: "external_source_plan_reviewed", detail: `Reviewed source through Plan Studio draft ${loaded.id}` });
+    sourceState.updated_at = new Date().toISOString();
+    saveState(root, sourceState, { expectedRevision: sourceState.revision || 0 });
+  }
   return { task: after.tasks[taskIds[0]], tasks: taskIds.map((id) => after.tasks[id]), taskIds, queueId, created: true, draft: loaded };
 }
 
-export async function runPlanProvider(root, intent, { role = "pip", provider, confirm = false, invoke, draftId = null, budget = null } = {}) {
+export async function runPlanProvider(root, intent, { role = "pip", provider, confirm = false, invoke, draftId = null, budget = null, sourceTaskId = null } = {}) {
   if (!confirm) throw new Error("Plan Studio provider calls require explicit confirmation");
   if (typeof invoke !== "function") throw new Error("Plan Studio needs a provider invoke function");
   // Usage gate: an exhausted local budget blocks the provider call before any
@@ -642,8 +858,9 @@ export async function runPlanProvider(root, intent, { role = "pip", provider, co
     schema: PLAN_SCHEMA_VERSION,
     task: "Convert the intent into an evidence-gated ATL SDD/TDD plan.",
     intent: String(intent).trim(),
-    required: ["title", "objective", "constraints", "risks", "completion_checks", "acceptance_examples", "selected_skills", "proposed_worker", "implementation_steps", "verifier_commands"],
-    rule: "Return JSON only. acceptance_examples must be a list of objects, each with non-empty string fields given, when, then. implementation_steps must be a list of objects, each with non-empty string step, string-array files, string verify. Each task must have independently satisfiable completion checks. A prerequisite task must never require implementation owned by one of its downstream dependents; put integration checks on the integration task. Declare all dependencies explicitly and without cycles. Ground proposed paths and verification commands in inspected project evidence when available; otherwise label them as unknown and do not invent commands. Preserve the original request and constraints. Separate assumptions from observed facts. Do not claim checks passed. Do not execute commands or change files.",
+    project_evidence: planningEvidence(root),
+    required: ["plan_contract_version", "title", "objective", "requirements", "constraints", "observed_evidence", "assumptions", "open_questions", "risks", "completion_checks", "acceptance_examples", "selected_skills", "proposed_worker", "implementation_steps", "task_proposals", "verifier_commands"],
+    rule: "Return JSON only. Use plan_contract_version 2. Every requirement has a stable id and source. Each task has requirement_ids, concrete instructions, affected files grounded in supplied repository evidence (or empty for discovery), deliverables, independently satisfiable completion_checks, verify, and selected_skills with a skill_reasons entry for every skill. Add resource_estimate {complexity: simple|standard|complex|critical, reason: grounded effort/risk explanation} per task. Resource estimates are advisory; runtime enforces owner budgets and model ceilings. Include observed_evidence, assumptions, and open_questions separately. Preserve original intent. Do not invent commands, paths, project facts, or skills; unresolved consequential decisions go in open_questions and block approval. Dependencies must exist and be acyclic. Do not claim checks passed; do not execute commands or change files.",
   };
   const id = draftId || `${Date.now()}-${slug(titleOf(intent))}`;
   const logPath = path.join(path.dirname(paths(root).state), "plan-studio", id, "provider.log");
@@ -659,23 +876,32 @@ export async function runPlanProvider(root, intent, { role = "pip", provider, co
   let artifact;
   try { artifact = JSON.parse(text); } catch { throw withLog("Plan provider did not return valid JSON", text); }
   try {
-    validatePlanArtifact(normalizeModelArtifact(artifact));
+    const normalized = normalizePlanContract(normalizeModelArtifact(artifact), intent);
+    if (normalized.plan_contract_version !== PLAN_CONTRACT_VERSION || !Array.isArray(artifact.task_proposals) || !Array.isArray(artifact.requirements) || !Array.isArray(artifact.observed_evidence) || !Array.isArray(artifact.assumptions) || !Array.isArray(artifact.open_questions)) throw new Error("provider plan must explicitly satisfy Plan Contract v2");
+    validatePlanArtifact(normalized);
+    validatePlanGrounding(root, normalized);
   } catch (error) {
     throw withLog(error.message, text);
   }
   // Model output that only returned implementation steps still gets typed,
   // editable task cards (1:1 from the steps) before anything is persisted —
   // and every card from a provider plan is honestly labelled model output.
-  artifact = normalizeModelArtifact(artifact);
+  artifact = normalizePlanContract(normalizeModelArtifact(artifact), intent);
   artifact.task_proposals = normalizeProposals(artifact).map((proposal) => ({ ...proposal, source: "model" }));
-  const draft = savePlanDraft(root, { intent, artifact, stage: "plan", id });
+  artifact.task_proposals = normalizePlanContract(artifact, intent).task_proposals;
+  validatePlanGrounding(root, artifact);
+  for (const proposal of artifact.task_proposals) {
+    for (const skill of proposal.selected_skills || []) if (!isSkillAvailable(root, skill)) throw withLog(`Plan task ${proposal.id} selects unavailable skill ${skill}`, text);
+  }
+  const draft = savePlanDraft(root, { intent, artifact, stage: "plan", id, sourceTaskId });
   // Skill/provider/model selection stays visible on the draft: the manager
   // approves knowing exactly who planned it and through which provider.
   const envelope = JSON.parse(fs.readFileSync(draft.artifactPath, "utf8"));
   envelope.provider = response.provider || provider || null;
   envelope.model = response.model || null;
   envelope.role = role;
+  envelope.resource_decision = response.resource_decision || null;
   envelope.generated_via = response.provider ? "provider" : "custom-invoke";
   fs.writeFileSync(draft.artifactPath, JSON.stringify(envelope, null, 2) + "\n");
-  return { ...draft, provider: envelope.provider, model: envelope.model, role };
+  return { ...draft, provider: envelope.provider, model: envelope.model, resource_decision:envelope.resource_decision, role };
 }

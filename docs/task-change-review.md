@@ -16,6 +16,8 @@ Completed handoffs can be inspected after their workspace is archived. Active or
 
 ```mermaid
 flowchart LR
+  accTitle: Captured task changes and evidence
+  accDescr: A task change set references captured baseline and output, changed files, revision-linked evidence, and artifact references.
   T[Task] --> C[Change set]
   B[Captured task baseline] --> C
   C --> O[Captured output]

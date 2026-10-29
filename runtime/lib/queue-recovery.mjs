@@ -4,7 +4,7 @@ import { loadState, saveState, reviseTaskPacket } from "./state.mjs";
 
 export function recordBlocker(task, failure) {
   const cause = failure.cause || "execution";
-  const id = crypto.createHash("sha256").update(`${cause}:${failure.reason}`).digest("hex");
+  const id = crypto.createHash("sha256").update(`${cause}:${failure.identity || failure.reason}`).digest("hex");
   task.recovery_records ||= [];
   let record = task.recovery_records.find((item) => item.id === id);
   if (!record) {

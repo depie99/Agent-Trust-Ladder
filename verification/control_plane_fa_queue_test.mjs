@@ -1,7 +1,9 @@
 ﻿import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { controlPlaneProject } from './fixtures/control-plane-project.mjs';
 
-const baseUrl = process.env.ATL_UI_URL || "http://127.0.0.1:55012/";
+const running = await controlPlaneProject();
+const baseUrl = running.url;
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -32,4 +34,5 @@ try {
   console.log("PASS: live Queue page switches to fa-IR with RTL layout");
 } finally {
   await browser.close();
+  await running.close();
 }

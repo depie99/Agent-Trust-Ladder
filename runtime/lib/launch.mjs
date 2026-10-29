@@ -20,14 +20,18 @@ import { autoRecoverBlockedTask, requiresHumanAction } from "./recovery.mjs";
 import { recordUsage, checkUsageThresholds } from "./usage.mjs";
 import { assembleContext, buildMap, renderNavigationContext } from "./navigation.mjs";
 import { buildContextPack } from "./brain.mjs";
-import { probeUiReviewRuntime, uiReviewPrompt } from "./ui-review-runtime.mjs";
+import { needsUiReview, probeUiReviewRuntime, uiReviewPrompt } from "./ui-review-runtime.mjs";
 import { createWorkerCredential } from "./session-auth.mjs";
 import { acquireLease, heartbeatLease, releaseLease } from "./leases.mjs";
 import { recordHandoff, readHandoff, deliveryGate, startBaseline, createDeliveryBranch, inspectHandoffChain } from "./handoffs.mjs";
 import { dispatchPreflight } from "./dispatch-preflight.mjs";
 import { recordBlocker, repairBlocker, validateContracts, selectedContracts } from "./queue-recovery.mjs";
 import { recordIntegratedDelivery } from "./delivery.mjs";
+import { stalledTaskFailure } from "./task-diagnostics.mjs";
 import { createWorkerChannel } from "./worker-channel.mjs";
+import { resourcePolicy, budgetDecision, routeTask, readResourceConfig } from "./resource-policy.mjs";
+import {recordExecution,learnFromExecution} from './execution-report.mjs';
+import {recordQuotaFailure} from './provider-quota.mjs';
 
 const say = (root, from, text, opts = {}) => feedPost(root, { from, text, ...opts });
 
@@ -38,7 +42,7 @@ export function stalledHandoffFailure(log) {
   if (/^error:\s*(?:EPERM|EACCES):[^\r\n]*(?:[\\/]\.trust[\\/]manager[\\/](?:state\.json|handoffs[\\/]blobs))/im.test(log)) {
     return { cause: "manager-state-access", recovery_owner: "owner", reason: "Worker could not write the shared manager state or handoff store. Repair the worker-to-manager handoff access before retrying; preparing task inputs cannot repair this permission failure." };
   }
-  if (/^error:\s*scoped worker credential cannot impersonate this actor\s*$/im.test(log)) {
+  if (/^error:\s*(?:scoped worker credential cannot impersonate this actor|Worker channel cannot impersonate another actor\.)\s*$/im.test(log)) {
     return { cause: "worker-credential", recovery_owner: "owner", reason: "Worker state mutation was rejected by the scoped credential or lease. Check the task, role, lease and credential expiry before retrying." };
   }
   return null;
@@ -63,7 +67,7 @@ export function requestSessionInterrupt() {
 
 export function readManagerConfig(root) {
   try {
-    return JSON.parse(fs.readFileSync(paths(root).config, "utf8"));
+    return readResourceConfig(root);
   } catch {
     return {};
   }
@@ -108,12 +112,12 @@ async function prepareRecovery(root, taskId, outcome) {
   if (!task) return;
   const failure = outcome.preflight || { cause: outcome.blocker || "execution", reason: outcome.reason || task.blocker?.reason || "worker stopped" };
   if (requiresHumanAction(failure.reason)) failure.recovery_owner = "owner";
-  if (["provider-quota", "provider-sandbox-unavailable", "browser_probe_failed"].includes(failure.cause) || /provider usage limit|provider quota (?:exhausted|reached)/i.test(failure.reason)) failure.recovery_owner = "owner";
+  if (["provider-quota", "provider-sandbox-unavailable", "browser_probe_failed", "resource-policy"].includes(failure.cause) || /provider usage limit|provider quota (?:exhausted|reached)/i.test(failure.reason)) failure.recovery_owner = "owner";
   const record = recordBlocker(task, failure);
   saveState(root, state);
   if (record.recovery_owner === "owner" || record.status === "exhausted" || maxAutoRecoveries(root) === 0) return;
   const recipes = [
-    { action: "prepare-verified-inputs", permitted: ["handoff", "missing-artifact", "workspace", "execution"].includes(record.cause), provision: false },
+    { action: "prepare-verified-inputs", permitted: ["handoff", "missing-artifact", "workspace"].includes(record.cause), provision: false },
     { action: "provision-locked-local-dependencies", permitted: readManagerConfig(root).workspaces?.provisionLocal === true, provision: true },
   ];
   for (const recipe of recipes) {
@@ -286,7 +290,10 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     const task = state.tasks[taskId];
     if (!task) return { status: "unknown", reason: `unknown task ${taskId}` };
     if (isTerminal(task.status) && !contractRepair) return { status: task.status, reason: task.status === "blocked" ? task.blocker?.reason || "blocked" : `already ${task.status}` };
-    task.execution_budget ||= { version: 1, max_sessions: budget.maxSessions, used: 0 };
+    const allocation = budgetDecision(readManagerConfig(root), task, {runLimit:budget.maxSessions});
+    const previousLimit = task.execution_budget?.max_sessions;
+    task.execution_budget = {...task.execution_budget, version:1, max_sessions:allocation.max_sessions, used:allocation.used, source:allocation.source, ceiling:allocation.ceiling};
+    if (previousLimit !== allocation.max_sessions) logEvent(state,{task:task.id,actor:'runner',event:'resource_budget',detail:JSON.stringify({previous:previousLimit??null,...allocation})});
     task.evidence_contract = 2;
     if (task.execution_budget.used >= task.execution_budget.max_sessions) return { status: task.status, reason: `persistent session budget exhausted (${task.execution_budget.used}/${task.execution_budget.max_sessions}); increase the task budget before resuming`, exhausted: true };
     const role = contractRepair ? "pip" : nextRole(task);
@@ -294,8 +301,13 @@ export async function driveTaskUntilGate(root, taskId, budget, {
 
     const evidenceBefore = (task.evidence || []).length;
     const pick = resolveWorker
-      ? resolveWorker(role)
+      ? resolveWorker(role, task)
       : { worker, auth, envPolicy };
+    task.resource_decision = {role,budget:allocation,routing:pick.decision||null,at:new Date().toISOString()};
+    if (pick.decision?.blocked) {
+      logEvent(state,{task:task.id,actor:'runner',event:'resource_route_blocked',detail:pick.decision.blocked});saveState(root,state);
+      return {status:task.status,reason:pick.decision.blocked,failed:true,blockedLaunch:true,blocker:pick.decision.blocker||'resource-policy'};
+    }
     const useWorker = pick.worker;
     // A user registry provider IS api-key auth: force the api env policy so
     // the claude subscription stripper can never remove injected credentials.
@@ -364,9 +376,9 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     }
 
     let uiReviewRuntime = null;
-    const isUiReview = role === "sage" && JSON.stringify(task).toLowerCase().includes("ui-review");
+    const isUiReview = ["gapgpt", "codex", "claude"].includes(useWorker) && needsUiReview(task, role);
     if (isUiReview) {
-      const probe = probeUiReviewRuntime(root, workspace || root);
+      const probe = probeUiReviewRuntime(root, workspace || root, { taskId: task.id });
       if (!probe.available) {
         return { status: task.status, reason: probe.reason, failed: true, blockedLaunch: true, blocker: "browser_probe_failed", resumable: true, nextRole: role };
       }
@@ -400,6 +412,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     report(`  workspace: ${invocation.cwd}`);
     report(`  transcript: ${logPath}`);
     logEvent(state, { task: task.id, actor: "runner", event: "worker_start", detail: `${useWorker}/${role}; log=${logPath}` });
+    if(pick.decision) logEvent(state,{task:task.id,actor:'runner',event:'resource_route',detail:JSON.stringify({role,...pick.decision})});
     say(root, "runner", `starting bounded ${useWorker} session as ${role} for ${taskId}.`, { task: taskId, detail: logPath });
     if (dryRun) {
       report("  phase: preview only — no agent started");
@@ -407,11 +420,14 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       return { status: task.status, reason: "dry-run preview" };
     }
     const workerCredential = createWorkerCredential({ project: path.resolve(root), task: taskId, role, run: lease.run, generation: lease.generation, leaseId: lease.id, leaseKey: lease.key, expiresInSeconds: Math.ceil(timeoutMs / 1000) + 120 });
+    const executionId=path.relative(root,logPath);
+    const executionStart={id:executionId,taskId,role,provider:pick.userProvider?.id||useWorker,model:useProvider.model||null,startedAt:new Date().toISOString(),logPath,statusBefore:task.status,budget:{...task.execution_budget},complexity:allocation.assessment.complexity,tier:pick.decision?.tier||allocation.assessment.tier,packetRevision:task.packet_revision||1};
     const channel = createWorkerChannel(root, { workspace, task: taskId, role, credential: workerCredential });
     let result;
     try {
       if (role === "rowan" && task.integration_inputs?.status === "required") task.integration_inputs.sessions = (task.integration_inputs.sessions || 0) + 1;
       task.execution_budget.used += 1;
+      recordExecution(root,{...executionStart,budget:{...task.execution_budget}});
       writeRunMeta(root, { phase: "provider-session" });
       // Persist worker_start before running, and always close the channel if
       // persistence or spawning fails.
@@ -460,7 +476,10 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       checkpoint: nextTask?.last_checkpoint || null,
       evidence: nextTask?.evidence?.slice(evidenceBefore) || [],
       feedback: feedback.map((item) => item.id),
+      id:executionId,provider:executionStart.provider,tokens:result.tokens,budget:{...nextTask?.execution_budget},complexity:executionStart.complexity,tier:executionStart.tier,packetRevision:executionStart.packetRevision,
     };
+    recordExecution(root,{...executionStart,...summary});
+    try{learnFromExecution(root,after,taskId);}catch(error){report(`[${taskId}] execution knowledge update unavailable: ${error.message}`);}
     recordUsage(root, {
       provider: useWorker,
       model: useProvider.model || null,
@@ -494,6 +513,21 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       return { status: nextTask?.status || task.status, reason: result.permissionMismatch, failed: true, blockedLaunch: true, blocker: "runtime_permission_mismatch" };
     }
     if (result.providerFailure && result.code !== 0) {
+      if(result.providerFailure.kind==='provider-quota') {
+        const quota=recordQuotaFailure(root,{provider:executionStart.provider,model:executionStart.model,...result.providerFailure});
+        logEvent(after,{task:taskId,actor:'runner',event:'provider_quota_exhausted',detail:JSON.stringify(quota)});saveState(root,after);
+        try{learnFromExecution(root,after,taskId);}catch(error){report(`[${taskId}] quota knowledge update unavailable: ${error.message}`);}
+        if(resourcePolicy(readManagerConfig(root)).quota_failover&&resolveWorker) {
+          const alternative=resolveWorker(role,nextTask||task);
+          if(!alternative.decision?.blocked&&(alternative.worker!==useWorker||alternative.model!==executionStart.model||(alternative.userProvider?.id||alternative.worker)!==executionStart.provider)) {
+            logEvent(after,{task:taskId,actor:'runner',event:'provider_quota_failover',detail:JSON.stringify({from:{provider:executionStart.provider,model:executionStart.model},to:{provider:alternative.userProvider?.id||alternative.worker,model:alternative.model},role})});saveState(root,after);
+            try{learnFromExecution(root,after,taskId);}catch(error){report(`[${taskId}] failover knowledge update unavailable: ${error.message}`);}
+            report(`[${taskId}] quota exhausted; continuing ${role} with ${alternative.userProvider?.id||alternative.worker}/${alternative.model||'provider default'}`);
+            continue;
+          }
+          if(alternative.decision?.blocked)return {status:nextTask?.status||task.status,reason:`${alternative.decision.blocked}. Exhausted route ${executionStart.provider}/${executionStart.model||'provider default'} is on cooldown until ${quota.retryAt}.`,failed:true,blockedLaunch:true,blocker:'provider-quota'};
+        }
+      }
       return { status: nextTask?.status || task.status, reason: result.providerFailure.reason, failed: true, blockedLaunch: true, blocker: result.providerFailure.kind };
     }
     if (result.timedOut || result.code !== 0) {
@@ -503,6 +537,8 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       let failure = null;
       try { failure = stalledHandoffFailure(fs.readFileSync(logPath, "utf8")); } catch { /* preserve generic stall when transcript is unavailable */ }
       if (failure) return { status: task.status, reason: failure.reason, stalled: true, blockedLaunch: true, blocker: failure.cause, preflight: failure };
+      const recordedFailure = stalledTaskFailure(task, nextTask);
+      if (recordedFailure) return { status: task.status, reason: recordedFailure.reason, stalled: true, blocker: recordedFailure.cause, preflight: recordedFailure };
       return { status: task.status, reason: `worker did not advance ${taskId} from ${task.status}; inspect the log and feed`, stalled: true };
     }
     if (!overnight) return { status: nextTask.status, reason: "one-shot session complete" };
@@ -528,9 +564,11 @@ const CONTAINMENT_RULES = [
 // Build the full preview for a set of queued task ids. Pure: starts nothing.
 // `discover` is injectable so verification can prove the blocked-launch
 // contract (acceptance D) without depending on the host's installed CLIs.
-export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions = 8, providerDefaults = {}, discover = discoverProvider, preserveOrder = false } = {}) {
+export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions = null, providerDefaults = {}, discover = discoverProvider, preserveOrder = false } = {}) {
   const state = loadState(root);
   const profile = providerProfile(readManagerConfig(root));
+  const resourceConfig=readManagerConfig(root), policy=resourcePolicy(resourceConfig);
+  maxSessions ??= policy.enabled ? policy.max_sessions : policy.default_sessions;
   if (providerDefaults.worker) profile.defaultWorker = String(providerDefaults.worker).toLowerCase();
   if (providerDefaults.auth) profile.authOverride = String(providerDefaults.auth).toLowerCase();
   if (providerDefaults.model) profile.modelOverride = String(providerDefaults.model);
@@ -542,12 +580,15 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
   const items = [];
   for (const task of ordered) {
     const role = nextRole(task);
-    const provider = providerForRole(profile, role);
-    const spec = role ? providerSpec(profile, provider.worker) : null;
-    const resolvedProvider = spec ? { ...provider, command: spec.command, model: provider.model || spec.model } : provider;
+    const provider = routeTask(resourceConfig,task,role,{profile,discover,overrides:providerDefaults});
+    const allocation = budgetDecision(resourceConfig,task,{runLimit:maxSessions});
+    const spec = role ? provider.provider : null;
+    const resolvedProvider = {worker:provider.worker,auth:provider.auth,source:provider.source,command:spec?.command,model:provider.model||spec?.model||null};
     const resolvedSpec = spec ? { ...spec, model: resolvedProvider.model } : spec;
     const disc = role ? discover(provider.worker, { command: spec.command }) : null;
     const blockers = [];
+    if(provider.decision.blocked)blockers.push(provider.decision.blocked);
+    if (task.plan_review_required) blockers.push("external GitHub/Azure task needs an approved Plan Studio accuracy review before execution");
     if (task.execution_budget && task.execution_budget.used >= task.execution_budget.max_sessions) blockers.push(`persistent session budget exhausted (${task.execution_budget.used}/${task.execution_budget.max_sessions}); increase the task budget before resuming`);
     if ((task.plan_depends_on || []).length) {
       const handoffs = inspectHandoffChain(root, task, state.tasks);
@@ -575,6 +616,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
       status: task.status,
       priority: task.priority || "normal",
       role,
+      resources: {budget:allocation,routing:provider.decision},
       provider: resolvedProvider,
       workspace: task.workspace || null,
       workspaceNote: role === "rowan" && !task.workspace ? "isolated workspace is created on start" : null,
@@ -589,7 +631,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     root,
     createdAt: new Date().toISOString(),
     budget: { maxMinutes, maxSessions },
-    profile,
+    profile: {defaultWorker:profile.defaultWorker,defaultModel:profile.defaultModel,use:profile.use,byRole:profile.byRole,modelByRole:profile.modelByRole},
     order: items.map((i) => i.taskId),
     items,
     readyCount: items.filter((i) => i.blockers.length === 0).length,
@@ -700,7 +742,7 @@ export function reconcileOvernightRun(root) {
 
 // Pure multi-queue preview: what would launch from a named queue right now.
 // Starts nothing, mutates nothing, and reports the run gate honestly.
-export function queueDryRun(root, { queueId = null, maxMinutes = 120, maxSessions = 8, providerDefaults = {} } = {}) {
+export function queueDryRun(root, { queueId = null, maxMinutes = 120, maxSessions = null, providerDefaults = {} } = {}) {
   const queue = loadQueue(root, queueId);
   const lock = readRunLock(root);
   const plan = buildLaunchPlan(root, { taskIds: queue.items.map((item) => item.id), maxMinutes, maxSessions, providerDefaults });
@@ -756,7 +798,7 @@ export function mergeQueues(root, queueIds) {
   };
 }
 
-export function multiQueueDryRun(root, { queueIds, maxMinutes = 120, maxSessions = 8, providerDefaults = {} } = {}) {
+export function multiQueueDryRun(root, { queueIds, maxMinutes = 120, maxSessions = null, providerDefaults = {} } = {}) {
   const merged = mergeQueues(root, queueIds);
   const lock = readRunLock(root);
   const plan = buildLaunchPlan(root, { taskIds: merged.items.map((item) => item.id), maxMinutes, maxSessions, providerDefaults, preserveOrder: true });
@@ -783,7 +825,9 @@ export function multiQueueDryRun(root, { queueIds, maxMinutes = 120, maxSessions
 // gates remain blocked and are surfaced to the manager. Ends with a saved brief.
 // `taskIds` (browser per-task run) bypasses the queue book and runs exactly
 // those tasks under the same budget, gates, and narration.
-export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions = 8, dryRun = false, confirm = false, providerDefaults = {}, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false, queueId = null, queueIds = null, taskIds = null } = {}) {
+export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions = null, dryRun = false, confirm = false, providerDefaults = {}, onProgress = console.log, onSession = null, pauseAfterSession = false, onReview = null, echo = false, queueId = null, queueIds = null, taskIds = null } = {}) {
+  const policy=resourcePolicy(readManagerConfig(root));
+  maxSessions ??= policy.enabled ? policy.max_sessions : policy.default_sessions;
   let merged = null;
   const queue = Array.isArray(taskIds) && taskIds.length
     ? { queue_id: null, name: "ad-hoc task run", status: "active", items: taskIds.map((id) => ({ id })) }
@@ -913,13 +957,12 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       pauseAfterSession,
       onReview,
       echo,
-      resolveWorker: (role) => {
+      resolveWorker: (role, currentTask) => {
         const profile = providerProfile(readManagerConfig(root));
         if (providerDefaults.worker) profile.defaultWorker = String(providerDefaults.worker).toLowerCase();
         if (providerDefaults.auth) profile.authOverride = String(providerDefaults.auth).toLowerCase();
         if (providerDefaults.model) profile.modelOverride = String(providerDefaults.model);
-        const resolved = providerForRole(profile, role);
-        return { ...resolved, provider: { ...providerSpec(profile, resolved.worker), model: resolved.model } };
+        return routeTask(readManagerConfig(root),currentTask,role,{profile,overrides:providerDefaults});
       },
     }).catch((error) => ({ status: "unknown", reason: `worker could not start: ${error.message}`, failed: true }));
     try { heartbeatLease(root, lease); } catch (error) { outcome = { status: "blocked", reason: `lease fencing failed: ${error.message}`, failed: true }; }
@@ -927,13 +970,12 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       say(root, "runner", `${fresh.id} restarting its gate with the pending human feedback.`, { task: fresh.id });
       outcome = await driveTaskUntilGate(root, fresh.id, budget, {
         overnight: true, dryRun, lease, onProgress, onSession, pauseAfterSession, onReview, echo,
-        resolveWorker: (role) => {
+        resolveWorker: (role, currentTask) => {
           const profile = providerProfile(readManagerConfig(root));
           if (providerDefaults.worker) profile.defaultWorker = String(providerDefaults.worker).toLowerCase();
           if (providerDefaults.auth) profile.authOverride = String(providerDefaults.auth).toLowerCase();
           if (providerDefaults.model) profile.modelOverride = String(providerDefaults.model);
-          const resolved = providerForRole(profile, role);
-          return { ...resolved, provider: { ...providerSpec(profile, resolved.worker), model: resolved.model } };
+          return routeTask(readManagerConfig(root),currentTask,role,{profile,overrides:providerDefaults});
         },
       }).catch((error) => ({ status: "unknown", reason: `worker could not restart: ${error.message}`, failed: true }));
     }
@@ -1033,7 +1075,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
 // Recovery remains an owner action.  The caller must inspect the interrupted
 // task and explicitly confirm before the runner touches only the tasks whose
 // prior boundary was durable and whose session never began.
-export async function resumeOvernightRun(root, { confirm = false, maxMinutes = 120, maxSessions = 8, providerDefaults = {}, onProgress = console.log } = {}) {
+export async function resumeOvernightRun(root, { confirm = false, maxMinutes = 120, maxSessions = null, providerDefaults = {}, onProgress = console.log } = {}) {
   if (!confirm) throw new Error("overnight recovery requires explicit confirmation");
   const reconciliation = reconcileOvernightRun(root);
   if (reconciliation.state !== "interrupted") throw new Error(`overnight recovery is unavailable while run state is ${reconciliation.state}`);

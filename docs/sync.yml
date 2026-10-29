@@ -1,155 +1,46 @@
-# Docs sync anchor — the boundary the next docs sync diffs from.
-# Convention per skills/atl-tech-docs (references/maintenance-workflow.md).
-# Advance only after the docs checks pass; never for unverified edits.
-
-doc_set:
-  - docs/index.html          # entry point + quickstart
-  - docs/skills.html         # skill catalog (19 cards)
-  - docs/guides.html         # workflow guides
-  - docs/control-room.html   # browser-native Control Plane guide
-  - docs/web-control-plane-brief.md # audience, scope, visual and verification contract
-  - docs/diagrams/atl-web-control-plane.svg # browser workflow visual
-  - docs/team.html           # team runtime guide (canonical runtime doc)
-  - docs/reference.html      # vocabulary, verdict, evidence levels, dose
-  - docs/jev.html            # Jev routing guide (+ docs/jev.md)
-  - docs/diagrams.html       # visual models
-  - docs/codex-history-bridge.html # Codex app history projection + transport guide
-  - README.md                # repo entry point
-  - USAGE.md                 # install + quick start
-  - runtime/README.md        # CLI/runtime operator guide
-  - docs/team-playbook.md    # team runbook
-
-primary_audience: an owner adopting ATL (and their agents) in a real project
-
+# Documentation maintenance anchor. Advance only after checks run.
+mode: Sync
+owner: ATL maintainers
+primary_audience: developers adopting, operating, and contributing to ATL
+source_manifest: docs/site.json
 source_of_truth:
-  cli: runtime/atl-manager.mjs usage()
-  runtime: runtime/lib/*.mjs
-  config: config/manager.json + config/manager-state-contract.json
-
-verified_against: >-
-  committed pre-test release point 2026-10-21 (db7bfd1 runtime+verification,
-  e6579fe skills, 7566d4b docs+specs 005–014+config); the same-day
-  owner-gates pass (atl why / atl approve) lands on top.
-
+  commands: runtime/atl-manager.mjs usage and runtime/lib/command-console.mjs
+  lifecycle: config/manager-state-contract.json
+  runtime: runtime/lib and runtime/control-plane-client.js
+  skills: skills/*/SKILL.md
+  navigation: docs/site.json
+  diagrams: Mermaid blocks in owning Markdown guides
+  style: docs/scss/styles.scss
+verified_against:
+  base_revision: 44defc49a924222aaf9a823509ab70772d75e691
+  overlay: pre-existing uncommitted runtime and verification changes inspected locally
+  release_ref: v0.1.3
+  fingerprints: .atl-evidence/docs-refresh/source-fingerprints.json
 last_sync:
-  date: 2026-10-25
-  batch: >-
-    2026-10-25 browser-first documentation refresh: docs/control-room.html
-    is now the Web Control Plane guide for `atl ui` / `atl control-plane`,
-    with a Chelekom-style navigation-and-sections layout, copyable browser and
-    CLI examples, focused browser-space reference, Codex subscription setup
-    without an API key, provider credential boundary, preview/confirm/stop
-    guidance, and the accessible `atl-web-control-plane.svg` workflow visual.
-    README.md, USAGE.md, runtime/README.md, docs/README.md, package metadata,
-    and the site search index point to the browser guide. Terminal TUI details
-    are explicitly de-emphasized until their UX work is complete. The source
-    and publication contract is docs/web-control-plane-brief.md. The guide
-    must be re-observed against the live browser Control Plane before this
-    anchor can be called runtime-verified.
-    Prior verified batches retained below:
-    2026-10-22 Codex history bridge: new docs/codex-history-bridge.html
-    (operator contract, dedicated token-free app-server injection, idempotent
-    checkpoints, writer-lock rollover, explicit queue transport, official
-    protocol boundary, troubleshooting, and source ownership); discoverability
-    link added to docs/index.html, docs/README.md, README.md, USAGE.md, and
-    docs/team-playbook.md; docs checker now includes the new page. Runtime
-    implementation is documented against runtime/lib/codex-bridge.mjs,
-    runtime/atl-manager.mjs, runtime/README.md, config/manager.json, and
-    verification/codex_bridge_test.mjs. Real smoke evidence covered thread
-    creation, app-server injection, desktop-writer rollover, and a repeated
-    no-new-context sync.
-    2026-10-22 TUI-image wave (docs): docs/diagrams/tui-*.svg (7 terminal
-    screens — dashboard, compose, packet review, queue, launch, run,
-    providers) generated from the live renderers by
-    scripts/render-tui-images.mjs against a fixed demo portfolio (synthetic
-    zai GLM provider, masked key — never the machine's real registry);
-    team.html control-room section rebuilt as the Terminal interface guide
-    (what the room is, panes, open/preview modes, per-screen figures with
-    captions, keyboard table, #doc-providers with CLI + storage + key-safety
-    + discovery callouts); control-room.html preview figure swapped to the
-    generated render + provider section leads with the user-provider CLI;
-    Control Room nav item added to every docs page sidebar;
-    scripts/check_docs.mjs added as the standing docs checker (tag balance,
-    link/anchor resolution, shared nav, image integrity); .terminal-figure
-    styles in docs/styles.css. Renderer fixes made for truthful images:
-    renderReviewScreen objective ternary spread (comma-joined multi-line
-    objective) + regression test in control_room_ui_test.mjs; four screen
-    renderers exported for the generator.
-    Prior 2026-10-22 batch retained below: user-provider registry +
-    launch-budget pass: per-machine API
-    provider store `~/.atl/providers.json` (new runtime/lib/userProviders.mjs;
-    templates zai/bigmodel/custom, masked keys, credential injection at spawn —
-    claude ANTHROPIC_* env, codex managed CODEX_HOME) selectable via
-    `providers.use` / `by_role` / `--worker <id>`; CLI `provider add | key |
-    use | remove | templates`; TUI p screen rebuilt (registry list +
-    add-provider wizard a/u/d/r) — synced into runtime/README.md ("Connect an
-    API provider in one minute"), USAGE.md quick start, team.html
-    (#doc-providers + command table + keyboard table), control-room.html
-    (04 · Provider registry). Same pass: launch-preview budget controls in the
-    TUI (+/− sessions 1–20, [ ] minutes 15–1440; budget is shared by the whole
-    queue; runQueuedLaunch now passes the chosen budget) — synced into
-    team.html (x·Q·l·RUN article + keyboard table l row) and control-room.html
-    (Preview cell). Prior 2026-10-21 batches (spec 013/014 control room, UI
-    feedback pass, owner gates atl why / atl approve) retained below.
-    spec 013 dashboard + spec 014 interactive task control room + docs-site
-    overhaul drift: README skill count (eleven → nineteen) and verdict wording
-    (five → six questions), 3 missing Modes rows, control-room flow in
-    team.html / USAGE.md / runtime/README.md / team-playbook.md, claude -p
-    stdin shape in the playbook, repair of the orphaned team.html install
-    fragment (stray </section> rendered junk between Install and First run).
-    Same-day UI feedback pass: control-room auto-refresh (~2s idle, 1s during
-    a run) with sync-age header, L logs screen (state decisions + feed in one
-    stream), Q execution-queue screen with live gate states, run-screen queue
-    progress + live session-log tail, sessions opening at the latest output —
-    synced into runtime/README.md, USAGE.md, team.html, control-room.html,
-    and the TUI help/footer text; verification/control_room_ui_test.mjs added.
-    Same-day owner-gates pass: new CLI commands `atl why [task-id]` (full
-    untruncated blocker text per active task + the exact fix command, and a
-    blocked-hint footer on the atl show portfolio) and `atl approve
-    <task-id> [--note …]` (owner approval recorded as durable evidence,
-    blocker cleared through blocked → triaged → assigned, task queued) —
-    synced into runtime/README.md (Recovering a blocked task), USAGE.md quick
-    start, team.html command table + troubleshooting row;
-    verification/recovery_test.mjs extended with approve/why coverage.
-  checks: >-
-    node scripts/check_docs.mjs ALL OK (tags balanced, links/anchors resolve,
-    doc nav consistent on all 9 pages, TUI SVGs carry intrinsic dimensions);
-    page renders inspected at 1440px full-page (headless Edge) for the
-    figure grid, captions, and image legibility — three SVG-generator
-    defects found and fixed (missing width/height, ANSI-inflated width
-    measurement, run-merging across whitespace); runtime suites green:
-    control_room_ui_test (incl. new spread regression), control_room_test,
-    dashboard_test, provider_registry_test, worker_test; prior pass:
-    check_tags.py ALL OK (all pages balanced, 19 catalog cards);
-    check_links.py clean except styles.css?v=5 query-string false positive
-    (checker ignores cache-bust queries; docs/styles.css exists);
-    all 12 JS suites green after the provider-registry + budget change;
-    provider flow exercised end to end with a throwaway key (add → use →
-    launch --dry-run resolves user provider → remove + config restored);
-    repo↔~/.atl byte-compare 21/21 after a full installer re-run;
-    stale-wording sweep and temp-project command executions from the 10-21
-    batches unchanged.
-
+  date: '2026-10-29'
+  scope: public guides, project entry points, generated site, package docs, Pages gates
+  public_pages: 37
+  maintained_markdown_files_checked: 161
+  rendered_mermaid_diagrams: 7
+  current_control_plane_captures: 7
+verification:
+  static: npm run docs:check
+  browser: npm run docs:test
+  css: npm run docs:css:check
+  illustrations: npm run docs:diagrams:check
+  distribution: node verification/package_smoke_test.mjs
+  package_inspection: npm pack --dry-run --json
+  routing_contract: python scripts/validate_model_routing.py
+  evidence_record: docs/docs-refresh-verification.md
+  local_browser_evidence: .atl-evidence/docs-refresh/site-test.json
+  local_package_evidence: .atl-evidence/docs-package.json
+  outcome: passed locally within documented scope
+maintenance:
+  edit: Markdown sources and manifest; regenerate HTML, search, CSS, and references
+  update_trigger: feature, command, policy, identity, persistence, or interface changes
+  historical_records: preserve original dates, failures, and scope; do not rewrite as current proof
 known_gaps:
-  - docs/team.html still contains legacy terminal-first Control Room prose;
-    the new browser guide and repository/package entry points are canonical,
-    but this secondary page needs a focused follow-up rewrite before the full
-    GitHub Pages corpus is uniformly web-first.
-  - TUI in-code help (renderHelp footer/? screen) still describes the
-    pre-pane keymap and the old providers screen — code-owned doc debt for
-    the pane-rework session to sync (docs pages already document the pane
-    model and the a/u/d provider keys)
-  - docs/control-room.html is a new guide; its provider example intentionally leaves ZCode's exact flags to the local installation
-  - README.fa.md (Persian mirror) not audited in this pass and may carry the
-    same stale counts; needs a translated sync
-
-visual_companion:
-  source: docs/diagrams/codex-history-bridge.svg
-  consumer: docs/codex-history-bridge.html
-  contract: >-
-    architecture map for ATL local authority, incremental bridge context,
-    dedicated token-free Codex projection, and explicit visible queue turn
-  ui_review: >-
-    headless Edge render inspected at 1440x2200 and 390x2200; mobile metrics
-    kept scrollWidth equal to innerWidth; theme toggle and search dialog opened
-    through real controls
+  - Remote CI, Pages deployment, and package publication were not observed or performed.
+  - External links and installed provider protocol compatibility were not checked live.
+  - Production connectors and real model quality are outside this documentation verification.
+  - Full public guides are English; the refreshed Persian entry links to canonical guides.

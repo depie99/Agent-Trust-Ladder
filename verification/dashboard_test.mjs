@@ -1,9 +1,23 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
+import { emptyState, saveState } from '../runtime/lib/state.mjs';
 import { fileURLToPath } from "node:url";
 import { createDashboardSnapshot, renderDashboard, renderPortfolio, resolveTaskSource } from "../runtime/lib/dashboard.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-dashboard-fixture-'));
+const state = emptyState();
+fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+fs.mkdirSync(path.join(root, '.trust/manager/inbox'), { recursive: true });
+fs.writeFileSync(path.join(root, 'config/manager.json'), JSON.stringify({ version: 1, inbox_dir: '.trust/manager/inbox' }));
+for (let index = 1; index <= 5; index++) {
+  const id = `T-${String(index).padStart(3, '0')}`;
+  const source = `${id}.md`;
+  fs.writeFileSync(path.join(root, '.trust/manager/inbox', source), `## ${id} Dashboard fixture\n`);
+  state.tasks[id] = { id, title: `${id} Dashboard fixture`, status: index === 2 ? 'blocked' : 'new', priority: 'normal', source: { type: 'file', url: source }, blocker: index === 2 ? { reason: 'Fixture needs owner approval' } : null, completion_checks: [], evidence: [] };
+}
+saveState(root, state);
 const snapshot = createDashboardSnapshot(root);
 
 assert.equal(snapshot.tasks.length, 5, "fixture should expose the current five-task portfolio");
@@ -32,3 +46,4 @@ const selected = snapshot.tasks.find((task) => task.id === "T-001");
 assert.ok(resolveTaskSource(root, selected), "Enter should be able to resolve the task source from the inbox");
 
 console.log("PASS: dashboard projection and width-safe plain rendering");
+fs.rmSync(root, { recursive: true, force: true });

@@ -5,7 +5,7 @@ import path from "node:path";
 import { emptyState, loadState, saveState } from "../runtime/lib/state.mjs";
 import {
   addProposal, addProposalFeedback, approvePlanDraft, editProposal, generateLocalPlan,
-  loadPlanDraft, normalizeProposals, planDraftLabel, regenerateProposal,
+  loadPlanDraft, normalizeProposals, planDraftLabel, regenerateProposal, reviewPlanArtifact,
   removeProposal, reorderProposals, runPlanProvider, savePlanDraft, validatePlanArtifact,
 } from "../runtime/lib/plan-studio.mjs";
 import { providerChoices, requireReadyProvider } from "../runtime/lib/userProviders.mjs";
@@ -14,6 +14,8 @@ import { loadQueueBook, queueAdd, queueCreate, queuePause, queueResume } from ".
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-cards-"));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
+fs.mkdirSync(path.join(root, "verification"), { recursive: true });
+fs.writeFileSync(path.join(root, "verification", "plan_studio_cards_test.mjs"), "// verifier fixture\n");
 saveState(root, emptyState());
 
 const minimalArtifact = (title, steps) => ({
@@ -116,7 +118,7 @@ await assert.rejects(
 assert.equal(loadPlanDraft(root, localDraft.id).artifact.task_proposals.find((proposal) => proposal.id === "p3").title, "Focused vertical slice", "malformed output leaves the draft intact");
 
 // ---------- model generation normalizes steps into cards; provider label sticks
-const providerDraft = await runPlanProvider(root, "Add multi-queue overnight runs", {
+await assert.rejects(() => runPlanProvider(root, "Add multi-queue overnight runs", {
   confirm: true,
   provider: "codex",
   invoke: async () => ({
@@ -131,11 +133,7 @@ const providerDraft = await runPlanProvider(root, "Add multi-queue overnight run
     }),
     provider: "codex", model: "glm-5.3",
   }),
-});
-assert.equal(providerDraft.artifact.task_proposals.length, 1, "step-only model output still gets one typed card per step");
-const providerLabel = planDraftLabel(loadPlanDraft(root, providerDraft.id));
-assert.equal(providerLabel.mode, "model", "a provider draft labels as model");
-assert.match(providerLabel.label, /codex \/ glm-5\.3/, "the model label names provider and model");
+}), /Plan Contract v2/, "step-only output cannot qualify as an actionable v2 plan");
 
 // ---------- provider registry contract: configured-only picker, refuse before spend
 const fakeRegistry = { providers: {} };
@@ -150,6 +148,26 @@ assert.ok(choices.every((choice) => !("api_key" in choice)), "the picker never e
 assert.equal(choices.find((choice) => choice.id === "broken").ready, false, "an unready provider stays visible but marked");
 
 // ---------- approval: dedicated Plan Queue, ordered canonical tasks, idempotent
+const readyDraft = loadPlanDraft(root, localDraft.id);
+const approvalArtifact = {
+  ...readyDraft.artifact,
+  plan_contract_version: 2,
+  verifier_commands: ["node verification/plan_studio_cards_test.mjs"],
+  implementation_steps: readyDraft.artifact.implementation_steps.map((step) => ({ ...step, files: ["verification/plan_studio_cards_test.mjs"], verify: "node verification/plan_studio_cards_test.mjs" })),
+  requirements: [{ id: "r1", text: "The plan creates independently verifiable tasks", source: "test fixture" }],
+  observed_evidence: [{ description: "Focused Plan Studio test is present", path: "verification/plan_studio_cards_test.mjs" }],
+  assumptions: [], open_questions: [],
+  task_proposals: readyDraft.artifact.task_proposals.map((proposal, index) => ({
+    ...proposal,
+    selected_skills: proposal.selected_skills.length ? proposal.selected_skills : ["atl-verify"],
+    requirement_ids: ["r1"], instructions: `Complete ${proposal.title} within the listed files.`, deliverables: [proposal.title],
+    skill_reasons: Object.fromEntries((proposal.selected_skills.length ? proposal.selected_skills : ["atl-verify"]).map((skill) => [skill, `The ${skill} skill covers this task's planning or verification needs.`])),
+    files: ["runtime/lib/plan-studio.mjs"], verify: "node verification/plan_studio_cards_test.mjs",
+  })),
+};
+savePlanDraft(root, { id: localDraft.id, intent: readyDraft.intent, artifact: approvalArtifact, stage: "plan" });
+assert.throws(() => approvePlanDraft(root, localDraft.id, { note: "cards approved by test" }), /fresh, passing accuracy review/);
+reviewPlanArtifact(root, localDraft.id, { verdict: "passed", findings: [] });
 const approved = approvePlanDraft(root, localDraft.id, { note: "cards approved by test" });
 assert.equal(approved.created, true, "approval creates the work");
 assert.ok(approved.queueId && approved.queueId.startsWith("plan-") && approved.queueId.length <= 32, "approval creates a valid dedicated plan queue id");
@@ -176,7 +194,7 @@ assert.equal(again.created, false, "re-approval is idempotent");
 assert.deepEqual(again.taskIds, approved.taskIds, "re-approval returns the same task ids");
 assert.equal(again.queueId, approved.queueId, "re-approval returns the same plan queue");
 
-// legacy drafts (no explicit cards) approve 1:1 from implementation steps
+// legacy drafts remain editable but require migration to the reviewed contract
 const legacy = savePlanDraft(root, {
   intent: "Legacy step-only draft",
   artifact: minimalArtifact("Legacy step-only draft", [
@@ -185,8 +203,7 @@ const legacy = savePlanDraft(root, {
   ]),
   stage: "plan",
 });
-const legacyApproved = approvePlanDraft(root, legacy);
-assert.equal(legacyApproved.taskIds.length, 2, "a legacy draft maps one implementation step to one canonical task");
+assert.throws(() => approvePlanDraft(root, legacy), /fresh, passing accuracy review/, "a legacy draft cannot bypass the accuracy review gate");
 assert.equal(normalizeProposals(loadPlanDraft(root, legacy.id).artifact).length, 2, "legacy artifacts normalize to cards without mutating the stored artifact");
 
 // ---------- multi-queue: round-robin merge, skip paused, shared-budget run shape

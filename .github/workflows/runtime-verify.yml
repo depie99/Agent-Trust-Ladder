@@ -24,6 +24,21 @@ jobs:
       - run: node verification/approval_test.mjs
       - run: node verification/owner_session_approval_test.mjs
       - run: node verification/supervisor_test.mjs
+      - run: node verification/supervisor_runner_test.mjs
+      - run: node verification/control_assistant_test.mjs
+      - run: node verification/execution_access_test.mjs
+      - run: node verification/task_diagnostics_test.mjs
+      - run: node verification/resource_policy_test.mjs
+      - run: node verification/execution_report_test.mjs
+      - run: node verification/provider_quota_failover_test.mjs
+      - run: node verification/execution_report_ui_test.mjs
+      - run: node verification/resource_policy_launch_test.mjs
+      - run: node verification/resource_policy_planning_test.mjs
+      - run: node verification/resource_policy_ui_test.mjs
+      - run: node verification/ui_review_preview_test.mjs
+      - run: node verification/ui_review_mcp_test.mjs
+      - run: node verification/browser_access_test.mjs
+      - run: node verification/control_plane_modal_test.mjs
       - run: node verification/session_auth_test.mjs
       - run: node verification/lease_test.mjs
       - run: node verification/backup_test.mjs

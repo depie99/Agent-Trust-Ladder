@@ -132,6 +132,7 @@ export function importCandidates(root, state, candidates, { cfg = {} } = {}) {
       risk: cand.risk,
       labels: cand.labels,
       intake_key: cand.intake_key,
+      plan_review_required: ["github", "azure", "jira"].includes(cand.source?.type),
       resources: [],
     });
     for (const resource of cand.resources || []) {

@@ -1,87 +1,119 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Browse the Agent Trust Ladder skills and choose the smallest trustworthy route." />
-    <title>ATL Docs — Skills</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=3" />
-    <link rel="stylesheet" href="styles.css?v=7" />
-    <meta name="theme-color" content="#0b0b10" />
-    <script>
-      // Theme no-flash: apply the stored (or system-preferred) theme before first paint.
-      (function () {
-        try {
-          var stored = localStorage.getItem("atl-theme");
-          if (stored === "light" || (!stored && window.matchMedia("(prefers-color-scheme: light)").matches)) {
-            document.documentElement.classList.add("light");
-          }
-        } catch (e) {}
-      })();
-    </script>
-  </head>
-  <body class="site-page">
-    <a class="skip-link" href="#main-content">Skip to content</a>
-    <div class="app-shell">
-      <aside class="sidebar" aria-label="Documentation navigation">
-        <a class="brand brand-link" href="index.html"><div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div><div><strong>ATL</strong><small>Agent Trust Ladder</small></div></a>
-        <div class="sidebar-caption">Start</div>
-        <nav class="nav-list">
-          <a class="nav-item" href="index.html"><span>⌂</span>Overview</a>
-          <a class="nav-item" href="index.html#quickstart"><span>→</span>Quickstart</a>
-        </nav>
-        <div class="sidebar-caption">Documentation</div>
-        <nav class="nav-list">
-          <a class="nav-item active" href="skills.html" aria-current="page"><span>✦</span>Skills</a>
-          <a class="nav-item" href="guides.html"><span>▤</span>Guides</a>
-          <a class="nav-item" href="control-room.html"><span>▣</span>Control Room</a>
-          <a class="nav-item" href="brain.html"><span>◈</span>ATL Brain</a>
-          <a class="nav-item" href="team.html"><span>◉</span>Team</a>
-          <a class="nav-subitem" href="team-interfaces.html">Team interfaces</a>
-          <a class="nav-item" href="jev.html"><span>◌</span>Jev routing</a>
-          <a class="nav-item" href="reference.html"><span>⌘</span>Reference</a>
-          <a class="nav-item" href="diagrams.html"><span>⌁</span>Diagrams</a>
-        </nav>
-        <div class="sidebar-footer">
-          <div class="status-dot"><i></i>Evidence-first mode</div>
-          <p>Smallest trustworthy route.<br />Clear proof at every gate.</p>
-        </div>
-      </aside>
-      <main id="main-content">
-        <header class="topbar"><div class="crumbs"><a href="index.html">ATL</a><b>/</b><span class="current">Skills</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme" aria-pressed="false"></button><button class="search-button" id="search-open" aria-label="Open search"><span>⌕</span> Search <kbd>⌘ K</kbd></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder" aria-label="Open the GitHub repository">GitHub <span>↗</span></a></div></header>
-        <div class="content-wrap">
-          <section class="page-hero"><span class="eyebrow"><span class="pulse"></span> SKILL LIBRARY</span><h1>Choose less.<br /><em>Trust more.</em></h1><p class="hero-copy">ATL is a family of focused skills. Start at the smart front door, or open a specialist when you already know the stage your work needs.</p><div class="page-meta"><span><strong>19</strong> shipped skills</span><span><strong>2</strong> front doors</span><span><strong>17</strong> specialists</span></div></section>
-          <section class="catalog-toolbar"><div><span class="section-kicker">FIND A CAPABILITY</span><h2>What are you trying to do?</h2></div><label class="catalog-search"><span>⌕</span><input id="skill-filter" type="search" placeholder="Filter by name or job…" aria-label="Filter skills" /></label></section>
-          <section class="catalog-grid" id="skill-catalog">
-            <a class="catalog-card featured" data-skill="atl router front door autonomous engineering" href="index.html#quickstart"><div class="catalog-top"><span class="skill-glyph">✦</span><span class="badge core">FRONT DOOR</span></div><h3>atl</h3><p>Infer whether the request needs framing, specification, planning, implementation, verification, review, audit, or delivery. You bring the problem; ATL chooses the dose.</p><div class="catalog-footer"><span>Use when: you do not want to choose a skill</span><b>Open quickstart ↗</b></div></a>
-            <a class="catalog-card" data-skill="agent-trust-ladder canonical router evidence lifecycle" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/agent-trust-ladder/SKILL.md"><div class="catalog-top"><span class="skill-glyph">◈</span><span class="badge review">CANONICAL</span></div><h3>agent-trust-ladder</h3><p>The evidence-gated lifecycle router: bootstrap, frame, specify, plan, implement, verify, audit, and trust with explicit gates.</p><div class="catalog-footer"><span>Use when: you need the full control plane</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-frame vague issue unknowns acceptance" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-frame/SKILL.md"><div class="catalog-top"><span class="skill-glyph">◇</span><span class="badge core">FRAME</span></div><h3>atl-frame</h3><p>Turn an incomplete request into a bounded brief with unknowns, constraints, acceptance examples, rollback, and process dose.</p><div class="catalog-footer"><span>Use when: intent is not yet bounded</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-specify behavior acceptance examples approval" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-specify/SKILL.md"><div class="catalog-top"><span class="skill-glyph">⊙</span><span class="badge core">SPECIFY</span></div><h3>atl-specify</h3><p>Define observable behavior and acceptance examples before implementation when a human approval gate still matters.</p><div class="catalog-footer"><span>Use when: behavior needs a shared contract</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-plan repository impact implementation plan" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-plan/SKILL.md"><div class="catalog-top"><span class="skill-glyph">↗</span><span class="badge core">PLAN</span></div><h3>atl-plan</h3><p>Map an approved specification onto the real codebase and produce an impact-aware, independently verifiable plan.</p><div class="catalog-footer"><span>Use when: the repository impact is non-trivial</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-implement execute repair reverify bounded loop" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-implement/SKILL.md"><div class="catalog-top"><span class="skill-glyph">✧</span><span class="badge core">IMPLEMENT</span></div><h3>atl-implement</h3><p>Execute an approved plan with bounded diagnose → repair → reverify loops and a clear stopping condition.</p><div class="catalog-footer"><span>Use when: tasks and verifier commands are defined</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-verify checks evidence trust verdict" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-verify/SKILL.md"><div class="catalog-top"><span class="skill-glyph mint-glyph">◈</span><span class="badge review">VERIFY</span></div><h3>atl-verify</h3><p>Run checks that actually execute and turn their results into a six-question evidence-backed trust verdict.</p><div class="catalog-footer"><span>Use when: implementation exists and proof is needed</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-audit diff pull request agent session review" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-audit/SKILL.md"><div class="catalog-top"><span class="skill-glyph mint-glyph">◎</span><span class="badge review">AUDIT</span></div><h3>atl-audit</h3><p>Audit an existing diff, pull request, or agent session without pretending that committed means behaviorally verified.</p><div class="catalog-footer"><span>Use when: work already exists</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-bootstrap project brief trust policy existing project" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-bootstrap/SKILL.md"><div class="catalog-top"><span class="skill-glyph amber-glyph">◌</span><span class="badge docs">BOOTSTRAP</span></div><h3>atl-bootstrap</h3><p>Inspect an existing project and create an honest project brief plus a conservative starting trust policy.</p><div class="catalog-footer"><span>Use when: ATL meets a project for the first time</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-tech-docs documentation guides reference freshness examples" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-tech-docs/SKILL.md"><div class="catalog-top"><span class="skill-glyph amber-glyph">▤</span><span class="badge docs">DOCS</span></div><h3>atl-tech-docs</h3><p>Create, update, review, and synchronize technical documentation with the engineering changes it explains.</p><div class="catalog-footer"><span>Use when: docs are part of the change surface</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-content-quality seo search content metadata site copy local international" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-content-quality/SKILL.md"><div class="catalog-top"><span class="skill-glyph amber-glyph">◌</span><span class="badge docs">CONTENT</span></div><h3>atl-content-quality</h3><p>Audit SEO and content signals or write bounded factual site copy with explicit evidence and unknowns.</p><div class="catalog-footer"><span>Use when: search or content quality needs proof</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-diagrams architecture flow lifecycle dependencies visual svg html excalidraw" id="atl-diagrams" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-diagrams/SKILL.md"><div class="catalog-top"><span class="skill-glyph mint-glyph">⌁</span><span class="badge review">DIAGRAMS</span></div><h3>atl-diagrams</h3><p>Create clean, accessible, evidence-aligned diagrams for architecture, flows, lifecycles, ownership, dependencies, and change impact.</p><div class="catalog-footer"><span>Use when: a picture reduces comprehension cost</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-ui-review interface responsive accessibility runtime" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-ui-review/SKILL.md"><div class="catalog-top"><span class="skill-glyph amber-glyph">▦</span><span class="badge docs">UI REVIEW</span></div><h3>atl-ui-review</h3><p>Inspect and improve a real rendered interface across intent, visual system, interaction, responsive behavior, accessibility, and runtime quality.</p><div class="catalog-footer"><span>Use when: a real page or interaction needs review</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-adr architecture decision record tradeoffs" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-adr/SKILL.md"><div class="catalog-top"><span class="skill-glyph coral-glyph">⌘</span><span class="badge docs">DECISION</span></div><h3>atl-adr</h3><p>Create or review an Architecture Decision Record when a choice has durable impact, meaningful trade-offs, or expensive reversal.</p><div class="catalog-footer"><span>Use when: a decision deserves a durable memory</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-trust autonomy ladder task class evidence" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-trust/SKILL.md"><div class="catalog-top"><span class="skill-glyph coral-glyph">⬡</span><span class="badge review">AUTONOMY</span></div><h3>atl-trust</h3><p>Assess or change how much autonomy an agent has earned for a specific task class using recorded project evidence.</p><div class="catalog-footer"><span>Use when: deciding what the agent may own next</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-team model routing multi-agent orchestration independent review" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-team/SKILL.md"><div class="catalog-top"><span class="skill-glyph mint-glyph">◎</span><span class="badge review">TEAM</span></div><h3>atl-team</h3><p>Coordinate bounded agents through capability-based routing, explicit ownership, independent review, integration, and evidence.</p><div class="catalog-footer"><span>Use when: work benefits from a model team</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-formal-verification invariant state machine concurrency proof mutation" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-formal-verification/SKILL.md"><div class="catalog-top"><span class="skill-glyph amber-glyph">◌</span><span class="badge docs">FORMAL</span></div><h3>atl-formal-verification</h3><p>Create a project-local formal verification skill and executable suite for a high-value invariant or bounded property.</p><div class="catalog-footer"><span>Use when: examples are not enough</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="atl-maintain-verification verification skill contract mapping baseline mutation maintenance" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-maintain-verification/SKILL.md"><div class="catalog-top"><span class="skill-glyph amber-glyph">◌</span><span class="badge docs">MAINTENANCE</span></div><h3>atl-maintain-verification</h3><p>Keep the project-local verification skill, contract mapping, baseline checks, and mutation checks healthy after verification-related changes.</p><div class="catalog-footer"><span>Use when: verification infrastructure changed</span><b>Read source ↗</b></div></a>
-            <a class="catalog-card" data-skill="verify-atl-manager-lifecycle manager state transitions evidence gates runtime" href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/verify-atl-manager-lifecycle/SKILL.md"><div class="catalog-top"><span class="skill-glyph mint-glyph">◈</span><span class="badge review">VERIFY</span></div><h3>verify-atl-manager-lifecycle</h3><p>Verify the manager's state transitions and evidence gates whenever the runtime lifecycle behavior changes.</p><div class="catalog-footer"><span>Use when: the team runtime changed</span><b>Read source ↗</b></div></a>
-          </section>
-          <p class="empty-state" id="skill-empty" hidden>No skill matches that filter. Try “verify”, “docs”, “production”, or “plan”.</p>
-          <section class="callout-panel"><div><span class="section-kicker">NOT SURE?</span><h2>Start at the front door.</h2><p>Write the issue in plain language. ATL will route it to the smallest trustworthy combination of these skills.</p></div><a class="button primary" href="index.html#quickstart">Write a prompt <span>↗</span></a></section>
-        </div>
-      </main>
-    </div>
-    <dialog id="search-dialog"><form method="dialog"><div class="search-modal"><input id="search-input" type="search" placeholder="Search ATL docs…" aria-label="Search ATL docs" /><button value="close" aria-label="Close search">Esc</button><p>Try “verify”, “contracts”, “tech docs”, or “production”.</p><div id="search-results" class="search-results" aria-live="polite"></div></div></form></dialog>
-    <script src="app.js?v=7"></script><script>
-      const filter = document.querySelector('#skill-filter'); const cards = [...document.querySelectorAll('.catalog-card')]; const empty = document.querySelector('#skill-empty');
-      filter?.addEventListener('input', (event) => { const query = event.target.value.toLowerCase().trim(); let visible = 0; cards.forEach((card) => { const show = !query || card.dataset.skill.includes(query); card.hidden = !show; if(show) visible += 1; }); empty.hidden = visible !== 0; });
-    </script>
-  </body>
-</html>
+<!-- Generated by scripts/build-docs.mjs from docs/skills.md. Do not edit this HTML. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Skill catalog · ATL Docs</title><meta name="description" content="Skills are engineering instruction contracts. Installing them does not start the stateful runtime or grant remote execution authority."><link rel="canonical" href="https://depie99.github.io/Agent-Trust-Ladder/skills.html"><link rel="icon" href="favicon.svg"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><script type="module" src="mermaid-loader.js"></script></head>
+<body><a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><a class="brand" href="index.html"><span class="brand-mark">A</span> ATL <span>Documentation</span></a><div class="header-actions"><button id="menu-toggle" aria-expanded="false" aria-controls="sidebar">Menu</button><button id="search-open">Search <kbd>Ctrl K</kbd></button><button id="theme-toggle" aria-label="Toggle theme">Theme</button><a href="https://github.com/depie99/Agent-Trust-Ladder">GitHub ↗</a></div></header>
+<div class="docs-layout"><aside id="sidebar" class="sidebar"><nav aria-label="Documentation"><section class="nav-group"><h2>Start here</h2><a href="index.html">Overview</a><a href="getting-started.html">Getting started</a><a href="control-room.html">Control Plane</a><a href="guides.html">Feature and how-to map</a></section><section class="nav-group"><h2>Workflows</h2><a href="issue-sources.html">Issue sources</a><a href="plan-studio.html">Plan Studio</a><a href="tasks-and-queues.html">Tasks and queues</a><a href="overnight-runs.html">Overnight runs</a><a href="ask-atl.html">Ask ATL</a><a href="task-change-review.html">Review changes</a><a href="queue-recovery.html">Queue recovery</a><a href="task-run-reliability.html">Run reliability</a><a href="plan-studio-contract.html">Plan contract</a></section><section class="nav-group"><h2>Operations</h2><a href="providers.html">Providers and access</a><a href="resource-policy.html">Resource policy</a><a href="model-routing.html">Model routing</a><a href="execution-reports.html">Execution reports</a><a href="projects-and-backups.html">Projects and backups</a><a href="research-and-navigation.html">Research and navigation</a><a href="codex-history-bridge.html">Codex history bridge</a><a href="troubleshooting.html">Troubleshooting</a></section><section class="nav-group"><h2>Concepts</h2><a href="architecture.html">Architecture</a><a href="resource-model.html">Resource and file model</a><a href="team.html">Agent team</a><a href="brain.html">Knowledge and learning</a><a href="jev.html">Jev routing</a><a href="diagrams.html">Diagram library</a></section><section class="nav-group"><h2>Reference</h2><a href="skills.html" aria-current="page">Skill catalog</a><a href="reference.html">Trust vocabulary</a><a href="configuration.html">Configuration</a><a href="state-contract.html">Lifecycle reference</a><a href="cli-reference.html">CLI reference</a><a href="api-reference.html">Local API reference</a><a href="repository-map.html">File catalog</a></section><section class="nav-group"><h2>Contributing</h2><a href="development.html">Development and verification</a><a href="documentation.html">Documentation workflow</a><a href="docs-refresh-verification.html">Documentation verification</a></section></nav><p class="version">Package 0.1.3 · Node &gt;=22<br>Source snapshot: October 29, 2026</p></aside><main id="main-content"><div class="breadcrumbs"><a href="index.html">Docs</a> / Reference</div><article><h1 id="skill-catalog">Skill catalog</h1>
+<p>Skills are engineering instruction contracts. Installing them does not start the stateful runtime or grant remote execution authority.</p>
+<h2 id="how-to-use-a-skill">How to use a skill</h2>
+<p>Install as described in <a href="getting-started.html">getting started</a>, restart the agent, and invoke <code>$atl</code> with the problem. Use a specialist explicitly when its job is clear. Read its contract for prerequisites, gates, and required evidence.</p>
+<h2 id="available-contracts">Available contracts</h2>
+<table>
+<thead>
+<tr>
+<th>Skill</th>
+<th>Purpose</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$agent-trust-ladder</code></td>
+<td>Evidence-gated engineering router for AI agents. Accept a raw issue or prompt, choose the smallest trustworthy stage—bootstrap, frame, specify, plan, implement, verify, audit, or trust—and run it with dose control and explicit evidence. Use as the default front door for non-trivial engineering work; skip only for trivial isolated edits that are trivially reversible.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/agent-trust-ladder/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl</code></td>
+<td>Autonomous engineering workflow router. Turn a raw issue or prompt into the smallest trustworthy route—framing, specification, planning, implementation, verification, review, audit, or delivery—without requiring the user to choose a skill. Use as the default front door for non-trivial engineering work.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-adr</code></td>
+<td>Create, review, or supersede an Architecture Decision Record when an engineering choice has durable architectural impact, meaningful trade-offs, or an expensive-to-reverse consequence. Skip ADRs for tiny isolated edits, policy-covered choices, temporary experiments, or routine implementation details.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-adr/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-audit</code></td>
+<td>Audit an existing diff, pull request, or agent session and report whether it is trustworthy, conditionally trustworthy, or not trustworthy. Read-only unless fixes are requested.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-audit/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-bootstrap</code></td>
+<td>Inspect an existing project and create an honest project brief and conservative starting trust policy. Use for first contact, stale project context, or major architecture change.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-bootstrap/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-content-quality</code></td>
+<td>Audit and improve website content, SEO, metadata, and conversion copy with evidence-based findings. Use for SEO audits, ranking drops, title/meta reviews, local or international search issues, content refreshes, and factual site copy. Do not use for structured-data implementation or technical documentation lifecycle work.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-content-quality/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-diagrams</code></td>
+<td>Create, update, review, and synchronize clean technical diagrams for architecture, flows, lifecycles, dependencies, ownership, and change impact. Use when a visual artifact materially improves comprehension or must stay aligned with engineering evidence.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-diagrams/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-formal-verification</code></td>
+<td>Create and maintain a project-local formal verification skill and executable suite for one high-value invariant, state machine, concurrency property, or bounded code property.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-formal-verification/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-frame</code></td>
+<td>Turn a vague engineering request into a bounded brief with explicit unknowns, constraints, acceptance examples, rollback, and an appropriate process dose.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-frame/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-implement</code></td>
+<td>Execute an approved engineering plan with bounded diagnose-repair-reverify loops. Use when tasks and verifier commands are already defined.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-implement/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-maintain-verification</code></td>
+<td>Maintain ATL's project-local verification skill, contract mapping, baseline checks, and mutation checks after verification-related changes.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-maintain-verification/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-plan</code></td>
+<td>Map an approved software specification onto the real codebase as an impact-aware, independently verifiable implementation plan.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-plan/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-specify</code></td>
+<td>Define observable software behavior and acceptance examples before implementation. Use when intent is bounded but behavior still needs an explicit human approval gate.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-specify/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-team</code></td>
+<td>Coordinate multiple bounded engineering agents with explicit ownership, contracts, integration gates, evidence, and stop conditions.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-team/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-tech-docs</code></td>
+<td>Create, update, review, and keep technical documentation synchronized with engineering changes. Use for new docs, stale docs, API/configuration changes, release notes, runbooks, developer guides, documentation impact during implementation, and syncing docs after a batch of code changes.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-tech-docs/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-trust</code></td>
+<td>Assess or change how much autonomy an engineering agent has earned for a specific task class using recorded project evidence.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-trust/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-ui-review</code></td>
+<td>Inspect and improve an implemented page or UI against its product intent, design system, interaction, responsive, accessibility, and runtime quality requirements. Use when the user asks to evaluate, critique, test, polish, or fix an existing interface and wants evidence from the real rendered artifact rather than a generic design opinion. Skip for purely greenfield visual ideation with no implemented surface, backend-only work, or formal accessibility certification.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-ui-review/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$atl-verify</code></td>
+<td>Verify implemented software with checks that actually run and produce a six-question evidence-backed trust verdict.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/atl-verify/SKILL.md">SKILL.md</a></td>
+</tr>
+<tr>
+<td><code>$verify-atl-manager-lifecycle</code></td>
+<td>Verify ATL manager state transitions and evidence gates when runtime/lib/state.mjs or manager lifecycle behavior changes.</td>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/skills/verify-atl-manager-lifecycle/SKILL.md">SKILL.md</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="find-related-resources">Find related resources</h2>
+<p>Each skill may have references, templates, helpers, or assets. Their ownership is listed in the <a href="repository-map.html">file catalog</a>. See <a href="reference.html">trust vocabulary</a> and <a href="jev.html">Jev routing</a> for process selection.</p>
+</article><nav class="adjacent" aria-label="Adjacent pages"><a href="diagrams.html"><small>Previous</small>Diagram library</a><a href="reference.html"><small>Next</small>Trust vocabulary</a></nav><footer><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/skills.md">View Markdown source ↗</a><a href="documentation.html">Improve this documentation</a><span>MIT</span></footer></main><aside class="page-toc"><h2>On this page</h2><nav aria-label="On this page"><a class="h2" href="#how-to-use-a-skill">How to use a skill</a><a class="h2" href="#available-contracts">Available contracts</a><a class="h2" href="#find-related-resources">Find related resources</a></nav></aside></div>
+<dialog id="search-dialog"><div class="search-heading"><label for="search-input">Search documentation</label><button id="search-close" aria-label="Close search">Esc</button></div><input id="search-input" type="search" placeholder="Try Jira, queue, Ask ATL, or models" autocomplete="off"><div id="search-results" aria-live="polite"></div></dialog></body></html>

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://depie99.github.io/Agent-Trust-Ladder/sitemap.xml

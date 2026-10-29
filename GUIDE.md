@@ -1,5 +1,7 @@
 # Agent Trust Ladder — User Guide
 
+Start with the [current feature map](docs/guides.md) and [Control Plane](docs/control-room.md). This guide explains skill concepts; commands are maintained in the [CLI reference](docs/cli-reference.md).
+
 Everything you need to use this skill well, from first install to governing a semi-autonomous agent. (نسخه فارسی: [README.fa.md](README.fa.md))
 
 ---

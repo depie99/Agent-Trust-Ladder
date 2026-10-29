@@ -1,55 +1,144 @@
 <!doctype html>
-<html lang="en">
-  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="description" content="Practical ATL guides for engineering, vibe coding, verification, and documentation workflows." /><title>ATL Docs — Guides</title><link rel="icon" type="image/svg+xml" href="favicon.svg?v=3" /><link rel="stylesheet" href="styles.css?v=7" />
-    <meta name="theme-color" content="#0b0b10" />
-    <script>
-      // Theme no-flash: apply the stored (or system-preferred) theme before first paint.
-      (function () {
-        try {
-          var stored = localStorage.getItem("atl-theme");
-          if (stored === "light" || (!stored && window.matchMedia("(prefers-color-scheme: light)").matches)) {
-            document.documentElement.classList.add("light");
-          }
-        } catch (e) {}
-      })();
-    </script></head>
-  <body class="site-page"><a class="skip-link" href="#main-content">Skip to content</a><div class="app-shell">
-    <aside class="sidebar" aria-label="Documentation navigation">
-        <a class="brand brand-link" href="index.html"><div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div><div><strong>ATL</strong><small>Agent Trust Ladder</small></div></a>
-        <div class="sidebar-caption">Start</div>
-        <nav class="nav-list">
-          <a class="nav-item" href="index.html"><span>⌂</span>Overview</a>
-          <a class="nav-item" href="index.html#quickstart"><span>→</span>Quickstart</a>
-        </nav>
-        <div class="sidebar-caption">Documentation</div>
-        <nav class="nav-list">
-          <a class="nav-item" href="skills.html"><span>✦</span>Skills</a>
-          <a class="nav-item active" href="guides.html" aria-current="page"><span>▤</span>Guides</a>
-          <a class="nav-item" href="control-room.html"><span>▣</span>Control Room</a>
-          <a class="nav-item" href="brain.html"><span>◈</span>ATL Brain</a>
-          <a class="nav-item" href="team.html"><span>◉</span>Team</a>
-          <a class="nav-subitem" href="team-interfaces.html">Team interfaces</a>
-          <a class="nav-item" href="jev.html"><span>◌</span>Jev routing</a>
-          <a class="nav-item" href="reference.html"><span>⌘</span>Reference</a>
-          <a class="nav-item" href="diagrams.html"><span>⌁</span>Diagrams</a>
-        </nav>
-        <div class="sidebar-footer">
-          <div class="status-dot"><i></i>Evidence-first mode</div>
-          <p>Smallest trustworthy route.<br />Clear proof at every gate.</p>
-        </div>
-      </aside>
-    <main id="main-content"><header class="topbar"><div class="crumbs"><a href="index.html">ATL</a><b>/</b><span class="current">Guides</span></div><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="Toggle theme" aria-pressed="false"></button><button class="search-button" id="search-open" aria-label="Open search"><span>⌕</span> Search <kbd>⌘ K</kbd></button><a class="version-button" href="https://github.com/depie99/Agent-Trust-Ladder" aria-label="Open the GitHub repository">GitHub <span>↗</span></a></div></header><div class="content-wrap">
-      <section class="page-hero"><span class="eyebrow"><span class="pulse"></span> PRACTICAL PLAYBOOKS</span><h1>From messy<br /><em>to moving.</em></h1><p class="hero-copy">These guides show how to talk to ATL, what it will return, and how to recognize a result you can trust. Start with the guide that matches your work.</p></section>
-      <section class="guide-article" id="prompting"><div class="article-label">01 · PROMPTING WITH ATL</div><div class="article-body"><h2>You do not need to choose a skill.</h2><p>Describe the problem in the language you already use with a teammate. Include the visible symptom, the desired outcome, and any constraint you know. ATL will decide whether the request needs framing, specification, planning, implementation, verification, review, or audit.</p><div class="guide-columns"><div><h3>Good prompt</h3><pre><code>$atl The checkout callback works locally but fails in production. Find the real boundary, keep the existing auth contract compatible, and prove the deployed callback.</code></pre></div><div><h3>What ATL should return</h3><ul><li>A compact Workflow Manifest.</li><li>The smallest sufficient route.</li><li>Explicit gates and a stop condition.</li><li>A verdict that separates proven from inferred.</li></ul></div></div></div></section>
-      <section class="guide-article" id="vibe-coding"><div class="article-label mint-label">02 · VIBE CODING WITH GUARDRAILS</div><div class="article-body"><h2>Let the agent move fast inside a visible loop.</h2><p>Vibe coding becomes trustworthy when the agent can state what it believes, make a bounded change, run a check that can fail, and repair only within the authorized scope. The speed comes from shorter feedback loops, not from skipping the loop.</p><div class="steps-row"><div><b>01</b><strong>Frame</strong><span>What does “done” mean?</span></div><div><b>02</b><strong>Plan</strong><span>Where can it break?</span></div><div><b>03</b><strong>Build</strong><span>What is the smallest change?</span></div><div><b>04</b><strong>Verify</strong><span>What did we directly observe?</span></div></div><div class="warning-box"><strong>Do not confuse speed with autonomy.</strong><span>Autonomy is earned per task class, after evidence shows the agent can handle that class safely.</span></div></div></section>
-      <section class="guide-article" id="docs-workflow"><div class="article-label amber-label">03 · DOCUMENTATION AS YOU BUILD</div><div class="article-body"><h2>Keep docs in the same change conversation.</h2><p>When a code, API, configuration, deployment, or operational change changes what engineers must know, run a documentation-impact check in the same workflow. Choose one primary reader and one outcome for each page.</p><div class="doc-lifecycle"><div><span>Discover</span><p>Find the source of truth, navigation, existing terminology, and sync anchor.</p></div><div><span>Shape</span><p>Choose quickstart, how-to, reference, explanation, runbook, or decision record.</p></div><div><span>Write</span><p>Lead with the task, use copyable examples, and label unknowns.</p></div><div><span>Verify</span><p>Check links, examples, retrievability, freshness, and rendered instructions.</p></div></div></div></section>
-      <section class="chooser-panel" id="docs-chooser"><div><span class="section-kicker">WRITING DOCS YOURSELF?</span><h2>Choose the reader's need, not a document label.</h2><p>Business, product, technical, operational, and learning documents can all be routed from the situation and outcome. This chooser ships with the <code>atl-tech-docs</code> skill — use it when you are the one authoring a page.</p></div><div class="chooser-grid"><label>What is the reader trying to do?<select id="doc-intent"><option value="learn">Learn a skill</option><option value="task">Complete a task</option><option value="facts">Look up exact facts</option><option value="why">Understand why</option><option value="decision">Record a durable choice</option><option value="business">Shape a business or product outcome</option><option value="process">Describe a business process</option><option value="operate">Operate or recover a system</option></select></label><label>Primary audience<select id="doc-audience"><option>Developer or engineer</option><option>Product or business team</option><option>Operator or support team</option><option>New contributor</option><option>Leadership or external audience</option></select></label></div><div class="chooser-result" id="doc-result" aria-live="polite"><b>Recommended document</b><strong>Tutorial / quickstart</strong><span>Provide a guided learning path with a known starting point and successful result.</span></div></section>
-      <section class="guide-article" id="review-workflow"><div class="article-label coral-label">04 · REVIEW AND AUDIT</div><div class="article-body"><h2>A finished diff is an input, not a verdict.</h2><p>Use `atl-audit` when a PR, diff, or agent session already exists. Use `atl-ui-review` when the real rendered surface matters. Use `atl-verify` when implementation exists and the question is whether the evidence actually supports completion.</p><div class="review-matrix"><div><b>Implemented</b><span>Files or behavior changed.</span></div><div><b>Observed</b><span>A real command, UI path, or runtime behavior was seen.</span></div><div><b>Measured</b><span>A named metric or check produced a result.</span></div><div><b>Unknown</b><span>The consumer, runtime, or external boundary remains inferred.</span></div></div></div></section>
-      <section class="guide-article" id="model-routing"><div class="article-label mint-label">05 · MODEL ROUTING AND REVIEW</div><div class="article-body"><h2>Give each model the job it is good at.</h2><p>Do not use the smartest model for every task by default. Route by capability, give the worker real tools and repository context, require a plan before implementation, and use a different model or independent context to review the result.</p><div class="model-route-grid"><div class="model-route-card model-code"><span class="model-icon">↗</span><b>CODE</b><strong>Build and debug</strong><span>Implementation, refactors, debugging, and fast execution.</span></div><div class="model-route-card model-judgment"><span class="model-icon">✦</span><b>JUDGMENT</b><strong>Decide and architect</strong><span>Architecture, tradeoffs, ambiguity, and hard decisions.</span></div><div class="model-route-card model-analysis"><span class="model-icon">◈</span><b>ANALYSIS</b><strong>Read and compare</strong><span>Reading, comparison, synthesis, and structured reasoning.</span></div><div class="model-route-card model-ideas"><span class="model-icon">✧</span><b>IDEAS</b><strong>Explore possibilities</strong><span>Brainstorming, exploration, and alternative approaches.</span></div></div><div class="model-loop" aria-label="Model routing loop"><span>ROUTE</span><i>→</i><span>PLAN</span><i>→</i><span>BUILD</span><i>→</i><span class="loop-review">REVIEW</span><i>→</i><span>VERIFY</span><i>→</i><span>LOG</span></div><div class="steps-row"><div><b>01</b><strong>Route</strong><span>Choose the capability, not the brand.</span></div><div><b>02</b><strong>Plan</strong><span>Goal, approach, files, risks, gate.</span></div><div><b>03</b><strong>Review</strong><span>Independent model or context.</span></div><div><b>04</b><strong>Log</strong><span>Model, version, evidence, outcome.</span></div></div><div class="warning-box"><strong>Review is not agreement.</strong><span>The reviewer must inspect the diff and evidence, test failure modes, and disclose when independent review was unavailable.</span></div></div></section>
-      <section class="guide-article" id="manager-mode"><div class="article-label amber-label">06 · MANAGER MODE</div><div class="article-body"><h2>Manage outcomes, not agent transcripts.</h2><p>You are the manager of the digital team. ATL gives each colleague a name, role, mission, status, checkpoint, and evidence trail while keeping you at the portfolio level: priorities, decisions, blockers, risk, and outcomes.</p><div class="steps-row"><div><b>01</b><strong>Delegate</strong><span>Give a bounded mission and write set.</span></div><div><b>02</b><strong>Coordinate</strong><span>Route context and follow-ups.</span></div><div><b>03</b><strong>Review</strong><span>Challenge the work independently.</span></div><div><b>04</b><strong>Brief</strong><span>Get shipped, blocked, and next.</span></div></div><div class="warning-box"><strong>Overnight needs a contract.</strong><span>Define “complete when,” allowed actions, forbidden actions, wake conditions, stop rules, and the morning report. Time alone is never a finish condition.</span></div></div></section>
-      <section class="callout-panel"><div><span class="section-kicker">NEXT STEP</span><h2>Have a real issue?</h2><p>Start with one sentence. The route is the agent’s job; the intent and risk remain yours.</p></div><a class="button primary" href="index.html#quickstart">Start with a prompt <span>↗</span></a></section>
-    </div></main></div><dialog id="search-dialog"><form method="dialog"><div class="search-modal"><input id="search-input" type="search" placeholder="Search ATL docs…" aria-label="Search ATL docs" /><button value="close" aria-label="Close search">Esc</button><p>Try “verify”, “contracts”, “tech docs”, or “production”.</p><div id="search-results" class="search-results" aria-live="polite"></div></div></form></dialog><script src="app.js?v=7"></script><script>
-      const docChoices={learn:['Tutorial / quickstart','Provide a guided learning path with a known starting point and successful result.'],task:['How-to / runbook','Give focused steps, prerequisites, expected result, and troubleshooting.'],facts:['Reference','State exact supported facts, fields, defaults, limits, and compatibility without mixing in a tutorial.'],why:['Explanation / architecture overview','Explain context, boundaries, trade-offs, and why the system works this way.'],decision:['ADR / decision record','Record status, context, chosen option, rejected alternatives, consequences, and owner.'],business:['Business or product brief','Define audience value, constraints, success signals, and decisions needed.'],process:['BPMN companion / process guide','Describe actors, order, decisions, inputs, outputs, and business outcomes.'],operate:['Runbook / troubleshooting guide','Tell an operator what to observe, do next, contain, and escalate.']}; const docIntent=document.querySelector('#doc-intent'); const docResult=document.querySelector('#doc-result'); docIntent?.addEventListener('change',()=>{const [kind,reason]=docChoices[docIntent.value]; docResult.innerHTML='<b>Recommended document</b><strong>'+kind+'</strong><span>'+reason+'</span>';});
-    </script>
-  </body>
-</html>
+<!-- Generated by scripts/build-docs.mjs from docs/guides.md. Do not edit this HTML. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Feature and how-to map · ATL Docs</title><meta name="description" content="Find the reader procedure, implementing boundary, and verification entry point for each feature. Module names are under runtime/lib/ unless a full path is given; tests ar"><link rel="canonical" href="https://depie99.github.io/Agent-Trust-Ladder/guides.html"><link rel="icon" href="favicon.svg"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><script type="module" src="mermaid-loader.js"></script></head>
+<body><a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><a class="brand" href="index.html"><span class="brand-mark">A</span> ATL <span>Documentation</span></a><div class="header-actions"><button id="menu-toggle" aria-expanded="false" aria-controls="sidebar">Menu</button><button id="search-open">Search <kbd>Ctrl K</kbd></button><button id="theme-toggle" aria-label="Toggle theme">Theme</button><a href="https://github.com/depie99/Agent-Trust-Ladder">GitHub ↗</a></div></header>
+<div class="docs-layout"><aside id="sidebar" class="sidebar"><nav aria-label="Documentation"><section class="nav-group"><h2>Start here</h2><a href="index.html">Overview</a><a href="getting-started.html">Getting started</a><a href="control-room.html">Control Plane</a><a href="guides.html" aria-current="page">Feature and how-to map</a></section><section class="nav-group"><h2>Workflows</h2><a href="issue-sources.html">Issue sources</a><a href="plan-studio.html">Plan Studio</a><a href="tasks-and-queues.html">Tasks and queues</a><a href="overnight-runs.html">Overnight runs</a><a href="ask-atl.html">Ask ATL</a><a href="task-change-review.html">Review changes</a><a href="queue-recovery.html">Queue recovery</a><a href="task-run-reliability.html">Run reliability</a><a href="plan-studio-contract.html">Plan contract</a></section><section class="nav-group"><h2>Operations</h2><a href="providers.html">Providers and access</a><a href="resource-policy.html">Resource policy</a><a href="model-routing.html">Model routing</a><a href="execution-reports.html">Execution reports</a><a href="projects-and-backups.html">Projects and backups</a><a href="research-and-navigation.html">Research and navigation</a><a href="codex-history-bridge.html">Codex history bridge</a><a href="troubleshooting.html">Troubleshooting</a></section><section class="nav-group"><h2>Concepts</h2><a href="architecture.html">Architecture</a><a href="resource-model.html">Resource and file model</a><a href="team.html">Agent team</a><a href="brain.html">Knowledge and learning</a><a href="jev.html">Jev routing</a><a href="diagrams.html">Diagram library</a></section><section class="nav-group"><h2>Reference</h2><a href="skills.html">Skill catalog</a><a href="reference.html">Trust vocabulary</a><a href="configuration.html">Configuration</a><a href="state-contract.html">Lifecycle reference</a><a href="cli-reference.html">CLI reference</a><a href="api-reference.html">Local API reference</a><a href="repository-map.html">File catalog</a></section><section class="nav-group"><h2>Contributing</h2><a href="development.html">Development and verification</a><a href="documentation.html">Documentation workflow</a><a href="docs-refresh-verification.html">Documentation verification</a></section></nav><p class="version">Package 0.1.3 · Node &gt;=22<br>Source snapshot: October 29, 2026</p></aside><main id="main-content"><div class="breadcrumbs"><a href="index.html">Docs</a> / Start here</div><article><h1 id="feature-and-how-to-map">Feature and how-to map</h1>
+<p>Find the reader procedure, implementing boundary, and verification entry point for each feature. Module names are under <code>runtime/lib/</code> unless a full path is given; tests are under <code>verification/</code>.</p>
+<h2 id="choose-a-feature">Choose a feature</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>How-to</th>
+<th>Main source</th>
+<th>Verification entry point</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Install and initialize</td>
+<td><a href="getting-started.html">Guide</a></td>
+<td><code>runtime/atl-manager.mjs</code></td>
+<td><code>package_smoke_test.mjs</code></td>
+</tr>
+<tr>
+<td>Browser and terminal</td>
+<td><a href="control-room.html">Guide</a></td>
+<td><code>runtime/control-plane-client.js</code></td>
+<td><code>control_plane_server_test.mjs</code></td>
+</tr>
+<tr>
+<td>Jira, GitHub, Azure and files</td>
+<td><a href="issue-sources.html">Guide</a></td>
+<td><code>intake.mjs, composer.mjs</code></td>
+<td><code>issue_source_ui_journey_test.mjs</code></td>
+</tr>
+<tr>
+<td>Plans, clarification and publishing</td>
+<td><a href="plan-studio.html">Guide</a></td>
+<td><code>plan-studio.mjs, plan-publish.mjs</code></td>
+<td><code>plan_contract_test.mjs, plan_publish_test.mjs</code></td>
+</tr>
+<tr>
+<td>Task contracts and named queues</td>
+<td><a href="tasks-and-queues.html">Guide</a></td>
+<td><code>state.mjs, queue.mjs</code></td>
+<td><code>task_dependency_contract_test.mjs</code></td>
+</tr>
+<tr>
+<td>Bounded execution and supervisor</td>
+<td><a href="overnight-runs.html">Guide</a></td>
+<td><code>launch.mjs, supervisor-runner.mjs</code></td>
+<td><code>overnight_issue_e2e_test.mjs</code></td>
+</tr>
+<tr>
+<td>Recovery and interruptions</td>
+<td><a href="queue-recovery.html">Guide</a></td>
+<td><code>queue-recovery.mjs, worker.mjs</code></td>
+<td><code>worker_windows_timeout_test.mjs</code></td>
+</tr>
+<tr>
+<td>Contextual discussion and fixes</td>
+<td><a href="ask-atl.html">Guide</a></td>
+<td><code>control-assistant.mjs</code></td>
+<td><code>control_assistant_test.mjs</code></td>
+</tr>
+<tr>
+<td>Captured changes and relationships</td>
+<td><a href="task-change-review.html">Guide</a></td>
+<td><code>task-changes.mjs, change-review-store.mjs</code></td>
+<td><code>task_changes_ui_test.mjs</code></td>
+</tr>
+<tr>
+<td>Providers and access</td>
+<td><a href="providers.html">Guide</a></td>
+<td><code>userProviders.mjs, execution-access.mjs, browser-access.mjs</code></td>
+<td><code>execution_access_test.mjs, browser_access_test.mjs</code></td>
+</tr>
+<tr>
+<td>Model capability and budgets</td>
+<td><a href="resource-policy.html">Guide</a></td>
+<td><code>resource-policy.mjs, jev.mjs</code></td>
+<td><code>resource_policy_test.mjs</code></td>
+</tr>
+<tr>
+<td>Quota fallback</td>
+<td><a href="providers.html">Guide</a></td>
+<td><code>provider-quota.mjs</code></td>
+<td><code>provider_quota_failover_test.mjs</code></td>
+</tr>
+<tr>
+<td>Usage and calibration</td>
+<td><a href="execution-reports.html">Guide</a></td>
+<td><code>execution-report.mjs</code></td>
+<td><code>execution_report_test.mjs</code></td>
+</tr>
+<tr>
+<td>Knowledge and memory</td>
+<td><a href="brain.html">Guide</a></td>
+<td><code>brain.mjs, memory.mjs</code></td>
+<td><code>brain_test.mjs</code></td>
+</tr>
+<tr>
+<td>Research and navigation</td>
+<td><a href="research-and-navigation.html">Guide</a></td>
+<td><code>research.mjs, navigation.mjs</code></td>
+<td><code>brain_test.mjs, navigation_test.mjs</code></td>
+</tr>
+<tr>
+<td>Projects and concurrency</td>
+<td><a href="projects-and-backups.html">Guide</a></td>
+<td><code>supervisor.mjs</code></td>
+<td><code>supervisor_test.mjs</code></td>
+</tr>
+<tr>
+<td>Approvals and grants</td>
+<td><a href="projects-and-backups.html">Guide</a></td>
+<td><code>approvals.mjs</code></td>
+<td><code>approval_test.mjs</code></td>
+</tr>
+<tr>
+<td>Backups and routines</td>
+<td><a href="projects-and-backups.html">Guide</a></td>
+<td><code>backup.mjs, routines.mjs</code></td>
+<td><code>backup_test.mjs, routine_test.mjs</code></td>
+</tr>
+<tr>
+<td>History transport</td>
+<td><a href="codex-history-bridge.html">Guide</a></td>
+<td><code>codex-bridge.mjs</code></td>
+<td><code>codex_bridge_test.mjs</code></td>
+</tr>
+<tr>
+<td>Engineering skill workflows</td>
+<td><a href="skills.html">Guide</a></td>
+<td><code>skill-router.mjs, skills/*/SKILL.md</code></td>
+<td><code>scripts/validate_model_routing.py</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="choose-a-workflow">Choose a workflow</h2>
+<p>For unclear intent, frame and plan. For an approved executable packet, inspect readiness and run a bounded queue. For an existing result, inspect changes, evidence, and independent review. For failures, preserve output and follow recovery.</p>
+<p>Locate exact files and additional tests in the <a href="repository-map.html">file catalog</a>. A listed verifier is an entry point, not a claim it passed in this refresh. See the <a href="docs-refresh-verification.html">verification record</a>.</p>
+</article><nav class="adjacent" aria-label="Adjacent pages"><a href="control-room.html"><small>Previous</small>Control Plane</a><a href="issue-sources.html"><small>Next</small>Issue sources</a></nav><footer><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/guides.md">View Markdown source ↗</a><a href="documentation.html">Improve this documentation</a><span>MIT</span></footer></main><aside class="page-toc"><h2>On this page</h2><nav aria-label="On this page"><a class="h2" href="#choose-a-feature">Choose a feature</a><a class="h2" href="#choose-a-workflow">Choose a workflow</a></nav></aside></div>
+<dialog id="search-dialog"><div class="search-heading"><label for="search-input">Search documentation</label><button id="search-close" aria-label="Close search">Esc</button></div><input id="search-input" type="search" placeholder="Try Jira, queue, Ask ATL, or models" autocomplete="off"><div id="search-results" aria-live="polite"></div></dialog></body></html>

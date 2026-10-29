@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-28",
+  "desktop": {
+    "atLatest": true,
+    "horizontalOverflow": false,
+    "sendVisible": true,
+    "transcriptHeight": 435,
+    "viewport": {
+      "height": 1012,
+      "width": 2133
+    }
+  },
+  "observed": [
+    "Message and error copy preserve original text",
+    "Draft preserved through access-panel return",
+    "Provider diagnostic remains expanded across multiple polls",
+    "Workspace access controls and project-wide defaults present",
+    "Mobile composer and Send remain visible",
+    "Jump to latest reaches latest message",
+    "No console errors observed"
+  ],
+  "limits": [
+    "No model-driven repair restarted",
+    "No overnight completion or independent T-022 review claimed",
+    "Dark theme and screen-reader behavior not inspected"
+  ]
+}

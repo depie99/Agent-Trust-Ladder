@@ -1,0 +1,2 @@
+# Preserve the upstream Mermaid bundle without whitespace transformations.
+docs/vendor/mermaid.min.js -whitespace

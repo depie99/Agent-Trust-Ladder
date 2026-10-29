@@ -5,6 +5,7 @@ import { renderFeed, post as feedPost } from "./feed.mjs";
 import { explainTasks, unblockTask, approveTask } from "./recovery.mjs";
 import { loadQueueBook, queueAdd, queueArchive, queueClear, queueCreate, queueIds, queueInspect, queueList, queuePause, queueRemove, queueRename, queueReorder, queueResume, queueSetActive } from "./queue.mjs";
 import { submitFeedback } from "./feedback.mjs";
+import { wrapLine } from './tui-layout.mjs';
 import { listNotifications, snoozeNotification, updateNotification } from "./notifications.mjs";
 import { archiveTask, createTaskInWorkspace, editTaskInWorkspace, restoreTask } from "./task-workspace.mjs";
 import { addProposal, addProposalFeedback, approvePlanDraft, editProposal, frameIntent, generateLocalPlan, listPlanDrafts, loadPlanDraft, normalizeProposals, planDraftLabel, removeProposal, reorderProposals, savePlanDraft } from "./plan-studio.mjs";
@@ -390,6 +391,6 @@ export function dispatchTuiCommand(root, input, { selectedTaskId = null } = {}) 
     // Direct CLI/TUI callers need a bounded diagnostic even before the screen
     // viewport wraps it. Full evidence remains available through `why` and
     // the logs; command errors stay one readable terminal row.
-    return result(`Error: ${error.message}`.slice(0, 60), { ok: false, error: true });
+    return result(wrapLine(`Error: ${error.message}`.slice(0, 500), 60), { ok: false, error: true });
   }
 }

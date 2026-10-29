@@ -1,0 +1,50 @@
+{
+  "captured": "2026-10-29",
+  "fixture": "scripts/docs-preview.mjs",
+  "mode": "isolated read-only synthetic project",
+  "browser": "Chrome through the installed browser skill",
+  "images": [
+    {
+      "file": "overview.jpg",
+      "width": 1561,
+      "height": 1332,
+      "sha256": "685767cf1d8e0f196cb7f41f5e0ef6b7cc2c26bfd348c28ea9ac39ec2a641002"
+    },
+    {
+      "file": "tasks.jpg",
+      "width": 1561,
+      "height": 1202,
+      "sha256": "0749f0d8c8b25e30e08c2dd6c27db27f4f26c54b0f62102dc3656f7ca92e5850"
+    },
+    {
+      "file": "sources.jpg",
+      "width": 1561,
+      "height": 1202,
+      "sha256": "3a0dc4c5931e65f35d4fbe37b7b29d8f49b8f1875d89adb395b829195467e390"
+    },
+    {
+      "file": "studio.jpg",
+      "width": 1561,
+      "height": 1307,
+      "sha256": "f5c58692d995de0163a70359761ab76b1216d0322c97d2f23ed5ab868f745296"
+    },
+    {
+      "file": "queues.jpg",
+      "width": 1561,
+      "height": 1202,
+      "sha256": "88cea5bc67e9c061f27bae2ff32d2e8e64a4b4ae1567a5c6bf6108aa3f9f151e"
+    },
+    {
+      "file": "team.jpg",
+      "width": 1561,
+      "height": 1202,
+      "sha256": "b1bb8f66dca0a1d0312536c7b7dd42a768f560869959203c02f6d7655bdbcbcc"
+    },
+    {
+      "file": "ask-atl.jpg",
+      "width": 1561,
+      "height": 1202,
+      "sha256": "6a885f1272a80ab6b6930be9969e901a53023f8bb58dad75a65a7e78a491dece"
+    }
+  ]
+}

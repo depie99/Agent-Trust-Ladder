@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-10-22T18:56:55.237Z",
+  "updated_at": "2026-10-27T18:06:49.280Z",
   "last_brief_at": null,
   "records": {
     "R-0001": {
@@ -135,6 +135,78 @@
         "url:61f8622f16d38d847e83",
         "title:038a43c568825fc1ba3e"
       ]
+    },
+    "R-0005": {
+      "id": "R-0005",
+      "title": "Retro: T-022 needed 7 attempts — Handle mixed-direction dynamic content: apply dir=auto or unicode-bidi isolate classes to task titles, log lines, path/evidence fragments, and timestamp cells; extend the font-family stack with Persian-appropriate system fallbacks (no webfo",
+      "kind": "retro",
+      "priority": "P1",
+      "status": "pending",
+      "evidence": "verified",
+      "published": null,
+      "captured": "2026-10-27T18:06:49.254Z",
+      "updated": "2026-10-27T18:06:49.254Z",
+      "people": [],
+      "concepts": [
+        "retrospective",
+        "repeat-attempts"
+      ],
+      "sources": [],
+      "repos": [],
+      "tickets": [],
+      "transcript": null,
+      "atl_impact": "Add a pre-flight check that would have caught the first failed attempt, then attach it to this task class.",
+      "dedup": [
+        "title:963de1bcbc2f3712f6bb"
+      ]
+    },
+    "R-0006": {
+      "id": "R-0006",
+      "title": "Retro: T-022 was blocked 5 times — Handle mixed-direction dynamic content: apply dir=auto or unicode-bidi isolate classes to task titles, log lines, path/evidence fragments, and timestamp cells; extend the font-family stack with Persian-appropriate system fallbacks (no webfo",
+      "kind": "retro",
+      "priority": "P1",
+      "status": "pending",
+      "evidence": "verified",
+      "published": null,
+      "captured": "2026-10-27T18:06:49.266Z",
+      "updated": "2026-10-27T18:06:49.266Z",
+      "people": [],
+      "concepts": [
+        "retrospective",
+        "recurring-blockers"
+      ],
+      "sources": [],
+      "repos": [],
+      "tickets": [],
+      "transcript": null,
+      "atl_impact": "Find the shared cause across these blockers; if it is environmental, fix the environment (that is what /retro would do).",
+      "dedup": [
+        "title:352407e883ebba31d3e9"
+      ]
+    },
+    "R-0007": {
+      "id": "R-0007",
+      "title": "Retro: T-024 needed 7 attempts — Run the atl-ui-review skill against the real rendered artifact in fa/rtl and en/ltr at desktop and mobile viewports in both themes, exercising keyboard navigation and the demanding components (Plan Studio, task rows, provider modal); repair",
+      "kind": "retro",
+      "priority": "P1",
+      "status": "pending",
+      "evidence": "verified",
+      "published": null,
+      "captured": "2026-10-27T18:06:49.275Z",
+      "updated": "2026-10-27T18:06:49.275Z",
+      "people": [],
+      "concepts": [
+        "retrospective",
+        "repeat-attempts"
+      ],
+      "sources": [],
+      "repos": [],
+      "tickets": [],
+      "transcript": null,
+      "atl_impact": "Add a pre-flight check that would have caught the first failed attempt, then attach it to this task class.",
+      "dedup": [
+        "title:d56e82f80311c9c98f86"
+      ]
     }
   },
   "dedup": {
@@ -145,16 +217,19 @@
     "url:38315d0c3adfdc5727c9": "R-0003",
     "title:6781870c5be671f47e57": "R-0003",
     "url:61f8622f16d38d847e83": "R-0004",
-    "title:038a43c568825fc1ba3e": "R-0004"
+    "title:038a43c568825fc1ba3e": "R-0004",
+    "title:963de1bcbc2f3712f6bb": "R-0005",
+    "title:352407e883ebba31d3e9": "R-0006",
+    "title:d56e82f80311c9c98f86": "R-0007"
   },
   "stats": {
-    "total": 4,
+    "total": 7,
     "byStatus": {
-      "pending": 4
+      "pending": 7
     },
     "byPriority": {
       "P0": 3,
-      "P1": 1
+      "P1": 4
     }
   }
 }

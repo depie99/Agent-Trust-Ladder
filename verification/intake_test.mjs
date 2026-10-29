@@ -34,7 +34,8 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "runtime", "atl-manager.mjs");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-intake-config-"));
-const run = (args) => execFileSync(process.execPath, [cli, ...args], { cwd: root, encoding: "utf8" });
+const offline = new URL('./fixtures/offline-network.mjs', import.meta.url).href;
+const run = (args) => execFileSync(process.execPath, ['--import', offline, cli, ...args], { cwd: root, encoding: "utf8" });
 run(["init"]);
 
 const fail = (args) => {

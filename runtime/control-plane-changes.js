@@ -101,8 +101,8 @@
         if (more) params.set("cursor", state.data.next_cursor);
         const d = capture ? await request("/api/task-changes/capture", { method: "POST", body: JSON.stringify({ task_id: task.id }) }) : await request(`/api/task-changes?${params}`);
         if (!active()) return;
-        if (more) d.files = [...state.data.files, ...d.files];
-        else if (d.id === state.data?.id && state.data.files.length > d.files.length) { d.files = state.data.files; d.next_cursor = state.data.next_cursor; }
+        if (more) d.files = [...(state.data?.files || []), ...(d.files || [])];
+        else if (d.id && d.id === state.data?.id && (state.data.files || []).length > (d.files || []).length) { d.files = state.data.files; d.next_cursor = state.data.next_cursor; }
         if (d.id !== state.data?.id) { state.diffs.clear(); state.fileId = null; }
         state.data = d;
       } catch (failure) { if (active()) error = failure.message; }
