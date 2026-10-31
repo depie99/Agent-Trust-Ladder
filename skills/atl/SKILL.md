@@ -60,35 +60,7 @@ Do not ask the user to pick an ATL skill when the route can be inferred. Ask onl
 
 ## Context and token budget
 
-For ATL-managed task execution, apply the project's `resource_policy` before
-each session. Estimate effort from scoped files, risk, acceptance surfaces,
-dependencies and actual review findings. Plan proposals may include
-`resource_estimate: {complexity: simple|standard|complex|critical, reason}`;
-this is advisory evidence, never authority to change a ceiling. Prefer an
-enabled model with enough configured capability and the lowest configured
-cost order. Upgrade reasoning capacity after a genuine review rejection;
-reserve room for independent review and final verification. Automatically
-extend only budgets marked automatic, within the owner ceiling and current
-run allowance. Preserve explicit task limits, model/role overrides, remaining
-time, permissions and review gates. Never infer capability or price from a
-model name, invent an available model, expand the approved provider pool,
-reset consumption, or weaken checks to fit a budget. Record the resource
-decision and concrete stop reason before starting another model session.
-
-Use execution reports as project evidence: retain per-stage provider/model,
-reported token coverage, retries, model switches and owner/automatic budget
-changes. Missing usage is unknown, never zero. Archive report source revisions
-in project Knowledge. Only current independently reviewed and successfully
-verified completions may calibrate comparable future resource decisions.
-Apply learned estimates within existing authority; never rewrite trust gates,
-expand model allowlists, raise owner ceilings or claim model weight training.
-
-On observed provider/model quota exhaustion, use enabled quota failover to
-continue the queue through an eligible configured alternative. Preserve spent
-sessions, task state, current role and independent gates; record the reason and
-replacement. Skip recently exhausted routes across tasks. Prefer fresh verified
-quota over unknown capacity, never invent availability, and stop with the exact
-missing capacity when no authorized alternative remains.
+For managed task execution, read [resource-execution.md](references/resource-execution.md) before selecting a model, extending a budget, or handling quota failover. Existing owner ceilings, provider allowlists, explicit task limits and independent gates remain binding. Missing usage remains unknown.
 
 Token efficiency is a first-class ATL goal: spend context on decisions and evidence that can change the outcome, not on repeated instructions or unrelated skill bodies. Reduce context by relevance, never by weakening a required safety, authority, compatibility, or verification gate.
 
@@ -98,6 +70,8 @@ Token efficiency is a first-class ATL goal: spend context on decisions and evide
 - **No speculative work:** do not inspect unrelated modules, run unrelated test suites, or create artifacts that cannot change the route or verdict.
 - **Compact outputs:** summarize evidence once, link to artifacts, and report only decision-changing unknowns. Keep the Workflow Manifest and final verdict concise.
 - **Stop at sufficiency:** once the acceptance behavior and risk-matched evidence are directly observed, stop; do not spend tokens chasing universal certainty.
+- **Direct-dose economy (observed cost driver):** for `Direct`-dose tasks, emit the Workflow Manifest as one line (`Outcome … | Direct | Route: implement→verify | Gate: <evidence>`) instead of the full block, keep the final Trust Verdict to six short lines, and run the risk-matched verifier once. Do not run unrelated suites or create throwaway probe scripts when the existing suite already covers the seam. Diagnosing an unrelated failing test outside the task's seam is one sentence in the verdict, not an investigation.
+- **Known-environment shortcuts:** when a failure is a recognized toolchain quirk already characterized (e.g., `node --test <dir>` failing with MODULE_NOT_FOUND on Windows because the directory is resolved as a module path), use the equivalent invocation (`node --test` with no argument, or the explicit file) and record it in one clause. Do not spend a diagnosis loop re-establishing a known quirk.
 
 The context line in the manifest is an accountability record: it names what ATL intentionally did not load as well as what it did load when that omission affects confidence.
 
@@ -123,48 +97,15 @@ ATL may continue through multiple stages in one turn only when each stage return
 - **No phantom dependencies.** If a preferred skill is unavailable, name the missing capability, choose the catalog fallback, and reduce confidence or autonomy where appropriate.
 - **No silent continuation.** A routed workflow returns to ATL with its artifact or evidence. ATL decides whether the next gate is satisfied; it does not assume success from a completion claim.
 
-## Cross-layer contract trace
+## Conditional evidence gates
 
-Apply this trace to bugs that cross layers, whether or not they reach deployment. Follow the complete path: producer payload → transport/schema → route adapter → domain workflow → persisted state → user-visible result. Record a come-and-go timeline with symptom, hypothesis, attempted fix, evidence, reversal or replacement, final solution, and residual uncertainty.
+For requested AI/skill evaluations, benchmarks or workflow-impact PoCs, read [ai-evaluation.md](references/ai-evaluation.md). Compare matched attempts, inspect actual artifacts, and distinguish routing proxies from implementation outcomes. Report missing cost/latency as unknown and a saturated or tied pilot as such.
 
-When a new identifier or payload shape replaces an existing one, preserve old callers, explicitly reject ambiguous input, and test both formats. Require a regression matrix covering valid new input, valid legacy input, missing referenced entity, malformed input, and downstream persistence failure.
+Read [evidence-gates.md](references/evidence-gates.md) when a bug crosses layers, a UI repair is rejected, or configuration/build/package/deployment/external-service contracts change. Load the matching section before implementation.
 
-Do not equate committed or merged with behaviorally verified. Do not declare success until the original user-visible failure is re-observed as fixed, or explicitly marked unverified. Static checks alone yield a partial verdict for a runtime contract bug.
-
-## UI misunderstanding recovery gate
-
-For UI work, a rejected fix is new diagnostic evidence. If the user says the same visible problem remains, supplies a second screenshot showing the same concern, or continues describing hierarchy/clarity while the agent is changing spacing, icons, colors, or breakpoints, stop incremental cosmetic edits.
-
-Before another implementation loop:
-
-1. restate the observed user-visible failure and the intended reading order;
-2. verify the route, actual viewport/container size, state, theme, zoom, and source served by the running application;
-3. distinguish source-edited, installed, served, rendered, and visually verified evidence;
-4. identify the responsible layer: content, component markup, layout primitive, style/token, interaction state, data model, or build/serve boundary;
-5. reconsider the component structure after two cosmetic attempts or one repeated user rejection;
-6. re-observe the original state and viewport before claiming success;
-7. mark the result conditional when rendered evidence is unavailable.
-
-Do not treat passing syntax, DOM-string, or functional tests as proof of visual comprehension. Do not follow an exploratory user suggestion such as “use an icon” literally unless it improves the stated task and hierarchy. In this repository, use [the UI repair misunderstanding guide](../../problems/enhancements/ui-repair-misunderstanding-recovery.md) for the full incident pattern, responsive matrix, source-parity protocol, and definition of done.
-
-## Contract-to-runtime evidence gate
-
-Apply this gate whenever a change crosses configuration, build, packaging, deployment, or an external service. A genuinely local-only UI or logic change with no such boundary does not need this deployment gate, though its ordinary behavioral checks still apply.
-
-Create a compact contract ledger before implementation or delivery. Declare each applicable contract separately: source configuration, generated bundle, artifact layout, deployment consumer, and runtime/external-service behavior. For every contract record:
-
-- expected observable behavior;
-- the command or runtime observation that proves it;
-- the owner of the contract;
-- rollback or containment behavior.
-
-Use this compact shape when a table is practical: `contract | expected behavior | proof observation | owner | rollback/containment | evidence level`. Omit inapplicable rows, but do not collapse distinct contracts into one row.
-
-Keep fixes separated by concern when possible. Do not combine an auth/configuration fix with unrelated packaging work unless both contracts are independently verified. Treat a revert as evidence of an unresolved contract disagreement, not proof that the reverted behavior was wrong.
-
-The final evidence packet must distinguish `locally proven`, `CI/build proven`, `deployment-consumer proven`, `runtime/external-service proven`, and `still unknown`. If the artifact consumer or deployed callback contract cannot be observed, report the solution as conditionally valid rather than complete.
-
-Use [references/case-studies.md](references/case-studies.md) as calibration examples, not as project-specific instructions.
+- Cross-layer bugs require producer-to-visible-result tracing, legacy/new input cases, persistence failures, and re-observation of the symptom.
+- A rejected UI repair requires rechecking the served source, viewport, state, and responsible component layer before another cosmetic loop.
+- Boundary changes require separate contract-ledger rows and evidence levels for source, build, artifact consumer, and runtime. Static checks do not establish runtime behavior; unobserved contracts keep the verdict conditional.
 
 ## Routing behavior
 
@@ -177,6 +118,7 @@ Use the specialist's exact public skill name when available. Read its `SKILL.md`
 - `atl-tech-docs` contributes documentation-impact triage, content modeling, source-of-truth alignment, docs-as-code validation, and freshness evidence.
 - `atl-content-quality` contributes evidence-based SEO/content audits, metadata and search-intent checks, local/international content boundaries, and factual site copy. It does not implement schema or replace the technical-documentation lifecycle.
 - `atl-diagrams` contributes visual contract modeling, accessible diagram artifacts, format selection, and picture-versus-proof checks. Pair it with `atl-tech-docs` when the diagram is published as documentation.
+- Statecharts belong in `atl-diagrams`; pair with `atl-formal-verification` for executable invariants and code-replayed counterexamples. Use installed PStack `statechart` and Pele when available, and label contract-only projections separately from checked results.
 - When the user does not know which diagram or document model they need, route by `audience → decision/outcome → relationship or user situation`; return one recommended model, not an unranked catalogue.
 
 Do not vendor or paraphrase an external workflow as if it ran. Attribution remains attached to the routed skill and its produced artifact.

@@ -1,0 +1,117 @@
+{
+  "study_id": "atl-heldout-replay-2026-10-31-v1",
+  "status": "preregistered-not-yet-started",
+  "claim": "Compare task success, regressions, scope control, questions, token use, API-equivalent cost, and elapsed time for baseline, one task-matched specialist skill, and ATL on five historical real issue replays. This is a development replay, not held-out evidence, and does not estimate general ATL improvement.",
+  "model": {
+    "slug": "gpt-5.6-terra",
+    "reasoning_effort": "medium",
+    "service_tier": "priority",
+    "source": "Codex CLI 0.149.1, authenticated with the existing ChatGPT account",
+    "budget": {
+      "wall_clock_seconds_per_trial": 600,
+      "output_limit": "Same model context and output limits across conditions. The CLI exposes no aggregate-token cap; use the same 600-second hard wall-clock cap and record actual token use as an outcome.",
+      "retry_policy": "No retries. Timeouts, failed launches, and incomplete attempts remain in the denominator."
+    },
+    "billing_note": "The CLI reports token usage. Dollar cost will be reported as an API-equivalent estimate from the pinned official rate card, not as the ChatGPT-account charge."
+  },
+  "design": {
+    "categories": 5,
+    "conditions": ["baseline", "specialist-only", "atl"],
+    "repetitions_per_case_condition": 5,
+    "planned_trials": 75,
+    "workspace": "Fresh archive of the pre-fix source revision per trial; no Git history or prior agent output; clean ATL_HOME; no node_modules shared with the authoring checkout.",
+    "order": "Five blocks. Rotate task order across blocks and rotate the three conditions by task and block using a frozen deterministic schedule.",
+    "prompt_policy": "Identical issue text and repository snapshot across conditions for a given case. Only the task-specific skill bundle changes. No model sees the reference fix, hidden grader, other trials, or prior transcript.",
+    "primary_metric": "Binary externally graded task success per trial. Report category and condition counts, with timeouts and incomplete trials counted as failures.",
+    "critical_failures": "Report each critical failure separately. No mean or aggregate pass rate can erase a critical regression, scope breach, or false claim of successful verification.",
+    "secondary_metrics": ["regressions", "out-of-scope changed paths", "user questions or blocked requests", "input tokens", "cached input tokens", "output tokens", "reasoning tokens", "API-equivalent token cost", "elapsed wall time", "tool calls", "timeouts", "failure causes"],
+    "analysis": "Descriptive paired outcomes by case and category. Five repeats of one issue estimate within-case variability; they do not count as five independent issues. No general performance claim."
+  },
+  "conditions": {
+    "baseline": {
+      "skills": [],
+      "instructions": "Use ordinary repository guidance and tools. Do not load a project-specific workflow skill."
+    },
+    "specialist-only": {
+      "instructions": "Use exactly the preselected skill for this case. Do not use the ATL router."
+    },
+    "atl": {
+      "instructions": "Use the ATL entrypoint and its applicable specialist, following its stated gates and verification."
+    }
+  },
+  "cases": [
+    {
+      "id": "SIMPLE-FA-COPY",
+      "category": "simple",
+      "base_revision": "61c42a1^",
+      "reference_revision": "61c42a1",
+      "prompt": "در locale فارسی، عنوان صفحهٔ صف‌ها با نویسه‌های خراب نمایش داده می‌شود. آن را به ترجمهٔ تأییدشدهٔ «مدیریت چند صف» برگردان و متن انگلیسی را تغییر نده.",
+      "specialist": { "source": "mattpocock/skills", "revision": "a496f5513d4a4cf889bc48e189e579f4b0bdf6aa", "skill": "engineering/tdd", "skill_sha256": "969583080caf842ae86a53501a0091eced13fd89cad65d3aa75c09112318ff33" },
+      "acceptance": "The Persian locale renders exactly «مدیریت چند صف» for the queue heading; English remains unchanged.",
+      "regression_suite": "Focused Node VM check plus existing Persian queue verifier when browser dependencies are available.",
+      "critical_failure": "English text changes or the Persian heading remains corrupted."
+    },
+    {
+      "id": "REAL-BUG-CLI-ONCE",
+      "category": "real-bug",
+      "base_revision": "a27b877^",
+      "reference_revision": "a27b877",
+      "prompt": "`atl ui --once --plain` prints the one-shot dashboard but can leave the process alive. Fix the command so it prints the dashboard and exits successfully within the deadline, while preserving normal interactive UI startup.",
+      "specialist": { "source": "mattpocock/skills", "revision": "a496f5513d4a4cf889bc48e189e579f4b0bdf6aa", "skill": "engineering/diagnosing-bugs", "skill_sha256": "aa87b0ac245c6d1b203c4678eb34dc101af02291448780c55c5e58ccc1619bd7" },
+      "acceptance": "A child process running the one-shot command exits 0 before the fixed deadline and emits dashboard output; the regular UI command remains a server path.",
+      "regression_suite": "verification/control_room_test.mjs",
+      "critical_failure": "One-shot command times out, exits nonzero, or the regular UI command no longer serves requests."
+    },
+    {
+      "id": "MULTILAYER-WORKER-ATL-BIN",
+      "category": "multi-layer",
+      "base_revision": "fa445b5^",
+      "reference_revision": "fa445b5",
+      "prompt": "Built-in workers that rely on ATL commands cannot consistently resolve the ATL manager executable. Trace the worker environment policy through launch into the child process, provide a valid ATL_BIN path for supported worker auth modes, and preserve existing credential filtering.",
+      "specialist": { "source": "mattpocock/skills", "revision": "a496f5513d4a4cf889bc48e189e579f4b0bdf6aa", "skill": "engineering/tdd", "skill_sha256": "969583080caf842ae86a53501a0091eced13fd89cad65d3aa75c09112318ff33" },
+      "acceptance": "Supported worker policies expose an ATL_BIN resolving to this checkout's runtime/atl-manager.mjs and launch passes it to the child; credential stripping remains unchanged.",
+      "regression_suite": "verification/worker_test.mjs plus targeted launch environment contract.",
+      "critical_failure": "ATL_BIN points outside the task checkout, worker credentials leak across auth modes, or the child does not receive the configured executable path."
+    },
+    {
+      "id": "UI-QUEUE-FILTER-COUNTS",
+      "category": "ui",
+      "base_revision": "4140480^",
+      "reference_revision": "4140480",
+      "prompt": "On the Tasks page, status counts stay global when a named queue is selected. Make the visible status counts describe only the selected queue and continue excluding archived tasks.",
+      "specialist": { "source": "Agent-Trust-Ladder working-tree snapshot", "revision": "sha256:d89333a3eae2f12210aad6e7d8d11546b0345bdeba4aa030b47afe561a95110e", "skill": "atl-ui-review" },
+      "acceptance": "In the rendered Tasks page, each status count equals the matching non-archived tasks in the selected queue; switching queues updates the counts without changing task data.",
+      "regression_suite": "Independent Playwright grader against an isolated candidate Control Plane server.",
+      "critical_failure": "Counts include tasks from another queue, include archived tasks, or queue selection mutates task state."
+    },
+    {
+      "id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "category": "documentation",
+      "base_revision": "eb4f92a^",
+      "reference_revision": "eb4f92a",
+      "prompt": "A public documentation page describes local evidence artifacts that are not published with the site. Keep their exact local paths visible for operators, but stop presenting them as public documentation links.",
+      "specialist": { "source": "cursor/plugins/pstack", "revision": "4dd1d05818d19792e7cd6e818f1667f95f7e1dbe", "skill": "skills/technical-writing", "skill_sha256": "3c1a00a006ba72b169e2a42533e1e4a55a8b39aa795ba0dc137556cc2b02729d8" },
+      "acceptance": "All local .atl-evidence paths remain readable as code text and none is a Markdown hyperlink; normal public links remain links.",
+      "regression_suite": "Independent Markdown link/path assertions plus node scripts/docs-reference.mjs --check when applicable.",
+      "critical_failure": "A local-only evidence path remains a public link or its literal operator path is removed."
+    }
+  ],
+  "known_limitations": [
+    "These are historical real-fix replays from this repository, not unseen external repositories or a true held-out set; the model receives pre-fix snapshots without Git history.",
+    "The default ChatGPT account model gpt-6.1-terra is unsupported by this Codex CLI. The same CLI-supported model gpt-5.6-terra is pinned for every trial.",
+    "The CLI provides a fixed elapsed-time cap but no aggregate token-budget option; actual tokens are measured as an outcome under the same time budget.",
+    "Dollar figures are API-equivalent estimates; account billing is not exposed by the CLI.",
+    "Baseline skill isolation must be audited from each run trace because the host may expose global skills even when a trial workspace contains none."
+  ],
+  "pricing": {
+    "source": "https://developers.openai.com/api/docs/models/gpt-5.6-terra",
+    "observed_utc": "2026-10-31",
+    "usd_per_million_tokens": { "uncached_input": 2.0, "cached_input": 0.2, "cache_write_input": 2.5, "output": 12.0 },
+    "note": "Rate-card equivalent only; no claim about actual ChatGPT account billing or any service-tier multiplier."
+  },
+  "atl_skill_snapshot": {
+    "source_root": "skills/atl and skills/atl-* from the Agent-Trust-Ladder working tree at preregistration time",
+    "entrypoint_sha256": "f58cdabfdb0af5effef928dd1d16df39e5c7d156789e891e5adc8a1f0989e94f",
+    "ui_review_specialist_sha256": "d89333a3eae2f12210aad6e7d8d11546b0345bdeba4aa030b47afe561a95110e"
+  }
+}

@@ -1,0 +1,322 @@
+{
+  "study_id": "atl-skillbench-2026-10-31-v3",
+  "preregistration_sha256": "56e7632b88adcaa092e568bf5abd54dd24b60ea94c73cedff4810579beedf0f7",
+  "schedule_rule": "Task order rotates by block; condition order rotates by case index and block (deterministic, frozen).",
+  "trials": [
+    {
+      "trial_id": "V3-B1-BUG-BALANCE-specialist-only",
+      "block": 1,
+      "case_id": "BUG-BALANCE",
+      "condition": "specialist-only",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B1-BUG-BALANCE-atl",
+      "block": 1,
+      "case_id": "BUG-BALANCE",
+      "condition": "atl",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B1-BUG-BALANCE-baseline",
+      "block": 1,
+      "case_id": "BUG-BALANCE",
+      "condition": "baseline",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B1-FEATURE-CATEGORY-atl",
+      "block": 1,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "atl",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B1-FEATURE-CATEGORY-baseline",
+      "block": 1,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "baseline",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B1-FEATURE-CATEGORY-specialist-only",
+      "block": 1,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "specialist-only",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B1-UI-SUMMARY-ARCHIVED-baseline",
+      "block": 1,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "baseline",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B1-UI-SUMMARY-ARCHIVED-specialist-only",
+      "block": 1,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "specialist-only",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B1-UI-SUMMARY-ARCHIVED-atl",
+      "block": 1,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "atl",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B1-DOCS-README-CLI-specialist-only",
+      "block": 1,
+      "case_id": "DOCS-README-CLI",
+      "condition": "specialist-only",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B1-DOCS-README-CLI-atl",
+      "block": 1,
+      "case_id": "DOCS-README-CLI",
+      "condition": "atl",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B1-DOCS-README-CLI-baseline",
+      "block": 1,
+      "case_id": "DOCS-README-CLI",
+      "condition": "baseline",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B1-REFACTOR-STORAGE-TOLERANT-atl",
+      "block": 1,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "atl",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B1-REFACTOR-STORAGE-TOLERANT-baseline",
+      "block": 1,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "baseline",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B1-REFACTOR-STORAGE-TOLERANT-specialist-only",
+      "block": 1,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "specialist-only",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B2-FEATURE-CATEGORY-atl",
+      "block": 2,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "atl",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B2-FEATURE-CATEGORY-baseline",
+      "block": 2,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "baseline",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B2-FEATURE-CATEGORY-specialist-only",
+      "block": 2,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "specialist-only",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B2-UI-SUMMARY-ARCHIVED-baseline",
+      "block": 2,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "baseline",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B2-UI-SUMMARY-ARCHIVED-specialist-only",
+      "block": 2,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "specialist-only",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B2-UI-SUMMARY-ARCHIVED-atl",
+      "block": 2,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "atl",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B2-DOCS-README-CLI-specialist-only",
+      "block": 2,
+      "case_id": "DOCS-README-CLI",
+      "condition": "specialist-only",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B2-DOCS-README-CLI-atl",
+      "block": 2,
+      "case_id": "DOCS-README-CLI",
+      "condition": "atl",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B2-DOCS-README-CLI-baseline",
+      "block": 2,
+      "case_id": "DOCS-README-CLI",
+      "condition": "baseline",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B2-REFACTOR-STORAGE-TOLERANT-atl",
+      "block": 2,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "atl",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B2-REFACTOR-STORAGE-TOLERANT-baseline",
+      "block": 2,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "baseline",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B2-REFACTOR-STORAGE-TOLERANT-specialist-only",
+      "block": 2,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "specialist-only",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B2-BUG-BALANCE-baseline",
+      "block": 2,
+      "case_id": "BUG-BALANCE",
+      "condition": "baseline",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B2-BUG-BALANCE-specialist-only",
+      "block": 2,
+      "case_id": "BUG-BALANCE",
+      "condition": "specialist-only",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B2-BUG-BALANCE-atl",
+      "block": 2,
+      "case_id": "BUG-BALANCE",
+      "condition": "atl",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B3-UI-SUMMARY-ARCHIVED-baseline",
+      "block": 3,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "baseline",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B3-UI-SUMMARY-ARCHIVED-specialist-only",
+      "block": 3,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "specialist-only",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B3-UI-SUMMARY-ARCHIVED-atl",
+      "block": 3,
+      "case_id": "UI-SUMMARY-ARCHIVED",
+      "condition": "atl",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B3-DOCS-README-CLI-specialist-only",
+      "block": 3,
+      "case_id": "DOCS-README-CLI",
+      "condition": "specialist-only",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B3-DOCS-README-CLI-atl",
+      "block": 3,
+      "case_id": "DOCS-README-CLI",
+      "condition": "atl",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B3-DOCS-README-CLI-baseline",
+      "block": 3,
+      "case_id": "DOCS-README-CLI",
+      "condition": "baseline",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B3-REFACTOR-STORAGE-TOLERANT-atl",
+      "block": 3,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "atl",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B3-REFACTOR-STORAGE-TOLERANT-baseline",
+      "block": 3,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "baseline",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B3-REFACTOR-STORAGE-TOLERANT-specialist-only",
+      "block": 3,
+      "case_id": "REFACTOR-STORAGE-TOLERANT",
+      "condition": "specialist-only",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B3-BUG-BALANCE-baseline",
+      "block": 3,
+      "case_id": "BUG-BALANCE",
+      "condition": "baseline",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B3-BUG-BALANCE-specialist-only",
+      "block": 3,
+      "case_id": "BUG-BALANCE",
+      "condition": "specialist-only",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B3-BUG-BALANCE-atl",
+      "block": 3,
+      "case_id": "BUG-BALANCE",
+      "condition": "atl",
+      "condition_order": 3
+    },
+    {
+      "trial_id": "V3-B3-FEATURE-CATEGORY-specialist-only",
+      "block": 3,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "specialist-only",
+      "condition_order": 1
+    },
+    {
+      "trial_id": "V3-B3-FEATURE-CATEGORY-atl",
+      "block": 3,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "atl",
+      "condition_order": 2
+    },
+    {
+      "trial_id": "V3-B3-FEATURE-CATEGORY-baseline",
+      "block": 3,
+      "case_id": "FEATURE-CATEGORY",
+      "condition": "baseline",
+      "condition_order": 3
+    }
+  ]
+}

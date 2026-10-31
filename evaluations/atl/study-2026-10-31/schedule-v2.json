@@ -1,0 +1,757 @@
+{
+  "study_id": "atl-development-replay-2026-10-31-v2",
+  "preregistration_sha256": "21f4d11be6cd1e37007ba7454f1719179658ef4eec138ddcbd68f63e42fa0aea",
+  "schedule_rule": "Five blocks. Rotate task order across blocks and rotate the three conditions by task and block using a frozen deterministic schedule.",
+  "trials": [
+    {
+      "trial_id": "B1-SIMPLE-FA-COPY-baseline",
+      "block": 1,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 1,
+      "condition": "baseline",
+      "task_order": 1,
+      "condition_order": 1,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B1-SIMPLE-FA-COPY-specialist-only",
+      "block": 1,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 1,
+      "condition": "specialist-only",
+      "task_order": 1,
+      "condition_order": 2,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B1-SIMPLE-FA-COPY-atl",
+      "block": 1,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 1,
+      "condition": "atl",
+      "task_order": 1,
+      "condition_order": 3,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B1-REAL-BUG-CLI-ONCE-specialist-only",
+      "block": 1,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 1,
+      "condition": "specialist-only",
+      "task_order": 2,
+      "condition_order": 1,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B1-REAL-BUG-CLI-ONCE-atl",
+      "block": 1,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 1,
+      "condition": "atl",
+      "task_order": 2,
+      "condition_order": 2,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B1-REAL-BUG-CLI-ONCE-baseline",
+      "block": 1,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 1,
+      "condition": "baseline",
+      "task_order": 2,
+      "condition_order": 3,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B1-MULTILAYER-WORKER-ATL-BIN-atl",
+      "block": 1,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 1,
+      "condition": "atl",
+      "task_order": 3,
+      "condition_order": 1,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B1-MULTILAYER-WORKER-ATL-BIN-baseline",
+      "block": 1,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 1,
+      "condition": "baseline",
+      "task_order": 3,
+      "condition_order": 2,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B1-MULTILAYER-WORKER-ATL-BIN-specialist-only",
+      "block": 1,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 1,
+      "condition": "specialist-only",
+      "task_order": 3,
+      "condition_order": 3,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B1-UI-QUEUE-FILTER-COUNTS-baseline",
+      "block": 1,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 1,
+      "condition": "baseline",
+      "task_order": 4,
+      "condition_order": 1,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B1-UI-QUEUE-FILTER-COUNTS-specialist-only",
+      "block": 1,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 1,
+      "condition": "specialist-only",
+      "task_order": 4,
+      "condition_order": 2,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B1-UI-QUEUE-FILTER-COUNTS-atl",
+      "block": 1,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 1,
+      "condition": "atl",
+      "task_order": 4,
+      "condition_order": 3,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B1-DOCS-LOCAL-EVIDENCE-PATHS-specialist-only",
+      "block": 1,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 1,
+      "condition": "specialist-only",
+      "task_order": 5,
+      "condition_order": 1,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B1-DOCS-LOCAL-EVIDENCE-PATHS-atl",
+      "block": 1,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 1,
+      "condition": "atl",
+      "task_order": 5,
+      "condition_order": 2,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B1-DOCS-LOCAL-EVIDENCE-PATHS-baseline",
+      "block": 1,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 1,
+      "condition": "baseline",
+      "task_order": 5,
+      "condition_order": 3,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B2-REAL-BUG-CLI-ONCE-specialist-only",
+      "block": 2,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 2,
+      "condition": "specialist-only",
+      "task_order": 1,
+      "condition_order": 1,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B2-REAL-BUG-CLI-ONCE-atl",
+      "block": 2,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 2,
+      "condition": "atl",
+      "task_order": 1,
+      "condition_order": 2,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B2-REAL-BUG-CLI-ONCE-baseline",
+      "block": 2,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 2,
+      "condition": "baseline",
+      "task_order": 1,
+      "condition_order": 3,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B2-MULTILAYER-WORKER-ATL-BIN-atl",
+      "block": 2,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 2,
+      "condition": "atl",
+      "task_order": 2,
+      "condition_order": 1,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B2-MULTILAYER-WORKER-ATL-BIN-baseline",
+      "block": 2,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 2,
+      "condition": "baseline",
+      "task_order": 2,
+      "condition_order": 2,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B2-MULTILAYER-WORKER-ATL-BIN-specialist-only",
+      "block": 2,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 2,
+      "condition": "specialist-only",
+      "task_order": 2,
+      "condition_order": 3,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B2-UI-QUEUE-FILTER-COUNTS-baseline",
+      "block": 2,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 2,
+      "condition": "baseline",
+      "task_order": 3,
+      "condition_order": 1,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B2-UI-QUEUE-FILTER-COUNTS-specialist-only",
+      "block": 2,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 2,
+      "condition": "specialist-only",
+      "task_order": 3,
+      "condition_order": 2,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B2-UI-QUEUE-FILTER-COUNTS-atl",
+      "block": 2,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 2,
+      "condition": "atl",
+      "task_order": 3,
+      "condition_order": 3,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B2-DOCS-LOCAL-EVIDENCE-PATHS-specialist-only",
+      "block": 2,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 2,
+      "condition": "specialist-only",
+      "task_order": 4,
+      "condition_order": 1,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B2-DOCS-LOCAL-EVIDENCE-PATHS-atl",
+      "block": 2,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 2,
+      "condition": "atl",
+      "task_order": 4,
+      "condition_order": 2,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B2-DOCS-LOCAL-EVIDENCE-PATHS-baseline",
+      "block": 2,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 2,
+      "condition": "baseline",
+      "task_order": 4,
+      "condition_order": 3,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B2-SIMPLE-FA-COPY-atl",
+      "block": 2,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 2,
+      "condition": "atl",
+      "task_order": 5,
+      "condition_order": 1,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B2-SIMPLE-FA-COPY-baseline",
+      "block": 2,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 2,
+      "condition": "baseline",
+      "task_order": 5,
+      "condition_order": 2,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B2-SIMPLE-FA-COPY-specialist-only",
+      "block": 2,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 2,
+      "condition": "specialist-only",
+      "task_order": 5,
+      "condition_order": 3,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B3-MULTILAYER-WORKER-ATL-BIN-atl",
+      "block": 3,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 3,
+      "condition": "atl",
+      "task_order": 1,
+      "condition_order": 1,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B3-MULTILAYER-WORKER-ATL-BIN-baseline",
+      "block": 3,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 3,
+      "condition": "baseline",
+      "task_order": 1,
+      "condition_order": 2,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B3-MULTILAYER-WORKER-ATL-BIN-specialist-only",
+      "block": 3,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 3,
+      "condition": "specialist-only",
+      "task_order": 1,
+      "condition_order": 3,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B3-UI-QUEUE-FILTER-COUNTS-baseline",
+      "block": 3,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 3,
+      "condition": "baseline",
+      "task_order": 2,
+      "condition_order": 1,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B3-UI-QUEUE-FILTER-COUNTS-specialist-only",
+      "block": 3,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 3,
+      "condition": "specialist-only",
+      "task_order": 2,
+      "condition_order": 2,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B3-UI-QUEUE-FILTER-COUNTS-atl",
+      "block": 3,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 3,
+      "condition": "atl",
+      "task_order": 2,
+      "condition_order": 3,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B3-DOCS-LOCAL-EVIDENCE-PATHS-specialist-only",
+      "block": 3,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 3,
+      "condition": "specialist-only",
+      "task_order": 3,
+      "condition_order": 1,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B3-DOCS-LOCAL-EVIDENCE-PATHS-atl",
+      "block": 3,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 3,
+      "condition": "atl",
+      "task_order": 3,
+      "condition_order": 2,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B3-DOCS-LOCAL-EVIDENCE-PATHS-baseline",
+      "block": 3,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 3,
+      "condition": "baseline",
+      "task_order": 3,
+      "condition_order": 3,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B3-SIMPLE-FA-COPY-atl",
+      "block": 3,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 3,
+      "condition": "atl",
+      "task_order": 4,
+      "condition_order": 1,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B3-SIMPLE-FA-COPY-baseline",
+      "block": 3,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 3,
+      "condition": "baseline",
+      "task_order": 4,
+      "condition_order": 2,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B3-SIMPLE-FA-COPY-specialist-only",
+      "block": 3,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 3,
+      "condition": "specialist-only",
+      "task_order": 4,
+      "condition_order": 3,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B3-REAL-BUG-CLI-ONCE-baseline",
+      "block": 3,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 3,
+      "condition": "baseline",
+      "task_order": 5,
+      "condition_order": 1,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B3-REAL-BUG-CLI-ONCE-specialist-only",
+      "block": 3,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 3,
+      "condition": "specialist-only",
+      "task_order": 5,
+      "condition_order": 2,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B3-REAL-BUG-CLI-ONCE-atl",
+      "block": 3,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 3,
+      "condition": "atl",
+      "task_order": 5,
+      "condition_order": 3,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B4-UI-QUEUE-FILTER-COUNTS-baseline",
+      "block": 4,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 4,
+      "condition": "baseline",
+      "task_order": 1,
+      "condition_order": 1,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B4-UI-QUEUE-FILTER-COUNTS-specialist-only",
+      "block": 4,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 4,
+      "condition": "specialist-only",
+      "task_order": 1,
+      "condition_order": 2,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B4-UI-QUEUE-FILTER-COUNTS-atl",
+      "block": 4,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 4,
+      "condition": "atl",
+      "task_order": 1,
+      "condition_order": 3,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B4-DOCS-LOCAL-EVIDENCE-PATHS-specialist-only",
+      "block": 4,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 4,
+      "condition": "specialist-only",
+      "task_order": 2,
+      "condition_order": 1,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B4-DOCS-LOCAL-EVIDENCE-PATHS-atl",
+      "block": 4,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 4,
+      "condition": "atl",
+      "task_order": 2,
+      "condition_order": 2,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B4-DOCS-LOCAL-EVIDENCE-PATHS-baseline",
+      "block": 4,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 4,
+      "condition": "baseline",
+      "task_order": 2,
+      "condition_order": 3,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B4-SIMPLE-FA-COPY-atl",
+      "block": 4,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 4,
+      "condition": "atl",
+      "task_order": 3,
+      "condition_order": 1,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B4-SIMPLE-FA-COPY-baseline",
+      "block": 4,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 4,
+      "condition": "baseline",
+      "task_order": 3,
+      "condition_order": 2,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B4-SIMPLE-FA-COPY-specialist-only",
+      "block": 4,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 4,
+      "condition": "specialist-only",
+      "task_order": 3,
+      "condition_order": 3,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B4-REAL-BUG-CLI-ONCE-baseline",
+      "block": 4,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 4,
+      "condition": "baseline",
+      "task_order": 4,
+      "condition_order": 1,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B4-REAL-BUG-CLI-ONCE-specialist-only",
+      "block": 4,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 4,
+      "condition": "specialist-only",
+      "task_order": 4,
+      "condition_order": 2,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B4-REAL-BUG-CLI-ONCE-atl",
+      "block": 4,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 4,
+      "condition": "atl",
+      "task_order": 4,
+      "condition_order": 3,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B4-MULTILAYER-WORKER-ATL-BIN-specialist-only",
+      "block": 4,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 4,
+      "condition": "specialist-only",
+      "task_order": 5,
+      "condition_order": 1,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B4-MULTILAYER-WORKER-ATL-BIN-atl",
+      "block": 4,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 4,
+      "condition": "atl",
+      "task_order": 5,
+      "condition_order": 2,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B4-MULTILAYER-WORKER-ATL-BIN-baseline",
+      "block": 4,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 4,
+      "condition": "baseline",
+      "task_order": 5,
+      "condition_order": 3,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B5-DOCS-LOCAL-EVIDENCE-PATHS-specialist-only",
+      "block": 5,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 5,
+      "condition": "specialist-only",
+      "task_order": 1,
+      "condition_order": 1,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B5-DOCS-LOCAL-EVIDENCE-PATHS-atl",
+      "block": 5,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 5,
+      "condition": "atl",
+      "task_order": 1,
+      "condition_order": 2,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B5-DOCS-LOCAL-EVIDENCE-PATHS-baseline",
+      "block": 5,
+      "case_id": "DOCS-LOCAL-EVIDENCE-PATHS",
+      "repetition": 5,
+      "condition": "baseline",
+      "task_order": 1,
+      "condition_order": 3,
+      "prompt_sha256": "9d87455adad6d87f061898104385cf922cb513f68c14fd8d87af2ea2e829eae9"
+    },
+    {
+      "trial_id": "B5-SIMPLE-FA-COPY-atl",
+      "block": 5,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 5,
+      "condition": "atl",
+      "task_order": 2,
+      "condition_order": 1,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B5-SIMPLE-FA-COPY-baseline",
+      "block": 5,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 5,
+      "condition": "baseline",
+      "task_order": 2,
+      "condition_order": 2,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B5-SIMPLE-FA-COPY-specialist-only",
+      "block": 5,
+      "case_id": "SIMPLE-FA-COPY",
+      "repetition": 5,
+      "condition": "specialist-only",
+      "task_order": 2,
+      "condition_order": 3,
+      "prompt_sha256": "8cd09b4431195fa5c653135f6397c64dde10cd1b6104b2896faa1c7e4024751d"
+    },
+    {
+      "trial_id": "B5-REAL-BUG-CLI-ONCE-baseline",
+      "block": 5,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 5,
+      "condition": "baseline",
+      "task_order": 3,
+      "condition_order": 1,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B5-REAL-BUG-CLI-ONCE-specialist-only",
+      "block": 5,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 5,
+      "condition": "specialist-only",
+      "task_order": 3,
+      "condition_order": 2,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B5-REAL-BUG-CLI-ONCE-atl",
+      "block": 5,
+      "case_id": "REAL-BUG-CLI-ONCE",
+      "repetition": 5,
+      "condition": "atl",
+      "task_order": 3,
+      "condition_order": 3,
+      "prompt_sha256": "2be6af09314015f6be8aba9cd1c537ce5a66de462b14d644eec09b49237f868f"
+    },
+    {
+      "trial_id": "B5-MULTILAYER-WORKER-ATL-BIN-specialist-only",
+      "block": 5,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 5,
+      "condition": "specialist-only",
+      "task_order": 4,
+      "condition_order": 1,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B5-MULTILAYER-WORKER-ATL-BIN-atl",
+      "block": 5,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 5,
+      "condition": "atl",
+      "task_order": 4,
+      "condition_order": 2,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B5-MULTILAYER-WORKER-ATL-BIN-baseline",
+      "block": 5,
+      "case_id": "MULTILAYER-WORKER-ATL-BIN",
+      "repetition": 5,
+      "condition": "baseline",
+      "task_order": 4,
+      "condition_order": 3,
+      "prompt_sha256": "4b69abb3f91b30410d898774a8575af2f0331f6fbc8a7e71de0586b740527c3c"
+    },
+    {
+      "trial_id": "B5-UI-QUEUE-FILTER-COUNTS-atl",
+      "block": 5,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 5,
+      "condition": "atl",
+      "task_order": 5,
+      "condition_order": 1,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B5-UI-QUEUE-FILTER-COUNTS-baseline",
+      "block": 5,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 5,
+      "condition": "baseline",
+      "task_order": 5,
+      "condition_order": 2,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    },
+    {
+      "trial_id": "B5-UI-QUEUE-FILTER-COUNTS-specialist-only",
+      "block": 5,
+      "case_id": "UI-QUEUE-FILTER-COUNTS",
+      "repetition": 5,
+      "condition": "specialist-only",
+      "task_order": 5,
+      "condition_order": 3,
+      "prompt_sha256": "c5dffd4629f99b846af16afca109c686fe6e6665e6be203c446af6b47fd270e0"
+    }
+  ]
+}
