@@ -40,6 +40,13 @@ A plan exists (or the user asked for a bounded fix within the stated dose). If t
 - Major repair cycles: max **4** per task list.
 - A retry without new evidence, new instrumentation, or a materially different approach is not progress.
 
+### Verification economy
+
+- Run the narrowest existing verifier for the slice **once**; rerun only after a repair. Do not create throwaway probe scripts when an existing suite or a direct import already covers the seam.
+- A failure outside this task's seam costs one sentence in the final report ("pre-existing, untouched"), never a diagnosis loop.
+- Recognized toolchain quirks (e.g., `node --test <dir>` MODULE_NOT_FOUND on Windows) use their known equivalent invocation and are noted in one clause.
+- Report in the six-question verdict shape, one short line per question. No per-step narration unless a gate decision changed.
+
 ### Hard lines
 
 - Never weaken, delete, or skip a meaningful test or assertion to get green. If a check is genuinely wrong, say why and get agreement (Critical dose: always).
