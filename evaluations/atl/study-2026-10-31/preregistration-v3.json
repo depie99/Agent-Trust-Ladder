@@ -1,0 +1,80 @@
+{
+  "study_id": "atl-skillbench-2026-10-31-v3",
+  "status": "preregistered",
+  "claim": "Compare task success, scope control, questions, and elapsed time for baseline, one task-matched external specialist skill, and the ATL router when a GLM-5.3-flash agent works five neutral, self-contained engineering tasks in a purpose-built benchmark repository. This measures the skills themselves, not the Agent-Trust-Ladder product code. Subagent token usage is not exposed by the harness and is recorded as null; no token/cost superiority claim is supported by this study.",
+  "model": {
+    "slug": "zai-api/GLM-5.3-flash",
+    "execution": "Fresh ZCode general-purpose subagent per trial (no shared conversation context), workspace-write only inside the trial workspace, same default settings every condition.",
+    "budget": { "wall_clock_seconds_per_trial": 900, "retry_policy": "No retries. Aborted or empty attempts remain in the denominator." }
+  },
+  "design": {
+    "categories": 5,
+    "conditions": ["baseline", "specialist-only", "atl"],
+    "repetitions_per_case_condition": 3,
+    "planned_trials": 45,
+    "workspace": "Fresh copy of .atl-evidence/skillbench-template per trial; no shared node_modules, no git history, no prior agent output.",
+    "order": "Three blocks. Task order rotates per block; condition order rotates per case and block (frozen deterministic schedule below).",
+    "prompt_policy": "Identical task text and repository snapshot across conditions for a given case. Only the appended skill bundle changes. No agent sees the reference fix, hidden grader, other trials, or prior transcripts.",
+    "primary_metric": "Binary externally graded task success per trial via graders calibrated to fail on the pre-fix template and pass on the reference fix.",
+    "critical_failures": "Reported individually; no aggregate erases them.",
+    "secondary_metrics": ["out-of-scope changed paths", "questions or blocked requests", "elapsed wall time", "regression of existing passing behavior (repo test suite for BUG case)"],
+    "analysis": "Descriptive per case and condition; three repeats estimate within-case variability only; no general claim about ATL."
+  },
+  "cases": [
+    {
+      "id": "BUG-BALANCE",
+      "category": "bug",
+      "task_file": "lib/expenses.mjs",
+      "prompt": "computeBalances in lib/expenses.mjs is wrong: a payer is charged their own share but never credited the amount they paid, so balances do not net to zero. Fix the bug so the payer is credited the full amount and every participant (including the payer) is charged an even share. test/expenses.test.mjs documents the expected numbers; make the whole suite pass with node --test test/.",
+      "specialist": { "source": "mattpocock/skills", "skill": "engineering/diagnosing-bugs" },
+      "expected_paths": ["lib/expenses.mjs", "test/expenses.test.mjs"],
+      "grader": "grade3-bug.mjs"
+    },
+    {
+      "id": "FEATURE-CATEGORY",
+      "category": "feature",
+      "task_file": "lib/expenses.mjs",
+      "prompt": "Add category support to lib/expenses.mjs. Expenses may carry a 'category' string; an expense without one counts as 'general'. Export two new functions: filterByCategory(state, category) returning only non-archived expenses of that category, and totalByCategory(state, category) returning the sum of their amounts. Existing exports and behavior must not change.",
+      "specialist": { "source": "mattpocock/skills", "skill": "engineering/tdd" },
+      "expected_paths": ["lib/expenses.mjs", "test/expenses.test.mjs"],
+      "grader": "grade3-feature.mjs"
+    },
+    {
+      "id": "UI-SUMMARY-ARCHIVED",
+      "category": "ui",
+      "task_file": "lib/summary.mjs",
+      "prompt": "renderSummary in lib/summary.mjs counts and lists archived expenses as if they were active. Archived expenses must not appear in the summary output at all; the '<N> expenses' count and the expense list must describe only non-archived expenses. Do not change function signatures.",
+      "specialist": { "source": "cursor/plugins/pstack", "skill": "skills/principle-test-behavior-not-implementation" },
+      "expected_paths": ["lib/summary.mjs", "test/"],
+      "grader": "grade3-ui.mjs"
+    },
+    {
+      "id": "DOCS-README-CLI",
+      "category": "documentation",
+      "task_file": "README.md",
+      "prompt": "The CLI section of README.md documents commands that do not exist in app.mjs (add-expense, list, remove, report). Rewrite the CLI section so every documented command and flag matches the actual app.mjs behavior, and every documented command actually runs. Keep the rest of the README accurate.",
+      "specialist": { "source": "cursor/plugins/pstack", "skill": "skills/technical-writing" },
+      "expected_paths": ["README.md"],
+      "grader": "grade3-docs.mjs"
+    },
+    {
+      "id": "REFACTOR-STORAGE-TOLERANT",
+      "category": "refactor",
+      "task_file": "lib/storage.mjs",
+      "prompt": "loadState in lib/storage.mjs crashes when state.json is missing or contains invalid JSON. Make loadState tolerant: a missing file returns { expenses: [] }; a corrupt file is preserved verbatim as state.json.corrupt and an empty state is returned. Function signatures and existing call sites must not change, and a normal save/load roundtrip must keep working.",
+      "specialist": { "source": "mattpocock/skills", "skill": "engineering/tdd" },
+      "expected_paths": ["lib/storage.mjs", "test/"],
+      "grader": "grade3-refactor.mjs"
+    }
+  ],
+  "conditions_spec": {
+    "baseline": "No skill text. 'Use ordinary repository guidance and tools.'",
+    "specialist-only": "Verbatim snapshot of the case's external specialist SKILL.md appended to the task.",
+    "atl": "ATL skills snapshot copied to <workspace>/skills/; agent told to enter via skills/atl/SKILL.md router and follow progressive disclosure."
+  },
+  "honesty_notes": [
+    "Tasks are purpose-built for this benchmark, not historical product issues and not external held-out repositories.",
+    "The grader author and the trial orchestrator are the same agent (self-evaluation risk); graders are behavior-level and calibrated, but this is a development signal, not an independent audit.",
+    "Subagent token usage is not exposed by the ZCode harness; cost comparison is out of scope for v3 despite being a stated product goal."
+  ]
+}
