@@ -100,5 +100,11 @@
       }
     },
     "note": "put a local clone path in repos.<owner/name>.path to get cheap git worktrees instead of fresh clones"
+  },
+  "egmReview": {
+    "enabled": true,
+    "backend": "glm-goldfish",
+    "versionSha": "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24",
+    "maxMinutesPerCall": 10
   }
 }

@@ -17,7 +17,56 @@ function planFingerprint(artifact, intent, evidence) {
   return crypto.createHash("sha256").update(JSON.stringify({ artifact, intent, evidence })).digest("hex");
 }
 
-export function reviewPlanArtifact(root, draft, review) {
+function withDraftLock(dir, operation) {
+  const lock = path.join(dir, "artifact.lock");
+  let fd;
+  try {
+    fd = fs.openSync(lock, "wx");
+  } catch (error) {
+    if (error.code === "EEXIST") {
+      let owner;
+      try { owner = JSON.parse(fs.readFileSync(lock, "utf8")); } catch { /* a lock still being initialized is active */ }
+      if (Number.isInteger(owner?.pid)) {
+        let alive = true;
+        try { process.kill(owner.pid, 0); } catch (probe) { if (probe.code === "ESRCH") alive = false; }
+        if (!alive) {
+          let current;
+          try {
+            current = JSON.parse(fs.readFileSync(lock, "utf8"));
+          } catch (recoveryError) {
+            if (recoveryError.code !== "ENOENT") throw recoveryError;
+            return withDraftLock(dir, operation);
+          }
+          if (current.pid === owner.pid && current.created_at === owner.created_at) fs.rmSync(lock, { force: true });
+          return withDraftLock(dir, operation);
+        }
+      }
+      const conflict = new Error("plan draft changed or is being updated; reload it and retry");
+      conflict.statusCode = 409;
+      throw conflict;
+    }
+    throw error;
+  }
+  try {
+    fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, created_at: new Date().toISOString() }));
+    return operation();
+  } finally {
+    fs.closeSync(fd);
+    fs.rmSync(lock, { force: true });
+  }
+}
+
+function writeArtifactEnvelope(file, envelope) {
+  const temporary = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(envelope, null, 2) + "\n", { flag: "wx" });
+    fs.renameSync(temporary, file);
+  } finally {
+    fs.rmSync(temporary, { force: true });
+  }
+}
+
+export function reviewPlanArtifact(root, draft, review, { expectedRevision = null, evidenceSnapshot = null } = {}) {
   const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
   const normalized = normalizePlanContract(loaded.artifact, loaded.intent);
   delete normalized.review;
@@ -26,15 +75,47 @@ export function reviewPlanArtifact(root, draft, review) {
   const unresolved = normalized.open_questions.filter((item) => !item.resolved);
   const passed = review?.verdict === "passed" && !unresolved.length && !findings.some((item) => ["blocker", "major"].includes(item.severity));
   const sourceRevision = review.source_revision || null;
-  const result = { schema: PLAN_CONTRACT_VERSION, verdict: passed ? "passed" : "blocked", findings, reviewed_at: new Date().toISOString(), fingerprint: planFingerprint(normalized, loaded.intent, { project: planningEvidence(root, normalized), source_revision: sourceRevision }), provider: review.provider || null, model: review.model || null, source_revision: sourceRevision };
+  const reviewedEvidence = evidenceSnapshot || planningEvidence(root, normalized);
+  const result = { schema: PLAN_CONTRACT_VERSION, kind: review.kind === "egm" ? "egm" : "atl", verdict: passed ? "passed" : "blocked", findings, reviewed_at: new Date().toISOString(), fingerprint: planFingerprint(normalized, loaded.intent, { project: reviewedEvidence, source_revision: sourceRevision }), provider: review.provider || null, model: review.model || null, source_revision: sourceRevision, egm: review.egm || null };
   const file = path.join(loaded.dir, "artifact.json");
-  const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
-  envelope.artifact = normalized;
-  envelope.review = result;
-  envelope.artifact.review = result;
-  envelope.saved_at = new Date().toISOString();
-  fs.writeFileSync(file, JSON.stringify(envelope, null, 2) + "\n");
-  return { ...loaded, artifact: envelope.artifact, review: result, saved_at: envelope.saved_at };
+  return withDraftLock(loaded.dir, () => {
+    const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
+    const currentRevision = Number(envelope.revision) || 1;
+    if (expectedRevision != null && currentRevision !== expectedRevision) {
+      const stale = new Error("plan review is stale because the draft changed while the provider was reviewing it");
+      stale.statusCode = 409;
+      throw stale;
+    }
+    const currentArtifact = normalizePlanContract(envelope.artifact, loaded.intent);
+    delete currentArtifact.review;
+    const currentEvidence = planningEvidence(root, currentArtifact);
+    if (planFingerprint(currentArtifact, loaded.intent, currentEvidence) !== planFingerprint(normalized, loaded.intent, reviewedEvidence)) {
+      const stale = new Error("plan review is stale because the plan or its evidence changed while the provider was reviewing it");
+      stale.statusCode = 409;
+      throw stale;
+    }
+    envelope.revision = currentRevision + 1;
+    envelope.artifact = normalized;
+    envelope.review = result;
+    envelope.artifact.review = result;
+    envelope.saved_at = new Date().toISOString();
+    writeArtifactEnvelope(file, envelope);
+    return { ...loaded, revision: envelope.revision, artifact: envelope.artifact, review: result, saved_at: envelope.saved_at };
+  });
+}
+
+export function planReviewSnapshotCurrent(root, draft) {
+  try {
+    const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
+    const review = loaded.review || loaded.artifact?.review;
+    if (!loaded.artifact || review?.verdict !== "passed") return false;
+    const normalized = normalizePlanContract(loaded.artifact, loaded.intent);
+    delete normalized.review;
+    const fingerprint = planFingerprint(normalized, loaded.intent, { project: planningEvidence(root, normalized), source_revision: review.source_revision || null });
+    return fingerprint === review.fingerprint;
+  } catch {
+    return false;
+  }
 }
 
 export function normalizePlanContract(artifact, intent = "") {
@@ -437,14 +518,23 @@ function loadEditableDraft(root, draft) {
 
 function persistArtifact(root, loaded, artifact, envelopePatch = {}) {
   const file = path.join(loaded.dir, "artifact.json");
-  const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
-  envelope.artifact = artifact;
-  delete envelope.review;
-  if (envelope.artifact) delete envelope.artifact.review;
-  envelope.saved_at = new Date().toISOString();
-  for (const [key, value] of Object.entries(envelopePatch)) envelope[key] = value;
-  fs.writeFileSync(file, JSON.stringify(envelope, null, 2) + "\n");
-  return { ...loaded, artifact, saved_at: envelope.saved_at };
+  return withDraftLock(loaded.dir, () => {
+    const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
+    const currentRevision = Number(envelope.revision) || 1;
+    if (loaded.revision != null && currentRevision !== loaded.revision) {
+      const stale = new Error("plan draft changed while this edit was being prepared; reload and retry");
+      stale.statusCode = 409;
+      throw stale;
+    }
+    envelope.revision = currentRevision + 1;
+    envelope.artifact = artifact;
+    delete envelope.review;
+    if (envelope.artifact) delete envelope.artifact.review;
+    envelope.saved_at = new Date().toISOString();
+    for (const [key, value] of Object.entries(envelopePatch)) envelope[key] = value;
+    writeArtifactEnvelope(file, envelope);
+    return { ...loaded, revision: envelope.revision, artifact, saved_at: envelope.saved_at };
+  });
 }
 
 function cloneArtifact(loaded) {
@@ -708,11 +798,21 @@ export function advanceStage(root, draft, stage, patch = {}) {
   const dir = loaded.dir;
   fs.writeFileSync(path.join(dir, `stage-${stage}.json`), JSON.stringify({ schema: PLAN_SCHEMA_VERSION, stage, artifact, saved_at: new Date().toISOString() }, null, 2) + "\n");
   if (["plan", "review", "approved"].includes(stage)) {
-    const envelope = JSON.parse(fs.readFileSync(path.join(dir, "artifact.json"), "utf8"));
-    envelope.stage = stage;
-    envelope.artifact = artifact;
-    envelope.saved_at = new Date().toISOString();
-    fs.writeFileSync(path.join(dir, "artifact.json"), JSON.stringify(envelope, null, 2) + "\n");
+    withDraftLock(dir, () => {
+      const file = path.join(dir, "artifact.json");
+      const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
+      const currentRevision = Number(envelope.revision) || 1;
+      if (loaded.revision != null && currentRevision !== loaded.revision) {
+        const stale = new Error("plan draft changed while this stage was being prepared; reload and retry");
+        stale.statusCode = 409;
+        throw stale;
+      }
+      envelope.revision = currentRevision + 1;
+      envelope.stage = stage;
+      envelope.artifact = artifact;
+      envelope.saved_at = new Date().toISOString();
+      writeArtifactEnvelope(file, envelope);
+    });
   }
   return { ...loaded, stage, artifact, stages: readStages(root, { dir }) };
 }
@@ -727,8 +827,8 @@ export function savePlanDraft(root, { intent, artifact, stage = "plan", id = nul
   const dir = path.join(path.dirname(paths(root).state), "plan-studio", draftId);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "intent.md"), String(intent).trimEnd() + "\n");
-  fs.writeFileSync(path.join(dir, "artifact.json"), JSON.stringify({ schema: PLAN_SCHEMA_VERSION, stage, artifact: artifact || null, source_task_id: sourceTaskId || null, saved_at: new Date().toISOString() }, null, 2) + "\n");
-  return { id: draftId, dir, intentPath: path.join(dir, "intent.md"), artifactPath: path.join(dir, "artifact.json"), stage, artifact: artifact || null };
+  fs.writeFileSync(path.join(dir, "artifact.json"), JSON.stringify({ schema: PLAN_SCHEMA_VERSION, revision: 1, stage, artifact: artifact || null, source_task_id: sourceTaskId || null, saved_at: new Date().toISOString() }, null, 2) + "\n");
+  return { id: draftId, dir, intentPath: path.join(dir, "intent.md"), artifactPath: path.join(dir, "artifact.json"), revision: 1, stage, artifact: artifact || null };
 }
 
 export function loadPlanDraft(root, id) {
@@ -736,7 +836,7 @@ export function loadPlanDraft(root, id) {
   const file = path.join(dir, "artifact.json");
   if (!fs.existsSync(file)) throw new Error(`Unknown plan draft ${id}`);
   const saved = JSON.parse(fs.readFileSync(file, "utf8"));
-  return { ...saved, id, dir, intent: fs.readFileSync(path.join(dir, "intent.md"), "utf8") };
+  return { ...saved, revision: Number(saved.revision) || 1, id, dir, intent: fs.readFileSync(path.join(dir, "intent.md"), "utf8") };
 }
 
 // A plan queue id is derived deterministically from the draft, so re-approval
@@ -747,7 +847,7 @@ function planQueueId(loaded) {
   return `plan-${slug(title).slice(0, 17) || "draft"}-${String(loaded.id).replace(/[^a-z0-9]/gi, "").slice(-6).toLowerCase()}`;
 }
 
-export function approvePlanDraft(root, draft, { note = "approved by manager in Plan Studio", sourceRevisionCurrent = false } = {}) {
+function approvePlanDraftUnlocked(root, draft, { note = "approved by manager in Plan Studio", sourceRevisionCurrent = false } = {}) {
   const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
   const artifact = loaded.artifact;
   validatePlanArtifact(artifact);
@@ -843,6 +943,11 @@ export function approvePlanDraft(root, draft, { note = "approved by manager in P
     saveState(root, sourceState, { expectedRevision: sourceState.revision || 0 });
   }
   return { task: after.tasks[taskIds[0]], tasks: taskIds.map((id) => after.tasks[id]), taskIds, queueId, created: true, draft: loaded };
+}
+
+export function approvePlanDraft(root, draft, options = {}) {
+  const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
+  return withDraftLock(loaded.dir, () => approvePlanDraftUnlocked(root, loaded.id, options));
 }
 
 export async function runPlanProvider(root, intent, { role = "pip", provider, confirm = false, invoke, draftId = null, budget = null, sourceTaskId = null } = {}) {

@@ -31,7 +31,7 @@ export function planningPrompt(request) {
   const regenerate = request?.current_proposal != null;
   const reviewing = request?.review === true;
   const payload = reviewing
-    ? { task: request.task, intent: request.intent, artifact: request.artifact, project_evidence: request.project_evidence, required_fields: request.required, rule: request.rule }
+    ? { task: request.task, persona: request.persona, target_document: request.target_document, prior_stage_reports: request.prior_stage_reports, stage_reports: request.stage_reports, intent: request.intent, artifact: request.artifact, project_evidence: request.project_evidence, required_fields: request.required, rule: request.rule }
     : regenerate
     ? {
         task: request.task,

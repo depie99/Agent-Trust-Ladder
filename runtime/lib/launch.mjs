@@ -32,6 +32,7 @@ import { createWorkerChannel } from "./worker-channel.mjs";
 import { resourcePolicy, budgetDecision, routeTask, readResourceConfig } from "./resource-policy.mjs";
 import {recordExecution,learnFromExecution} from './execution-report.mjs';
 import {recordQuotaFailure} from './provider-quota.mjs';
+import { planReviewSnapshotCurrent } from "./plan-studio.mjs";
 
 const say = (root, from, text, opts = {}) => feedPost(root, { from, text, ...opts });
 
@@ -401,6 +402,9 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     const plan_context = task.plan_draft_id ? Object.values(loadState(root).tasks)
       .filter((peer) => peer.id !== task.id && peer.plan_draft_id === task.plan_draft_id)
       .map((peer) => ({ id: peer.id, objective: peer.objective, completion_checks: peer.completion_checks, depends_on: peer.plan_depends_on || [], status: peer.status })) : [];
+    if (task.plan_draft_id && !planReviewSnapshotCurrent(root, task.plan_draft_id)) {
+      return { status: task.status, reason: "approved Plan Studio plan or its referenced evidence changed; re-review and approve the current draft before execution", failed: true, blockedLaunch: true, blocker: "stale-plan-review" };
+    }
     const invocation = buildInvocation(useWorker, { root, workspace, role, task: { ...task, plan_context }, auth: useAuth, provider: useProvider, feedback, navigationContext, uiReviewRuntime });
     invocation.command = disc.path;
     budget.sessions += 1;
@@ -589,6 +593,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     const blockers = [];
     if(provider.decision.blocked)blockers.push(provider.decision.blocked);
     if (task.plan_review_required) blockers.push("external GitHub/Azure task needs an approved Plan Studio accuracy review before execution");
+    if (task.plan_draft_id && !planReviewSnapshotCurrent(root, task.plan_draft_id)) blockers.push("approved Plan Studio plan or its referenced evidence changed; re-review and approve the current draft before execution");
     if (task.execution_budget && task.execution_budget.used >= task.execution_budget.max_sessions) blockers.push(`persistent session budget exhausted (${task.execution_budget.used}/${task.execution_budget.max_sessions}); increase the task budget before resuming`);
     if ((task.plan_depends_on || []).length) {
       const handoffs = inspectHandoffChain(root, task, state.tasks);
