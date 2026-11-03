@@ -23,6 +23,17 @@ Expected result: an approved plan creates bounded task packets in a queue. Editi
 
 Inspect **Publish destination**, preview its GitHub or Azure destination, then confirm the exact publication. Local queue creation and remote issue creation are separate operations. Inspect existing publication mapping before retrying to avoid duplicates.
 
+## Choose the review depth
+
+Plan Studio offers two review depths before approval. **ATL accuracy review** is one schema-gated model call. **EGM deep review** runs the Elephant–Goldfish–Model review protocol: five independent stage reviewers plus a synthesizer, each a fresh single-shot call with no shared conversation.
+
+The backend is selected in `config/manager.json` under `egmReview`:
+
+- `"backend": "glm-goldfish"` — the protocol natively through ATL's planning seam with any configured provider (for example GLM). Needs only `enabled`, `backend`, and the pinned `versionSha`.
+- `"backend": "codex"` (default) — the real EGM plugin through a dedicated CODEX_HOME: `codexHome`, `model`, pinned `versionSha`, the plugin installed, and `codex login` completed for that home.
+
+A missing or unusable configuration is refused explicitly before any spend. Every finding is bound to the reviewed artifact and evidence snapshot: a plan or evidence change invalidates the review, and a blocked or stale deep review keeps the approval gate shut — the same contract as the accuracy review. Failed, timed out, or incomplete deep reviews are recorded as failures with their raw run preserved beside the draft, never as a clean pass.
+
 ## Resolve an approval block
 
 Read validation findings. Missing answers, insufficient checks, stale sources, legacy artifacts, and unresolved review findings need an updated artifact and review. See the [plan contract](plan-studio-contract.md) for fields and bindings.

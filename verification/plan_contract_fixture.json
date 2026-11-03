@@ -1,0 +1,79 @@
+{
+  "plan_contract_version": 2,
+  "title": "Process level review fixture",
+  "objective": "Survive process death and cross-process approval",
+  "requirements": [
+    {
+      "id": "r1",
+      "text": "Approval survives process boundaries",
+      "source": "original request"
+    }
+  ],
+  "constraints": [],
+  "observed_evidence": [
+    {
+      "description": "Fixture verifier",
+      "path": "verification/fixture.mjs"
+    }
+  ],
+  "assumptions": [],
+  "open_questions": [],
+  "risks": [],
+  "completion_checks": [
+    "Process death leaves no review",
+    "Cross-process approval never duplicates tasks"
+  ],
+  "acceptance_examples": [
+    {
+      "given": "a killed runtime",
+      "when": "the draft is reloaded",
+      "then": "no passing review is attached"
+    }
+  ],
+  "selected_skills": [
+    "atl-verify"
+  ],
+  "proposed_worker": "pip",
+  "skill_route": [],
+  "implementation_steps": [
+    {
+      "step": "Verify process boundaries",
+      "files": [
+        "verification/fixture.mjs"
+      ],
+      "verify": "node verification/fixture.mjs"
+    }
+  ],
+  "verifier_commands": [
+    "node verification/fixture.mjs"
+  ],
+  "task_proposals": [
+    {
+      "id": "p1",
+      "title": "Verify process boundaries",
+      "objective": "Survive process death and cross-process approval",
+      "instructions": "Verify process-level restart and cross-process approval serialization for plan drafts.",
+      "deliverables": [
+        "process boundary regression coverage"
+      ],
+      "requirement_ids": [
+        "r1"
+      ],
+      "completion_checks": [
+        "Process death leaves no review"
+      ],
+      "proposed_worker": "pip",
+      "selected_skills": [
+        "atl-verify"
+      ],
+      "skill_reasons": {
+        "atl-verify": "Verifies the review invariants."
+      },
+      "depends_on": [],
+      "files": [
+        "verification/fixture.mjs"
+      ],
+      "verify": "node verification/fixture.mjs"
+    }
+  ]
+}

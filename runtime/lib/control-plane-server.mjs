@@ -26,8 +26,10 @@ import { approveDraftPr, createDeliveryPacket, listDeliveryPackets } from "./del
 import { inspectHandoffChain } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview } from "./change-review-store.mjs";
+import { taskStatechart } from "./task-statechart.mjs";
 import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
 import { previewPlanPublish, publishPlan, verifyImportedSource } from "./plan-publish.mjs";
+import { runEgmReview, runGlmGoldfishReview, readEgmReviewConfig, parseEgmReports } from "./egm-review.mjs";
 import { installSkill, designateSkill } from "./skill-install.mjs";
 import { executionAccess, saveExecutionAccess, probeWorkspaceAccess } from "./execution-access.mjs";
 import { browserAccess, saveBrowserAccess, checkBrowserRuntime } from "./browser-access.mjs";
@@ -40,6 +42,7 @@ import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_PLANE_FILE = path.join(RUNTIME_DIR, "..", "control-plane.html");
+const activePlanReviews = new Set();
 const builtinOperations = new Map();
 
 function startBuiltinOperation(id, action, config) {
@@ -522,6 +525,45 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
   }
   if (pathname === "/api/plan/review") {
     const draftId = String(payload.draftId || "");
+    if (String(payload.reviewType || "") === "egm") {
+      let reviewKey = null;
+      try {
+        const loaded = loadPlanDraft(root, draftId);
+        const artifact = loaded.artifact;
+        if (!artifact || artifact.plan_contract_version !== 2) return json(res, 409, { ok: false, error: "legacy and local template drafts need a version 2 model plan before EGM deep review" });
+        validatePlanArtifact(artifact);
+        validatePlanGrounding(root, artifact);
+        if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free" });
+        const config = readEgmReviewConfig(readManagerConfig(root));
+        if (!config.enabled) return json(res, 409, { ok: false, error: "EGM deep review is not usable: " + config.problems.join(" ") });
+        reviewKey = path.join(loaded.dir, "artifact.json");
+        if (activePlanReviews.has(reviewKey)) return json(res, 409, { ok: false, error: "a review is already running for this plan draft" });
+        activePlanReviews.add(reviewKey);
+        const projectEvidence = planningEvidence(root, artifact);
+        const configOnly = readManagerConfig(root);
+        const run = config.backend === "glm-goldfish"
+          ? await (seam.egmRunner || runGlmGoldfishReview)(root, { draft: loaded, config, call: ({ stage, request, logPath }) => { void stage; const providerId = payload.provider || loaded.provider; if (!providerId) { const refusal = new Error("select a configured provider for the glm-goldfish EGM review"); refusal.statusCode = 400; throw refusal; } const entry = planningEntry(root, payload, { ...artifact, title: artifact.title || loaded.intent }, "planning-review", providerId); return planningCall(seam, entry, { logPath, request }); } })
+          : await (seam.egmRunner || runEgmReview)(root, { cfg: configOnly, draft: loaded });
+        if (run.timedOut || run.exitCode !== 0) {
+          const failure = new Error(`EGM review failed (exit ${run.exitCode}). The raw run is preserved at ${run.workdir}; no review was recorded.`);
+          failure.statusCode = 502;
+          failure.workdir = run.workdir;
+          throw failure;
+        }
+        const parsed = parseEgmReports(run.workdir);
+        if (parsed.missingReports.length) {
+          const failure = new Error(`EGM review incomplete — missing report files: ${parsed.missingReports.join(", ")}. The raw run is preserved at ${run.workdir}; no review was recorded.`);
+          failure.statusCode = 502;
+          failure.workdir = run.workdir;
+          throw failure;
+        }
+        const verdict = parsed.verdictHint === "passed" && !parsed.findings.some((finding) => ["blocker", "major"].includes(finding.severity)) ? "passed" : "blocked";
+        const updated = reviewPlanArtifact(root, loaded, { verdict, findings: parsed.findings, kind: "egm", provider: run.backend === "glm-goldfish" ? ((run.stageRuns || []).map((stage) => stage.provider).find(Boolean) || egmProviderId) : "codex-egm", model: config.model, egm: { backend: run.backend || "codex", version_sha: config.versionSha, model: config.model || (run.stageRuns || []).map((stage) => stage.model).find(Boolean) || null, workdir: run.workdir, duration_ms: run.durationMs, exit_code: run.exitCode, last_message: run.lastMessage, stage_runs: run.stageRuns || null } }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence });
+        return json(res, 200, { ok: true, draft: draftResponse(updated, root), review: updated.review });
+      } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message, workdir: error.workdir || null }); }
+      finally { if (reviewKey) activePlanReviews.delete(reviewKey); }
+    }
+    let reviewKey = null;
     try {
       const loaded = loadPlanDraft(root, draftId);
       const artifact = loaded.artifact;
@@ -532,17 +574,23 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       validatePlanGrounding(root, artifact);
       const entry = planningEntry(root,payload,{...artifact,title:artifact.title||loaded.intent},'planning-review',providerId);
       if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free" });
+      const candidateReviewKey = path.join(loaded.dir, "artifact.json");
+      if (activePlanReviews.has(candidateReviewKey)) return json(res, 409, { ok: false, error: "a review is already running for this plan draft" });
+      reviewKey = candidateReviewKey;
+      activePlanReviews.add(reviewKey);
       const sourceRevision = loaded.source_task_id ? await verifyImportedSource(root, loaded.source_task_id, { fetchImpl: seam.publishFetch }) : null;
       const logPath = path.join(loaded.dir, "review.log");
-      const evidence = { ...planningEvidence(root, artifact), external_source: sourceRevision };
+      const projectEvidence = planningEvidence(root, artifact);
+      const evidence = { ...projectEvidence, external_source: sourceRevision };
       const response = await planningCall(seam, entry, { logPath, request: { review: true, task: "Review the proposed plan only. Return JSON with verdict ('passed' or 'blocked') and findings [{severity, requirement_id, task_id, message, correction}]. Do not edit files or claim checks passed.", intent: loaded.intent, artifact, project_evidence: evidence, required: ["verdict", "findings"], rule: "Be strict and evidence-based. Findings must identify the affected requirement or task. Any blocker or major finding means blocked." } });
       if (!response || response.code !== 0) throw new Error(`Plan review provider failed (code ${response?.code ?? "unknown"})`);
       const text = String(response.text || response.output || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
       const result = JSON.parse(text);
       if (!["passed", "blocked"].includes(result.verdict) || !Array.isArray(result.findings)) throw new Error("review response must contain verdict and findings");
-      const updated = reviewPlanArtifact(root, loaded, { ...result, source_revision: sourceRevision, provider: response.provider || providerId, model: response.model || payload.model || null });
+      const updated = reviewPlanArtifact(root, loaded, { ...result, source_revision: sourceRevision, provider: response.provider || providerId, model: response.model || payload.model || null }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence });
       return json(res, 200, { ok: true, draft: draftResponse(updated, root), review: updated.review });
-    } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
+    } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message }); }
+    finally { if (reviewKey) activePlanReviews.delete(reviewKey); }
   }
   if (pathname === "/api/plan/clarify") {
     try {
@@ -614,9 +662,9 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
   return json(res, 404, { ok: false, error: "not found" });
 }
 
-export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {} } = {}) {
+export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {}, egmRunner = null } = {}) {
   if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) throw new Error("control plane only supports loopback hosts");
-  const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters };
+  const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters, egmRunner };
   const intakePreviews = new Map();
   const assistant = createAssistant(root, { providerConfig: () => readManagerConfig(root) });
   // A browser server can start after its runner has died. Reconcile the
@@ -659,6 +707,12 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         sendJavascript(res, assetRoot);
         return;
       }
+      if (req.method === "GET" && url.pathname === "/assets/atl-logo.svg") {
+        const logo = fs.readFileSync(path.join(assetRoot, "assets", "atl-logo.svg"));
+        res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "no-cache", "content-length": logo.length });
+        res.end(logo);
+        return;
+      }
       if (req.method === "GET" && url.pathname === "/control-plane-i18n.js") {
         sendJavascript(res, assetRoot, "control-plane-i18n.js");
         return;
@@ -679,14 +733,16 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const capture = url.pathname.endsWith("/capture");
           if (req.method !== (capture ? "POST" : "GET")) { json(res, 405, { error: "Method not allowed" }); return; }
           const payload = capture ? JSON.parse(await readBody(req) || "{}") : null;
-          const task = loadState(root).tasks[capture ? payload.task_id : url.searchParams.get("taskId")];
+          const taskState = loadState(root);
+          const task = taskState.tasks[capture ? payload.task_id : url.searchParams.get("taskId")];
           if (!task) { json(res, 404, { error: "Task not found", availability: "task_missing" }); return; }
           const record = capture ? captureChangeReview(root, task) : readChangeReview(root, task, url.searchParams.get("changeSetId"));
           if (url.pathname === "/api/task-change-diff") {
             if (!url.searchParams.get("changeSetId") || !record) throw new ChangeReviewError("change_set_missing", "A pinned change set is required", 400);
             json(res, 200, { change_set_id: record.id, ...fileDiff(root, record, url.searchParams.get("fileId")) }); return;
           }
-          json(res, 200, record ? { ...describeChanges(task, record, { cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit") }), revisions: listChangeReviews(root, task) } : unavailableReview(task));
+          const review = record ? { ...describeChanges(task, record, { cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit") }), revisions: listChangeReviews(root, task) } : unavailableReview(task);
+          json(res, 200, { ...review, statechart: taskStatechart(task, taskState.log) });
         } catch (error) {
           json(res, error instanceof ChangeReviewError ? error.status : 409, { error: error instanceof ChangeReviewError ? error.message : "Source inspection failed; no task state was changed", availability: error instanceof ChangeReviewError ? error.code : "inspection_unavailable" });
         }
@@ -1061,8 +1117,8 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   });
 }
 
-export async function startControlPlaneServer(root, { host = "127.0.0.1", port = 0, planningInvoke = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {} } = {}) {
-  const server = createControlPlaneServer(root, { host, planningInvoke, usageFetch, publishFetch, assetRoot, readOnlyPreview, intakeAdapters });
+export async function startControlPlaneServer(root, { host = "127.0.0.1", port = 0, planningInvoke = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {}, egmRunner = null } = {}) {
+  const server = createControlPlaneServer(root, { host, planningInvoke, usageFetch, publishFetch, assetRoot, readOnlyPreview, intakeAdapters, egmRunner });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen({ host, port }, resolve);
