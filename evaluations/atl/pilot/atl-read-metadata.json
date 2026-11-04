@@ -1,0 +1,12 @@
+{
+  "instruction_files_loaded": [
+    {"path":"D:/Projects/Agentic/Agent-Trust-Ladder/skills/atl/SKILL.md","bytes":20480},
+    {"path":"D:/Projects/Agentic/Agent-Trust-Ladder/skills/atl/references/routing.md","bytes":9044},
+    {"path":"D:/Projects/Agentic/Agent-Trust-Ladder/skills/atl/references/playbooks.md","bytes":3474},
+    {"path":"D:/Projects/Agentic/Agent-Trust-Ladder/skills/atl/references/project-assessment.md","bytes":2818}
+  ],
+  "total_file_bytes":35816,
+  "elapsed_seconds":"unknown",
+  "model":"unknown",
+  "execution_note":"Decision-only evaluation. No task implementation, tests, audits, diagrams, or formal checks were executed. Conditional denotes an uncompleted or insufficiently evidenced outcome; blocked denotes the unsupported autonomy increase."
+}

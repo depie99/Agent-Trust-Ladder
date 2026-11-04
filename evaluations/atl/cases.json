@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "scope": "Decision-only development set; not an implementation benchmark or held-out test",
+  "cases": [
+    {
+      "id": "C01",
+      "category": "local-copy",
+      "prompt": "Change Save to Apply in an isolated settings component. Reversible local copy only, check available, no code edited yet.",
+      "routes": [
+        "direct",
+        "implement"
+      ],
+      "doses": [
+        "Direct"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C02",
+      "category": "runtime-evidence",
+      "prompt": "PR merged, typecheck passed; is production login callback fixed? No deployed observation.",
+      "routes": [
+        "verify",
+        "audit"
+      ],
+      "doses": [
+        "Critical"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C03",
+      "category": "read-only-audit",
+      "prompt": "Audit existing diff, read-only. Agent says all tests pass, no logs.",
+      "routes": [
+        "audit"
+      ],
+      "doses": [
+        "Standard"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C04",
+      "category": "cross-layer-bug",
+      "prompt": "Seller selection resets after save. New seller UUID replaced legacy store ID. Root cause unknown, persistence not observed.",
+      "routes": [
+        "frame",
+        "verify"
+      ],
+      "doses": [
+        "Standard"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C05",
+      "category": "diagram-boundary",
+      "prompt": "Draw next permitted states from supplied lifecycle contract. No request to prove behavior or install tools.",
+      "routes": [
+        "diagrams"
+      ],
+      "doses": [
+        "Direct",
+        "Standard"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C06",
+      "category": "concurrency-proof",
+      "prompt": "Prove queue lease never has two owners under concurrency. No formal model or execution yet.",
+      "routes": [
+        "formal-verification"
+      ],
+      "doses": [
+        "Standard",
+        "Critical"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C07",
+      "category": "technical-docs",
+      "prompt": "Refresh API configuration runbook against changed source. No source inspection yet.",
+      "routes": [
+        "tech-docs"
+      ],
+      "doses": [
+        "Standard"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C08",
+      "category": "content",
+      "prompt": "Improve search-intent title and meta for local restaurant landing page. No ranking evidence yet.",
+      "routes": [
+        "content-quality"
+      ],
+      "doses": [
+        "Standard"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C09",
+      "category": "autonomy",
+      "prompt": "Make agents more autonomous based only on one reported green unit run. No task-class history.",
+      "routes": [
+        "trust"
+      ],
+      "doses": [
+        "Standard",
+        "Critical"
+      ],
+      "verdicts": [
+        "conditional",
+        "blocked"
+      ]
+    },
+    {
+      "id": "C10",
+      "category": "deployment-contract",
+      "prompt": "Production auth redirect fix with local build green. No bundle consumer or callback observation.",
+      "routes": [
+        "verify",
+        "audit"
+      ],
+      "doses": [
+        "Critical"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C11",
+      "category": "persian-audit",
+      "prompt": "این PR رو فقط بررسی کن، فایل‌ها رو تغییر نده. Existing diff; tests unavailable.",
+      "routes": [
+        "audit"
+      ],
+      "doses": [
+        "Standard"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    },
+    {
+      "id": "C12",
+      "category": "persian-copy",
+      "prompt": "متن دکمه Save را در کامپوننت مشخص به Apply تغییر بده، فقط تغییر محلی و ساده. Check available, no code edited yet.",
+      "routes": [
+        "direct",
+        "implement"
+      ],
+      "doses": [
+        "Direct"
+      ],
+      "verdicts": [
+        "conditional"
+      ]
+    }
+  ]
+}

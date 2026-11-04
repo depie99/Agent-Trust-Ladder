@@ -1,0 +1,54 @@
+{
+  "route": ["atl-implement", "atl-verify"],
+  "playbook": "Feature",
+  "dose": "Standard",
+  "verdict": "complete",
+  "files": ["selection.mjs", "pagination.mjs", "evidence.mjs", "checks.mjs", "report.json"],
+  "checks": [
+    {
+      "command": "node checks.mjs",
+      "working_directory": "evaluations/atl/poc/runs/atl",
+      "status": "passed",
+      "exit_code": 0,
+      "assertions": 63,
+      "coverage": [
+        "seller and legacy store resolution; ambiguous, malformed, missing and duplicate rejection",
+        "single persistence calls on successful selections; zero calls on invalid store collections",
+        "awaiting persistence and propagating the original rejection",
+        "frozen caller inputs",
+        "pagination slicing, empty and out-of-range pages, required strict numeric fields and unsafe offsets",
+        "required and optional evidence verdicts, malformed and duplicate check rejection, ordered skipped and unknown names"
+      ]
+    }
+  ],
+  "instruction_files_loaded": [
+    "evaluations/atl/poc/task.md",
+    "skills/atl/SKILL.md",
+    "skills/atl/references/routing.md",
+    "skills/atl/references/skill-catalog.md",
+    "skills/atl-implement/SKILL.md",
+    "skills/atl-verify/SKILL.md"
+  ],
+  "retained_instruction_context_from_prior_trial": [
+    "skills/atl/references/project-assessment.md",
+    "skills/atl/references/playbooks.md"
+  ],
+  "local_instructions": "Checked AGENTS.md at workspace, project, and each ancestor directory through assigned run; none present.",
+  "limitations": [
+    "Own local fixture checks only; evaluator and other runs were not read or executed.",
+    "No external persistence integration, deployment, browser or service boundary is part of this fixture.",
+    "No independent reviewer was run.",
+    "Report.json supplies the evidence packet instead of an additional evidence.md artifact."
+  ],
+  "trust_verdict": {
+    "what_changed": "Added three dependency-free ES modules and a local executable assertion suite.",
+    "why": "Implement the supplied selection, pagination and check-summary contracts.",
+    "what_could_break": "Validation edge cases, premature persistence completion, offset precision and verdict priority; exercised by the local suite.",
+    "downstream_impact": "Only the assigned development fixture directory; no application integration.",
+    "objective_observed": "All 63 local assertions passed in Node with exit code zero.",
+    "boundary_contracts": "Observed local module calls and controlled async persistence callbacks; real external persistence is outside scope."
+  },
+  "elapsed_seconds": null,
+  "tokens": null,
+  "autonomy_change": "none"
+}

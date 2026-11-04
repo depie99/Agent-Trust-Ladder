@@ -1,0 +1,207 @@
+{
+  "repository": "depie99/Agent-Trust-Ladder",
+  "date": "2026-11-04",
+  "state": "published-and-verified",
+  "issues": {
+    "A0": {
+      "number": 14,
+      "id": 6198632987,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/14",
+      "title": "[Roadmap] Azure-first developer delivery across Control Plane and skills"
+    },
+    "A1": {
+      "number": 15,
+      "id": 6198633834,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/15",
+      "title": "[P1.1] Share a minimal task delivery contract across runtime and skills"
+    },
+    "A2": {
+      "number": 16,
+      "id": 6198634467,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/16",
+      "title": "[P1.2] Add Ready-to-run preflight and a reusable project verifier"
+    },
+    "A3": {
+      "number": 17,
+      "id": 6198636320,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/17",
+      "title": "[P1.3] Run an Azure task through the same workflow in UI and skills-only"
+    },
+    "A4": {
+      "number": 18,
+      "id": 6198636974,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/18",
+      "title": "[P1.4] Deliver a revision-bound change and evidence receipt in both surfaces"
+    },
+    "A5": {
+      "number": 19,
+      "id": 6198637850,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/19",
+      "title": "[P1.5] Support a bounded unattended batch with safe recovery in both surfaces"
+    },
+    "A6": {
+      "number": 20,
+      "id": 6198640148,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/20",
+      "title": "[P1.6] Prove the first release with paired UI and skills-only pilot runs"
+    },
+    "P2": {
+      "number": 21,
+      "id": 6198640928,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/21",
+      "title": "[P2] Improve operational memory and prevent repeated failures in both surfaces"
+    },
+    "P3": {
+      "number": 22,
+      "id": 6198642195,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/22",
+      "title": "[P3] Measure outcome quality, review burden, and total token cost in both surfaces"
+    },
+    "P4": {
+      "number": 23,
+      "id": 6198643002,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/23",
+      "title": "[P4] Add durable event and optional harness or routine adapters after measured need"
+    }
+  },
+  "dependencies": [
+    {
+      "issue": 16,
+      "blockedBy": 15,
+      "verified": true
+    },
+    {
+      "issue": 17,
+      "blockedBy": 16,
+      "verified": true
+    },
+    {
+      "issue": 18,
+      "blockedBy": 17,
+      "verified": true
+    },
+    {
+      "issue": 19,
+      "blockedBy": 18,
+      "verified": true
+    },
+    {
+      "issue": 20,
+      "blockedBy": 19,
+      "verified": true
+    },
+    {
+      "issue": 21,
+      "blockedBy": 20,
+      "verified": true
+    },
+    {
+      "issue": 22,
+      "blockedBy": 21,
+      "verified": true
+    },
+    {
+      "issue": 23,
+      "blockedBy": 22,
+      "verified": true
+    }
+  ],
+  "verification": [
+    {
+      "key": "A0",
+      "number": 14,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/14",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": []
+    },
+    {
+      "key": "A1",
+      "number": 15,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/15",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": []
+    },
+    {
+      "key": "A2",
+      "number": 16,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/16",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": [
+        15
+      ]
+    },
+    {
+      "key": "A3",
+      "number": 17,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/17",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": [
+        16
+      ]
+    },
+    {
+      "key": "A4",
+      "number": 18,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/18",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": [
+        17
+      ]
+    },
+    {
+      "key": "A5",
+      "number": 19,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/19",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": [
+        18
+      ]
+    },
+    {
+      "key": "A6",
+      "number": 20,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/20",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": [
+        19
+      ]
+    },
+    {
+      "key": "P2",
+      "number": 21,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/21",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": [
+        20
+      ]
+    },
+    {
+      "key": "P3",
+      "number": 22,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/22",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": [
+        21
+      ]
+    },
+    {
+      "key": "P4",
+      "number": 23,
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/23",
+      "bodyMatches": true,
+      "labelsMatch": true,
+      "blockedBy": [
+        22
+      ]
+    }
+  ]
+}

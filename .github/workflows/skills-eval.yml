@@ -1,0 +1,22 @@
+name: Verify ATL skill contracts and evaluation fixtures
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - run: python scripts/build_mode_skills.py --check
+      - run: python -B verification/build_mode_skills_test.py
+      - run: node verification/atl_skill_eval_test.mjs
+      - run: node verification/atl_poc_grader_test.mjs
+      - run: node evaluations/atl/poc/run.mjs

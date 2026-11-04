@@ -1,0 +1,596 @@
+{
+  "kind": "implementation-poc",
+  "created_at": "2026-10-31T11:23:18.166Z",
+  "environment": {
+    "node": "v22.21.1",
+    "platform": "win32"
+  },
+  "task_sha256": "1b180a8d58ef7564c1a081a593ba3deb5052610ca4ff352dbe2c3eba73d80d61",
+  "evaluator_sha256": "1c4cc54b51782f19e0338f91e7a25e2b406f816f081773415b5d0fbc73ab0a7d",
+  "runs": [
+    {
+      "condition": "baseline",
+      "results": [
+        {
+          "category": "selection",
+          "name": "new",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "legacy",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-0",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-1",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-2",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-3",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-4",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-5",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-6",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-7",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-8",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-9",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "duplicate-match",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "duplicate-legacy-match",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-0",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-1",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-2",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-3",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-4",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-5",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "persistence-failure",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "await-before-return",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "partial-last-page",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "empty",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "beyond-last-page",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "fresh-array",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-0",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-1",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-2",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-3",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-4",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-5",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-6",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-7",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-8",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-9",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-items",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "required-pass",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "empty-not-complete",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "optional-only-not-complete",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "required-skipped",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "required-unknown",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "optional-failure-dominates",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "failure-over-unknown",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "optional-gaps-visible-in-order",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-0",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-1",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-2",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-3",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-4",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-5",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-6",
+          "passed": true
+        }
+      ],
+      "hashes": {
+        "selection.mjs": "3951047bb2d35fdd4a070c3f87565a4bc7dfdac58670d74b7b4333722c77c964",
+        "pagination.mjs": "f3a8bb01839a22a113c391ed5d2c7d2752710917394461d95cc92cb18fe9361a",
+        "evidence.mjs": "ac4d210149eb553348d9c048a148f13c4b447542cffb5d0663f3e39bd12a4d9f"
+      },
+      "complete": true,
+      "categories": {
+        "selection": {
+          "passed": 22,
+          "total": 22
+        },
+        "pagination": {
+          "passed": 15,
+          "total": 15
+        },
+        "evidence": {
+          "passed": 15,
+          "total": 15
+        }
+      },
+      "passed": 52,
+      "total": 52
+    },
+    {
+      "condition": "atl",
+      "results": [
+        {
+          "category": "selection",
+          "name": "new",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "legacy",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-0",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-1",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-2",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-3",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-4",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-5",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-6",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-7",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-8",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "reject-invalid-9",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "duplicate-match",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "duplicate-legacy-match",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-0",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-1",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-2",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-3",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-4",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "malformed-stores-5",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "persistence-failure",
+          "passed": true
+        },
+        {
+          "category": "selection",
+          "name": "await-before-return",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "partial-last-page",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "empty",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "beyond-last-page",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "fresh-array",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-0",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-1",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-2",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-3",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-4",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-5",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-6",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-7",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-8",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-options-9",
+          "passed": true
+        },
+        {
+          "category": "pagination",
+          "name": "invalid-items",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "required-pass",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "empty-not-complete",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "optional-only-not-complete",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "required-skipped",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "required-unknown",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "optional-failure-dominates",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "failure-over-unknown",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "optional-gaps-visible-in-order",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-0",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-1",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-2",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-3",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-4",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-5",
+          "passed": true
+        },
+        {
+          "category": "evidence",
+          "name": "malformed-6",
+          "passed": true
+        }
+      ],
+      "hashes": {
+        "selection.mjs": "012fc270a672e75e33e02f26f2ae174a834dd944bd3f2684ad1c51b580f0b41c",
+        "pagination.mjs": "d5b1ffb54b18488b5ce6ba1834297c76f4301b23d27d745c3dfebc3ad8ab07e9",
+        "evidence.mjs": "ba0feffa128b8984fa98e7935c742589be7459cc57c24b7350328a112f159558"
+      },
+      "complete": true,
+      "categories": {
+        "selection": {
+          "passed": 22,
+          "total": 22
+        },
+        "pagination": {
+          "passed": 15,
+          "total": 15
+        },
+        "evidence": {
+          "passed": 15,
+          "total": 15
+        }
+      },
+      "passed": 52,
+      "total": 52
+    }
+  ],
+  "evaluator_dependency_sha256": {
+    "lib.mjs": "da6fe5d943d3bc67f72577a18016d66f76332111fe32c1e002b0fed4c8ef2dde",
+    "worker.mjs": "5adb127140e8fd8ce907e89c6d2c2a179d8971f0e73057ecfb7ea0c253560e14"
+  },
+  "limits": [
+    "One run per condition; no statistical or causal conclusion.",
+    "Development fixtures, not independent real-repository tasks.",
+    "No measured token cost or comparable end-to-end latency.",
+    "Passing fixtures establish only the tested bounded contracts."
+  ]
+}
