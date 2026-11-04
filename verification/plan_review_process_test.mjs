@@ -19,6 +19,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 const [runtimeDir, root, home, draftId] = process.argv.slice(2);
 process.env.USERPROFILE = home;
+process.env.HOME = home;
 const { startControlPlaneServer } = await import(pathToFileURL(path.join(runtimeDir, "control-plane-server.mjs")).href);
 const pending = [];
 const planningInvoke = ({ request }) => new Promise((resolve) => pending.push({ request, resolve }));
@@ -80,7 +81,9 @@ const waitFor = async (predicate, describe, extra) => {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-process-"));
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-process-home-"));
 const priorHome = process.env.USERPROFILE;
+const priorHomePosix = process.env.HOME;
 process.env.USERPROFILE = home;
+process.env.HOME = home;
 
 try {
   fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
@@ -98,8 +101,10 @@ try {
   // and a fresh review must commit and approve normally afterwards.
   const child = launch(path.join(root, "review-wait-child.mjs"), [runtimeDir, root, home, draft.id]);
   waitFor(() => child.stdout().includes("BARRIER"), "review child never reached the provider barrier", () => child.stdout() + child.stderr());
-  const kill = spawn("taskkill", ["/F", "/T", "/PID", String(child.pid)]);
-  await new Promise((resolve) => kill.on("close", resolve));
+  const kill = process.platform === "win32"
+    ? spawn("taskkill", ["/F", "/T", "/PID", String(child.pid)])
+    : (() => { try { process.kill(child.pid, "SIGKILL"); } catch { /* already gone */ } return { on: () => {} }; })();
+  if (kill.on) await new Promise((resolve) => kill.on("close", resolve));
   const killed = await child.closed;
   assert.notEqual(killed.code, 0, "the runtime process was force-terminated");
 
@@ -143,6 +148,8 @@ try {
 } finally {
   if (priorHome === undefined) delete process.env.USERPROFILE;
   else process.env.USERPROFILE = priorHome;
+  if (priorHomePosix === undefined) delete process.env.HOME;
+  else process.env.HOME = priorHomePosix;
   fs.rmSync(root, { recursive: true, force: true });
   fs.rmSync(home, { recursive: true, force: true });
 }
