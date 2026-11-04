@@ -59,6 +59,10 @@ When implementation reaches a reviewable local result, read `references/develope
 
 Record each finding with a stable ID, severity, affected requirement/path and disposition. Only a passing recheck on the current content revision resolves one; risk acceptance needs an authorized decision with a reason. Write both the JSON receipt and its Markdown rendering (`render <receipt> --output <file>`) into project-local evidence with relative artifact links.
 
+## Bounded overnight batch
+
+When the user asks for a finite unattended batch, read `references/overnight-batch.md` and drive `scripts/batch-runner.mjs` one task at a time with concurrency 1. Scope, wall-time and attempt limits are fixed in the checkpoint before any work starts. Record every attempt in the checkpoint, never reset an attempt limit after a restart, and stop dispatching at the deadline. An item that was in flight when the host stopped becomes `needs_reconciliation`: report the unknown external effect instead of replaying it. The host must remain available; the skill does not provide a scheduler, durable compute or an enforced token quota.
+
 Read `references/project-verifier.md` when the project has an acceptance behavior to reproduce. Use the existing verifier or the bundled `scripts/project-verifier.mjs`; first observe the genuine failure, then repair the product and rerun the same check plus any independent readback.
 
 ## UI implementation gate
