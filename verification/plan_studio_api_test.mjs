@@ -214,7 +214,7 @@ try {
   try {
     const post2 = async (pathname, body) => fetch(`${server.url}${pathname.replace(/^\//, "")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(async (response) => ({ status: response.status, body: await response.json() }));
     const first = await post2("/api/plan/generate", { intent: "valid plan please", provider: "testprov", confirm: true });
-    assert.equal(first.status, 200, "the first valid generation lands");
+    assert.equal(first.status, 200, "the first valid generation lands: " + JSON.stringify(first.body));
     const before = JSON.stringify(loadPlanDraft(root2, first.body.draft.id).artifact);
     answer = "{\"title\": \"truncated";
     const broken = await post2("/api/plan/generate", { intent: "valid plan please", provider: "testprov", confirm: true });
