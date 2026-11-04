@@ -10,8 +10,10 @@ import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs
 // to a scratch home so the configured-provider contract is tested without
 // touching (or depending on) the real ~/.atl/providers.json.
 const realHome = process.env.USERPROFILE;
+const realHomePosix = process.env.HOME;
 const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), "atl-home-"));
 process.env.USERPROFILE = fakeHome;
+process.env.HOME = fakeHome;
 fs.mkdirSync(path.join(fakeHome, ".atl"), { recursive: true });
 fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({
   providers: {
@@ -183,6 +185,8 @@ try {
   await new Promise((resolve) => running.server.close(resolve));
   if (realHome === undefined) delete process.env.USERPROFILE;
   else process.env.USERPROFILE = realHome;
+  if (realHomePosix === undefined) delete process.env.HOME;
+  else process.env.HOME = realHomePosix;
   fs.rmSync(root, { recursive: true, force: true });
   fs.rmSync(fakeHome, { recursive: true, force: true });
 }

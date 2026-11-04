@@ -12,7 +12,9 @@ import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-egm-glm-"));
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-egm-glm-home-"));
 const priorHome = process.env.USERPROFILE;
+const priorHomePosix = process.env.HOME;
 process.env.USERPROFILE = home;
+process.env.HOME = home;
 const fixtureArtifact = JSON.parse(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "plan_contract_fixture.json"), "utf8"));
 
 const SHAPE_A_REPORT = `# Consolidated EGM Review Report
@@ -181,6 +183,8 @@ try {
   await new Promise((resolve) => server.server.close(resolve));
   if (priorHome === undefined) delete process.env.USERPROFILE;
   else process.env.USERPROFILE = priorHome;
+  if (priorHomePosix === undefined) delete process.env.HOME;
+  else process.env.HOME = priorHomePosix;
   fs.rmSync(root, { recursive: true, force: true });
   fs.rmSync(home, { recursive: true, force: true });
 }

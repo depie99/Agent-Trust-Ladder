@@ -10,7 +10,9 @@ import { buildLaunchPlan } from "../runtime/lib/launch.mjs";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-review-races-"));
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-review-home-"));
 const priorHome = process.env.USERPROFILE;
+const priorHomePosix = process.env.HOME;
 process.env.USERPROFILE = home;
+process.env.HOME = home;
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
 fs.mkdirSync(path.join(root, "verification"), { recursive: true });
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
@@ -130,6 +132,8 @@ try {
   await new Promise((resolve) => server.server.close(resolve));
   if (priorHome === undefined) delete process.env.USERPROFILE;
   else process.env.USERPROFILE = priorHome;
+  if (priorHomePosix === undefined) delete process.env.HOME;
+  else process.env.HOME = priorHomePosix;
   fs.rmSync(root, { recursive: true, force: true });
   fs.rmSync(home, { recursive: true, force: true });
 }

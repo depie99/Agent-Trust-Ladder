@@ -7,7 +7,7 @@ import { emptyState, loadState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-journey-"));
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-home-"));
-const oldHome = process.env.USERPROFILE; process.env.USERPROFILE = home;
+const oldHome = process.env.USERPROFILE; const oldHomePosix = process.env.HOME; process.env.USERPROFILE = home; process.env.HOME = home;
 const oldGithub = process.env.GITHUB_TOKEN; process.env.GITHUB_TOKEN = "test-github-token";
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
 fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id:"test", label:"Test", worker:"claude", base_url:"https://example.test", api_key:"test-key", model:"test-model" } } }));
@@ -62,4 +62,4 @@ try {
   assert.equal(await page.getByText('Nothing has started.',{exact:true}).count(),0);
 
   console.log('PASS: browser create task → plan task → model draft → approve → persisted task/queue, no run');
-} finally { if(browser) await browser.close(); if(server) await new Promise(r=>server.close(r)); if(oldHome===undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE=oldHome; if(oldGithub===undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN=oldGithub; fs.rmSync(root,{recursive:true,force:true});fs.rmSync(home,{recursive:true,force:true}); }
+} finally { if(browser) await browser.close(); if(server) await new Promise(r=>server.close(r)); if(oldHome===undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE=oldHome; if(oldHomePosix===undefined) delete process.env.HOME; else process.env.HOME=oldHomePosix; if(oldGithub===undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN=oldGithub; fs.rmSync(root,{recursive:true,force:true});fs.rmSync(home,{recursive:true,force:true}); }
