@@ -22,7 +22,7 @@ import { listRoutineRuns, recoverScheduler, runRoutine, schedulerStatus, schedul
 import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
 import { ensureOwnerSession, ownerSessionCookie, validateOwnerSession } from "./session-auth.mjs";
-import { approveDraftPr, createDeliveryPacket, listDeliveryPackets } from "./delivery.mjs";
+import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDeliveryReceiptFromRecord } from "./delivery.mjs";
 import { inspectHandoffChain } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview } from "./change-review-store.mjs";
@@ -537,6 +537,8 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
         if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free" });
         const config = readEgmReviewConfig(readManagerConfig(root));
         if (!config.enabled) return json(res, 409, { ok: false, error: "EGM deep review is not usable: " + config.problems.join(" ") });
+        const egmProviderId = payload.provider || loaded.provider;
+        if (config.backend === "glm-goldfish" && !egmProviderId) return json(res, 400, { ok: false, error: "select a configured provider for the glm-goldfish EGM review" });
         acquireReviewLock(loaded.dir);
         reviewKey = "acquired";
         reviewDir = loaded.dir;
@@ -577,7 +579,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
           throw failure;
         }
         const verdict = parsed.verdictHint === "passed" && !parsed.findings.some((finding) => ["blocker", "major"].includes(finding.severity)) ? "passed" : "blocked";
-        const updated = reviewPlanArtifact(root, loaded, { verdict, findings: parsed.findings, kind: "egm", provider: run.backend === "glm-goldfish" ? ((run.stageRuns || []).map((stage) => stage.provider).find(Boolean) || egmProviderId) : "codex-egm", model: config.model, egm: { backend: run.backend || "codex", version_sha: config.versionSha, model: config.model || (run.stageRuns || []).map((stage) => stage.model).find(Boolean) || null, workdir: run.workdir, duration_ms: run.durationMs, exit_code: run.exitCode, last_message: run.lastMessage, stage_runs: run.stageRuns || null } }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence });
+        const updated = reviewPlanArtifact(root, loaded, { verdict, findings: parsed.findings, kind: "egm", provider: config.backend === "glm-goldfish" ? ((run.stageRuns || []).map((stage) => stage.provider).find(Boolean) || egmProviderId) : "codex-egm", model: config.model, egm: { backend: config.backend, version_sha: config.versionSha, model: config.model || (run.stageRuns || []).map((stage) => stage.model).find(Boolean) || null, workdir: run.workdir, duration_ms: run.durationMs, exit_code: run.exitCode, last_message: run.lastMessage, stage_runs: run.stageRuns || null } }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence });
         return json(res, 200, { ok: true, draft: draftResponse(updated, root), review: updated.review });
       } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message, workdir: error.workdir || null }); }
       finally { if (reviewKey) releaseReviewLock(reviewDir); }
@@ -761,7 +763,12 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             json(res, 200, { change_set_id: record.id, ...fileDiff(root, record, url.searchParams.get("fileId")) }); return;
           }
           const review = record ? { ...describeChanges(task, record, { cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit") }), revisions: listChangeReviews(root, task) } : unavailableReview(task);
-          json(res, 200, { ...review, statechart: taskStatechart(task, taskState.log) });
+          const delivery = record ? taskDeliveryReceiptFromRecord(task, record) : null;
+          json(res, 200, {
+            ...review,
+            delivery: delivery ? { contract_version: delivery.receipt.version, verdict: delivery.verdict, receipt: delivery.receipt } : null,
+            statechart: taskStatechart(task, taskState.log),
+          });
         } catch (error) {
           json(res, error instanceof ChangeReviewError ? error.status : 409, { error: error instanceof ChangeReviewError ? error.message : "Source inspection failed; no task state was changed", availability: error instanceof ChangeReviewError ? error.code : "inspection_unavailable" });
         }
