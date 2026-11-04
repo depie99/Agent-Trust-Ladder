@@ -22,6 +22,7 @@ import { listRoutineRuns, recoverScheduler, runRoutine, schedulerStatus, schedul
 import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
 import { batchMorningSummary, batchSummary, listBatches, readBatch, reconcileBatch, resumeStoppedBatch, runBatch, startBatch, stopBatchRun, validateBatch } from "./batch-runner.mjs";
+import { latestFailureSignatures, preventionStatus, recoverMemory, selectContext } from "./operational-memory.mjs";
 import { ensureOwnerSession, ownerSessionCookie, validateOwnerSession } from "./session-auth.mjs";
 import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDeliveryReceiptFromRecord } from "./delivery.mjs";
 import { inspectHandoffChain } from "./handoffs.mjs";
@@ -31,7 +32,7 @@ import { taskStatechart } from "./task-statechart.mjs";
 import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
 import { previewPlanPublish, publishPlan, verifyImportedSource } from "./plan-publish.mjs";
 import { runEgmReview, runGlmGoldfishReview, readEgmReviewConfig, parseEgmReports, egmReviewBudgetGate } from "./egm-review.mjs";
-import { acquireReviewLock, releaseReviewLock } from "./plan-studio.mjs";
+import { acquireReviewLock, releaseReviewLock, reviewPolicyCheck } from "./plan-studio.mjs";
 import { installSkill, designateSkill } from "./skill-install.mjs";
 import { executionAccess, saveExecutionAccess, probeWorkspaceAccess } from "./execution-access.mjs";
 import { browserAccess, saveBrowserAccess, checkBrowserRuntime } from "./browser-access.mjs";
@@ -224,10 +225,11 @@ function planningRunActive(root) {
 
 // The browser Studio draft response: artifact plus the honest source label.
 function draftResponse(loaded, root) {
+  const policyView = (() => { try { return reviewPolicyCheck(root, loaded.artifact, loaded.review || loaded.artifact?.review); } catch { return { required: false, reasons: [] }; } })();
   const { dir, intentPath, artifactPath, ...safe } = loaded;
   const config=readManagerConfig(root);
   const resources=Object.fromEntries(normalizeProposals(loaded.artifact).map(p=>[p.id,taskResourcePreview(config,{...p,risk:loaded.artifact?.risk||'normal'})]));
-  return { ...safe, resources, intent: loaded.intent ?? (loaded.intentPath && fs.existsSync(loaded.intentPath) ? fs.readFileSync(loaded.intentPath, "utf8") : null), label: planDraftLabel(loaded) };
+  return { ...safe, resources, policy: policyView, intent: loaded.intent ?? (loaded.intentPath && fs.existsSync(loaded.intentPath) ? fs.readFileSync(loaded.intentPath, "utf8") : null), label: planDraftLabel(loaded) };
 }
 
 // The planning invoke seam: production spawns the configured user provider;
@@ -771,6 +773,23 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       }
       if (req.method === "GET" && url.pathname === "/api/snapshot") {
         json(res, 200, createControlPlaneSnapshot(root));
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/memory") {
+        // Same module the skills-only surface uses, so the Control Plane cannot
+        // explain a selection differently from the portable helper.
+        const budgetChars = Math.max(120, Math.min(4000, Number(url.searchParams.get("budget")) || 1200));
+        const selection = selectContext(root, { query: url.searchParams.get("q") || "", budgetChars });
+        json(res, 200, {
+          ok: true,
+          query: selection.query,
+          coverage: selection.coverage,
+          status: selection.status,
+          items: selection.items,
+          recovery: recoverMemory(root),
+          preventions: preventionStatus(root),
+          signatures: latestFailureSignatures(root, { limit: 5 }),
+        });
         return;
       }
       if (["/api/task-changes", "/api/task-change-diff", "/api/task-changes/capture"].includes(url.pathname)) {
