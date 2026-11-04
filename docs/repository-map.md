@@ -236,6 +236,8 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/memory.mjs](../runtime/lib/memory.mjs) | memory: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/navigation.mjs](../runtime/lib/navigation.mjs) | Local, revision-aware navigation index. It is deliberately a hint service: |
 | [runtime/lib/notifications.mjs](../runtime/lib/notifications.mjs) | notifications: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/operational-memory.mjs](../runtime/lib/operational-memory.mjs) | Control Plane surface for operational memory. The decisions live in the |
+| [runtime/lib/outcome-economics.mjs](../runtime/lib/outcome-economics.mjs) | Control Plane surface: identical decisions to the portable helper, with a |
 | [runtime/lib/overnight-hosts/windows-task-scheduler.mjs](../runtime/lib/overnight-hosts/windows-task-scheduler.mjs) | Pure command construction only. Installing or removing an OS task remains |
 | [runtime/lib/plan-model.mjs](../runtime/lib/plan-model.mjs) | One bounded model planning call against a configured user provider. |
 | [runtime/lib/plan-publish.mjs](../runtime/lib/plan-publish.mjs) | plan publish: runtime implementation; inspect exports and matching verification. |
