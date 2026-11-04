@@ -296,7 +296,8 @@ Build, installation, validation, and maintenance programs.
 
 | File | Purpose |
 |---|---|
-| [scripts/build_mode_skills.py](../scripts/build_mode_skills.py) | build mode skills: source/configuration for its containing feature. |
+| [scripts/atl-azure-live-check.mjs](../scripts/atl-azure-live-check.mjs) | Read-only Azure Boards proof for issue #17/#20. |
+| [scripts/build_mode_skills.py](../scripts/build_mode_skills.py) | Modes live one directory below the skill root, so their relative links carry. |
 | [scripts/build-control-plane-css.mjs](../scripts/build-control-plane-css.mjs) | Build the Control Plane UI stylesheet: compile runtime/scss/control-plane.scss |
 | [scripts/build-docs.mjs](../scripts/build-docs.mjs) | Markdown is the editable source. HTML, search, and Mermaid assets are generated. |
 | [scripts/check_docs.mjs](../scripts/check_docs.mjs) | check docs: source/configuration for its containing feature. |
@@ -519,11 +520,18 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/approval_test.mjs](../verification/approval_test.mjs) | Executable regression check for approval. |
 | [verification/atl_lifecycle_model.py](../verification/atl_lifecycle_model.py) | atl lifecycle model: source/configuration for its containing feature. |
 | [verification/atl_manager_lifecycle_model.py](../verification/atl_manager_lifecycle_model.py) | atl manager lifecycle model: source/configuration for its containing feature. |
+| [verification/atl_poc_grader_test.mjs](../verification/atl_poc_grader_test.mjs) | Executable regression check for atl poc grader. |
+| [verification/atl_skill_eval_test.mjs](../verification/atl_skill_eval_test.mjs) | Executable regression check for atl skill eval. |
+| [verification/azure_delivery_pilot_test.mjs](../verification/azure_delivery_pilot_test.mjs) | Executable regression check for azure delivery pilot. |
 | [verification/azure_issue_journey_test.mjs](../verification/azure_issue_journey_test.mjs) | Executable regression check for azure issue journey. |
+| [verification/azure_live_check_test.mjs](../verification/azure_live_check_test.mjs) | Executable regression check for azure live check. |
+| [verification/azure_skills_delivery_test.mjs](../verification/azure_skills_delivery_test.mjs) | Executable regression check for azure skills delivery. |
 | [verification/backup_test.mjs](../verification/backup_test.mjs) | Executable regression check for backup. |
+| [verification/batch_api_ui_test.mjs](../verification/batch_api_ui_test.mjs) | Executable regression check for batch api ui. |
 | [verification/brain_recovery_test.mjs](../verification/brain_recovery_test.mjs) | Executable regression check for brain recovery. |
 | [verification/brain_test.mjs](../verification/brain_test.mjs) | Executable regression check for brain. |
 | [verification/browser_access_test.mjs](../verification/browser_access_test.mjs) | Executable regression check for browser access. |
+| [verification/build_mode_skills_test.py](../verification/build_mode_skills_test.py) | build mode skills test: source/configuration for its containing feature. |
 | [verification/builtin_provider_status_test.mjs](../verification/builtin_provider_status_test.mjs) | Executable regression check for builtin provider status. |
 | [verification/change_review_store_test.mjs](../verification/change_review_store_test.mjs) | Executable regression check for change review store. |
 | [verification/codex_bridge_test.mjs](../verification/codex_bridge_test.mjs) | Executable regression check for codex bridge. |
@@ -542,6 +550,8 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/control_room_ui_test.mjs](../verification/control_room_ui_test.mjs) | Executable regression check for control room ui. |
 | [verification/dashboard_test.mjs](../verification/dashboard_test.mjs) | Executable regression check for dashboard. |
 | [verification/dependencies_model.py](../verification/dependencies_model.py) | name -> (tasks [(id, priority)], edges {id: [dep ids]}) — "depends on". |
+| [verification/developer_delivery_contract_test.mjs](../verification/developer_delivery_contract_test.mjs) | Executable regression check for developer delivery contract. |
+| [verification/developer_delivery_receipt_test.mjs](../verification/developer_delivery_receipt_test.mjs) | Executable regression check for developer delivery receipt. |
 | [verification/dispatcher_test.mjs](../verification/dispatcher_test.mjs) | Executable regression check for dispatcher. |
 | [verification/docs_site_test.mjs](../verification/docs_site_test.mjs) | Executable regression check for docs site. |
 | [verification/e2e/fake-provider.mjs](../verification/e2e/fake-provider.mjs) | fake provider: source/configuration for its containing feature. |
@@ -571,6 +581,9 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/fixtures/fake-app-server.mjs](../verification/fixtures/fake-app-server.mjs) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/issue-journey-worker.mjs](../verification/fixtures/issue-journey-worker.mjs) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/offline-network.mjs](../verification/fixtures/offline-network.mjs) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/project-verifier/.atl-verifier.json](../verification/fixtures/project-verifier/.atl-verifier.json) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/project-verifier/accept.mjs](../verification/fixtures/project-verifier/accept.mjs) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/project-verifier/readback.mjs](../verification/fixtures/project-verifier/readback.mjs) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/queue-recovery-worker.mjs](../verification/fixtures/queue-recovery-worker.mjs) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/resource-routing-worker.mjs](../verification/fixtures/resource-routing-worker.mjs) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/task-changes/project.mjs](../verification/fixtures/task-changes/project.mjs) | Synthetic test input or worker; not a production execution result. |
@@ -591,6 +604,9 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/multi_queue_test.mjs](../verification/multi_queue_test.mjs) | Executable regression check for multi queue. |
 | [verification/navigation_test.mjs](../verification/navigation_test.mjs) | Executable regression check for navigation. |
 | [verification/notification_log_test.mjs](../verification/notification_log_test.mjs) | Executable regression check for notification log. |
+| [verification/operational_memory_api_test.mjs](../verification/operational_memory_api_test.mjs) | Executable regression check for operational memory api. |
+| [verification/operational_memory_parity_test.mjs](../verification/operational_memory_parity_test.mjs) | Executable regression check for operational memory parity. |
+| [verification/outcome_economics_parity_test.mjs](../verification/outcome_economics_parity_test.mjs) | Executable regression check for outcome economics parity. |
 | [verification/overnight_host_test.mjs](../verification/overnight_host_test.mjs) | Executable regression check for overnight host. |
 | [verification/overnight_issue_e2e_test.mjs](../verification/overnight_issue_e2e_test.mjs) | Executable regression check for overnight issue e2e. |
 | [verification/overnight_recovery_test.mjs](../verification/overnight_recovery_test.mjs) | Executable regression check for overnight recovery. |
@@ -613,6 +629,8 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
 | [verification/plan_studio_journey_test.mjs](../verification/plan_studio_journey_test.mjs) | Executable regression check for plan studio journey. |
 | [verification/plan_studio_test.mjs](../verification/plan_studio_test.mjs) | Executable regression check for plan studio. |
+| [verification/portable_overnight_batch_test.mjs](../verification/portable_overnight_batch_test.mjs) | Executable regression check for portable overnight batch. |
+| [verification/project_readiness_verifier_test.mjs](../verification/project_readiness_verifier_test.mjs) | Executable regression check for project readiness verifier. |
 | [verification/provider_quota_failover_test.mjs](../verification/provider_quota_failover_test.mjs) | Executable regression check for provider quota failover. |
 | [verification/provider_registry_test.mjs](../verification/provider_registry_test.mjs) | Executable regression check for provider registry. |
 | [verification/queue_recovery_delivery_test.mjs](../verification/queue_recovery_delivery_test.mjs) | Executable regression check for queue recovery delivery. |
@@ -660,6 +678,36 @@ Reviewed improvement proposals, source material, and catalog.
 | File | Purpose |
 |---|---|
 | [research/backlog.md](../research/backlog.md) | ATL Improvement Backlog — research-backed tickets. |
+| [research/briefs/2026-11-04-atl-developer-overnight-roadmap.md](../research/briefs/2026-11-04-atl-developer-overnight-roadmap.md) | ATL Developer Roadmap: Azure Boards to Verified Overnight Delivery. |
+| [research/briefs/2026-11-04-atl-enhancement-review-batch-2.md](../research/briefs/2026-11-04-atl-enhancement-review-batch-2.md) | بررسی عمیق هفت منبع جدید برای ATL. |
+| [research/briefs/2026-11-04-atl-enhancement-review.md](../research/briefs/2026-11-04-atl-enhancement-review.md) | ATL Enhancement Review. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A0.md](../research/briefs/2026-11-04-atl-first-delivery-issues/A0.md) | A0: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A0.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/A0.published.json) | A0.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A1.md](../research/briefs/2026-11-04-atl-first-delivery-issues/A1.md) | A1: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A1.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/A1.published.json) | A1.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A2.md](../research/briefs/2026-11-04-atl-first-delivery-issues/A2.md) | A2: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A2.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/A2.published.json) | A2.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A3.md](../research/briefs/2026-11-04-atl-first-delivery-issues/A3.md) | A3: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A3.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/A3.published.json) | A3.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A4.md](../research/briefs/2026-11-04-atl-first-delivery-issues/A4.md) | A4: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A4.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/A4.published.json) | A4.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A5.md](../research/briefs/2026-11-04-atl-first-delivery-issues/A5.md) | A5: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A5.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/A5.published.json) | A5.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A6.md](../research/briefs/2026-11-04-atl-first-delivery-issues/A6.md) | A6: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/A6.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/A6.published.json) | A6.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/baseline.json](../research/briefs/2026-11-04-atl-first-delivery-issues/baseline.json) | baseline: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/draft-specs.json](../research/briefs/2026-11-04-atl-first-delivery-issues/draft-specs.json) | draft specs: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/P2.md](../research/briefs/2026-11-04-atl-first-delivery-issues/P2.md) | P2: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/P2.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/P2.published.json) | P2.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/P3.md](../research/briefs/2026-11-04-atl-first-delivery-issues/P3.md) | P3: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/P3.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/P3.published.json) | P3.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/P4.md](../research/briefs/2026-11-04-atl-first-delivery-issues/P4.md) | P4: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/P4.published.json](../research/briefs/2026-11-04-atl-first-delivery-issues/P4.published.json) | P4.published: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/publication.json](../research/briefs/2026-11-04-atl-first-delivery-issues/publication.json) | publication: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-issues/validation.json](../research/briefs/2026-11-04-atl-first-delivery-issues/validation.json) | validation: source/configuration for its containing feature. |
+| [research/briefs/2026-11-04-atl-first-delivery-plan.md](../research/briefs/2026-11-04-atl-first-delivery-plan.md) | ATL First Developer Delivery: Implementation Plan. |
+| [research/briefs/2026-11-04-atl-phase-23-deferral.md](../research/briefs/2026-11-04-atl-phase-23-deferral.md) | Phase 23 decision record — no extension is selected yet. |
+| [research/briefs/2026-11-04-sprint-74-intake.md](../research/briefs/2026-11-04-sprint-74-intake.md) | Sprint 74 intake record — Middleware-and-Portals. |
 | [research/index.json](../research/index.json) | index: source/configuration for its containing feature. |
 | [research/README.md](../research/README.md) | ATL Research — the engineering-intelligence store. |
 | [research/records/R-0001.md](../research/records/R-0001.md) | Dated research decision; preserve its provenance and status. |
@@ -670,6 +718,79 @@ Reviewed improvement proposals, source material, and catalog.
 | [research/records/R-0006.md](../research/records/R-0006.md) | Dated research decision; preserve its provenance and status. |
 | [research/records/R-0007.md](../research/records/R-0007.md) | Dated research decision; preserve its provenance and status. |
 | [research/sources.json](../research/sources.json) | sources: source/configuration for its containing feature. |
+
+## evaluations
+
+Agent evaluation cases, recorded runs, and their published summaries.
+
+| File | Purpose |
+|---|---|
+| [evaluations/atl/cases.json](../evaluations/atl/cases.json) | cases: source/configuration for its containing feature. |
+| [evaluations/atl/lib.mjs](../evaluations/atl/lib.mjs) | No keyword judge: structured fields are narrow routing proxies. Free-text |
+| [evaluations/atl/pilot/atl-decisions.json](../evaluations/atl/pilot/atl-decisions.json) | atl decisions: source/configuration for its containing feature. |
+| [evaluations/atl/pilot/atl-read-metadata.json](../evaluations/atl/pilot/atl-read-metadata.json) | atl read metadata: source/configuration for its containing feature. |
+| [evaluations/atl/pilot/baseline-decisions.json](../evaluations/atl/pilot/baseline-decisions.json) | baseline decisions: source/configuration for its containing feature. |
+| [evaluations/atl/pilot/recheck-report.json](../evaluations/atl/pilot/recheck-report.json) | recheck report: source/configuration for its containing feature. |
+| [evaluations/atl/pilot/report.json](../evaluations/atl/pilot/report.json) | report: source/configuration for its containing feature. |
+| [evaluations/atl/poc/report.json](../evaluations/atl/poc/report.json) | report: source/configuration for its containing feature. |
+| [evaluations/atl/poc/run.mjs](../evaluations/atl/poc/run.mjs) | run: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/atl/checks.mjs](../evaluations/atl/poc/runs/atl/checks.mjs) | checks: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/atl/evidence.mjs](../evaluations/atl/poc/runs/atl/evidence.mjs) | evidence: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/atl/pagination.mjs](../evaluations/atl/poc/runs/atl/pagination.mjs) | pagination: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/atl/report.json](../evaluations/atl/poc/runs/atl/report.json) | report: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/atl/selection.mjs](../evaluations/atl/poc/runs/atl/selection.mjs) | selection: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/baseline/evidence.mjs](../evaluations/atl/poc/runs/baseline/evidence.mjs) | evidence: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/baseline/pagination.mjs](../evaluations/atl/poc/runs/baseline/pagination.mjs) | pagination: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/baseline/report.json](../evaluations/atl/poc/runs/baseline/report.json) | report: source/configuration for its containing feature. |
+| [evaluations/atl/poc/runs/baseline/selection.mjs](../evaluations/atl/poc/runs/baseline/selection.mjs) | selection: source/configuration for its containing feature. |
+| [evaluations/atl/poc/task.md](../evaluations/atl/poc/task.md) | Implementation PoC contract. |
+| [evaluations/atl/poc/worker.mjs](../evaluations/atl/poc/worker.mjs) | One condition per child process. The parent enforces time and output bounds. |
+| [evaluations/atl/README.md](../evaluations/atl/README.md) | ATL evaluation workbench. |
+| [evaluations/atl/run.mjs](../evaluations/atl/run.mjs) | run: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/append-log.mjs](../evaluations/atl/study-2026-10-31/append-log.mjs) | append log: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/append-log2.mjs](../evaluations/atl/study-2026-10-31/append-log2.mjs) | append log2: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/calibrate-graders.mjs](../evaluations/atl/study-2026-10-31/calibrate-graders.mjs) | calibrate graders: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/calibrate3.mjs](../evaluations/atl/study-2026-10-31/calibrate3.mjs) | calibrate3: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/compare-v31.mjs](../evaluations/atl/study-2026-10-31/compare-v31.mjs) | compare v31: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/compare-v32.mjs](../evaluations/atl/study-2026-10-31/compare-v32.mjs) | compare v32: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/create-schedule-v2.mjs](../evaluations/atl/study-2026-10-31/create-schedule-v2.mjs) | create schedule v2: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/create-schedule-v3.mjs](../evaluations/atl/study-2026-10-31/create-schedule-v3.mjs) | Frozen deterministic rotation: task order shifts by block; condition order shifts by case index and block. |
+| [evaluations/atl/study-2026-10-31/create-schedule.mjs](../evaluations/atl/study-2026-10-31/create-schedule.mjs) | create schedule: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/grade-cli-once.mjs](../evaluations/atl/study-2026-10-31/grade-cli-once.mjs) | grade cli once: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/grade-docs-paths.mjs](../evaluations/atl/study-2026-10-31/grade-docs-paths.mjs) | The six local artifacts the operators must still be able to read as literal paths. |
+| [evaluations/atl/study-2026-10-31/grade-simple-queue.mjs](../evaluations/atl/study-2026-10-31/grade-simple-queue.mjs) | grade simple queue: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/grade-simple-v2.mjs](../evaluations/atl/study-2026-10-31/grade-simple-v2.mjs) | Part 1 — the regression test must assert the approved exact Persian heading… |
+| [evaluations/atl/study-2026-10-31/grade-ui-queue-counts.mjs](../evaluations/atl/study-2026-10-31/grade-ui-queue-counts.mjs) | grade ui queue counts: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/grade-worker-atlbin.mjs](../evaluations/atl/study-2026-10-31/grade-worker-atlbin.mjs) | 1. Non-Claude supported workers must receive an ATL_BIN inside this checkout. |
+| [evaluations/atl/study-2026-10-31/grade3-bug.mjs](../evaluations/atl/study-2026-10-31/grade3-bug.mjs) | Grader-owned scenario (independent of any test file the candidate edits). |
+| [evaluations/atl/study-2026-10-31/grade3-docs.mjs](../evaluations/atl/study-2026-10-31/grade3-docs.mjs) | Extract shell commands the README tells operators to run. |
+| [evaluations/atl/study-2026-10-31/grade3-feature.mjs](../evaluations/atl/study-2026-10-31/grade3-feature.mjs) | grade3 feature: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/grade3-refactor.mjs](../evaluations/atl/study-2026-10-31/grade3-refactor.mjs) | grade3 refactor: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/grade3-ui.mjs](../evaluations/atl/study-2026-10-31/grade3-ui.mjs) | grade3 ui: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/prep-trial-v3.mjs](../evaluations/atl/study-2026-10-31/prep-trial-v3.mjs) | prep trial v3: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/prep-trial-v31.mjs](../evaluations/atl/study-2026-10-31/prep-trial-v31.mjs) | Post-hoc confirmation trial: V31-<CASE>-atl<n>, condition atl with the improved v3 skills snapshot. |
+| [evaluations/atl/study-2026-10-31/prep-trial-v32.mjs](../evaluations/atl/study-2026-10-31/prep-trial-v32.mjs) | Post-hoc confirmation trial: V32-<CASE>-atl<n>, condition atl with the improved v3 skills snapshot. |
+| [evaluations/atl/study-2026-10-31/preregistration-v2.json](../evaluations/atl/study-2026-10-31/preregistration-v2.json) | preregistration v2: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/preregistration-v3.json](../evaluations/atl/study-2026-10-31/preregistration-v3.json) | preregistration v3: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/preregistration.json](../evaluations/atl/study-2026-10-31/preregistration.json) | preregistration: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/quarantine-and-grade.mjs](../evaluations/atl/study-2026-10-31/quarantine-and-grade.mjs) | Grade + record the one pre-limit completed run. |
+| [evaluations/atl/study-2026-10-31/record-result-v2.mjs](../evaluations/atl/study-2026-10-31/record-result-v2.mjs) | record result v2: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/record-trial-v3.mjs](../evaluations/atl/study-2026-10-31/record-trial-v3.mjs) | record trial v3: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/repair-results-v2.mjs](../evaluations/atl/study-2026-10-31/repair-results-v2.mjs) | repair results v2: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/run-remaining.mjs](../evaluations/atl/study-2026-10-31/run-remaining.mjs) | run remaining: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/run-trial-v2.mjs](../evaluations/atl/study-2026-10-31/run-trial-v2.mjs) | run trial v2: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/run-trial.mjs](../evaluations/atl/study-2026-10-31/run-trial.mjs) | run trial: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/schedule-v2.json](../evaluations/atl/study-2026-10-31/schedule-v2.json) | schedule v2: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/schedule-v3.json](../evaluations/atl/study-2026-10-31/schedule-v3.json) | schedule v3: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/schedule.json](../evaluations/atl/study-2026-10-31/schedule.json) | schedule: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/snapshot-atl-skills-v3.mjs](../evaluations/atl/study-2026-10-31/snapshot-atl-skills-v3.mjs) | snapshot atl skills v3: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/snapshot-atl-skills-v31b.mjs](../evaluations/atl/study-2026-10-31/snapshot-atl-skills-v31b.mjs) | snapshot atl skills v31b: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/snapshot-atl-skills.mjs](../evaluations/atl/study-2026-10-31/snapshot-atl-skills.mjs) | snapshot atl skills: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/STUDY-LOG.md](../evaluations/atl/study-2026-10-31/STUDY-LOG.md) | Study log — atl-development-replay-2026-10-31-v2. |
+| [evaluations/atl/study-2026-10-31/summarize-v2.mjs](../evaluations/atl/study-2026-10-31/summarize-v2.mjs) | summarize v2: source/configuration for its containing feature. |
+| [evaluations/atl/study-2026-10-31/summarize-v3.mjs](../evaluations/atl/study-2026-10-31/summarize-v3.mjs) | summarize v3: source/configuration for its containing feature. |
+| [evaluations/atl/SUMMARY.fa.md](../evaluations/atl/SUMMARY.fa.md) | جمع‌بندی بهبود و ارزیابی اسکیل‌های ATL. |
+| [evaluations/atl/verification.json](../evaluations/atl/verification.json) | verification: source/configuration for its containing feature. |
 
 ## problems
 
@@ -697,6 +818,7 @@ Continuous verification, Pages deployment, and package publishing.
 | [.github/workflows/docs-verify.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/docs-verify.yml) | docs verify: source/configuration for its containing feature. |
 | [.github/workflows/publish-package.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/publish-package.yml) | publish package: source/configuration for its containing feature. |
 | [.github/workflows/runtime-verify.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/runtime-verify.yml) | runtime verify: source/configuration for its containing feature. |
+| [.github/workflows/skills-eval.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/skills-eval.yml) | skills eval: source/configuration for its containing feature. |
 
 ## .codex-plugin
 
