@@ -12,12 +12,12 @@ source_of_truth:
   diagrams: Mermaid blocks in owning Markdown guides
   style: docs/scss/styles.scss
 verified_against:
-  base_revision: 44defc49a924222aaf9a823509ab70772d75e691
-  overlay: pre-existing uncommitted runtime and verification changes inspected locally
-  release_ref: v0.1.3
+  base_revision: 25d4985
+  overlay: none — the release commit verifies a clean tree at the base revision
+  release_ref: v0.2.0
   fingerprints: .atl-evidence/docs-refresh/source-fingerprints.json
 last_sync:
-  date: '2026-10-29'
+  date: '2026-11-04'
   scope: public guides, project entry points, generated site, package docs, Pages gates
   public_pages: 37
   maintained_markdown_files_checked: 158
