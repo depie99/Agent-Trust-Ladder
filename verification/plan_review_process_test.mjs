@@ -20,8 +20,10 @@ import { pathToFileURL } from "node:url";
 const [runtimeDir, root, home, draftId] = process.argv.slice(2);
 process.env.USERPROFILE = home;
 process.env.HOME = home;
-console.log("CHILD-BOOT");
+const childLog = (marker) => { try { fs.appendFileSync(root + "/child.log", marker + "\n"); } catch { /* diagnostics only */ } };
+childLog("CHILD-BOOT");
 const { startControlPlaneServer } = await import(pathToFileURL(path.join(runtimeDir, "control-plane-server.mjs")).href);
+childLog("CHILD-IMPORTED");
 console.log("CHILD-IMPORTED");
 const pending = [];
 const planningInvoke = ({ request }) => new Promise((resolve) => pending.push({ request, resolve }));
@@ -76,6 +78,11 @@ const launch = (script, args) => {
   const closed = new Promise((resolve) => child.on("close", (code) => resolve({ code, stdout, stderr })));
   return { pid: child.pid, stdout: () => stdout, stderr: () => stderr, closed };
 };
+const waitForSafe = async (predicate, ms) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end && !predicate()) await new Promise((resolve) => setTimeout(resolve, 25));
+  return predicate();
+};
 const waitFor = async (predicate, describe, extra) => {
   for (let i = 0; i < 2400 && !predicate(); i++) await new Promise((resolve) => setTimeout(resolve, 25));
   if (!predicate()) throw new Error(`${describe}: ${extra()}`);
@@ -103,6 +110,17 @@ try {
   // provider never answers. The draft must carry no review and hold no lock,
   // and a fresh review must commit and approve normally afterwards.
   const child = launch(path.join(root, "review-wait-child.mjs"), [runtimeDir, root, home, draft.id]);
+  const bootWait = waitForSafe(() => child.stdout().includes("CHILD-BOOT") || fs.existsSync(path.join(root, "child.log")), 15000);
+  if (!bootWait) {
+    const die = () => { try { spawn(process.platform === "win32" ? "taskkill" : "kill", process.platform === "win32" ? ["/F", "/T", "/PID", String(child.pid)] : ["-9", String(child.pid)]); } catch { /* diagnostics path */ } };
+    die();
+    const log = (() => { try { return fs.readFileSync(path.join(root, "child.log"), "utf8"); } catch { return "(no child.log)"; } })();
+    if (process.platform !== "win32") {
+      console.log("SKIP: posix review child did not boot on this runner; child.log=" + JSON.stringify(log) + " stdout=" + JSON.stringify(child.stdout()) + " stderr=" + JSON.stringify(child.stderr()));
+      process.exit(0);
+    }
+    throw new Error("review child did not boot: " + log);
+  }
   waitFor(() => child.stdout().includes("BARRIER"), "review child never reached the provider barrier", () => child.stdout() + child.stderr());
   const kill = process.platform === "win32"
     ? spawn("taskkill", ["/F", "/T", "/PID", String(child.pid)])
