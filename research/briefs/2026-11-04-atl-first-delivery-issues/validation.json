@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-04",
+  "newIssues": 10,
+  "openExisting": 9,
+  "closedExisting": 1,
+  "unresolvedPlanRefs": false,
+  "nonEnglishNewPlan": false,
+  "planWords": 2890,
+  "allPublishedBodiesMatched": true,
+  "nativeDependencies": 8,
+  "existingIssueStatesPreserved": true,
+  "implementationTestsRunForThisPublication": false
+}

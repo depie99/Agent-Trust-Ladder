@@ -1,0 +1,99 @@
+[
+  {
+    "id": "C01",
+    "model": "unknown",
+    "route": "direct",
+    "dose": "Direct",
+    "verdict": "conditional",
+    "next_action": "Change Save to Apply in the specified component, inspect the diff, and run the available relevant check.",
+    "reason": "The isolated, reversible copy edit needs no separate specification or plan."
+  },
+  {
+    "id": "C02",
+    "route": "verify",
+    "dose": "Critical",
+    "verdict": "conditional",
+    "next_action": "Confirm the deployed revision and observe the production login callback before declaring the fix complete.",
+    "reason": "A merged PR and passing typecheck do not establish production behavior."
+  },
+  {
+    "id": "C03",
+    "route": "audit",
+    "dose": "Standard",
+    "verdict": "conditional",
+    "next_action": "Inspect the existing diff read-only and seek reproducible validation evidence.",
+    "reason": "An unsupported statement that tests pass is insufficient audit evidence."
+  },
+  {
+    "id": "C04",
+    "route": "frame",
+    "dose": "Standard",
+    "verdict": "conditional",
+    "next_action": "Trace seller identifiers through selection, save, persistence, and reload; reproduce the reset before selecting a repair.",
+    "reason": "The identifier migration is a hypothesis; the failure boundary and persisted value remain unknown."
+  },
+  {
+    "id": "C05",
+    "route": "diagrams",
+    "dose": "Standard",
+    "verdict": "conditional",
+    "next_action": "Draw the permitted next states directly from the supplied lifecycle contract.",
+    "reason": "The requested deliverable is a diagram, with no proof or tooling installation required."
+  },
+  {
+    "id": "C06",
+    "route": "formal-verification",
+    "dose": "Critical",
+    "verdict": "conditional",
+    "next_action": "Define lease ownership, concurrency assumptions, and the exclusivity invariant; construct and execute an appropriate formal model.",
+    "reason": "The requested concurrency guarantee requires explicit assumptions and proof evidence."
+  },
+  {
+    "id": "C07",
+    "route": "tech-docs",
+    "dose": "Standard",
+    "verdict": "conditional",
+    "next_action": "Inspect the changed configuration source, update the runbook, and verify its instructions against that source.",
+    "reason": "Documentation accuracy depends on inspecting the implementation."
+  },
+  {
+    "id": "C08",
+    "route": "content-quality",
+    "dose": "Standard",
+    "verdict": "conditional",
+    "next_action": "Inspect the landing page, restaurant facts, and intended local search intent, then revise the title and meta description.",
+    "reason": "Copy improvement is actionable, but ranking causes or gains cannot be asserted without evidence."
+  },
+  {
+    "id": "C09",
+    "route": "trust",
+    "dose": "Standard",
+    "verdict": "blocked",
+    "next_action": "Retain current autonomy and gather verified outcomes across the relevant task class before reassessing.",
+    "reason": "One reported green unit run does not support broader autonomy."
+  },
+  {
+    "id": "C10",
+    "route": "verify",
+    "dose": "Critical",
+    "verdict": "conditional",
+    "next_action": "Verify the deployed bundle consumer and observe the production auth redirect and callback.",
+    "reason": "A local build does not demonstrate that production consumes the fix or that authentication succeeds."
+  },
+  {
+    "id": "C11",
+    "route": "audit",
+    "dose": "Standard",
+    "verdict": "conditional",
+    "next_action": "Review the existing PR diff without modifying files; report findings and explicitly state that tests were unavailable.",
+    "reason": "The user explicitly requests a read-only review, and unavailable tests limit validation."
+  },
+  {
+    "id": "C12",
+    "route": "direct",
+    "dose": "Direct",
+    "verdict": "conditional",
+    "next_action": "Change Save to Apply in the specified component, inspect the local diff, and run the available relevant check.",
+    "reason": "The Persian request authorizes a simple local copy edit without additional process."
+  }
+]

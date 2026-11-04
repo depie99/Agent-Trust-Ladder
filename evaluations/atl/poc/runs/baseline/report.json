@@ -1,0 +1,66 @@
+{
+  "checks": [
+    {
+      "name": "seller lookup, await persistence, preserve inputs",
+      "status": "passed"
+    },
+    {
+      "name": "legacy store lookup",
+      "status": "passed"
+    },
+    {
+      "name": "invalid selection inputs never persist",
+      "status": "passed"
+    },
+    {
+      "name": "duplicate seller and legacy matches reject",
+      "status": "passed"
+    },
+    {
+      "name": "malformed store data rejects",
+      "status": "passed"
+    },
+    {
+      "name": "persistence failure propagates by identity",
+      "status": "passed"
+    },
+    {
+      "name": "pagination slice and immutability",
+      "status": "passed"
+    },
+    {
+      "name": "empty and out of range pagination",
+      "status": "passed"
+    },
+    {
+      "name": "pagination rejects invalid inputs without coercion",
+      "status": "passed"
+    },
+    {
+      "name": "pagination safe arithmetic boundaries",
+      "status": "passed"
+    },
+    {
+      "name": "evidence complete with visible optional gaps in order",
+      "status": "passed"
+    },
+    {
+      "name": "evidence failure precedence includes optional",
+      "status": "passed"
+    },
+    {
+      "name": "evidence conditional without passed required coverage",
+      "status": "passed"
+    },
+    {
+      "name": "evidence rejects malformed data and duplicate names",
+      "status": "passed"
+    }
+  ],
+  "limitations": [
+    "Only participant-authored checks were run; evaluator and other runs were not inspected.",
+    "No external services or application integration were exercised."
+  ],
+  "elapsed_time": null,
+  "tokens": null
+}

@@ -1,0 +1,66 @@
+{
+  "date": "2026-11-04",
+  "head": "2468321316eaa83947556d3638170550b58c0314",
+  "issues": [
+    {
+      "number": 13,
+      "state": "OPEN",
+      "title": "[Ops] Sort and commit remaining working-tree waves",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/13"
+    },
+    {
+      "number": 12,
+      "state": "CLOSED",
+      "title": "[Ops] CI for Plan/EGM suites and push current state",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/12"
+    },
+    {
+      "number": 11,
+      "state": "OPEN",
+      "title": "[Policy] Finding-disposition workflow (Phase 2 of the main plan)",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/11"
+    },
+    {
+      "number": 10,
+      "state": "OPEN",
+      "title": "[Policy] Policy for choosing review depth based on plan risk",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/10"
+    },
+    {
+      "number": 9,
+      "state": "OPEN",
+      "title": "[UX] Browser journey test for deep review",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/9"
+    },
+    {
+      "number": 8,
+      "state": "OPEN",
+      "title": "[UX] Staged progress and cancellation for deep review",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/8"
+    },
+    {
+      "number": 7,
+      "state": "OPEN",
+      "title": "[Quality] Backend quality benchmark: glm-goldfish vs codex EGM",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/7"
+    },
+    {
+      "number": 6,
+      "state": "OPEN",
+      "title": "[Quality] Harden report parser + regression bank from real outputs",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/6"
+    },
+    {
+      "number": 5,
+      "state": "OPEN",
+      "title": "[Trust] Isolation probes in the product path (not just the lab)",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/5"
+    },
+    {
+      "number": 4,
+      "state": "OPEN",
+      "title": "[Trust] Cross-process review gate + cost gate for deep review",
+      "url": "https://github.com/depie99/Agent-Trust-Ladder/issues/4"
+    }
+  ]
+}

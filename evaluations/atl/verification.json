@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-31",
+  "scope": "ATL skill authoring and evaluation workbench",
+  "checks": [
+    {
+      "name": "generator-drift",
+      "command": "python scripts/build_mode_skills.py --check",
+      "chunk_id": "fbcd69",
+      "wall_time_seconds": 0.2520346,
+      "exit_code": 0,
+      "original_token_count": 12,
+      "output": "Mode skills checked; 0 stale or updated files.\r\n"
+    },
+    {
+      "name": "generator-behavior",
+      "command": "python -B verification/build_mode_skills_test.py",
+      "chunk_id": "a151e2",
+      "wall_time_seconds": 0.267436,
+      "exit_code": 0,
+      "original_token_count": 26,
+      "output": ".\r\n----------------------------------------------------------------------\r\nRan 1 test in 0.053s\r\n\r\nOK\r\n"
+    },
+    {
+      "name": "decision-grader-and-structure",
+      "command": "node verification/atl_skill_eval_test.mjs",
+      "chunk_id": "17ae24",
+      "wall_time_seconds": 0.1180291,
+      "exit_code": 0,
+      "original_token_count": 30,
+      "output": "PASS: submission validation, premature completion, dose, paired outcomes; basic metadata and local links for 19 skills\n"
+    },
+    {
+      "name": "poc-grader-mutations",
+      "command": "node verification/atl_poc_grader_test.mjs",
+      "chunk_id": "2ad9c7",
+      "wall_time_seconds": 0.4440467,
+      "exit_code": 0,
+      "original_token_count": 29,
+      "output": "PASS: grader catches async persistence, numeric coercion, false completion, missing artifacts, and worker timeouts\n"
+    },
+    {
+      "name": "skill-install-regression",
+      "command": "node verification/skill_install_test.mjs",
+      "chunk_id": "5ef6cf",
+      "wall_time_seconds": 0.1929041,
+      "exit_code": 0,
+      "original_token_count": 22,
+      "output": "PASS: skill source parsing, installation, duplicate handling, and honest designation\n"
+    },
+    {
+      "name": "implementation-poc",
+      "command": "node evaluations/atl/poc/run.mjs",
+      "chunk_id": "d0ff69",
+      "wall_time_seconds": 0.3442981,
+      "exit_code": 0,
+      "original_token_count": 157,
+      "output": "[\n  {\n    \"condition\": \"baseline\",\n    \"categories\": {\n      \"selection\": {\n        \"passed\": 22,\n        \"total\": 22\n      },\n      \"pagination\": {\n        \"passed\": 15,\n        \"total\": 15\n      },\n      \"evidence\": {\n        \"passed\": 15,\n        \"total\": 15\n      }\n    },\n    \"passed\": 52,\n    \"total\": 52\n  },\n  {\n    \"condition\": \"atl\",\n    \"categories\": {\n      \"selection\": {\n        \"passed\": 22,\n        \"total\": 22\n      },\n      \"pagination\": {\n        \"passed\": 15,\n        \"total\": 15\n      },\n      \"evidence\": {\n        \"passed\": 15,\n        \"total\": 15\n      }\n    },\n    \"passed\": 52,\n    \"total\": 52\n  }\n]\n"
+    },
+    {
+      "name": "decision-pilot",
+      "command": "node evaluations/atl/run.mjs evaluations/atl/pilot/baseline-decisions.json evaluations/atl/pilot/atl-decisions.json evaluations/atl/pilot/report.json",
+      "chunk_id": "5298eb",
+      "wall_time_seconds": 0.2398492,
+      "exit_code": 0,
+      "original_token_count": 38,
+      "output": "{\n  \"n\": 12,\n  \"baseline\": 1,\n  \"atl\": 1,\n  \"delta_pp\": 0,\n  \"wins\": 0,\n  \"losses\": 0,\n  \"ties\": 12,\n  \"output\": \"evaluations/atl/pilot/report.json\"\n}\n"
+    },
+    {
+      "name": "whitespace",
+      "command": "git diff --check -- scripts/build_mode_skills.py skills/agent-trust-ladder skills/atl skills/atl-audit skills/atl-verify",
+      "chunk_id": "beac5d",
+      "wall_time_seconds": 0.1252693,
+      "exit_code": 0,
+      "original_token_count": 124,
+      "output": "warning: in the working copy of 'skills/agent-trust-ladder/SKILL.md', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'skills/atl/SKILL.md', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'skills/atl/references/routing.md', CRLF will be replaced by LF the next time Git touches it\nwarning: in the working copy of 'skills/atl/references/skill-catalog.md', CRLF will be replaced by LF the next time Git touches it\n"
+    }
+  ],
+  "unavailable": [
+    {
+      "command": "python <skill-creator>/scripts/quick_validate.py <skill>",
+      "reason": "PyYAML is not installed (ModuleNotFoundError: yaml). Basic name/description and local Markdown links checked separately; full YAML validation remains unobserved."
+    }
+  ],
+  "not_run": [
+    "Full application runtime/UI/deployment suite; application code was not changed.",
+    "Remote CI; workflow was defined locally.",
+    "Instrumented model latency, tokens, cost and held-out repeated trials."
+  ],
+  "cleanup": {
+    "entry_before_bytes": 20480,
+    "entry_after_bytes": 15648,
+    "reduction_percent": 23.59375,
+    "meaning": "Entrypoint bytes only; no measured model speed/cost/token saving."
+  },
+  "verdict": "Local structure, generator behavior, graders and bounded PoC contracts observed passing. General ATL uplift remains unknown."
+}

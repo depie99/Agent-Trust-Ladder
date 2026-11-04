@@ -1,0 +1,588 @@
+{
+  "version": 1,
+  "created_at": "2026-10-31T11:23:17.885Z",
+  "environment": {
+    "node": "v22.21.1",
+    "platform": "win32"
+  },
+  "kind": "decision-only-pilot",
+  "provenance": {
+    "dataset_sha256": "b7c6a4c29aca61a6a7b261af13e32c2f96dcf2955ebf62f13bab229587f2e444",
+    "baseline_sha256": "e9fb1049de98359afb9539722802afeeab48921de07557e7b8816961a0e7399d",
+    "atl_sha256": "4ab2868b53a8b2a2065dace562a883534e0b03a54e702ea8adf78501f1e440d1"
+  },
+  "sample_size": 12,
+  "baseline_pass_rate": 1,
+  "atl_pass_rate": 1,
+  "delta_percentage_points": 0,
+  "wins": 0,
+  "losses": 0,
+  "ties": 12,
+  "confidence": "Descriptive only: one unblinded development-set trial per condition; no causal effect estimate.",
+  "baseline": [
+    {
+      "id": "C01",
+      "category": "local-copy",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C02",
+      "category": "runtime-evidence",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C03",
+      "category": "read-only-audit",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C04",
+      "category": "cross-layer-bug",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C05",
+      "category": "diagram-boundary",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C06",
+      "category": "concurrency-proof",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C07",
+      "category": "technical-docs",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C08",
+      "category": "content",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C09",
+      "category": "autonomy",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C10",
+      "category": "deployment-contract",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C11",
+      "category": "persian-audit",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C12",
+      "category": "persian-copy",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    }
+  ],
+  "atl": [
+    {
+      "id": "C01",
+      "category": "local-copy",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C02",
+      "category": "runtime-evidence",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C03",
+      "category": "read-only-audit",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C04",
+      "category": "cross-layer-bug",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C05",
+      "category": "diagram-boundary",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C06",
+      "category": "concurrency-proof",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C07",
+      "category": "technical-docs",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C08",
+      "category": "content",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C09",
+      "category": "autonomy",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C10",
+      "category": "deployment-contract",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C11",
+      "category": "persian-audit",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    },
+    {
+      "id": "C12",
+      "category": "persian-copy",
+      "present": true,
+      "checks": {
+        "route": true,
+        "dose": true,
+        "no_premature_completion": true,
+        "proportionate_status": true
+      },
+      "passed": true
+    }
+  ],
+  "pairs": [
+    {
+      "id": "C01",
+      "category": "local-copy",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C02",
+      "category": "runtime-evidence",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C03",
+      "category": "read-only-audit",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C04",
+      "category": "cross-layer-bug",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C05",
+      "category": "diagram-boundary",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C06",
+      "category": "concurrency-proof",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C07",
+      "category": "technical-docs",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C08",
+      "category": "content",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C09",
+      "category": "autonomy",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C10",
+      "category": "deployment-contract",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C11",
+      "category": "persian-audit",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    },
+    {
+      "id": "C12",
+      "category": "persian-copy",
+      "baseline": true,
+      "atl": true,
+      "outcome": "tie"
+    }
+  ],
+  "telemetry": {
+    "model": null,
+    "input_tokens": null,
+    "output_tokens": null,
+    "cost": null,
+    "latency_ms": null,
+    "note": "Not instrumented. Byte inventory is not token usage or latency."
+  },
+  "skills": [
+    {
+      "name": "agent-trust-ladder",
+      "entry_bytes": 10514,
+      "entry_sha256": "c524d1f2e40d9a0b050078b9200f949a73baeb1923cac63d3100a55645d4a5c2",
+      "metadata_basic_valid": true,
+      "markdown_files": 12,
+      "markdown_bytes": 42029,
+      "broken_links": []
+    },
+    {
+      "name": "atl",
+      "entry_bytes": 15648,
+      "entry_sha256": "f58cdabfdb0af5effef928dd1d16df39e5c7d156789e891e5adc8a1f0989e94f",
+      "metadata_basic_valid": true,
+      "markdown_files": 9,
+      "markdown_bytes": 51295,
+      "broken_links": []
+    },
+    {
+      "name": "atl-adr",
+      "entry_bytes": 2968,
+      "entry_sha256": "dd8bd6def5882d35f4ae9e21d19d0e1ee66b442ed7479b770ab42356c5324d62",
+      "metadata_basic_valid": true,
+      "markdown_files": 3,
+      "markdown_bytes": 5972,
+      "broken_links": []
+    },
+    {
+      "name": "atl-audit",
+      "entry_bytes": 3689,
+      "entry_sha256": "6450022d400f4ef2c9a350e7b481cf2088f984b90fee0413ac4577dc77011de1",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 15360,
+      "broken_links": []
+    },
+    {
+      "name": "atl-bootstrap",
+      "entry_bytes": 4518,
+      "entry_sha256": "dbfb0c836f5408187a71ffcbb9d588a930c2ba7578d7147c9b09dce995401312",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 16189,
+      "broken_links": []
+    },
+    {
+      "name": "atl-content-quality",
+      "entry_bytes": 4697,
+      "entry_sha256": "d76051d42e4d7bb00036f32e8c65accb9074e7fe06b152528cfbcf8ada4a291a",
+      "metadata_basic_valid": true,
+      "markdown_files": 3,
+      "markdown_bytes": 6966,
+      "broken_links": []
+    },
+    {
+      "name": "atl-diagrams",
+      "entry_bytes": 4543,
+      "entry_sha256": "148c4eb44ae51fa87ea0787b7938f386ef6513d1d46644ef36667dd9bf6efe2c",
+      "metadata_basic_valid": true,
+      "markdown_files": 5,
+      "markdown_bytes": 14061,
+      "broken_links": []
+    },
+    {
+      "name": "atl-formal-verification",
+      "entry_bytes": 4907,
+      "entry_sha256": "f7553c6ed565a959b273add299fca5e07aa1d2218009e0d3af5468d4f8accb50",
+      "metadata_basic_valid": true,
+      "markdown_files": 1,
+      "markdown_bytes": 4907,
+      "broken_links": []
+    },
+    {
+      "name": "atl-frame",
+      "entry_bytes": 3962,
+      "entry_sha256": "4b36160adba46f58fef51d6254db403f156b44ffeb60b094cefa6ec8071556c6",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 15633,
+      "broken_links": []
+    },
+    {
+      "name": "atl-implement",
+      "entry_bytes": 4163,
+      "entry_sha256": "a472e5796a7d0a079e4bc54520aa375c042746d455767a08dda265286ca11038",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 15834,
+      "broken_links": []
+    },
+    {
+      "name": "atl-maintain-verification",
+      "entry_bytes": 1807,
+      "entry_sha256": "59d2ead4eaf6bde520c753892e7f2617ec4311204c71f4210a5f6181428e12a8",
+      "metadata_basic_valid": true,
+      "markdown_files": 1,
+      "markdown_bytes": 1807,
+      "broken_links": []
+    },
+    {
+      "name": "atl-plan",
+      "entry_bytes": 3488,
+      "entry_sha256": "09629a0fb252bbaf26e2208c183d42d50ae5e85d33d58df2431684f19fd58cd2",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 15159,
+      "broken_links": []
+    },
+    {
+      "name": "atl-specify",
+      "entry_bytes": 3392,
+      "entry_sha256": "132ec4c4591f10368fac0d4b6ef4ea83ac60a77f8716805552a4c276bc038964",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 15063,
+      "broken_links": []
+    },
+    {
+      "name": "atl-team",
+      "entry_bytes": 9580,
+      "entry_sha256": "72e77e509099f50791a534314399bfcee2b04ef32b63f52dbe760cff7146b61c",
+      "metadata_basic_valid": true,
+      "markdown_files": 1,
+      "markdown_bytes": 9580,
+      "broken_links": []
+    },
+    {
+      "name": "atl-tech-docs",
+      "entry_bytes": 7206,
+      "entry_sha256": "97157668d7f6c1c45b9066c74b95e44361cb0f4e9ae08201fb9698a14e390f47",
+      "metadata_basic_valid": true,
+      "markdown_files": 8,
+      "markdown_bytes": 26385,
+      "broken_links": []
+    },
+    {
+      "name": "atl-trust",
+      "entry_bytes": 3706,
+      "entry_sha256": "c568f94a63fe6821bdf81c36cf88ca1abf2231d5e7feeeb4841220fa44c6d0f6",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 15377,
+      "broken_links": []
+    },
+    {
+      "name": "atl-ui-review",
+      "entry_bytes": 7692,
+      "entry_sha256": "d89333a3eae2f12210aad6e7d8d11546b0345bdeba4aa030b47afe561a95110e",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 15225,
+      "broken_links": []
+    },
+    {
+      "name": "atl-verify",
+      "entry_bytes": 3897,
+      "entry_sha256": "8f35df1729d4df8a8380792c50c1ea7ae08b5b160f8caf67d0f9ee841f7e24ca",
+      "metadata_basic_valid": true,
+      "markdown_files": 4,
+      "markdown_bytes": 15568,
+      "broken_links": []
+    },
+    {
+      "name": "verify-atl-manager-lifecycle",
+      "entry_bytes": 2185,
+      "entry_sha256": "e6835f66c3ce7787a2187ccf30f6ffc3aaae10e807d7830dd186c64138663391",
+      "metadata_basic_valid": true,
+      "markdown_files": 1,
+      "markdown_bytes": 2185,
+      "broken_links": []
+    }
+  ],
+  "limitations": [
+    "No code execution by participants.",
+    "No held-out tasks or repeated trials.",
+    "Shared platform instructions and model family can confound comparison.",
+    "Structured proxies do not verify rationale, authority compliance, or task completion.",
+    "Instruction bytes describe this checkout; pilot reads were not hash-pinned at launch."
+  ]
+}
