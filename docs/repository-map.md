@@ -219,6 +219,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/dependencies.mjs](../runtime/lib/dependencies.mjs) | Dependency-aware readiness for the task graph. |
 | [runtime/lib/dispatch-preflight.mjs](../runtime/lib/dispatch-preflight.mjs) | dispatch preflight: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/dispatcher.mjs](../runtime/lib/dispatcher.mjs) | Supervisor scheduling policy: deterministic, bounded and project-fair. It |
+| [runtime/lib/egm-review.mjs](../runtime/lib/egm-review.mjs) | Bounded EGM deep-review path for Plan Studio. The runner uses exactly the |
 | [runtime/lib/execution-access.mjs](../runtime/lib/execution-access.mjs) | A single permission contract for Ask ATL and built-in queue workers. |
 | [runtime/lib/execution-report.mjs](../runtime/lib/execution-report.mjs) | execution report: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/feed.mjs](../runtime/lib/feed.mjs) | The team feed: a chat-style narration of everything the bots do. |
@@ -258,6 +259,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/supervisor.mjs](../runtime/lib/supervisor.mjs) | Local supervisor metadata. Project state remains in its own repository. |
 | [runtime/lib/task-changes.mjs](../runtime/lib/task-changes.mjs) | Read-only, revision-pinned inspection. Content hashes are not Git commits. |
 | [runtime/lib/task-diagnostics.mjs](../runtime/lib/task-diagnostics.mjs) | Diagnose recorded facts, not a provider's successful exit code. Each finding |
+| [runtime/lib/task-statechart.mjs](../runtime/lib/task-statechart.mjs) | Project recorded transitions only; never invent steps from the workflow contract. |
 | [runtime/lib/task-workspace.mjs](../runtime/lib/task-workspace.mjs) | task workspace: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/tui-components.mjs](../runtime/lib/tui-components.mjs) | tui components: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/tui-layout.mjs](../runtime/lib/tui-layout.mjs) | tui layout: runtime implementation; inspect exports and matching verification. |
@@ -350,6 +352,7 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-diagrams/references/format-selection.md](../skills/atl-diagrams/references/format-selection.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/references/model-registry.md](../skills/atl-diagrams/references/model-registry.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/references/quality-checklist.md](../skills/atl-diagrams/references/quality-checklist.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-diagrams/references/statecharts.md](../skills/atl-diagrams/references/statecharts.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/SKILL.md](../skills/atl-diagrams/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-formal-verification/agents/openai.yaml](../skills/atl-formal-verification/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl-formal-verification/SKILL.md](../skills/atl-formal-verification/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
@@ -401,9 +404,12 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-verify/references/spec-core.md](../skills/atl-verify/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/SKILL.md](../skills/atl-verify/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl/agents/openai.yaml](../skills/atl/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl/references/ai-evaluation.md](../skills/atl/references/ai-evaluation.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/case-studies.md](../skills/atl/references/case-studies.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/references/evidence-gates.md](../skills/atl/references/evidence-gates.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/playbooks.md](../skills/atl/references/playbooks.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/project-assessment.md](../skills/atl/references/project-assessment.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/references/resource-execution.md](../skills/atl/references/resource-execution.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/routing.md](../skills/atl/references/routing.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/skill-catalog.md](../skills/atl/references/skill-catalog.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/SKILL.md](../skills/atl/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
@@ -415,14 +421,20 @@ Behavior checks, formal models, and synthetic fixtures.
 
 | File | Purpose |
 |---|---|
+| [verification/_child_manual.mjs](../verification/_child_manual.mjs) | The HTTP response only resolves when the provider answers, so the review |
+| [verification/_probe_variants.mjs](../verification/_probe_variants.mjs) |  probe variants: source/configuration for its containing feature. |
+| [verification/_repro2.mjs](../verification/_repro2.mjs) | Parent imports the server module like the real test does. |
 | [verification/approval_test.mjs](../verification/approval_test.mjs) | Executable regression check for approval. |
 | [verification/atl_lifecycle_model.py](../verification/atl_lifecycle_model.py) | atl lifecycle model: source/configuration for its containing feature. |
 | [verification/atl_manager_lifecycle_model.py](../verification/atl_manager_lifecycle_model.py) | atl manager lifecycle model: source/configuration for its containing feature. |
+| [verification/atl_poc_grader_test.mjs](../verification/atl_poc_grader_test.mjs) | Executable regression check for atl poc grader. |
+| [verification/atl_skill_eval_test.mjs](../verification/atl_skill_eval_test.mjs) | Executable regression check for atl skill eval. |
 | [verification/azure_issue_journey_test.mjs](../verification/azure_issue_journey_test.mjs) | Executable regression check for azure issue journey. |
 | [verification/backup_test.mjs](../verification/backup_test.mjs) | Executable regression check for backup. |
 | [verification/brain_recovery_test.mjs](../verification/brain_recovery_test.mjs) | Executable regression check for brain recovery. |
 | [verification/brain_test.mjs](../verification/brain_test.mjs) | Executable regression check for brain. |
 | [verification/browser_access_test.mjs](../verification/browser_access_test.mjs) | Executable regression check for browser access. |
+| [verification/build_mode_skills_test.py](../verification/build_mode_skills_test.py) | build mode skills test: source/configuration for its containing feature. |
 | [verification/builtin_provider_status_test.mjs](../verification/builtin_provider_status_test.mjs) | Executable regression check for builtin provider status. |
 | [verification/change_review_store_test.mjs](../verification/change_review_store_test.mjs) | Executable regression check for change review store. |
 | [verification/codex_bridge_test.mjs](../verification/codex_bridge_test.mjs) | Executable regression check for codex bridge. |
@@ -455,6 +467,18 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/final_demonstrations_test.mjs](../verification/final_demonstrations_test.mjs) | Executable regression check for final demonstrations. |
 | [verification/fixtures/channel-worker.mjs](../verification/fixtures/channel-worker.mjs) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/control-plane-project.mjs](../verification/fixtures/control-plane-project.mjs) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-a/comprehension_report.md](../verification/fixtures/egm/shape-a/comprehension_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-a/consolidated_review_report.md](../verification/fixtures/egm/shape-a/consolidated_review_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-a/critic_report.md](../verification/fixtures/egm/shape-a/critic_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-a/implementation_readiness_report.md](../verification/fixtures/egm/shape-a/implementation_readiness_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-a/intermediate_zoom_out_report.md](../verification/fixtures/egm/shape-a/intermediate_zoom_out_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-a/zoom_out_report.md](../verification/fixtures/egm/shape-a/zoom_out_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-b/comprehension_report.md](../verification/fixtures/egm/shape-b/comprehension_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-b/consolidated_review_report.md](../verification/fixtures/egm/shape-b/consolidated_review_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-b/critic_report.md](../verification/fixtures/egm/shape-b/critic_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-b/implementation_readiness_report.md](../verification/fixtures/egm/shape-b/implementation_readiness_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-b/intermediate_zoom_out_report.md](../verification/fixtures/egm/shape-b/intermediate_zoom_out_report.md) | Synthetic test input or worker; not a production execution result. |
+| [verification/fixtures/egm/shape-b/zoom_out_report.md](../verification/fixtures/egm/shape-b/zoom_out_report.md) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/fake-app-server.mjs](../verification/fixtures/fake-app-server.mjs) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/issue-journey-worker.mjs](../verification/fixtures/issue-journey-worker.mjs) | Synthetic test input or worker; not a production execution result. |
 | [verification/fixtures/offline-network.mjs](../verification/fixtures/offline-network.mjs) | Synthetic test input or worker; not a production execution result. |
@@ -483,8 +507,16 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/overnight_recovery_test.mjs](../verification/overnight_recovery_test.mjs) | Executable regression check for overnight recovery. |
 | [verification/owner_session_approval_test.mjs](../verification/owner_session_approval_test.mjs) | Executable regression check for owner session approval. |
 | [verification/package_smoke_test.mjs](../verification/package_smoke_test.mjs) | Executable regression check for package smoke. |
+| [verification/plan_contract_fixture.json](../verification/plan_contract_fixture.json) | plan contract fixture: source/configuration for its containing feature. |
 | [verification/plan_contract_test.mjs](../verification/plan_contract_test.mjs) | Executable regression check for plan contract. |
+| [verification/plan_egm_e2e_real_test.mjs](../verification/plan_egm_e2e_real_test.mjs) | Executable regression check for plan egm e2e real. |
+| [verification/plan_egm_glm_e2e_real_test.mjs](../verification/plan_egm_glm_e2e_real_test.mjs) | Executable regression check for plan egm glm e2e real. |
+| [verification/plan_egm_glm_review_test.mjs](../verification/plan_egm_glm_review_test.mjs) | Executable regression check for plan egm glm review. |
+| [verification/plan_egm_parser_real_test.mjs](../verification/plan_egm_parser_real_test.mjs) | Executable regression check for plan egm parser real. |
+| [verification/plan_egm_review_test.mjs](../verification/plan_egm_review_test.mjs) | Executable regression check for plan egm review. |
 | [verification/plan_publish_test.mjs](../verification/plan_publish_test.mjs) | Executable regression check for plan publish. |
+| [verification/plan_review_concurrency_test.mjs](../verification/plan_review_concurrency_test.mjs) | Executable regression check for plan review concurrency. |
+| [verification/plan_review_process_test.mjs](../verification/plan_review_process_test.mjs) | Executable regression check for plan review process. |
 | [verification/plan_studio_api_test.mjs](../verification/plan_studio_api_test.mjs) | Executable regression check for plan studio api. |
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
 | [verification/plan_studio_journey_test.mjs](../verification/plan_studio_journey_test.mjs) | Executable regression check for plan studio journey. |
@@ -513,6 +545,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/task_changes_ui_test.mjs](../verification/task_changes_ui_test.mjs) | Executable regression check for task changes ui. |
 | [verification/task_dependency_contract_test.mjs](../verification/task_dependency_contract_test.mjs) | Executable regression check for task dependency contract. |
 | [verification/task_diagnostics_test.mjs](../verification/task_diagnostics_test.mjs) | Executable regression check for task diagnostics. |
+| [verification/task_statechart_test.mjs](../verification/task_statechart_test.mjs) | Executable regression check for task statechart. |
 | [verification/task_workspace_test.mjs](../verification/task_workspace_test.mjs) | Executable regression check for task workspace. |
 | [verification/team_panel_test.mjs](../verification/team_panel_test.mjs) | Executable regression check for team panel. |
 | [verification/tui_command_console_test.mjs](../verification/tui_command_console_test.mjs) | Executable regression check for tui command console. |
@@ -535,6 +568,9 @@ Reviewed improvement proposals, source material, and catalog.
 | File | Purpose |
 |---|---|
 | [research/backlog.md](../research/backlog.md) | ATL Improvement Backlog — research-backed tickets. |
+| [research/briefs/2026-11-04-atl-developer-overnight-roadmap.md](../research/briefs/2026-11-04-atl-developer-overnight-roadmap.md) | ATL Developer Roadmap: Azure Boards to Verified Overnight Delivery. |
+| [research/briefs/2026-11-04-atl-enhancement-review-batch-2.md](../research/briefs/2026-11-04-atl-enhancement-review-batch-2.md) | بررسی عمیق هفت منبع جدید برای ATL. |
+| [research/briefs/2026-11-04-atl-enhancement-review.md](../research/briefs/2026-11-04-atl-enhancement-review.md) | ATL Enhancement Review. |
 | [research/index.json](../research/index.json) | index: source/configuration for its containing feature. |
 | [research/README.md](../research/README.md) | ATL Research — the engineering-intelligence store. |
 | [research/records/R-0001.md](../research/records/R-0001.md) | Dated research decision; preserve its provenance and status. |
@@ -572,6 +608,7 @@ Continuous verification, Pages deployment, and package publishing.
 | [.github/workflows/docs-verify.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/docs-verify.yml) | docs verify: source/configuration for its containing feature. |
 | [.github/workflows/publish-package.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/publish-package.yml) | publish package: source/configuration for its containing feature. |
 | [.github/workflows/runtime-verify.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/runtime-verify.yml) | runtime verify: source/configuration for its containing feature. |
+| [.github/workflows/skills-eval.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/skills-eval.yml) | skills eval: source/configuration for its containing feature. |
 
 ## .codex-plugin
 
