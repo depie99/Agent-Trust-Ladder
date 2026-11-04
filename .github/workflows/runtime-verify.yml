@@ -53,6 +53,7 @@ jobs:
       - run: node verification/plan_studio_journey_test.mjs
       - run: node verification/plan_publish_test.mjs
       - run: node verification/plan_review_concurrency_test.mjs
+      - run: node verification/plan_review_gate_test.mjs
       - run: node verification/plan_review_process_test.mjs
       - run: node verification/plan_egm_review_test.mjs
       - run: node verification/plan_egm_parser_real_test.mjs
