@@ -59,7 +59,7 @@ let failed = "";
 let page;
 try {
   page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  page.setDefaultTimeout(8000);
+  page.setDefaultTimeout(30000); // slow filesystems (WSL drvfs) need headroom
   await page.goto(started.url);
   await page.locator('[data-page="tasks"]').first().click();
   await page.locator('[data-action="new"]').first().click();
