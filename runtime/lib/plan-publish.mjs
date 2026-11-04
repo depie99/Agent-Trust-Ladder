@@ -1,20 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { loadPlanDraft, planningEvidence } from "./plan-studio.mjs";
+import { loadPlanDraft, planningEvidence, planFingerprint } from "./plan-studio.mjs";
 import { loadState } from "./state.mjs";
 import { readManagerConfig } from "./launch.mjs";
 import { normalizeGitHubRepo } from "./intake.mjs";
-
-function fingerprint(artifact, intent, evidence) {
-  return crypto.createHash("sha256").update(JSON.stringify({ artifact, intent, evidence })).digest("hex");
-}
 
 function assertReviewed(root, draft) {
   const artifact = draft.artifact;
   const review = draft.review || artifact?.review;
   const evidence = { project: planningEvidence(root, artifact), source_revision: review?.source_revision || null };
-  if (artifact?.plan_contract_version !== 2 || review?.verdict !== "passed" || review.fingerprint !== fingerprint({ ...artifact, review: undefined }, draft.intent, evidence)) {
+  if (artifact?.plan_contract_version !== 2 || review?.verdict !== "passed" || review.fingerprint !== planFingerprint({ ...artifact, review: undefined }, draft.intent, evidence)) {
     throw new Error("Publishing blocked: the plan needs a fresh, passing accuracy review");
   }
 }

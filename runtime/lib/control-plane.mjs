@@ -20,6 +20,8 @@ import { listBackups } from "./backup.mjs";
 import { listRoutineRuns, schedulerStatus } from "./routines.mjs";
 import { bundledRoot } from "./skill-router.mjs";
 import { listBatches } from "./batch-runner.mjs";
+import { claimStates, latestFailureSignatures, preventionStatus, recoverMemory } from "./operational-memory.mjs";
+import { outcomeReportFromRoot } from "./outcome-economics.mjs";
 
 // Inventory only: installed skill metadata is not promotion evidence.
 function installedSkills(root) {
@@ -185,6 +187,14 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
       snapshots: usage.snapshots,
       latest: latestUsage(root),
       default_provider: readManagerConfig(root).providers?.use || readManagerConfig(root).providers?.default || "codex",
+      economics: (() => {
+        try {
+          const pendingReviews = Object.values(state.tasks || {}).filter((task) => task.review_required && task.status !== "done" && task.status !== "archived").length;
+          return outcomeReportFromRoot(root, { review: { pending: pendingReviews, limit: Number(readManagerConfig(root).resource?.review_wip_limit) || 3 } });
+        } catch (error) {
+          return { summary: { denominators: {}, outcomes: {}, usage: { coverage: "unknown" }, coverage_gaps: [{ kind: "economics-unavailable", detail: error.message }] }, admission: null, review: null };
+        }
+      })(),
     },
     overnight: readOvernightRun(root),
     batches: (() => { try { return listBatches(root); } catch { return []; } })(),
@@ -198,6 +208,27 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
       routines: listRoutines(root),
       defaults: { freshness_days: 30, approval_owner: "manager", routines_enabled_by_default: false },
     },
+    operational: (() => {
+      try {
+        return {
+          recovery: recoverMemory(root),
+          signatures: latestFailureSignatures(root, { limit: 5 }),
+          preventions: preventionStatus(root),
+          claims: claimStates(listClaims(root).map((claim) => ({
+            claim_id: claim.claim_id,
+            subject: claim.subject || claim.source_id,
+            predicate: "statement",
+            value: claim.text,
+            source_id: claim.source_id,
+            source_revision: claim.source_revision,
+            status: claim.status,
+            valid_until: claim.valid_until || null,
+          }))),
+        };
+      } catch (error) {
+        return { recovery: { status: "inconsistent", verified: false, problems: [{ cause: error.message }] }, signatures: [], preventions: { enforced: [], proposed: [], rolled_back: [] }, claims: { counts: {}, items: [] } };
+      }
+    })(),
     approvals: approvalSnapshot(root),
     supervisor: supervisorSnapshot(),
     leases: reconcileLeases(root),
