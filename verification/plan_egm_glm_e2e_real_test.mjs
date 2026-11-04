@@ -19,7 +19,8 @@ const provider = process.env.ATL_EGM_GLM_PROVIDER || "solico-glm";
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
 fs.mkdirSync(path.join(root, "verification"), { recursive: true });
-fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ egmReview: { enabled: true, backend: "glm-goldfish", versionSha: "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24" } }, null, 2));
+const CANARY = `parent-only-${Date.now()}-isolation-probe`;
+fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ egmReview: { enabled: true, backend: "glm-goldfish", versionSha: "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24", ownerNote: `owner-only ${CANARY}` } }, null, 2));
 fs.writeFileSync(path.join(root, "verification", "delivery.test.mjs"), "console.log('delivery verifier placeholder');\n");
 fs.writeFileSync(path.join(root, "verification", "fixture.mjs"), "// evidence v1\n");
 saveState(root, emptyState());
@@ -56,5 +57,16 @@ assert.equal(loaded.review.kind, "egm");
 assert.equal(loaded.review.egm.backend, "glm-goldfish");
 assert.ok(fs.existsSync(path.join(loaded.review.egm.workdir, "consolidated_review_report.md")), "consolidated report preserved beside the draft");
 assert.throws(() => approvePlanDraft(root, draft.id), /accuracy review/, "approval gate consults the GLM goldfish review");
-console.log("PASS: real GLM goldfish end-to-end review committed and gated");
+  // Isolation probe: the owner-only canary must not appear in any report, any
+  // per-stage call log, or the committed artifact.
+  const workdir = review.egm.workdir;
+  const leaks = [];
+  for (const name of fs.readdirSync(workdir)) {
+    const text = fs.readFileSync(path.join(workdir, name), "utf8");
+    if (text.includes(CANARY)) leaks.push(name);
+  }
+  const envelope = fs.readFileSync(draft.artifactPath, "utf8");
+  if (envelope.includes(CANARY)) leaks.push("artifact.json");
+  assert.deepEqual(leaks, [], `owner-only canary leaked into: ${leaks.join(", ")}`);
+  console.log("PASS: real GLM goldfish end-to-end review committed and gated; isolation probe clean");
 await new Promise((resolve) => server.server.close(resolve));
