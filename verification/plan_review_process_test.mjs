@@ -121,7 +121,8 @@ try {
     }
     throw new Error("review child did not boot: " + log);
   }
-  waitFor(() => child.stdout().includes("BARRIER"), "review child never reached the provider barrier", () => child.stdout() + child.stderr());
+  const childLogText = (() => { try { return fs.readFileSync(path.join(root, "child.log"), "utf8"); } catch { return "(no child.log)"; } })();
+  waitFor(() => child.stdout().includes("BARRIER"), "review child never reached the provider barrier", () => `stdout=${JSON.stringify(child.stdout())} stderr=${JSON.stringify(child.stderr())} child.log=${JSON.stringify(childLogText)}`);
   const kill = process.platform === "win32"
     ? spawn("taskkill", ["/F", "/T", "/PID", String(child.pid)])
     : (() => { try { process.kill(child.pid, "SIGKILL"); } catch { /* already gone */ } return { on: () => {} }; })();
