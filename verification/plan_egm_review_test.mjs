@@ -170,6 +170,18 @@ try {
   await new Promise((resolve) => barrierServer.server.close(resolve));
 
   // 7. Regression for the normal ATL path is covered by the standing suites; end.
+  // An unreadable consolidated report (severity sections present, zero
+  // parseable findings) is an explicit 502 failure — never a recorded review.
+  const unreadableServer = await startControlPlaneServer(root, { egmRunner: fakeEgmRunner({ consolidated: "# Consolidated EGM Review Report\n\n## Verdict\n\nnot ready for implementation.\n\n## Action items by priority\n\n### 🔴 Blockers\n\nContent the parser cannot shape into findings.\n" }) });
+  const draftUnreadable = savePlanDraft(root, { intent: fixtureArtifact.objective + " unreadable case", artifact: fixtureArtifact });
+  const unreadable = await fetch(`${unreadableServer.url}api/plan/review`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ draftId: draftUnreadable.id, reviewType: "egm" }) });
+  const unreadableBody = await unreadable.json();
+  assert.equal(unreadable.status, 502, JSON.stringify(unreadableBody));
+  assert.match(unreadableBody.error, /unreadable consolidated report/);
+  assert.ok(unreadableBody.workdir);
+  assert.equal(loadPlanDraft(root, draftUnreadable.id).review, undefined);
+  await new Promise((resolve) => unreadableServer.server.close(resolve));
+
   console.log("PASS: EGM review path — config refusal, findings conversion, blocked gate, honest failures, stale invalidation");
 } finally {
   await new Promise((resolve) => server.server.close(resolve));
