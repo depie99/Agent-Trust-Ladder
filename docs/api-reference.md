@@ -32,6 +32,7 @@ Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`,
 | `/api/intake/import` | `runtime/lib/control-plane-server.mjs` |
 | `/api/intake/preview` | `runtime/lib/control-plane-server.mjs` |
 | `/api/intake/sources` | `runtime/lib/control-plane-server.mjs` |
+| `/api/memory` | `runtime/lib/control-plane-server.mjs` |
 | `/api/navigation` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/approve` | `runtime/lib/control-plane-server.mjs` |
