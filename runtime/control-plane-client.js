@@ -96,7 +96,7 @@
   document.head.append(taskLayoutStyle);
   const routes = [
     ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["shipped", "✔", "Shipped"], ["sources", "?", "Issue sources"], ["assistant", "✦", "Ask ATL"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"],
-    ["team", "♙", "Agent Team"], ["projects", "⌂", "Projects"], ["approvals", "✓", "Approvals"], ["operations", "▣", "Operations"], ["brain", "◈", "Knowledge"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
+    ["team", "♙", "Agent Team"], ["projects", "⌂", "Projects"], ["approvals", "✓", "Approvals"], ["operations", "▣", "Operations"], ["batches", "▥", "Batches"], ["brain", "◈", "Knowledge"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
   ];
   const fallback = {
     state: { tasks: {}, log_tail: [] }, queues: { active_queue: "default", items: [] }, notifications: { unread: 0, items: [] },
@@ -131,6 +131,7 @@ let queueFilterTouched = false;
   let studioSourceTaskId = null;
   let studioMode = "local";
   let studioReviewKind = "atl";
+  let studioEgmStage = "";
   let studioProvider = "";
   let studioProviderExplicit = false;
   let studioModel = "";
@@ -424,7 +425,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const steps = (plan.implementation_steps || []).map((item, index) => `<div class="event"><span class="pill">${index + 1}</span><div><b>${escapeHtml(item.step)}</b><div class="muted tiny">Files: ${escapeHtml((item.files || []).join(", "))}</div><div class="green tiny">Verify: ${escapeHtml(item.verify)}</div></div></div>`).join("");
     const review = draft.review || plan.review;
     const reviewBlock = review ? `<div class="notice"><b>${review.kind === "egm" ? `EGM deep review (${escapeHtml(review.egm?.backend || "codex")} · ${escapeHtml((review.egm?.version_sha || "egm").slice(0, 12))} · ${escapeHtml(review.egm?.model || "provider pool")})` : "Accuracy review"}: ${escapeHtml(review.verdict)}</b><ul>${(review.findings || []).map((item) => `<li>${escapeHtml(item.severity)} · ${escapeHtml(item.requirement_id || item.task_id || "plan")} · ${escapeHtml(item.message)}${item.correction ? `<div class="muted tiny">Correction: ${escapeHtml(item.correction)}</div>` : ""}</li>`).join("") || "<li>No findings</li>"}</ul></div>` : '<div class="notice"><b>Accuracy review required</b><p class="sub">Approval stays blocked until a separate model review passes and no important questions remain open.</p></div>';
-    return `<div class="planout"><div class="bar">${badge(draft.stage)}<span class="pill ${label.mode === "model" ? "violet" : "blue"}">${escapeHtml(label.label)}</span>${label.generated_at ? `<span class="muted tiny">generated ${escapeHtml(new Date(label.generated_at).toLocaleTimeString())}</span>` : ""}<span class="muted tiny">${escapeHtml(draft.id)}</span></div><h2>${escapeHtml(plan.title)}</h2><p>${escapeHtml(plan.objective)}</p>${reviewBlock}<h3>Requirements</h3><ul>${(plan.requirements || []).map((item) => `<li><b>${escapeHtml(item.id || "")}</b> ${escapeHtml(item.text || item)}</li>`).join("") || "<li>Not recorded</li>"}</ul><h3>Open questions</h3><ul>${(plan.open_questions || []).map((item, index) => `<li>${escapeHtml(item.question || item.text || item)} ${item.resolved ? `<span class="pill green">Answered</span><div>${escapeHtml(item.answer || "")}</div>` : btn("Answer", `plan-question:${index}`, "sm")}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Observed evidence and assumptions</h3><ul>${[...(plan.observed_evidence || []).map((item) => `Evidence: ${item.description || item}`), ...(plan.assumptions || []).map((item) => `Assumption: ${item}`)].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Original request</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(draft.intent || "Unavailable in this preview")}</pre><h3>Constraints</h3><ul>${(plan.constraints || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Risks</h3><ul>${[...(plan.risks || []), ...(plan.planning_limitations || [])].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded — assess before approval</li>"}</ul><h3>Completion checks</h3><ul>${(plan.completion_checks || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul><h3>Acceptance examples</h3><ol>${examples}</ol>${cards}<h3>Reference · implementation steps</h3>${steps}<h3>Verifier commands</h3><pre>${escapeHtml((plan.verifier_commands || []).join("\n"))}</pre><div class="notice"><b>Approval creates the Plan Queue</b><p class="sub">${proposals ? proposals.length : plan.implementation_steps?.length || 0} ordered canonical task(s) are created and queued — nothing executes until you preview the queue and confirm a run.</p></div><div class="field" style="margin-bottom:0"><label class="label" for="reviewKindSelect">Review depth</label><select id="reviewKindSelect" class="input"><option value="atl" ${studioReviewKind === "atl" ? "selected" : ""}>ATL accuracy review · one model call</option><option value="egm" ${studioReviewKind === "egm" ? "selected" : ""}>EGM deep review · multi-reviewer (configured backend)</option></select></div><div class="actionrow">${btn(studioReviewKind === "egm" ? "Run EGM deep review" : "Run accuracy review", `plan-review:${draft.id}`, "primary")}${btn("Publish reviewed tasks", `plan-publish:${draft.id}`, "sm")}${btn("Approve and create Plan Queue", `plan-approve:${draft.id}`, "primary")}${btn("Approve, then open Queues", `plan-queue:${draft.id}`, "primary")}</div></div>`;
+    return `<div class="planout"><div class="bar">${badge(draft.stage)}<span class="pill ${label.mode === "model" ? "violet" : "blue"}">${escapeHtml(label.label)}</span>${label.generated_at ? `<span class="muted tiny">generated ${escapeHtml(new Date(label.generated_at).toLocaleTimeString())}</span>` : ""}<span class="muted tiny">${escapeHtml(draft.id)}</span></div><h2>${escapeHtml(plan.title)}</h2><p>${escapeHtml(plan.objective)}</p>${reviewBlock}<h3>Requirements</h3><ul>${(plan.requirements || []).map((item) => `<li><b>${escapeHtml(item.id || "")}</b> ${escapeHtml(item.text || item)}</li>`).join("") || "<li>Not recorded</li>"}</ul><h3>Open questions</h3><ul>${(plan.open_questions || []).map((item, index) => `<li>${escapeHtml(item.question || item.text || item)} ${item.resolved ? `<span class="pill green">Answered</span><div>${escapeHtml(item.answer || "")}</div>` : btn("Answer", `plan-question:${index}`, "sm")}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Observed evidence and assumptions</h3><ul>${[...(plan.observed_evidence || []).map((item) => `Evidence: ${item.description || item}`), ...(plan.assumptions || []).map((item) => `Assumption: ${item}`)].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Original request</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(draft.intent || "Unavailable in this preview")}</pre><h3>Constraints</h3><ul>${(plan.constraints || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Risks</h3><ul>${[...(plan.risks || []), ...(plan.planning_limitations || [])].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded — assess before approval</li>"}</ul><h3>Completion checks</h3><ul>${(plan.completion_checks || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul><h3>Acceptance examples</h3><ol>${examples}</ol>${cards}<h3>Reference · implementation steps</h3>${steps}<h3>Verifier commands</h3><pre>${escapeHtml((plan.verifier_commands || []).join("\n"))}</pre><div class="notice"><b>Approval creates the Plan Queue</b><p class="sub">${proposals ? proposals.length : plan.implementation_steps?.length || 0} ordered canonical task(s) are created and queued — nothing executes until you preview the queue and confirm a run.</p></div><div class="field" style="margin-bottom:0"><label class="label" for="reviewKindSelect">Review depth</label><select id="reviewKindSelect" class="input"><option value="atl" ${studioReviewKind === "atl" ? "selected" : ""}>ATL accuracy review · one model call</option><option value="egm" ${studioReviewKind === "egm" ? "selected" : ""}>EGM deep review · multi-reviewer (configured backend)</option></select></div><div class="actionrow">${btn(studioReviewKind === "egm" ? "Run EGM deep review" : "Run accuracy review", `plan-review:${draft.id}`, "primary")}${studioEgmStage ? `<button type="button" class="btn" data-action="egm-cancel:${draft.id}" style="margin-left:8px">Cancel deep review — ${escapeHtml(studioEgmStage)}</button>` : ""}${btn("Publish reviewed tasks", `plan-publish:${draft.id}`, "sm")}${btn("Approve and create Plan Queue", `plan-approve:${draft.id}`, "primary")}${btn("Approve, then open Queues", `plan-queue:${draft.id}`, "primary")}</div></div>`;
   }
   function rejectedPlanPreview(response) {
     if (response == null) return "";
@@ -889,6 +890,28 @@ operations: () => {
         + `<section class="panel space"><div class="paneltitle"><h2>Fenced leases &amp; process sessions</h2><span class="muted tiny">${leases.length} historical lease${leases.length === 1 ? "" : "s"} tracked</span></div><div style="overflow-x:auto"><table class="ops-lease-table"><thead><tr><th>Task ID</th><th>Role</th><th>Generation</th><th>Workspace path</th><th>Fencing status</th><th style="text-align:end">Actions</th></tr></thead><tbody>${leaseRows}</tbody></table></div></section>`
         + `<div class="grid two space"><section class="panel"><div class="paneltitle"><h2>Routine history</h2><span class="pill blue">Scheduler: ${escapeHtml(scheduler.status || "stopped")}</span></div><div class="pad">${routineCards}</div></section>`
         + `<section class="panel"><div class="paneltitle"><h2>Backups</h2>${btn("Create backup", "backup-create", "sm primary")}</div><div class="pad">${backupCards}</div></section></div>`;
+    },
+    batches: () => {
+      const batches = snapshot.batches || [];
+      const runningCount = batches.filter((batch) => batch.status === "running").length;
+      const recoveryCount = batches.filter((batch) => batch.recovery_required).length;
+      const cards = batches.map((batch) => {
+        const progress = batch.progress || {};
+        const tone = batch.status === "complete" ? (batch.successful ? "green" : "amber") : batch.status === "recovery_required" ? "red" : batch.status === "running" ? "blue" : "amber";
+        const primary = batch.status === "running" ? btn("Stop", `batch-stop:${batch.id}`, "sm danger")
+          : batch.recovery_required ? btn("Reconcile", `batch-reconcile:${batch.id}`, "sm primary")
+            : batch.complete ? btn("Run again", `batch-run:${batch.id}`, "sm") : btn("Resume", `batch-run:${batch.id}`, "sm primary");
+        const receipts = (batch.receipts || []).length
+          ? `<p class="sub">${batch.receipts.map((receipt) => `${escapeHtml(receipt.task)}: ${escapeHtml(receipt.verdict?.status || "unknown")}`).join(" · ")}</p>` : "";
+        const decision = batch.human_decision ? `<p class="sub">Next decision: ${escapeHtml(batch.human_decision.task)} · ${escapeHtml(batch.human_decision.reason || "")}</p>` : "";
+        return `<div class="event"><div class="row between"><b>${escapeHtml(batch.id)}</b><span class="pill ${tone}">${escapeHtml(batch.status)}${batch.valid === false ? " · invalid" : ""}</span></div>`
+          + `<div class="muted tiny">${progress.succeeded || 0}/${progress.total || 0} succeeded · ${progress.blocked || 0} blocked · ${progress.failed || 0} failed · ${progress.attempts || 0} attempts · ${escapeHtml(String(batch.limits?.max_minutes ?? "?"))} min · ${escapeHtml(String(batch.limits?.max_attempts ?? "?"))} attempts/task · deadline ${escapeHtml(batch.deadline_at || "unknown")}</div>`
+          + `${batch.stop_reason ? `<p class="sub">${escapeHtml(batch.stop_reason)}</p>` : ""}${receipts}${decision}`
+          + `<div class="bar" style="margin-top:8px;flex-wrap:wrap">${primary}${btn("Summary", `batch-summary:${batch.id}`, "sm")}${btn("Details", `batch-view:${batch.id}`, "sm")}${batch.recovery_required ? btn("Stop", `batch-stop:${batch.id}`, "sm danger") : ""}</div></div>`;
+      }).join("");
+      return head("OPERATIONS / BATCHES", "Bounded overnight batches", "A fixed task list runs sequentially with durable time and attempt limits. A restart is reconciled before any uncertain work is repeated.", btn("New batch", "batch-new", "primary") + btn("Refresh", "refresh"))
+        + `<div class="grid three">${stat("Batches", batches.length, "Finite scopes, concurrency 1")}${stat("Running", runningCount, "One item at a time")}${stat("Needs review", recoveryCount, "Reconcile before resuming")}</div>`
+        + `<section class="panel space"><div class="paneltitle"><h2>Batch checkpoints</h2><span class="muted tiny">${batches.length} recorded</span></div><div class="pad">${cards || '<p class="sub">No batches recorded. Start one with an explicit task list and time/attempt limits.</p>'}</div></section>`;
     },
         activity: () => { const { events } = derived(); const filtered = events.filter((event) => !activityFilter || event.join(" ").toLowerCase().includes(activityFilter.toLowerCase())); return head("OPERATIONS / EVIDENCE", "Activity & Logs", "Searchable decisions, feedback, blockers, verification and overnight handoffs.", btn("Refresh", "refresh") + btn("Export", "export")) + `<div class="grid three">${stat("Events", filtered.length, activityFilter ? "Filtered events" : "Authoritative state log")}${stat("Blockers", derived().tasks.filter((task) => task.rawStatus === "blocked").length, "Actions awaiting owner")}${stat("Connection", connected ? "Live" : "Stale", "Runtime-backed feed")}</div><div class="panel pad"><label class="label" for="activitySearch">Filter audit events</label><input id="activitySearch" class="input" value="${escapeHtml(activityFilter)}" placeholder="actor, task, event, or text"></div><div class="grid twocol space">${card("Timeline", `<div class="pad">${filtered.map(eventRow).join("") || '<span class="muted">No matching events.</span>'}</div>`)}${card("Runtime handoff", `<div class="pad"><div class="row between"><strong>ATL state</strong>${badge(connected ? "Live" : "Unknown")}</div><p class="sub">The browser reads authoritative state through the local bridge and marks it stale when refreshes fail.</p><div class="lined row between"><span>Captured</span><b>${escapeHtml(snapshot.captured_at ? new Date(snapshot.captured_at).toLocaleTimeString() : "unknown")}</b></div></div>`)}</div>`; },
     usage: () => { const provider = snapshot.usage?.default_provider || "codex"; const rows = (snapshot.usage?.snapshots || []).filter((item) => item.provider === provider); const latest = rows.at(-1); const remote = rows.filter((item) => item.source === "provider-adapter").at(-1); const localSessions = rows.filter((item) => item.source === "atl-session").reduce((total, item) => total + Number(item.used?.sessions || 0), 0); const captured = latest?.captured_at ? new Date(latest.captured_at).toLocaleString() : "Never"; const verified = remote?.confidence === "verified"; const noticeTone = verified ? "green" : "amber"; const reset = remote?.reset_at ? new Date(remote.reset_at).toLocaleString() : "Not reported"; const provenance = Array.isArray(remote?.provenance) && remote.provenance.length ? `<div class="muted tiny" style="margin-top:12px;letter-spacing:1px">PROVENANCE BADGES</div><div class="bar" style="margin-top:6px">${remote.provenance.map((badgeId) => `<span class="pill green">${escapeHtml(String(badgeId))}</span>`).join("")}</div>` : ""; return head("OPERATIONS / RESOURCE MONITOR", "Usage & Limits", "Provider evidence, local run observations, and dispatch safeguards.", btn("Refresh providers", "usage-refresh", "primary") + btn("Refresh snapshot", "refresh")) + `<div class="usage-banner ${verified ? "is-verified" : "is-standby"}" role="status"><b>${verified ? "✦" : "◈"} <span class="${noticeTone}">${verified ? "Provider telemetry verified" : "Provider telemetry unavailable"}</span></b><span class="pill ${noticeTone}">${verified ? "Verified" : "Local observations"}</span></div><p class="sub" style="margin:10px 0 0">${escapeHtml(remote?.detail || `No verified quota data for ${provider}. Local session observations are shown separately.`)}</p><div class="grid three space">${stat("Default provider", provider, latest?.model || "No usage sample for this provider")}${stat("Quota remaining", remote?.remaining == null ? "Unknown" : Number(remote.remaining).toLocaleString(), remote?.remaining != null ? "tokens" : remote?.reset_at ? `Resets · ${reset}` : "No verified provider quota")}${stat("Local sessions", localSessions, `${rows.length} recorded observations · latest ${captured}`)}</div><div class="grid two space">${card("Telemetry evidence & provenance", `<div class="pad"><div class="event between" style="justify-content:space-between"><span>Provider probe</span>${badge(verified ? "Verified" : "Unknown")}</div><div class="event between" style="justify-content:space-between"><span>Source</span><b class="muted">${escapeHtml(remote?.source || "No provider sample")}</b></div><div class="event between" style="justify-content:space-between"><span>Last capture</span><b class="muted">${escapeHtml(remote?.captured_at ? new Date(remote.captured_at).toLocaleString() : "Never")}</b></div><div class="event between" style="justify-content:space-between"><span>Recorded local runs</span><b>${localSessions}</b></div><p class="muted tiny" style="margin:13px 0 0">Provider quota is displayed only after a provider-specific authenticated response. Local sessions are separate evidence, not a quota estimate.</p></div>`)}${card("Preflight dispatch safeguards", '<div class="pad"><div class="row between"><span>Provider limit</span>' + (remote?.remaining != null ? '<span class="pill green">Enabled ✓</span>' : badge("Unknown")) + '</div><div class="lined row between"><span>Dispatch policy</span><span class="pill amber">Confirm risks ⚠</span></div><div class="lined row between"><span>Stop on rate-limit</span><span class="green">Required</span></div><div class="lined row between"><span>Quota provenance</span><span class="muted">Provider adapter only</span></div>' + provenance + "</div>")}</div>`; },
@@ -1553,6 +1576,57 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       window.location.reload();
       return;
     }
+    const batchRequest = async (body) => {
+      const response = await fetch("/api/batch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "batch action failed");
+      return result;
+    };
+    if (value === "batch-new") {
+      const suggested = (snapshot.queues?.items || []).slice(0, 5).map((item) => item.id).filter(Boolean).join(",");
+      popup("Start a bounded batch", `<p class="sub">One fixed task list, concurrency 1, explicit wall-time and attempt limits. Nothing starts until you confirm.</p><label class="label">Batch id<input id="batchId" class="input" value="overnight-${new Date().toISOString().slice(0, 10)}"></label><label class="label">Task IDs (comma separated)<input id="batchTasks" class="input" value="${escapeHtml(suggested)}"></label><div class="grid three"><label class="label">Minutes<input id="batchMinutes" class="input" type="number" min="1" max="1440" value="240"></label><label class="label">Attempts per task<input id="batchAttempts" class="input" type="number" min="0" max="3" value="2"></label><label class="label">Session cap (blank = host)<input id="batchSessions" class="input" type="number" min="0"></label></div><div id="batchError" class="muted tiny"></div>`, btn("Cancel", "close") + btn("Start batch", "batch-start-save", "primary"));
+      return;
+    }
+    if (value === "batch-start-save") {
+      try {
+        await batchRequest({ action: "start", id: $("#batchId")?.value.trim(), tasks: ($("#batchTasks")?.value || "").split(",").map((entry) => entry.trim()).filter(Boolean), max_minutes: Number($("#batchMinutes")?.value || 240), max_attempts: Number($("#batchAttempts")?.value || 2), max_sessions: $("#batchSessions")?.value === "" ? null : Number($("#batchSessions")?.value) });
+        close(); await refresh(); page = "batches"; render();
+      } catch (error) { const node = $("#batchError"); if (node) node.textContent = error.message; else popup("Batch was not created", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value.startsWith("batch-run:")) {
+      const id = value.slice(10);
+      try { await batchRequest({ action: "run", id, confirm: true }); await refresh(); page = "batches"; render(); }
+      catch (error) { popup("Batch did not start", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value.startsWith("batch-stop:")) {
+      try { await batchRequest({ action: "stop", id: value.slice(11), reason: "stopped from Control Plane" }); await refresh(); render(); }
+      catch (error) { popup("Batch did not stop", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value.startsWith("batch-reconcile:")) {
+      try { await batchRequest({ action: "reconcile", id: value.slice(16) }); await refresh(); render(); }
+      catch (error) { popup("Reconciliation failed", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value.startsWith("batch-summary:")) {
+      try {
+        const result = await batchRequest({ action: "summary", id: value.slice(14) });
+        popup("Morning summary", `<pre class="review-record" dir="ltr" data-no-translate>${escapeHtml(result.markdown || "")}</pre>`, btn("Close", "close"));
+      } catch (error) { popup("Summary unavailable", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value.startsWith("batch-view:")) {
+      try {
+        const id = value.slice(11);
+        const result = await fetch(`/api/batch?id=${encodeURIComponent(id)}`).then((response) => response.json());
+        if (result.error) throw new Error(result.error);
+        const rows = (result.summary?.items || []).map((item) => `<tr><td>${escapeHtml(item.task)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(String(item.attempts))}</td><td>${escapeHtml(item.reason || "")}</td><td>${escapeHtml(item.receipt?.verdict?.status || "none")}</td></tr>`).join("");
+        popup(`Batch ${id}`, `<p class="sub">${escapeHtml(result.summary?.stop_reason || "No stop reason recorded.")}</p><div class="review-table-wrap"><table class="review-table"><thead><tr><th>Task</th><th>Status</th><th>Attempts</th><th>Reason</th><th>Receipt</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">No items.</td></tr>'}</tbody></table></div>`, btn("Close", "close"));
+      } catch (error) { popup("Batch unavailable", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
     const brainMutation = async (body) => {
       const response = await fetch("/api/brain", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
@@ -2122,9 +2196,16 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const provider = studioProvider || currentDraft?.provider;
       if (!provider) { studioNotice = "Select a configured provider for the review."; render(); return; }
       studioBusy = true; render();
+      let progressTimer = null;
+      if (egm) progressTimer = setInterval(async () => { try { const p = await planApi("/api/plan/review-progress", { draftId: id }); const entries = (p.progress && p.progress.entries) || []; const last = entries.at(-1); if (last) { studioEgmStage = `stage ${last.index}/${last.total} — ${String(last.stage || "").replace(".md", "")}`; render(); } } catch { /* progress is best-effort */ } }, 3000);
       try { const result = await planApi("/api/plan/review", egm ? { draftId: id, reviewType: "egm", provider, model: studioModel || null } : { draftId: id, provider, model: studioModel || null }); currentDraft = result.draft; studioNotice = egm ? `EGM deep review ${result.review.verdict} (${result.review.egm?.backend || "codex"} · ${(result.review.egm?.version_sha || "egm").slice(0, 12)}). Findings are shown with the plan.` : `Accuracy review ${result.review.verdict}. Review findings are shown with the plan.`; }
       catch (error) { studioNotice = `${egm ? "EGM deep review" : "Accuracy review"} failed: ${error.message}${error.workdir ? ` (raw run preserved at ${error.workdir})` : ""}. The draft remains saved and approval stays blocked.`; }
-      finally { studioBusy = false; render(); }
+      finally { if (progressTimer) clearInterval(progressTimer); studioEgmStage = ""; studioBusy = false; render(); }
+      return;
+    }
+    if (value.startsWith("egm-cancel:")) {
+      try { await planApi("/api/plan/review-cancel", { draftId: value.slice("egm-cancel:".length) }); } catch { /* already finished */ }
+      studioEgmStage = "cancelling…"; render();
       return;
     }
     if (value.startsWith("plan-question:")) {

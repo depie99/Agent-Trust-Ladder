@@ -21,7 +21,7 @@ import { createBackup, listBackups, previewRestore, restoreBackup } from "./back
 import { listRoutineRuns, recoverScheduler, runRoutine, schedulerStatus, schedulerTick } from "./routines.mjs";
 import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
-import { batchMorningSummary, batchSummary, listBatches, readBatch, reconcileBatch, resumeStoppedBatch, runBatch, startBatch, stopBatchRun } from "./batch-runner.mjs";
+import { batchMorningSummary, batchSummary, listBatches, readBatch, reconcileBatch, resumeStoppedBatch, runBatch, startBatch, stopBatchRun, validateBatch } from "./batch-runner.mjs";
 import { ensureOwnerSession, ownerSessionCookie, validateOwnerSession } from "./session-auth.mjs";
 import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDeliveryReceiptFromRecord } from "./delivery.mjs";
 import { inspectHandoffChain } from "./handoffs.mjs";
@@ -527,6 +527,30 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       return json(res, 400, { ok: false, error: error.message, providerResponse: error.providerResponse || null, providerLogLines: providerLogTail(error) });
     }
   }
+  if (pathname === "/api/plan/review-progress") {
+    try {
+      const loaded = loadPlanDraft(root, String(payload.draftId || ""));
+      const egmRoot = path.join(loaded.dir, "egm");
+      let latest = null;
+      if (fs.existsSync(egmRoot)) for (const run of fs.readdirSync(egmRoot).sort()) {
+        const progressFile = path.join(egmRoot, run, "progress.json");
+        if (fs.existsSync(progressFile)) latest = { run, entries: JSON.parse(fs.readFileSync(progressFile, "utf8")), cancelled: fs.existsSync(path.join(egmRoot, run, "cancel.flag")) };
+      }
+      return json(res, 200, { ok: true, progress: latest });
+    } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message }); }
+  }
+  if (pathname === "/api/plan/review-cancel") {
+    try {
+      const loaded = loadPlanDraft(root, String(payload.draftId || ""));
+      const egmRoot = path.join(loaded.dir, "egm");
+      let flagged = false;
+      if (fs.existsSync(egmRoot)) for (const run of fs.readdirSync(egmRoot).sort()) {
+        const dir = path.join(egmRoot, run);
+        if (fs.existsSync(path.join(dir, "progress.json")) && !fs.existsSync(path.join(dir, "cancel.flag"))) { fs.writeFileSync(path.join(dir, "cancel.flag"), new Date().toISOString()); flagged = true; }
+      }
+      return json(res, flagged ? 202 : 409, { ok: flagged, error: flagged ? null : "no cancellable deep review is in flight for this draft" });
+    } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message }); }
+  }
   if (pathname === "/api/plan/review") {
     const draftId = String(payload.draftId || "");
     if (String(payload.reviewType || "") === "egm") {
@@ -890,6 +914,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             if (runningBatches.has(id)) { json(res, 409, { ok: false, error: `batch ${id} is already running in this process` }); return; }
             const batch = readBatch(root, id);
             if (!batch) { json(res, 404, { ok: false, error: `unknown batch ${id}` }); return; }
+            const check = validateBatch(batch);
+            if (!check.ok) { json(res, 409, { ok: false, error: `batch checkpoint is invalid: ${check.reason}` }); return; }
+            if (batch.status === "recovery_required") { json(res, 409, { ok: false, error: "batch needs reconciliation before it can run" }); return; }
+            if (batch.status !== "running") { json(res, 409, { ok: false, error: `batch is ${batch.status}` }); return; }
             runningBatches.add(id);
             runBatch(root, id, { onProgress: () => {} }).catch(() => {}).finally(() => runningBatches.delete(id));
             json(res, 202, { ok: true, status: "running" }); return;
