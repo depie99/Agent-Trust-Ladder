@@ -20,10 +20,13 @@ import { pathToFileURL } from "node:url";
 const [runtimeDir, root, home, draftId] = process.argv.slice(2);
 process.env.USERPROFILE = home;
 process.env.HOME = home;
+console.log("CHILD-BOOT");
 const { startControlPlaneServer } = await import(pathToFileURL(path.join(runtimeDir, "control-plane-server.mjs")).href);
+console.log("CHILD-IMPORTED");
 const pending = [];
 const planningInvoke = ({ request }) => new Promise((resolve) => pending.push({ request, resolve }));
 const server = await startControlPlaneServer(root, { planningInvoke });
+console.log("CHILD-LISTENING " + server.url);
 const origin = server.url.endsWith("/") ? server.url.slice(0, -1) : server.url;
 // The HTTP response only resolves when the provider answers, so the review
 // request is fired without awaiting it; the barrier is the provider call
