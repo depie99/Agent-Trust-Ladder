@@ -352,7 +352,6 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-diagrams/references/format-selection.md](../skills/atl-diagrams/references/format-selection.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/references/model-registry.md](../skills/atl-diagrams/references/model-registry.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/references/quality-checklist.md](../skills/atl-diagrams/references/quality-checklist.md) | Supporting reference for its parent skill; read when that contract requires it. |
-| [skills/atl-diagrams/references/statecharts.md](../skills/atl-diagrams/references/statecharts.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/SKILL.md](../skills/atl-diagrams/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-formal-verification/agents/openai.yaml](../skills/atl-formal-verification/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl-formal-verification/SKILL.md](../skills/atl-formal-verification/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
@@ -421,20 +420,14 @@ Behavior checks, formal models, and synthetic fixtures.
 
 | File | Purpose |
 |---|---|
-| [verification/_child_manual.mjs](../verification/_child_manual.mjs) | The HTTP response only resolves when the provider answers, so the review |
-| [verification/_probe_variants.mjs](../verification/_probe_variants.mjs) |  probe variants: source/configuration for its containing feature. |
-| [verification/_repro2.mjs](../verification/_repro2.mjs) | Parent imports the server module like the real test does. |
 | [verification/approval_test.mjs](../verification/approval_test.mjs) | Executable regression check for approval. |
 | [verification/atl_lifecycle_model.py](../verification/atl_lifecycle_model.py) | atl lifecycle model: source/configuration for its containing feature. |
 | [verification/atl_manager_lifecycle_model.py](../verification/atl_manager_lifecycle_model.py) | atl manager lifecycle model: source/configuration for its containing feature. |
-| [verification/atl_poc_grader_test.mjs](../verification/atl_poc_grader_test.mjs) | Executable regression check for atl poc grader. |
-| [verification/atl_skill_eval_test.mjs](../verification/atl_skill_eval_test.mjs) | Executable regression check for atl skill eval. |
 | [verification/azure_issue_journey_test.mjs](../verification/azure_issue_journey_test.mjs) | Executable regression check for azure issue journey. |
 | [verification/backup_test.mjs](../verification/backup_test.mjs) | Executable regression check for backup. |
 | [verification/brain_recovery_test.mjs](../verification/brain_recovery_test.mjs) | Executable regression check for brain recovery. |
 | [verification/brain_test.mjs](../verification/brain_test.mjs) | Executable regression check for brain. |
 | [verification/browser_access_test.mjs](../verification/browser_access_test.mjs) | Executable regression check for browser access. |
-| [verification/build_mode_skills_test.py](../verification/build_mode_skills_test.py) | build mode skills test: source/configuration for its containing feature. |
 | [verification/builtin_provider_status_test.mjs](../verification/builtin_provider_status_test.mjs) | Executable regression check for builtin provider status. |
 | [verification/change_review_store_test.mjs](../verification/change_review_store_test.mjs) | Executable regression check for change review store. |
 | [verification/codex_bridge_test.mjs](../verification/codex_bridge_test.mjs) | Executable regression check for codex bridge. |
@@ -568,9 +561,6 @@ Reviewed improvement proposals, source material, and catalog.
 | File | Purpose |
 |---|---|
 | [research/backlog.md](../research/backlog.md) | ATL Improvement Backlog — research-backed tickets. |
-| [research/briefs/2026-11-04-atl-developer-overnight-roadmap.md](../research/briefs/2026-11-04-atl-developer-overnight-roadmap.md) | ATL Developer Roadmap: Azure Boards to Verified Overnight Delivery. |
-| [research/briefs/2026-11-04-atl-enhancement-review-batch-2.md](../research/briefs/2026-11-04-atl-enhancement-review-batch-2.md) | بررسی عمیق هفت منبع جدید برای ATL. |
-| [research/briefs/2026-11-04-atl-enhancement-review.md](../research/briefs/2026-11-04-atl-enhancement-review.md) | ATL Enhancement Review. |
 | [research/index.json](../research/index.json) | index: source/configuration for its containing feature. |
 | [research/README.md](../research/README.md) | ATL Research — the engineering-intelligence store. |
 | [research/records/R-0001.md](../research/records/R-0001.md) | Dated research decision; preserve its provenance and status. |
@@ -608,7 +598,6 @@ Continuous verification, Pages deployment, and package publishing.
 | [.github/workflows/docs-verify.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/docs-verify.yml) | docs verify: source/configuration for its containing feature. |
 | [.github/workflows/publish-package.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/publish-package.yml) | publish package: source/configuration for its containing feature. |
 | [.github/workflows/runtime-verify.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/runtime-verify.yml) | runtime verify: source/configuration for its containing feature. |
-| [.github/workflows/skills-eval.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/skills-eval.yml) | skills eval: source/configuration for its containing feature. |
 
 ## .codex-plugin
 
