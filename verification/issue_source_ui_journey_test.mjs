@@ -30,8 +30,11 @@ try{
  await page.locator('#sourceAzureUrl').fill('https://devops.example.invalid:32678/example-org');
  await page.locator('#sourceAzureProject').fill('example-project');
  await page.locator('#sourceAzureIteration').fill('example-project\\Sprint 74');
+ // Register the waiter before blurring: a slow machine can deliver the
+ // refresh response before waitForResponse starts listening.
+ const refreshed = page.waitForResponse(response=>response.url().endsWith('/api/snapshot'));
  await page.locator('#sourceAzureIteration').evaluate(input=>input.blur());
- await page.waitForResponse(response=>response.url().endsWith('/api/snapshot'));
+ await refreshed;
  assert.equal(await page.locator('#sourceAzureUrl').inputValue(),'https://devops.example.invalid:32678/example-org','live refresh preserves unsaved source settings after blur');
  assert.equal(await page.locator('#sourceAzureIteration').inputValue(),'example-project\\Sprint 74');
  await page.locator('#sourceAzureEnabled').check();
