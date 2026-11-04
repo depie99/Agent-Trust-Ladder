@@ -20,7 +20,7 @@ import { pathToFileURL } from "node:url";
 const [runtimeDir, root, home, draftId] = process.argv.slice(2);
 process.env.USERPROFILE = home;
 process.env.HOME = home;
-const childLog = (marker) => { try { fs.appendFileSync(root + "/child.log", marker + "\n"); } catch { /* diagnostics only */ } };
+const childLog = (marker) => { try { fs.appendFileSync(root + "/child.log", marker + "\\n"); } catch { /* diagnostics only */ } };
 childLog("CHILD-BOOT");
 const { startControlPlaneServer } = await import(pathToFileURL(path.join(runtimeDir, "control-plane-server.mjs")).href);
 childLog("CHILD-IMPORTED");
