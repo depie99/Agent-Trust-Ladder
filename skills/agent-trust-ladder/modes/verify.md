@@ -57,4 +57,6 @@ For developer delivery, read `../references/developer-delivery.md` and evaluate 
 
 A resolved finding without a passing recheck on the current content revision stays blocking, and a risk-accepted finding needs an authorized decision with a reason. Confirm the JSON receipt and its Markdown rendering reach the same verdict and list the same unresolved decisions.
 
+For a batch, also validate `../references/overnight-batch.md` with `../scripts/batch-runner.mjs summary <checkpoint>`: every item needs a terminal or explicitly interrupted status, attempt counts must survive the checkpoint, a forged checkpoint must not report completion, and any `needs_reconciliation` item is an owner decision rather than a pass.
+
 Run the project's declared verifier from `../references/project-verifier.md` with `../scripts/project-verifier.mjs`. A check is evidence only when its command, tested content, result readback and artifact state are current. Baseline failure, missing authorization, missing lockfile and unavailable tools are separate stop reasons.

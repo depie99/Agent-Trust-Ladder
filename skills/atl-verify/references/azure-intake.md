@@ -39,6 +39,17 @@ node scripts/azure-intake.mjs from-export work-items.json \
 
 An export is a frozen snapshot. Its `source.frozen` flag and redacted output must remain visible; do not describe it as current live sync.
 
+## One live read through both entry points
+
+`scripts/atl-azure-live-check.mjs` runs the same self-hosted Azure Boards read through the Control Plane adapter and through this portable helper, then writes one redacted record:
+
+```sh
+$env:AZDO_PAT="<token>"   # Work Items: Read
+node scripts/atl-azure-live-check.mjs --item 741
+```
+
+It performs only the read-only WIQL query and work-items batch, records the collection, project, iteration, credential source and item ID/revision, and replaces the item title with a digest. Missing credentials exit with code 3 and the exact setup steps; they never produce a passing record. A revision difference between the two entry points fails the check instead of reporting false parity.
+
 ## Reconciliation
 
 Use `source.url` and `remote_id` to match work items. An unchanged remote revision does not create a duplicate task. A changed revision is reconciled only when it is safe; an in-progress, in-review or verifying task is preserved for owner review rather than overwritten.
