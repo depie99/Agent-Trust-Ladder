@@ -46,6 +46,17 @@ jobs:
       - run: node verification/dispatcher_test.mjs
       - run: node verification/governance_test.mjs
       - run: node verification/worker_test.mjs
+      - run: node verification/plan_contract_test.mjs
+      - run: node verification/plan_studio_test.mjs
+      - run: node verification/plan_studio_api_test.mjs
+      - run: node verification/plan_studio_cards_test.mjs
+      - run: node verification/plan_studio_journey_test.mjs
+      - run: node verification/plan_publish_test.mjs
+      - run: node verification/plan_review_concurrency_test.mjs
+      - run: node verification/plan_review_process_test.mjs
+      - run: node verification/plan_egm_review_test.mjs
+      - run: node verification/plan_egm_parser_real_test.mjs
+      - run: node verification/plan_egm_glm_review_test.mjs
       - run: node verification/worker_channel_test.mjs
       - run: node verification/worker_channel_launch_test.mjs
       - run: node verification/ui_refresh_runtime_test.mjs
