@@ -34,6 +34,7 @@ const groups={
  'skills':'Agent instruction contracts, references, assets, and executable helpers.',
  'verification':'Behavior checks, formal models, and synthetic fixtures.',
  'research':'Reviewed improvement proposals, source material, and catalog.',
+ 'evaluations':'Agent evaluation cases, recorded runs, and their published summaries.',
  'problems':'Problem records and enhancement evidence.',
  '.github':'Continuous verification, Pages deployment, and package publishing.',
  '.codex-plugin':'Plugin discovery metadata for compatible agent hosts.',

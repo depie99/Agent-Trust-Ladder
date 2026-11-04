@@ -1,7 +1,11 @@
-"""Build standalone, discoverable Trust Ladder mode skills from canonical sources."""
+"""Build standalone, discoverable Trust Ladder mode skills from canonical sources.
+
+`build()` writes the generated skills. `build(check=True)` only reports drift,
+so `--check` can run in review without touching the tree.
+"""
 
 from pathlib import Path
-import shutil
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,43 +41,80 @@ This is the independently invocable `{mode}` workflow from Agent Trust Ladder. R
 
 """
 
+# Modes live one directory below the skill root, so their relative links carry
+# a `../` that is wrong once the text is copied into skills/atl-<mode>/SKILL.md.
+BUNDLED_PREFIXES = ("../references/", "../scripts/")
+
 
 def title(mode: str) -> str:
     return mode.replace("-", " ").title()
 
 
-def build() -> None:
+def mode_body(mode: str) -> str:
+    body = (SOURCE / "modes" / f"{mode}.md").read_text(encoding="utf-8")
+    for prefix in BUNDLED_PREFIXES:
+        body = body.replace(prefix, prefix[3:])
+    if any(prefix in body for prefix in BUNDLED_PREFIXES):
+        raise SystemExit(f"mode {mode} still contains a skill-root-relative path")
+    return body
+
+
+def render() -> dict[str, bytes]:
+    """Return every generated file, relative to the skills directory."""
+    files: dict[str, bytes] = {}
+    references = sorted((SOURCE / "references").glob("*.md"))
     for mode, description in MODES.items():
-        target = SKILLS / f"atl-{mode}"
-        target.mkdir(parents=True, exist_ok=True)
-        body = (SOURCE / "modes" / f"{mode}.md").read_text(encoding="utf-8")
-        body = body.replace("../references/", "references/")
         content = (
             "---\n"
             f"name: atl-{mode}\n"
             f"description: {description}\n"
             "---\n\n"
             + SHARED.format(title=title(mode), mode=mode)
-            + body
+            + mode_body(mode)
         )
-        (target / "SKILL.md").write_text(content, encoding="utf-8", newline="\n")
-
-        references = target / "references"
-        references.mkdir(exist_ok=True)
-        for source in (SOURCE / "references").glob("*.md"):
-            shutil.copyfile(source, references / source.name)
-
-        agents = target / "agents"
-        agents.mkdir(exist_ok=True)
-        (agents / "openai.yaml").write_text(
+        files[f"atl-{mode}/SKILL.md"] = content.encode("utf-8")
+        for source in references:
+            files[f"atl-{mode}/references/{source.name}"] = source.read_bytes()
+        files[f"atl-{mode}/agents/openai.yaml"] = (
             "interface:\n"
             f"  display_name: \"ATL {title(mode)}\"\n"
             f"  short_description: \"{description[:100]}\"\n"
-            f"  default_prompt: \"Use $atl-{mode} for this request.\"\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+            f"  default_prompt: \"Use $atl-{mode} for this request.\"\n"
+        ).encode("utf-8")
+    return files
+
+
+def build(check: bool = False) -> list[str]:
+    """Write the generated skills, or return drifted paths when checking."""
+    files = render()
+    drift = []
+    for name, data in files.items():
+        target = SKILLS / name
+        if not target.is_file() or target.read_bytes() != data:
+            drift.append((SKILLS / name).relative_to(ROOT).as_posix())
+    if check:
+        return sorted(drift)
+    for name, data in files.items():
+        target = SKILLS / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    return []
+
+
+def main(argv: list[str]) -> int:
+    if "--check" in argv:
+        drift = build(check=True)
+        for name in drift:
+            print(f"Stale generated skill: {name}")
+        if drift:
+            print(f"{len(drift)} generated skill file(s) need a rebuild")
+            return 1
+        print("Mode skills match their canonical sources.")
+        return 0
+    build()
+    print("Mode skills rebuilt from their canonical sources.")
+    return 0
 
 
 if __name__ == "__main__":
-    build()
+    raise SystemExit(main(sys.argv[1:]))
