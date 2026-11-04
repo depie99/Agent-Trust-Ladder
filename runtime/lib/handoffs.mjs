@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { deliveryContentRevision } from "../../skills/atl/scripts/developer-delivery.mjs";
 
 const hash = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const store = (root) => path.join(root, ".trust", "manager", "handoffs");
@@ -57,7 +58,7 @@ export function snapshot(root, workspace) {
     files[name] = digest;
     modes[name] = process.platform === "win32" ? trackedModes[name] || "100644" : fs.statSync(file).mode & 0o111 ? "100755" : "100644";
   }
-  return { revision: hash(JSON.stringify({ files, modes })), files, modes };
+  return { revision: deliveryContentRevision(files, modes), files, modes };
 }
 export function startBaseline(root, task) {
   if (!task.handoff_baseline) task.handoff_baseline = snapshot(root, task.workspace);

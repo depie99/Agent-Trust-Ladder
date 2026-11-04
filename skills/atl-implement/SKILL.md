@@ -40,13 +40,6 @@ A plan exists (or the user asked for a bounded fix within the stated dose). If t
 - Major repair cycles: max **4** per task list.
 - A retry without new evidence, new instrumentation, or a materially different approach is not progress.
 
-### Verification economy
-
-- Run the narrowest existing verifier for the slice **once**; rerun only after a repair. Do not create throwaway probe scripts when an existing suite or a direct import already covers the seam.
-- A failure outside this task's seam costs one sentence in the final report ("pre-existing, untouched"), never a diagnosis loop.
-- Recognized toolchain quirks (e.g., `node --test <dir>` MODULE_NOT_FOUND on Windows) use their known equivalent invocation and are noted in one clause.
-- Report in the six-question verdict shape, one short line per question. No per-step narration unless a gate decision changed.
-
 ### Hard lines
 
 - Never weaken, delete, or skip a meaningful test or assertion to get green. If a check is genuinely wrong, say why and get agreement (Critical dose: always).
@@ -59,6 +52,14 @@ A plan exists (or the user asked for a bounded fix within the stated dose). If t
 Stop instead of improvising when: intent is ambiguous or conflicting; authority is missing (credentials, production, spend, publication, irreversible deletion); a required verifier is missing or unreliable; budgets are exhausted; protected work is at risk. Report: facts, evidence so far, the exact decision needed, a recommended safe default, and what can still proceed safely.
 
 End with: per-task states, evidence collected so far, suggested next mode (`verify`).
+
+## Delivery receipt
+
+When implementation reaches a reviewable local result, read `references/developer-delivery.md` and use the bundled `scripts/developer-delivery.mjs` helper. Bind required checks and separate review to the exact final content manifest, including relevant dirty and untracked files. A successful worker exit or an imported receipt is not delivery evidence.
+
+Record each finding with a stable ID, severity, affected requirement/path and disposition. Only a passing recheck on the current content revision resolves one; risk acceptance needs an authorized decision with a reason. Write both the JSON receipt and its Markdown rendering (`render <receipt> --output <file>`) into project-local evidence with relative artifact links.
+
+Read `references/project-verifier.md` when the project has an acceptance behavior to reproduce. Use the existing verifier or the bundled `scripts/project-verifier.mjs`; first observe the genuine failure, then repair the product and rerun the same check plus any independent readback.
 
 ## UI implementation gate
 

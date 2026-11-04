@@ -21,6 +21,7 @@ import { createBackup, listBackups, previewRestore, restoreBackup } from "./back
 import { listRoutineRuns, recoverScheduler, runRoutine, schedulerStatus, schedulerTick } from "./routines.mjs";
 import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
+import { batchMorningSummary, batchSummary, listBatches, readBatch, reconcileBatch, resumeStoppedBatch, runBatch, startBatch, stopBatchRun } from "./batch-runner.mjs";
 import { ensureOwnerSession, ownerSessionCookie, validateOwnerSession } from "./session-auth.mjs";
 import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDeliveryReceiptFromRecord } from "./delivery.mjs";
 import { inspectHandoffChain } from "./handoffs.mjs";
@@ -44,6 +45,9 @@ import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_PLANE_FILE = path.join(RUNTIME_DIR, "..", "control-plane.html");
 const builtinOperations = new Map();
+// Batch ids with a runner active in this process. The checkpoint lease remains
+// the durable authority across processes.
+const runningBatches = new Set();
 
 function startBuiltinOperation(id, action, config) {
   if (!["codex", "claude", "gapgpt"].includes(id)) throw new Error("Unknown built-in provider");
@@ -857,6 +861,49 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         json(res, 202, { ok: true, status: "running", cap: supervisor.defaults.maxConcurrent }); return;
       }
       if (req.method === "POST" && url.pathname === "/api/supervisor/stop") { requestSupervisorStop(); json(res, 202, { ok: true, status: "stopping" }); return; }
+      if (url.pathname === "/api/batch") {
+        if (req.method === "GET") {
+          const id = url.searchParams.get("id");
+          if (!id) { json(res, 200, { ok: true, batches: listBatches(root), running: [...runningBatches] }); return; }
+          const batch = readBatch(root, id);
+          if (!batch) { json(res, 404, { ok: false, error: `unknown batch ${id}` }); return; }
+          const summary = batchSummary(batch);
+          let morning = null;
+          try { morning = JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "batches", `${id}-summary.json`), "utf8")); } catch { morning = null; }
+          json(res, 200, { ok: true, summary, morning, running: runningBatches.has(id) }); return;
+        }
+        if (req.method !== "POST") { json(res, 405, { ok: false, error: "Method not allowed" }); return; }
+        const payload = JSON.parse(await readBody(req) || "{}");
+        const id = String(payload.id || payload.batch_id || "");
+        try {
+          if (payload.action === "start") {
+            const batch = startBatch(root, {
+              id,
+              tasks: Array.isArray(payload.tasks) ? payload.tasks : String(payload.task_ids || "").split(",").map((value) => value.trim()).filter(Boolean),
+              limits: { max_minutes: payload.max_minutes ?? 240, max_attempts: payload.max_attempts ?? 2, max_sessions: payload.max_sessions ?? null },
+              project: payload.project || null,
+            });
+            json(res, 200, { ok: true, summary: batchSummary(batch) }); return;
+          }
+          if (payload.action === "run") {
+            if (payload.confirm !== true) { json(res, 400, { ok: false, error: "batch execution requires explicit confirmation" }); return; }
+            if (runningBatches.has(id)) { json(res, 409, { ok: false, error: `batch ${id} is already running in this process` }); return; }
+            const batch = readBatch(root, id);
+            if (!batch) { json(res, 404, { ok: false, error: `unknown batch ${id}` }); return; }
+            runningBatches.add(id);
+            runBatch(root, id, { onProgress: () => {} }).catch(() => {}).finally(() => runningBatches.delete(id));
+            json(res, 202, { ok: true, status: "running" }); return;
+          }
+          if (payload.action === "stop") { json(res, 200, { ok: true, summary: batchSummary(stopBatchRun(root, id, { reason: String(payload.reason || "stopped by owner") })) }); return; }
+          if (payload.action === "reconcile") { json(res, 200, { ok: true, summary: batchSummary(reconcileBatch(root, id)) }); return; }
+          if (payload.action === "resume") { json(res, 200, { ok: true, summary: batchSummary(resumeStoppedBatch(root, id)) }); return; }
+          if (payload.action === "summary") { const morning = batchMorningSummary(root, id); json(res, 200, { ok: true, summary: morning.summary, markdown: morning.markdown, files: { json: path.relative(root, morning.files.json), markdown: path.relative(root, morning.files.markdown) } }); return; }
+          json(res, 400, { ok: false, error: "unknown batch action" }); return;
+        } catch (error) {
+          json(res, 409, { ok: false, error: error.message });
+          return;
+        }
+      }
       if (req.method === "POST" && url.pathname === "/api/usage/refresh") {
         const registry = loadUserProviders();
         const entries = Object.values(registry.providers || {}).filter((entry) => entry?.api_key && entry?.base_url);

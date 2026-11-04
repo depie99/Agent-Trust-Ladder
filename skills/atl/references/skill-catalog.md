@@ -25,6 +25,7 @@ This catalog describes optional routing. Availability must be confirmed from cur
 | Technical documentation lifecycle | `atl-tech-docs` | create/update docs from audience and source-of-truth contracts; verify examples, links, style, and freshness |
 | Website content and SEO quality | `atl-content-quality` | audit search/content signals or write bounded factual site copy with evidence, priorities, and explicit unknowns |
 | Architecture, flow, lifecycle, ownership, or impact visual | `atl-diagrams` | model relationships, create an accessible SVG/HTML/Excalidraw artifact, and separate visual communication from behavioral proof |
+| Statechart or model-check counterexample | `atl-diagrams` statechart mode plus `atl-formal-verification` for executable properties | native contract diagram or projection of actual checker output; installed PStack `statechart` and Pele are optional backends, never assumed available |
 | Implemented UI quality and repair | `atl-ui-review` | inspect the real rendered surface; separate visual, interaction, responsive, accessibility, and runtime evidence |
 
 ## Implementation and diagnosis
@@ -44,7 +45,7 @@ This catalog describes optional routing. Availability must be confirmed from cur
 | Need | Preferred specialist | Native fallback |
 |---|---|---|
 | Evidence packet and objective verdict | `atl-verify` | run smallest credible checks and report gaps separately |
-| Existing diff/PR audit | `atl-audit` | five-question read-only verdict |
+| Existing diff/PR audit | `atl-audit` | six-question read-only verdict |
 | Spec and standards separation | `code-review` | two separate review passes; aggregate without masking either axis |
 | Runtime proof | `principle-prove-it-works` or project verification skill | observe the real artifact, not a proxy |
 | Blast radius | `blast-radius` | callers, contracts, data, security, operations, rollback |

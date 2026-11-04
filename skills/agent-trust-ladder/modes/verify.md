@@ -1,6 +1,6 @@
 # Mode: verify — turn work into evidence and a verdict
 
-Goal: answer the five questions with checks that actually ran. This is the skill's center of gravity: AI scales execution faster than humans scale verification, so every change ships with evidence attached.
+Goal: answer the six questions with checks that actually ran. This is the skill's center of gravity: AI scales execution faster than humans scale verification, so every change ships with evidence attached.
 
 ## When
 
@@ -31,6 +31,7 @@ Work is implemented — this session or someone else's. Also after applying fixe
 3. What could break: <failure modes + how each is covered or NOT covered>
 4. Downstream impact: <callers, contracts, data, security, ops>
 5. Objective achieved: <observed behavior + checks run>
+6. Boundary contracts: <direct observations, inferred contracts, and unobserved runtime boundaries>
 ## Checks
 <command — environment — result — relevant output>
 ## Skipped / unavailable checks and why
@@ -42,4 +43,18 @@ none | proposed advancement (→ modes/trust.md) | regression
 
 5. **Report skipped checks separately from passing ones.** A green summary with buried skips is a failed verification.
 
+For AI behavior or skill evaluations, a software unit suite alone is insufficient.
+Use matched tasks and isolated attempts, independent artifact/trace grading, and
+repeat trials before generalizing. Separate decision-only cases, implementation
+outcomes, authority violations and cost/latency; missing telemetry is unknown.
+Do not claim workflow uplift from a single attempt or a judge's preference alone.
+
 End with: the verdict; suggested next mode (`trust` if advancement was proposed, otherwise done).
+
+## Delivery verdict
+
+For developer delivery, read `../references/developer-delivery.md` and evaluate the receipt with `../scripts/developer-delivery.mjs` against the current content revision. Report `verified-local`, `review-required`, `blocked` or `incomplete` exactly as observed. Missing host capabilities, unknown usage and a local-only boundary remain explicit.
+
+A resolved finding without a passing recheck on the current content revision stays blocking, and a risk-accepted finding needs an authorized decision with a reason. Confirm the JSON receipt and its Markdown rendering reach the same verdict and list the same unresolved decisions.
+
+Run the project's declared verifier from `../references/project-verifier.md` with `../scripts/project-verifier.mjs`. A check is evidence only when its command, tested content, result readback and artifact state are current. Baseline failure, missing authorization, missing lockfile and unavailable tools are separate stop reasons.

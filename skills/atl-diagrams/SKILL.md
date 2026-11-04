@@ -1,6 +1,6 @@
 ---
 name: atl-diagrams
-description: Create, update, review, and synchronize clean technical diagrams for architecture, flows, lifecycles, dependencies, ownership, and change impact. Use when a visual artifact materially improves comprehension or must stay aligned with engineering evidence.
+description: Create, update, review, and synchronize technical diagrams and statecharts for architecture, lifecycles, dependencies, ownership, change impact, and model-check counterexamples. Use when a visual artifact improves comprehension or must stay aligned with engineering evidence.
 ---
 
 # ATL diagrams
@@ -19,6 +19,8 @@ Use a diagram only when it reduces a real comprehension cost. ATL owns routing, 
 8. **Return an evidence packet.** Include the diagram contract, layout rationale, source and rendered paths, directly observed versus inferred contracts, checks run, owner/update trigger, fallback, and remaining unknowns.
 
 ## Authoring backend
+
+For state machines, TLA+ results, and counterexample paths, read [statecharts.md](references/statecharts.md). This mode belongs here; do not create another ATL skill for it. Use `atl-formal-verification` for the executable property and this skill for the reader-facing projection. Prefer the installed PStack `statechart` compiler and Pele renderer when available; confirm availability and read its current instructions before invoking it. Otherwise preserve checker output and label a native chart as a fallback, never as compiler output.
 
 The MCP Market Diagram Maker & Visualizer may be used as an authoring backend. Choose `clean-svg`, `architecture-svg`, or `excalidraw` according to the contract. Do not claim the tool ran unless it was actually invoked. If it is unavailable, create a native SVG/HTML artifact using the same quality rules and report the fallback.
 
