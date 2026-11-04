@@ -13,8 +13,23 @@ export const PLAN_STAGES = Object.freeze(["intent", "frame", "specify", "route",
 export const PLAN_SCHEMA_VERSION = 1;
 export const PLAN_CONTRACT_VERSION = 2;
 
-function planFingerprint(artifact, intent, evidence) {
-  return crypto.createHash("sha256").update(JSON.stringify({ artifact, intent, evidence })).digest("hex");
+// The root directory listing is reviewer context, not reviewed evidence. It
+// changes whenever tooling creates a directory (config/, coverage/, a new
+// fixture), which would silently stale every approved plan and block the
+// overnight queue. Declared evidence files, AGENTS.md and the package/skill
+// manifests stay hashed so a real evidence change still invalidates a review.
+function fingerprintEvidence(evidence) {
+  if (Array.isArray(evidence)) return evidence.map(fingerprintEvidence);
+  if (!evidence || typeof evidence !== "object") return evidence;
+  const { root_entries: _rootEntries, ...stable } = evidence;
+  if (stable.project) stable.project = fingerprintEvidence(stable.project);
+  return stable;
+}
+
+// Shared by the review writer and every reader that re-checks freshness, so a
+// review can never be "stale" only because two modules hashed it differently.
+export function planFingerprint(artifact, intent, evidence) {
+  return crypto.createHash("sha256").update(JSON.stringify({ artifact, intent, evidence: fingerprintEvidence(evidence) })).digest("hex");
 }
 
 // Cross-process review gate: held for the whole provider call (not just the
@@ -882,12 +897,40 @@ function planQueueId(loaded) {
   return `plan-${slug(title).slice(0, 17) || "draft"}-${String(loaded.id).replace(/[^a-z0-9]/gi, "").slice(-6).toLowerCase()}`;
 }
 
+// Deep-review policy (egmReview.policy in manager.json). Evaluated for the
+// approval gate and surfaced on the draft so the manager sees the
+// requirement before clicking approve. Disabled unless configured.
+const COMPLEXITY_RANK = { simple: 0, standard: 1, complex: 2, critical: 3 };
+function globMatches(pattern, file) {
+  const normalized = String(file).replaceAll("\\", "/");
+  const rx = new RegExp("^" + pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$", "i");
+  return rx.test(normalized);
+}
+
+export function reviewPolicyCheck(root, artifact, review) {
+  let policy;
+  try { policy = readResourceConfig(root)?.egmReview?.policy; } catch { policy = null; }
+  if (!policy || policy.requireDeepReview !== true) return { required: false, reasons: [] };
+  const reasons = [];
+  const min = String(policy.minComplexity || "").toLowerCase();
+  const proposals = artifact?.task_proposals || [];
+  if (min && COMPLEXITY_RANK[min] !== undefined && proposals.some((proposal) => (COMPLEXITY_RANK[proposal.resource_estimate?.complexity] ?? 1) >= COMPLEXITY_RANK[min])) reasons.push(`task complexity at or above "${min}"`);
+  if (Array.isArray(policy.maxTaskProposals) === false && Number.isInteger(policy.maxTaskProposals) && proposals.length > policy.maxTaskProposals) reasons.push(`more than ${policy.maxTaskProposals} task proposals`);
+  const globs = Array.isArray(policy.touchGlobs) ? policy.touchGlobs : [];
+  if (globs.length && proposals.some((proposal) => (proposal.files || []).some((f) => globs.some((g) => globMatches(g, f))))) reasons.push(`touches protected paths (${globs.join(", ")})`);
+  const required = reasons.length > 0;
+  const satisfied = required && review?.kind === "egm" && review?.verdict === "passed";
+  return { required, reasons, satisfied };
+}
+
 function approvePlanDraftUnlocked(root, draft, { note = "approved by manager in Plan Studio", sourceRevisionCurrent = false } = {}) {
   const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
   const artifact = loaded.artifact;
   validatePlanArtifact(artifact);
   const review = loaded.review || artifact.review;
   if (artifact.plan_contract_version !== PLAN_CONTRACT_VERSION || !review || review.verdict !== "passed" || review.fingerprint !== planFingerprint({ ...artifact, review: undefined }, loaded.intent, { project: planningEvidence(root, artifact), source_revision: review.source_revision || null })) throw new Error("Plan approval blocked: this draft needs a fresh, passing accuracy review");
+  const policyCheck = reviewPolicyCheck(root, artifact, review);
+  if (policyCheck.required && !policyCheck.satisfied) throw new Error(`Plan approval blocked: the deep-review policy requires an EGM review for this plan (${policyCheck.reasons.join("; ")})`);
   validatePlanGrounding(root, artifact);
   const proposals = validateProposals(artifact);
   if (loaded.source_task_id) {
