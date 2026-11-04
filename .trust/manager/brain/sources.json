@@ -1,0 +1,484 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "R-0005",
+      "uri": null,
+      "revision": "1d1014b3cdff210a5115c439f1f39ad21ace259d59945d56df1e227e9dfaae3e",
+      "observed_at": "2026-10-27T18:06:49.256Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/1d1014b3cdff210a5115c439f1f39ad21ace259d59945d56df1e227e9dfaae3e/content"
+    },
+    {
+      "id": "R-0006",
+      "uri": null,
+      "revision": "f0be8578302655629cae089522d3634cd533058488aa0b3fdcbd76dc37356a0d",
+      "observed_at": "2026-10-27T18:06:49.266Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/f0be8578302655629cae089522d3634cd533058488aa0b3fdcbd76dc37356a0d/content"
+    },
+    {
+      "id": "R-0007",
+      "uri": null,
+      "revision": "ee056f7f295a6a746ccae207a544aa8c21a28965bc76142cf46642c0b6382c3a",
+      "observed_at": "2026-10-27T18:06:49.275Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/ee056f7f295a6a746ccae207a544aa8c21a28965bc76142cf46642c0b6382c3a/content"
+    },
+    {
+      "id": "execution:T-001",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "209c0495f6650ccc2b58aa25fc44bf7bffe352f7e7ae7952a0dc3ea5b963b328",
+      "observed_at": "2026-10-29T10:17:49.885Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/209c0495f6650ccc2b58aa25fc44bf7bffe352f7e7ae7952a0dc3ea5b963b328/content"
+    },
+    {
+      "id": "execution:T-003",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "f83235008eca0419a7ba4c11995471d79a22ff04f0f6044e740c03f4316f401b",
+      "observed_at": "2026-10-29T10:17:49.909Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/f83235008eca0419a7ba4c11995471d79a22ff04f0f6044e740c03f4316f401b/content"
+    },
+    {
+      "id": "execution:T-005",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "9c788a72712f2ef130cde1e47a731b06e18b60864154147edb3a49132aa030b8",
+      "observed_at": "2026-10-29T10:17:49.934Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/9c788a72712f2ef130cde1e47a731b06e18b60864154147edb3a49132aa030b8/content"
+    },
+    {
+      "id": "execution:T-008",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "ad17963e647cf33e32eb7632cd5844be8e08ca2db304acf93fb65c56bc9efd76",
+      "observed_at": "2026-10-29T10:17:49.953Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/ad17963e647cf33e32eb7632cd5844be8e08ca2db304acf93fb65c56bc9efd76/content"
+    },
+    {
+      "id": "execution-queue:plan-plan-plan-owned-q-rnight",
+      "uri": null,
+      "revision": "46c8a0108f76bc0454d697de635b2e0c6b7e5cf5fc7b97eb11df0cac40cacf88",
+      "observed_at": "2026-10-29T10:17:49.963Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/46c8a0108f76bc0454d697de635b2e0c6b7e5cf5fc7b97eb11df0cac40cacf88/content"
+    },
+    {
+      "id": "execution:T-018",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "a879da6b898384b602ec9470a76b268e0e330279652bbc50db67471c5c6f0167",
+      "observed_at": "2026-10-29T10:17:49.985Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/a879da6b898384b602ec9470a76b268e0e330279652bbc50db67471c5c6f0167/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "92dce9627443e9e50b9ebc66cbc71c87c5b8cfa6c85db3ad9cd9638081786d34",
+      "observed_at": "2026-10-29T10:17:50.000Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/92dce9627443e9e50b9ebc66cbc71c87c5b8cfa6c85db3ad9cd9638081786d34/content"
+    },
+    {
+      "id": "execution:T-019",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "ba35077ddd862f465303e577ddbc5ef9868f9578db28da797397debb928cdc5d",
+      "observed_at": "2026-10-29T10:17:50.025Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/ba35077ddd862f465303e577ddbc5ef9868f9578db28da797397debb928cdc5d/content"
+    },
+    {
+      "id": "execution:T-020",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "dfdd1d211ffa2cd3ccb0082bf93c366a9acef97ced86bbd04893f3fbf47468e1",
+      "observed_at": "2026-10-29T10:17:50.053Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/dfdd1d211ffa2cd3ccb0082bf93c366a9acef97ced86bbd04893f3fbf47468e1/content"
+    },
+    {
+      "id": "execution:T-021",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "649acea662c26b06077015ac6cdc1bced9813c10b5691d380ef8bf57e4bfeee6",
+      "observed_at": "2026-10-29T10:17:50.082Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/649acea662c26b06077015ac6cdc1bced9813c10b5691d380ef8bf57e4bfeee6/content"
+    },
+    {
+      "id": "execution:T-022",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "a1839762723388c6cbf5be0602e3f4f00f5bc51e73cb84ef05caad47db9a0748",
+      "observed_at": "2026-10-29T10:17:50.114Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/a1839762723388c6cbf5be0602e3f4f00f5bc51e73cb84ef05caad47db9a0748/content"
+    },
+    {
+      "id": "execution:T-023",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "59ec1c1d2c965e596c00c1e4b51b7041a4f5c191e5821686fd6c87f895e4af40",
+      "observed_at": "2026-10-29T10:17:50.146Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/59ec1c1d2c965e596c00c1e4b51b7041a4f5c191e5821686fd6c87f895e4af40/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "528c79b61709149f74770038cc356fa2dc23ba8f34e423bd362c1eae7234fbdd",
+      "observed_at": "2026-10-29T10:17:50.175Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/528c79b61709149f74770038cc356fa2dc23ba8f34e423bd362c1eae7234fbdd/content"
+    },
+    {
+      "id": "execution:T-025",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "848964c0ed697845e0711344d15ba2ff1810116a5296233ec1fd4f815403a88e",
+      "observed_at": "2026-10-29T10:17:50.203Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/848964c0ed697845e0711344d15ba2ff1810116a5296233ec1fd4f815403a88e/content"
+    },
+    {
+      "id": "execution:T-026",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "51b24525d933e9595d6f01c6c4a631ee03656350953608938d52c15bd94f3812",
+      "observed_at": "2026-10-29T10:17:50.225Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/51b24525d933e9595d6f01c6c4a631ee03656350953608938d52c15bd94f3812/content"
+    },
+    {
+      "id": "execution:T-001",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "4f5472b373b339d9b7d4c1baa12a84890fee5c4bf6eb8f79e2ef41d8de5f3229",
+      "observed_at": "2026-10-29T10:43:23.399Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/4f5472b373b339d9b7d4c1baa12a84890fee5c4bf6eb8f79e2ef41d8de5f3229/content"
+    },
+    {
+      "id": "execution:T-003",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "12627f2ca853ce059f562b189f35177065f11ef8dc6d6baf713c49395fff595c",
+      "observed_at": "2026-10-29T10:43:23.432Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/12627f2ca853ce059f562b189f35177065f11ef8dc6d6baf713c49395fff595c/content"
+    },
+    {
+      "id": "execution:T-005",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "0ad031a446b3fd0b00a56b49d548439d7b695bdf240a9c66e6074cc1b87d281c",
+      "observed_at": "2026-10-29T10:43:23.457Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/0ad031a446b3fd0b00a56b49d548439d7b695bdf240a9c66e6074cc1b87d281c/content"
+    },
+    {
+      "id": "execution:T-008",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "02e0347b39f2bc2ce075c6cb1f13af6ca58d0d458311176099d4f9ac8669be77",
+      "observed_at": "2026-10-29T10:43:23.477Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/02e0347b39f2bc2ce075c6cb1f13af6ca58d0d458311176099d4f9ac8669be77/content"
+    },
+    {
+      "id": "execution-queue:plan-plan-plan-owned-q-rnight",
+      "uri": null,
+      "revision": "5b425bc2cb2ce42fe252d7246c4f2792ce5e38b7667898a61c2b7a208d113b10",
+      "observed_at": "2026-10-29T10:43:23.485Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/5b425bc2cb2ce42fe252d7246c4f2792ce5e38b7667898a61c2b7a208d113b10/content"
+    },
+    {
+      "id": "execution:T-018",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "82bd3766da4c2e7a6160c9bf4b77abe3ec8299d4272a5011dc58c39b80968a4f",
+      "observed_at": "2026-10-29T10:43:23.510Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/82bd3766da4c2e7a6160c9bf4b77abe3ec8299d4272a5011dc58c39b80968a4f/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "76d6b67b5718084618854328ddbaa5e4dff15dd8e940eeb4cb0800ae730c7f08",
+      "observed_at": "2026-10-29T10:43:23.525Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/76d6b67b5718084618854328ddbaa5e4dff15dd8e940eeb4cb0800ae730c7f08/content"
+    },
+    {
+      "id": "execution:T-019",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "40ba43848d0e25ed9ebef74e4389aea3592d41f5c4b8ed53e606b866f8a8d491",
+      "observed_at": "2026-10-29T10:43:23.552Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/40ba43848d0e25ed9ebef74e4389aea3592d41f5c4b8ed53e606b866f8a8d491/content"
+    },
+    {
+      "id": "execution:T-020",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "ecba27661dca580c0e5a69d555bc7ad747a632851e45c2664b59170de7938c30",
+      "observed_at": "2026-10-29T10:43:23.584Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/ecba27661dca580c0e5a69d555bc7ad747a632851e45c2664b59170de7938c30/content"
+    },
+    {
+      "id": "execution:T-021",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "28d885814c533cb8ee02cc37d22ce61cb91af6a860c20c6a010881f62d1ed4b5",
+      "observed_at": "2026-10-29T10:43:23.617Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/28d885814c533cb8ee02cc37d22ce61cb91af6a860c20c6a010881f62d1ed4b5/content"
+    },
+    {
+      "id": "execution:T-022",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "00037486a5f2c504a90b3d59d7e32da9c37c1294de4f9be1c7bc702fd6a10f07",
+      "observed_at": "2026-10-29T10:43:23.647Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/00037486a5f2c504a90b3d59d7e32da9c37c1294de4f9be1c7bc702fd6a10f07/content"
+    },
+    {
+      "id": "execution:T-023",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "eb544f32912bb9cc2aa9aa21472fd7ab7381e7b33783d32993afa8a5f1da3e02",
+      "observed_at": "2026-10-29T10:43:23.683Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/eb544f32912bb9cc2aa9aa21472fd7ab7381e7b33783d32993afa8a5f1da3e02/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "b7464981ad5460d27ad3a009b79f93d26aaa40d094f66ff091d8ce55be2bc7ac",
+      "observed_at": "2026-10-29T10:43:23.718Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/b7464981ad5460d27ad3a009b79f93d26aaa40d094f66ff091d8ce55be2bc7ac/content"
+    },
+    {
+      "id": "execution:T-025",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "17eb28a95c71cdb3f9baf3c1c7b86147ba0b25df983ea5bc0847ecc6bcde31c2",
+      "observed_at": "2026-10-29T10:43:23.748Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/17eb28a95c71cdb3f9baf3c1c7b86147ba0b25df983ea5bc0847ecc6bcde31c2/content"
+    },
+    {
+      "id": "execution:T-026",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "e4919062dfe3efae90ce66a0c2499484e0707050c152f9a645c4c0250932dd88",
+      "observed_at": "2026-10-29T10:43:23.776Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/e4919062dfe3efae90ce66a0c2499484e0707050c152f9a645c4c0250932dd88/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "9100e7497448eda1535bca073abddfde6ca858ea1ab7a2c63953caeb4bda0487",
+      "observed_at": "2026-10-29T15:26:12.735Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/9100e7497448eda1535bca073abddfde6ca858ea1ab7a2c63953caeb4bda0487/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "b1e7beb10ace0337dc7115daa368f1aa9eae5bd0918304ac849dbd3b8b1e0e91",
+      "observed_at": "2026-10-29T15:26:12.749Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/b1e7beb10ace0337dc7115daa368f1aa9eae5bd0918304ac849dbd3b8b1e0e91/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "859a02e47e65f62b5adde8190efc1f63b33e67bd15be04d574cdc1b339d384f2",
+      "observed_at": "2026-10-29T15:52:08.139Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/859a02e47e65f62b5adde8190efc1f63b33e67bd15be04d574cdc1b339d384f2/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "70c9249a117edeaa8970e0b80da0bf1d95a68c0a642c11b6624751cde26aae32",
+      "observed_at": "2026-10-29T15:52:08.159Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/70c9249a117edeaa8970e0b80da0bf1d95a68c0a642c11b6624751cde26aae32/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "432a76069c08870f5787cdc391d2426e9c47d7e5d3fa94a6b54b86d047f26a7e",
+      "observed_at": "2026-10-31T05:18:33.442Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/432a76069c08870f5787cdc391d2426e9c47d7e5d3fa94a6b54b86d047f26a7e/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "c3c68ea4b931d07ca48e2e25f2a7221a499c5afa47836667fc89a2fb85ad8a32",
+      "observed_at": "2026-10-31T05:18:33.461Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/c3c68ea4b931d07ca48e2e25f2a7221a499c5afa47836667fc89a2fb85ad8a32/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "6376893f470be3eb83d1b1cdcafff7bf15fecee881ddfaad573741ce1d20ff8b",
+      "observed_at": "2026-10-31T06:04:26.571Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/6376893f470be3eb83d1b1cdcafff7bf15fecee881ddfaad573741ce1d20ff8b/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "b5e640c7cd02d2c62314903201ccb4a3ba0616ec04e0efc0176dd762a13f3088",
+      "observed_at": "2026-10-31T06:04:26.579Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/b5e640c7cd02d2c62314903201ccb4a3ba0616ec04e0efc0176dd762a13f3088/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "8573499eafda496ba4b1a7e64bfa54b2f982d33b8f8fd2564cfdf944a0872e99",
+      "observed_at": "2026-10-31T11:30:26.013Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/8573499eafda496ba4b1a7e64bfa54b2f982d33b8f8fd2564cfdf944a0872e99/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "f51a28dc2723b7aaecf1d47d22499e31e55073c3b83be047506ac02f2e9df9b3",
+      "observed_at": "2026-10-31T11:30:26.024Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/f51a28dc2723b7aaecf1d47d22499e31e55073c3b83be047506ac02f2e9df9b3/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "72659bdd73ec5e14500507a2cf4cf6f94c87eaeb02d98f3a36950dab3c08f27a",
+      "observed_at": "2026-10-31T11:34:15.233Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/72659bdd73ec5e14500507a2cf4cf6f94c87eaeb02d98f3a36950dab3c08f27a/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "a709ad721ee0fc3d743a3bebd9cfe15de819f4bd94ff8b98d119310bf11c927d",
+      "observed_at": "2026-10-31T11:34:15.249Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/a709ad721ee0fc3d743a3bebd9cfe15de819f4bd94ff8b98d119310bf11c927d/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "3b8c2a7e2cda13dd4b3af54fba0be0fa50bb5506dcbaabcdb4df1c07745f2256",
+      "observed_at": "2026-10-31T11:34:15.336Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/3b8c2a7e2cda13dd4b3af54fba0be0fa50bb5506dcbaabcdb4df1c07745f2256/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "1c368821c76e8596483ca98031808463767d93b0ba9a68dcc2fe031430ed91a7",
+      "observed_at": "2026-10-31T11:34:15.351Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/1c368821c76e8596483ca98031808463767d93b0ba9a68dcc2fe031430ed91a7/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "e323af35f12d3cec9d842bd96c2ecea0c6367da4ee24291cbb92f43ae281c9e7",
+      "observed_at": "2026-10-31T11:34:15.437Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/e323af35f12d3cec9d842bd96c2ecea0c6367da4ee24291cbb92f43ae281c9e7/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "1ea4ee8a72244007fe183d475aa58fc7a4fb24934174ea99379efd620f95cb74",
+      "observed_at": "2026-10-31T11:34:15.453Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/1ea4ee8a72244007fe183d475aa58fc7a4fb24934174ea99379efd620f95cb74/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "3dca30140faf557ef0663cd3fcb30c78b3458dec1daf9976cd8e3482aee903fc",
+      "observed_at": "2026-10-31T11:34:40.484Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/3dca30140faf557ef0663cd3fcb30c78b3458dec1daf9976cd8e3482aee903fc/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "638334390276fdf21cb422d155833fb2fcff93290d69a2fa4d53c2269c4260f5",
+      "observed_at": "2026-10-31T11:34:40.497Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/638334390276fdf21cb422d155833fb2fcff93290d69a2fa4d53c2269c4260f5/content"
+    },
+    {
+      "id": "execution:T-024",
+      "uri": ".trust/manager/execution-ledger.jsonl",
+      "revision": "5e9e1cbc0c58690190af342e11db9c996b6dd82397ef20a8e2ab815f18184fc9",
+      "observed_at": "2026-10-31T12:01:52.662Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/5e9e1cbc0c58690190af342e11db9c996b6dd82397ef20a8e2ab815f18184fc9/content"
+    },
+    {
+      "id": "execution-queue:plan-add-farsi-persian-planei",
+      "uri": null,
+      "revision": "f8c3830f1575a6cef8755d524b8dc368cd3ff55c899e075921f63c0f174f2e2f",
+      "observed_at": "2026-10-31T12:01:52.667Z",
+      "result": "ok",
+      "error": null,
+      "raw_path": ".trust/manager/brain/raw/f8c3830f1575a6cef8755d524b8dc368cd3ff55c899e075921f63c0f174f2e2f/content"
+    }
+  ],
+  "revision": 53,
+  "updated_at": "2026-10-31T12:01:52.670Z"
+}

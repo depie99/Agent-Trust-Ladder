@@ -1,0 +1,8 @@
+Observed on task T-024 (pattern: repeat-attempts):
+
+- attempt_count = 7
+- status = assigned
+
+## Proposed improvement
+
+Add a pre-flight check that would have caught the first failed attempt, then attach it to this task class.

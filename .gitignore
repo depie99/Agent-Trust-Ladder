@@ -30,6 +30,14 @@ node_modules/
 .atl-evidence/
 .trust/browser-*/
 .trust/manager/npm-cache/
+# One-off maintenance scripts and run logs written next to the manager state.
+.trust/*.mjs
+.trust/*.log
+.trust/issues/
+.trust/*-home/
+.trust/*-home2/
+.trust/issue*.md
+.trust/*.png
 scripts/__pycache__/
 verification/_*.log
 verification/_probe_*

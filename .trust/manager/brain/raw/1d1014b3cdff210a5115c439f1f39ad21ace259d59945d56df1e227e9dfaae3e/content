@@ -1,0 +1,11 @@
+Observed on task T-022 (pattern: repeat-attempts):
+
+- attempt_count = 7
+- status = blocked
+- 2026-10-27T13:09 manager: runner containment (manager-confirmed run): ENOENT: no such file or directory, open 'D:\Projects\Agentic\Agent-Trust-Ladder\.trust\manager\handoffs\T-018.json'
+- 2026-10-27T13:41 manager: runner containment (manager-confirmed run): locked local dependencies require runtime preparation
+- 2026-10-27T14:04 manager: runner containment (manager-confirmed run): worker did not advance T-022 from in_progress; inspect the log and feed
+
+## Proposed improvement
+
+Add a pre-flight check that would have caught the first failed attempt, then attach it to this task class.

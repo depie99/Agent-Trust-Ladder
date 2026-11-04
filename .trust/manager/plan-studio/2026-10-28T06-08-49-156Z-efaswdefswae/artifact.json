@@ -1,0 +1,244 @@
+{
+  "schema": 1,
+  "stage": "plan",
+  "artifact": {
+    "schema": 1,
+    "stage": "plan",
+    "title": "efaswdefswae",
+    "objective": "efaswdefswae",
+    "constraints": [
+      "Preserve existing project behavior outside the approved scope",
+      "Keep execution behind an explicit owner confirmation"
+    ],
+    "risks": [
+      "State, UI, and runtime behavior may drift unless verified together"
+    ],
+    "completion_checks": [
+      "The requested behavior is observable from the real user-facing surface.",
+      "Regression checks cover the changed state and interaction contracts.",
+      "Failure and recovery behavior remain explicit and auditable."
+    ],
+    "acceptance_examples": [
+      {
+        "given": "the requested change is implemented",
+        "when": "the owner reviews it against the original request",
+        "then": "the stated outcome and constraints can be demonstrated"
+      },
+      {
+        "given": "a relevant failure or edge case",
+        "when": "the change is exercised",
+        "then": "the result is checked against the agreed behavior"
+      }
+    ],
+    "selected_skills": [
+      "atl-frame",
+      "atl-specify",
+      "atl-plan",
+      "atl-implement",
+      "atl-verify"
+    ],
+    "proposed_worker": "rowan",
+    "skill_route": [
+      {
+        "skill": "atl-frame",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-specify",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-plan",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-implement",
+        "reason": "selected by the manager or ATL route"
+      },
+      {
+        "skill": "atl-verify",
+        "reason": "selected by the manager or ATL route"
+      }
+    ],
+    "implementation_steps": [
+      {
+        "step": "Specify observable behavior and preserve the approved intent",
+        "files": [
+          "project specification and affected contracts"
+        ],
+        "verify": "Review acceptance examples and scope boundaries"
+      },
+      {
+        "step": "Write or strengthen failing regression checks",
+        "files": [
+          "verification/"
+        ],
+        "verify": "Run the focused tests and observe the intended failure before implementation"
+      },
+      {
+        "step": "Implement the smallest complete vertical slice",
+        "files": [
+          "responsible runtime and UI modules"
+        ],
+        "verify": "Run the focused tests and inspect the real surface"
+      },
+      {
+        "step": "Verify recovery, adjacent behavior, and evidence",
+        "files": [
+          "runtime evidence and task brief"
+        ],
+        "verify": "Run the project checks and record observed versus unobserved boundaries"
+      }
+    ],
+    "verifier_commands": [
+      "Not determined: identify actual project-specific checks during review."
+    ],
+    "generated_by": "atl-local-sdd-tdd-planner",
+    "task_proposals": [
+      {
+        "id": "p1",
+        "title": "Specify observable behavior",
+        "objective": "Specify observable behavior and preserve the approved intent.\n\nOriginal request:\nefaswdefswae",
+        "completion_checks": [
+          "Acceptance examples and scope boundaries are reviewed and recorded"
+        ],
+        "proposed_worker": "rowan",
+        "selected_skills": [
+          "atl-specify"
+        ],
+        "requirement_ids": [],
+        "instructions": "",
+        "deliverables": [],
+        "skill_reasons": {},
+        "depends_on": [],
+        "check_owners": {},
+        "dispatch_contract": {},
+        "files": [
+          "project specification and affected contracts"
+        ],
+        "verify": "Review acceptance examples and scope boundaries",
+        "revision": 1,
+        "source": "local",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "rowan",
+          "selected_skills": [
+            "atl-specify"
+          ]
+        }
+      },
+      {
+        "id": "p2",
+        "title": "Write failing regression checks",
+        "objective": "Write or strengthen failing regression checks.\n\nOriginal request:\nefaswdefswae",
+        "completion_checks": [
+          "Focused tests exist and observed the intended failure before implementation"
+        ],
+        "proposed_worker": "pip",
+        "selected_skills": [
+          "atl-verify"
+        ],
+        "requirement_ids": [],
+        "instructions": "",
+        "deliverables": [],
+        "skill_reasons": {},
+        "depends_on": [
+          "p1"
+        ],
+        "check_owners": {},
+        "dispatch_contract": {},
+        "files": [
+          "verification/"
+        ],
+        "verify": "Run the focused tests and observe the intended failure before implementation",
+        "revision": 1,
+        "source": "local",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "pip",
+          "selected_skills": [
+            "atl-verify"
+          ]
+        }
+      },
+      {
+        "id": "p3",
+        "title": "Implement the vertical slice",
+        "objective": "Implement the smallest complete vertical slice.\n\nOriginal request:\nefaswdefswae",
+        "completion_checks": [
+          "Focused tests pass and the real surface shows the behavior"
+        ],
+        "proposed_worker": "pip",
+        "selected_skills": [
+          "atl-implement"
+        ],
+        "requirement_ids": [],
+        "instructions": "",
+        "deliverables": [],
+        "skill_reasons": {},
+        "depends_on": [
+          "p2"
+        ],
+        "check_owners": {},
+        "dispatch_contract": {},
+        "files": [
+          "responsible runtime and UI modules"
+        ],
+        "verify": "Run the focused tests and inspect the real surface",
+        "revision": 1,
+        "source": "local",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "pip",
+          "selected_skills": [
+            "atl-implement"
+          ]
+        }
+      },
+      {
+        "id": "p4",
+        "title": "Verify recovery and evidence",
+        "objective": "Verify recovery, adjacent behavior, and evidence.\n\nOriginal request:\nefaswdefswae",
+        "completion_checks": [
+          "Project checks pass and observed versus unobserved boundaries are recorded"
+        ],
+        "proposed_worker": "pip",
+        "selected_skills": [
+          "atl-verify"
+        ],
+        "requirement_ids": [],
+        "instructions": "",
+        "deliverables": [],
+        "skill_reasons": {},
+        "depends_on": [
+          "p3"
+        ],
+        "check_owners": {},
+        "dispatch_contract": {},
+        "files": [
+          "runtime evidence and task brief"
+        ],
+        "verify": "Run the project checks and record observed versus unobserved boundaries",
+        "revision": 1,
+        "source": "local",
+        "feedback": [],
+        "revisions": [],
+        "defaults": {
+          "proposed_worker": "pip",
+          "selected_skills": [
+            "atl-verify"
+          ]
+        }
+      }
+    ],
+    "planning_limitations": [
+      "This is a generic planning template. No repository files, project commands, or request-specific acceptance criteria were inspected or verified."
+    ],
+    "generated_via": "local"
+  },
+  "source_task_id": null,
+  "saved_at": "2026-10-28T06:08:49.158Z"
+}

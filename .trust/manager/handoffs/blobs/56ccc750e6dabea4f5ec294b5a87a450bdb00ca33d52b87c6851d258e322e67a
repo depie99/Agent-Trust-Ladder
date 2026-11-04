@@ -1,0 +1,63 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+
+// Exercise the actual locale functions with a minimal DOM adapter. Rendered
+// layout and keyboard behavior remain separate browser observations.
+const client = readFileSync("runtime/control-plane-client.js", "utf8");
+const catalog = readFileSync("runtime/control-plane-i18n.js", "utf8");
+const context = vm.createContext({ window: {}, TextDecoder, NodeFilter: { SHOW_TEXT: 4 } });
+vm.runInContext(catalog, context);
+let locale = "fa";
+function element(classes = []) {
+  const names = new Set(classes);
+  const attributes = new Map();
+  return {
+    classList: { add: (name) => names.add(name) },
+    closest: (selector) => selector.split(",").some((part) => names.has(part.trim().replace(/^\./, ""))),
+    getAttribute: (name) => attributes.get(name) ?? null,
+    setAttribute: (name, value) => attributes.set(name, value),
+  };
+}
+const caption = element(["muted", "tiny"]);
+const payload = element(["bidi-auto"]);
+const input = element();
+input.setAttribute("placeholder", "Goal and constraints");
+const nodes = [
+  { nodeValue: "Tracked tasks", parentElement: caption },
+  { nodeValue: "  No references attached.  ", parentElement: caption },
+  { nodeValue: "Tracked tasks", parentElement: payload },
+  { nodeValue: "Overview", parentElement: caption },
+];
+context.language = () => locale;
+context.document = {
+  body: {},
+  querySelectorAll: (selector) => selector.startsWith("[placeholder]") ? [input] : selector.includes(".muted.tiny") ? [caption] : [],
+  createTreeWalker: () => {
+    let i = -1;
+    return { nextNode() { return ++i < nodes.length; }, get currentNode() { return nodes[i]; } };
+  },
+};
+const start = client.indexOf("  function applyBidiSafety()");
+const end = client.indexOf("  function render()", start);
+assert.ok(start > 0 && end > start, "locale implementation is discoverable");
+vm.runInContext(client.slice(start, end), context);
+vm.runInContext("applyBidiSafety(); applyLocale();", context);
+assert.equal(caption.dir, "auto", "captions retain direction safety");
+assert.equal(nodes[0].nodeValue, "وظایف پیگیری‌شده", "direction styling permits localization");
+assert.equal(nodes[1].nodeValue, "  مرجعی پیوست نشده است.  ", "whitespace does not bypass fallback");
+assert.equal(nodes[2].nodeValue, "Tracked tasks", "explicit dynamic payload remains verbatim");
+assert.equal(input.getAttribute("placeholder"), "هدف و محدودیت‌ها");
+nodes[3].nodeValue = "Plan Studio";
+vm.runInContext("applyLocale();", context);
+assert.equal(nodes[3].nodeValue, "استودیوی برنامه‌ریزی", "reused crumb accepts a new route");
+locale = "en";
+vm.runInContext("applyLocale();", context);
+assert.equal(nodes[0].nodeValue, "Tracked tasks");
+assert.equal(nodes[1].nodeValue, "  No references attached.  ");
+assert.equal(nodes[3].nodeValue, "Plan Studio");
+assert.equal(input.getAttribute("placeholder"), "Goal and constraints", "attributes round trip to English");
+locale = "fa";
+vm.runInContext("applyLocale(); applyLocale();", context);
+assert.equal(nodes[0].nodeValue, "وظایف پیگیری‌شده", "repeated locale passes are stable");
+console.log("PASS: Control Plane locale regression — captions, whitespace, payload isolation, route updates, language round trip");

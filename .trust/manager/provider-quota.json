@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "failures": [
+    {
+      "provider": "gapgpt",
+      "model": null,
+      "scope": "provider",
+      "observedAt": "2026-10-31T11:34:15.275Z",
+      "retryAt": "2026-10-31T12:04:15.275Z",
+      "reason": "Provider reported exhausted quota; ATL will try an eligible configured alternative."
+    }
+  ]
+}

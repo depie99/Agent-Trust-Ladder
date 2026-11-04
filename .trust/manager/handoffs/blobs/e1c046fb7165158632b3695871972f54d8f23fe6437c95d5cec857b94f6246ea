@@ -1,0 +1,19 @@
+{
+    "patch":  {
+                  "check_ownership":  [
+                                          {
+                                              "owner":  "T-024",
+                                              "check":  "npm run ui:css:check; rendered inspection shows a Latin path embedded in a Farsi log line keeping LTR isolation and correct RTL sentence order"
+                                          },
+                                          {
+                                              "owner":  "T-024",
+                                              "check":  "npm run ui:css:check passes and rendered inspection shows Latin paths isolated within Farsi log text with the surrounding RTL sentence order preserved."
+                                          }
+                                      ]
+              },
+    "evidence":  [
+                     "T-022 requires fa/RTL rendered inspection in both completion checks.",
+                     "T-024 owns rendered Control Plane review and depends on T-023, which depends on T-022; adding T-024 as a prerequisite would create a cycle.",
+                     "Current worker record states ui:css:check PASS and rendered inspection NOT OBSERVED because /api/snapshot returns HTTP 500 without .trust/manager/state.json; this evidence remains outstanding for T-024/coordinator."
+                 ]
+}
