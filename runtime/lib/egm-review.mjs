@@ -213,6 +213,22 @@ export const GLM_GOLDFISH_STAGES = [
 
 const GLM_STAGE_RULE = "Return markdown only. Under '## Findings', each finding is a '#### <short-id> — <Title>' heading whose body starts with 'Severity: Blocker|Major|Nit' on its own line, then 'Affected scope: …', then the technical rationale and concrete recommendation. Do not edit files. Do not claim any check passed.";
 
+const PROGRESS_FILE = "progress.json";
+function writeProgress(workdir, entry) {
+  const file = path.join(workdir, PROGRESS_FILE);
+  let log = [];
+  try { log = JSON.parse(fs.readFileSync(file, "utf8")); } catch { /* first stage */ }
+  log.push(entry);
+  fs.writeFileSync(file, JSON.stringify(log, null, 2) + "\n");
+}
+function cancelRequested(workdir) { return fs.existsSync(path.join(workdir, "cancel.flag")); }
+function cancelledError(workdir) {
+  const failure = new Error("EGM deep review cancelled by the owner between stages. The raw run is preserved at " + workdir + "; no review was recorded.");
+  failure.statusCode = 502;
+  failure.workdir = workdir;
+  return failure;
+}
+
 export async function runGlmGoldfishReview(root, { draft, config, call } = {}) {
   if (typeof call !== "function") throw new Error("glm-goldfish backend needs a provider call function");
   const workdir = path.join(draft.dir, "egm", new Date().toISOString().replace(/[:.]/g, "-"));
@@ -251,10 +267,15 @@ export async function runGlmGoldfishReview(root, { draft, config, call } = {}) {
     }
     reports[stage.id] = text;
     fs.writeFileSync(path.join(workdir, stage.id), text + "\n");
+    writeProgress(workdir, { stage: stage.id, index: stageRuns.length + 1, total: GLM_GOLDFISH_STAGES.length + 1, provider: response.provider || null, model: response.model || null, at: new Date().toISOString() });
+    if (cancelRequested(workdir)) throw cancelledError(workdir);
     stageRuns.push({ stage: stage.id, provider: response.provider || null, model: response.model || null });
     return response;
   };
-  for (const stage of GLM_GOLDFISH_STAGES) await runStage(stage);
+  for (const stage of GLM_GOLDFISH_STAGES) {
+    if (cancelRequested(workdir)) throw cancelledError(workdir);
+    await runStage(stage);
+  }
   const synthesizer = GLM_GOLDFISH_SYNTHESIZER({ ...reports });
   const response = await call({ stage: "consolidated_review_report.md", request: synthesizer, logPath: path.join(workdir, "consolidated_review_report.md.call.log") });
   if (!response || response.code !== 0 || !String(response.text || "").trim()) {
@@ -275,6 +296,7 @@ export async function runGlmGoldfishReview(root, { draft, config, call } = {}) {
   }
   reports["consolidated_review_report.md"] = consolidated;
   fs.writeFileSync(path.join(workdir, "consolidated_review_report.md"), consolidated + "\n");
+  writeProgress(workdir, { stage: "consolidated_review_report.md", index: GLM_GOLDFISH_STAGES.length + 1, total: GLM_GOLDFISH_STAGES.length + 1, provider: response.provider || null, model: response.model || null, at: new Date().toISOString() });
   stageRuns.push({ stage: "consolidated_review_report.md", provider: response.provider || null, model: response.model || null });
   return {
     workdir,

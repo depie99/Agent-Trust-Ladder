@@ -66,7 +66,8 @@ The sample rationale for ${persona}.
 `;
 
 // config: glm-goldfish needs only the protocol pin
-const config = { egmReview: { enabled: true, backend: "glm-goldfish", versionSha: "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24" } };
+const CANARY = "velvet-sparrow-orchard42"; // owner-only marker: must never reach a reviewer request or report
+const config = { egmReview: { enabled: true, backend: "glm-goldfish", versionSha: "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24", maxReviewsPerDay: 100, ownerNote: `secret ${CANARY} context` }, approvalNote: `approve-with ${CANARY}` };
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify(config, null, 2));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
@@ -132,6 +133,17 @@ try {
     assert.ok(fs.existsSync(path.join(runDir, name)), `missing ${name}`);
   }
 
+  // Progress ledger: one entry per stage, six stages total.
+  {
+    const egmDir = path.join(loadPlanDraft(root, draft.id).dir, "egm");
+    const run = fs.readdirSync(egmDir)[0];
+    const progress = JSON.parse(fs.readFileSync(path.join(egmDir, run, "progress.json"), "utf8"));
+    assert.equal(progress.length, 6);
+    assert.equal(progress[0].index, 1);
+    assert.equal(progress.at(-1).stage, "consolidated_review_report.md");
+    assert.equal(progress.at(-1).total, 6);
+  }
+
   // Blocked EGM review keeps approval shut.
   assert.throws(() => approvePlanDraft(root, draft.id), /fresh, passing accuracy review/);
 
@@ -157,6 +169,7 @@ try {
   const barrier = new Promise((resolve) => { release = resolve; });
   const barrierServer = await startControlPlaneServer(root, {
     planningInvoke: async ({ request }) => {
+      if (/synthesizer/i.test(request.task)) return { code: 0, provider: "gapgpt", model: "glm-fake", text: SHAPE_A_REPORT };
       if (request.task.includes("Zoom Out Reviewer")) { await barrier; }
       return { code: 0, provider: "gapgpt", model: "glm-fake", text: STAGE_REPORT("x") };
     },
@@ -178,7 +191,39 @@ try {
   assert.equal(loadPlanDraft(root, barrierDraft.id).artifact.task_proposals[0].title, "Edited during GLM review");
   await new Promise((resolve) => barrierServer.server.close(resolve));
 
-  console.log("PASS: glm-goldfish EGM review — six fresh single-shot calls, findings conversion, blocked gate, honest failure, stale invalidation");
+  // Isolation probe (product path): owner-only strings from config/state must
+  // never appear in any reviewer request, any report, or outside the workdir.
+  for (const [index, request] of calls.entries()) {
+    assert.ok(!JSON.stringify(request).includes(CANARY), `stage call ${index} carries the owner-only canary`);
+  }
+  const egmRoot = path.join(loadPlanDraft(root, draft.id).dir, "egm");
+  for (const run of fs.readdirSync(egmRoot)) for (const name of fs.readdirSync(path.join(egmRoot, run))) {
+    const text = fs.readFileSync(path.join(egmRoot, run, name), "utf8");
+    assert.ok(!text.includes(CANARY), `${name} carries the owner-only canary`);
+  }
+  // Cancellation between stages fails closed: 502, no review recorded.
+  const cancelDraft = savePlanDraft(root, { intent: fixtureArtifact.objective + " glm cancel", artifact: fixtureArtifact });
+  let stageCalls = 0;
+  const cancelServer = await startControlPlaneServer(root, {
+    planningInvoke: async ({ request }) => {
+      stageCalls += 1;
+      if (stageCalls === 2) {
+        const egmDir = path.join(loadPlanDraft(root, cancelDraft.id).dir, "egm");
+        const run = fs.readdirSync(egmDir).at(-1);
+        fs.writeFileSync(path.join(egmDir, run, "cancel.flag"), new Date().toISOString());
+      }
+      return { code: 0, provider: "gapgpt", model: "glm-fake", text: STAGE_REPORT("x") };
+    },
+  });
+  const cancelled = await fetch(`${cancelServer.url}api/plan/review`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ draftId: cancelDraft.id, provider: "gapgpt", reviewType: "egm" }) });
+  const cancelledBody = await cancelled.json();
+  assert.equal(cancelled.status, 502, JSON.stringify(cancelledBody));
+  assert.match(cancelledBody.error, /cancelled by the owner/);
+  assert.equal(loadPlanDraft(root, cancelDraft.id).review, undefined);
+  assert.ok(stageCalls < 6, `cancellation stopped the pipeline early (${stageCalls} calls)`);
+  await new Promise((resolve) => cancelServer.server.close(resolve));
+
+  console.log("PASS: glm-goldfish EGM review — six fresh single-shot calls, findings conversion, blocked gate, honest failure, stale invalidation, progress ledger, mid-review cancellation");
 } finally {
   await new Promise((resolve) => server.server.close(resolve));
   if (priorHome === undefined) delete process.env.USERPROFILE;
