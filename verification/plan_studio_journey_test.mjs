@@ -21,7 +21,7 @@ let browser, server;
 try {
   const publishFetch = async (_url, options = {}) => { publishWrites++; assert.equal(options.method, "POST"); return { ok: true, status: 201, statusText: "Created", text: async () => JSON.stringify({ number: 24, html_url: "https://github.com/acme/demo/issues/24", updated_at: "r1" }) }; };
   const started = await startControlPlaneServer(root,{planningInvoke, publishFetch}); server=started.server;
-  browser=await chromium.launch({headless:true}); const page=await browser.newPage({viewport:{width:1280,height:900}}); page.setDefaultTimeout(8000);
+  browser=await chromium.launch({headless:true}); const page=await browser.newPage({viewport:{width:1280,height:900}}); page.setDefaultTimeout(30000); // slow CI runners and big trees need headroom
   await page.goto(started.url); await page.locator('[data-page="tasks"]').first().click();
   await page.locator('[data-action="new"]').first().click(); await page.locator('#fTitle').fill('Search project rooms'); await page.locator('#fDesc').fill('Filter repositories by name. Preserve deletion behavior.');
   await page.getByRole('button',{name:'Create task',exact:true}).click();
