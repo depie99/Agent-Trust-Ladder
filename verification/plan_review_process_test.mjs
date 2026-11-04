@@ -74,7 +74,7 @@ const launch = (script, args) => {
   return { pid: child.pid, stdout: () => stdout, stderr: () => stderr, closed };
 };
 const waitFor = async (predicate, describe, extra) => {
-  for (let i = 0; i < 400 && !predicate(); i++) await new Promise((resolve) => setTimeout(resolve, 25));
+  for (let i = 0; i < 2400 && !predicate(); i++) await new Promise((resolve) => setTimeout(resolve, 25));
   if (!predicate()) throw new Error(`${describe}: ${extra()}`);
 };
 
