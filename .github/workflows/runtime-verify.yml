@@ -58,6 +58,7 @@ jobs:
       - run: node verification/plan_egm_review_test.mjs
       - run: node verification/plan_egm_parser_real_test.mjs
       - run: node verification/plan_egm_glm_review_test.mjs
+      - run: node verification/plan_egm_journey_test.mjs
       - run: node verification/worker_channel_test.mjs
       - run: node verification/worker_channel_launch_test.mjs
       - run: node verification/ui_refresh_runtime_test.mjs
