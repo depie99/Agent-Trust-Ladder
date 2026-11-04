@@ -30,8 +30,11 @@ try{
  await page.locator('#sourceAzureUrl').fill('https://devops.example.invalid:32678/Solico-Group');
  await page.locator('#sourceAzureProject').fill('Middleware-and-Portals');
  await page.locator('#sourceAzureIteration').fill('Middleware-and-Portals\\Sprint 74');
+ // Register the waiter before blurring: a slow machine can deliver the
+ // refresh response before waitForResponse starts listening.
+ const refreshed = page.waitForResponse(response=>response.url().endsWith('/api/snapshot'));
  await page.locator('#sourceAzureIteration').evaluate(input=>input.blur());
- await page.waitForResponse(response=>response.url().endsWith('/api/snapshot'));
+ await refreshed;
  assert.equal(await page.locator('#sourceAzureUrl').inputValue(),'https://devops.example.invalid:32678/Solico-Group','live refresh preserves unsaved source settings after blur');
  assert.equal(await page.locator('#sourceAzureIteration').inputValue(),'Middleware-and-Portals\\Sprint 74');
  await page.locator('#sourceAzureEnabled').check();
