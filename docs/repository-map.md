@@ -342,10 +342,14 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-audit/references/developer-delivery.md](../skills/atl-audit/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-audit/references/evidence.md](../skills/atl-audit/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-audit/references/ladder.md](../skills/atl-audit/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-audit/references/overnight-batch.md](../skills/atl-audit/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-audit/references/project-verifier.md](../skills/atl-audit/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-audit/references/spec-core.md](../skills/atl-audit/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-audit/scripts/azure-intake.mjs](../skills/atl-audit/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-audit/scripts/batch-runner.mjs](../skills/atl-audit/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl-audit/scripts/developer-delivery.mjs](../skills/atl-audit/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-audit/scripts/operational-memory.mjs](../skills/atl-audit/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl-audit/scripts/outcome-economics.mjs](../skills/atl-audit/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-audit/scripts/project-verifier.mjs](../skills/atl-audit/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-audit/SKILL.md](../skills/atl-audit/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-bootstrap/agents/openai.yaml](../skills/atl-bootstrap/agents/openai.yaml) | openai: source/configuration for its containing feature. |
@@ -353,10 +357,14 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-bootstrap/references/developer-delivery.md](../skills/atl-bootstrap/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-bootstrap/references/evidence.md](../skills/atl-bootstrap/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-bootstrap/references/ladder.md](../skills/atl-bootstrap/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-bootstrap/references/overnight-batch.md](../skills/atl-bootstrap/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-bootstrap/references/project-verifier.md](../skills/atl-bootstrap/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-bootstrap/references/spec-core.md](../skills/atl-bootstrap/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-bootstrap/scripts/azure-intake.mjs](../skills/atl-bootstrap/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-bootstrap/scripts/batch-runner.mjs](../skills/atl-bootstrap/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl-bootstrap/scripts/developer-delivery.mjs](../skills/atl-bootstrap/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-bootstrap/scripts/operational-memory.mjs](../skills/atl-bootstrap/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl-bootstrap/scripts/outcome-economics.mjs](../skills/atl-bootstrap/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-bootstrap/scripts/project-verifier.mjs](../skills/atl-bootstrap/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-bootstrap/SKILL.md](../skills/atl-bootstrap/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-content-quality/agents/openai.yaml](../skills/atl-content-quality/agents/openai.yaml) | openai: source/configuration for its containing feature. |
@@ -376,10 +384,14 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-frame/references/developer-delivery.md](../skills/atl-frame/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-frame/references/evidence.md](../skills/atl-frame/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-frame/references/ladder.md](../skills/atl-frame/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-frame/references/overnight-batch.md](../skills/atl-frame/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-frame/references/project-verifier.md](../skills/atl-frame/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-frame/references/spec-core.md](../skills/atl-frame/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-frame/scripts/azure-intake.mjs](../skills/atl-frame/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-frame/scripts/batch-runner.mjs](../skills/atl-frame/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl-frame/scripts/developer-delivery.mjs](../skills/atl-frame/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-frame/scripts/operational-memory.mjs](../skills/atl-frame/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl-frame/scripts/outcome-economics.mjs](../skills/atl-frame/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-frame/scripts/project-verifier.mjs](../skills/atl-frame/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-frame/SKILL.md](../skills/atl-frame/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-implement/agents/openai.yaml](../skills/atl-implement/agents/openai.yaml) | openai: source/configuration for its containing feature. |
@@ -387,10 +399,14 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-implement/references/developer-delivery.md](../skills/atl-implement/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-implement/references/evidence.md](../skills/atl-implement/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-implement/references/ladder.md](../skills/atl-implement/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-implement/references/overnight-batch.md](../skills/atl-implement/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-implement/references/project-verifier.md](../skills/atl-implement/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-implement/references/spec-core.md](../skills/atl-implement/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-implement/scripts/azure-intake.mjs](../skills/atl-implement/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-implement/scripts/batch-runner.mjs](../skills/atl-implement/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl-implement/scripts/developer-delivery.mjs](../skills/atl-implement/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-implement/scripts/operational-memory.mjs](../skills/atl-implement/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl-implement/scripts/outcome-economics.mjs](../skills/atl-implement/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-implement/scripts/project-verifier.mjs](../skills/atl-implement/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-implement/SKILL.md](../skills/atl-implement/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-maintain-verification/SKILL.md](../skills/atl-maintain-verification/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
@@ -399,10 +415,14 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-plan/references/developer-delivery.md](../skills/atl-plan/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-plan/references/evidence.md](../skills/atl-plan/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-plan/references/ladder.md](../skills/atl-plan/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-plan/references/overnight-batch.md](../skills/atl-plan/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-plan/references/project-verifier.md](../skills/atl-plan/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-plan/references/spec-core.md](../skills/atl-plan/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-plan/scripts/azure-intake.mjs](../skills/atl-plan/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-plan/scripts/batch-runner.mjs](../skills/atl-plan/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl-plan/scripts/developer-delivery.mjs](../skills/atl-plan/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-plan/scripts/operational-memory.mjs](../skills/atl-plan/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl-plan/scripts/outcome-economics.mjs](../skills/atl-plan/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-plan/scripts/project-verifier.mjs](../skills/atl-plan/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-plan/SKILL.md](../skills/atl-plan/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-specify/agents/openai.yaml](../skills/atl-specify/agents/openai.yaml) | openai: source/configuration for its containing feature. |
@@ -410,10 +430,14 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-specify/references/developer-delivery.md](../skills/atl-specify/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/references/evidence.md](../skills/atl-specify/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/references/ladder.md](../skills/atl-specify/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-specify/references/overnight-batch.md](../skills/atl-specify/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/references/project-verifier.md](../skills/atl-specify/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/references/spec-core.md](../skills/atl-specify/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/scripts/azure-intake.mjs](../skills/atl-specify/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-specify/scripts/batch-runner.mjs](../skills/atl-specify/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl-specify/scripts/developer-delivery.mjs](../skills/atl-specify/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-specify/scripts/operational-memory.mjs](../skills/atl-specify/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl-specify/scripts/outcome-economics.mjs](../skills/atl-specify/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-specify/scripts/project-verifier.mjs](../skills/atl-specify/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-specify/SKILL.md](../skills/atl-specify/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-team/agents/openai.yaml](../skills/atl-team/agents/openai.yaml) | openai: source/configuration for its containing feature. |
@@ -432,10 +456,14 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-trust/references/developer-delivery.md](../skills/atl-trust/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-trust/references/evidence.md](../skills/atl-trust/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-trust/references/ladder.md](../skills/atl-trust/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-trust/references/overnight-batch.md](../skills/atl-trust/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-trust/references/project-verifier.md](../skills/atl-trust/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-trust/references/spec-core.md](../skills/atl-trust/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-trust/scripts/azure-intake.mjs](../skills/atl-trust/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-trust/scripts/batch-runner.mjs](../skills/atl-trust/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl-trust/scripts/developer-delivery.mjs](../skills/atl-trust/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-trust/scripts/operational-memory.mjs](../skills/atl-trust/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl-trust/scripts/outcome-economics.mjs](../skills/atl-trust/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-trust/scripts/project-verifier.mjs](../skills/atl-trust/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-trust/SKILL.md](../skills/atl-trust/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-ui-review/agents/openai.yaml](../skills/atl-ui-review/agents/openai.yaml) | openai: source/configuration for its containing feature. |
@@ -448,10 +476,14 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-verify/references/developer-delivery.md](../skills/atl-verify/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/references/evidence.md](../skills/atl-verify/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/references/ladder.md](../skills/atl-verify/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-verify/references/overnight-batch.md](../skills/atl-verify/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/references/project-verifier.md](../skills/atl-verify/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/references/spec-core.md](../skills/atl-verify/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/scripts/azure-intake.mjs](../skills/atl-verify/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-verify/scripts/batch-runner.mjs](../skills/atl-verify/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl-verify/scripts/developer-delivery.mjs](../skills/atl-verify/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-verify/scripts/operational-memory.mjs](../skills/atl-verify/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl-verify/scripts/outcome-economics.mjs](../skills/atl-verify/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-verify/scripts/project-verifier.mjs](../skills/atl-verify/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-verify/SKILL.md](../skills/atl-verify/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl/agents/openai.yaml](../skills/atl/agents/openai.yaml) | openai: source/configuration for its containing feature. |
@@ -460,6 +492,9 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl/references/case-studies.md](../skills/atl/references/case-studies.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/developer-delivery.md](../skills/atl/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/evidence-gates.md](../skills/atl/references/evidence-gates.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/references/operational-memory.md](../skills/atl/references/operational-memory.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/references/outcome-economics.md](../skills/atl/references/outcome-economics.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/references/overnight-batch.md](../skills/atl/references/overnight-batch.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/playbooks.md](../skills/atl/references/playbooks.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/project-assessment.md](../skills/atl/references/project-assessment.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/project-verifier.md](../skills/atl/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
@@ -469,6 +504,8 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl/scripts/azure-intake.mjs](../skills/atl/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
 | [skills/atl/scripts/batch-runner.mjs](../skills/atl/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
 | [skills/atl/scripts/developer-delivery.mjs](../skills/atl/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl/scripts/operational-memory.mjs](../skills/atl/scripts/operational-memory.mjs) | Portable operational memory for the skills-only surface. The Control Plane |
+| [skills/atl/scripts/outcome-economics.mjs](../skills/atl/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl/scripts/project-verifier.mjs](../skills/atl/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl/SKILL.md](../skills/atl/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/verify-atl-manager-lifecycle/SKILL.md](../skills/verify-atl-manager-lifecycle/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
