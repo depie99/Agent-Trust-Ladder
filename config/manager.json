@@ -83,7 +83,7 @@
       "org_url": "https://devops.soitco.net:32678/Solico-Group",
       "project": "Middleware-and-Portals",
       "team": "Middleware-and-Portals Team",
-      "iteration_path": "Middleware-and-Portals\\Sprint 73",
+      "iteration_path": "Middleware-and-Portals\\Sprint 74",
       "token_env": "AZDO_PAT",
       "tls_allow_untrusted": true,
       "note": "set enabled=true and provide AZDO_PAT (Work Items: Read). tls_allow_untrusted is ON for the self-hosted server certificate; turn it off if you install a trusted cert."
