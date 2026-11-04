@@ -238,7 +238,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/overnight-hosts/windows-task-scheduler.mjs](../runtime/lib/overnight-hosts/windows-task-scheduler.mjs) | Pure command construction only. Installing or removing an OS task remains |
 | [runtime/lib/plan-model.mjs](../runtime/lib/plan-model.mjs) | One bounded model planning call against a configured user provider. |
 | [runtime/lib/plan-publish.mjs](../runtime/lib/plan-publish.mjs) | plan publish: runtime implementation; inspect exports and matching verification. |
-| [runtime/lib/plan-studio.mjs](../runtime/lib/plan-studio.mjs) | Model answers drift around the agreed schema in well-known ways. The |
+| [runtime/lib/plan-studio.mjs](../runtime/lib/plan-studio.mjs) | Cross-process review gate: held for the whole provider call (not just the |
 | [runtime/lib/provider-quota.mjs](../runtime/lib/provider-quota.mjs) | provider quota: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/providers.mjs](../runtime/lib/providers.mjs) | Provider discovery and per-role provider profiles for the control room. |
 | [runtime/lib/queue-recovery.mjs](../runtime/lib/queue-recovery.mjs) | Durable budgets belong to blocker identities, never to runner lifetimes. |
@@ -509,6 +509,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_egm_review_test.mjs](../verification/plan_egm_review_test.mjs) | Executable regression check for plan egm review. |
 | [verification/plan_publish_test.mjs](../verification/plan_publish_test.mjs) | Executable regression check for plan publish. |
 | [verification/plan_review_concurrency_test.mjs](../verification/plan_review_concurrency_test.mjs) | Executable regression check for plan review concurrency. |
+| [verification/plan_review_gate_test.mjs](../verification/plan_review_gate_test.mjs) | Executable regression check for plan review gate. |
 | [verification/plan_review_process_test.mjs](../verification/plan_review_process_test.mjs) | Executable regression check for plan review process. |
 | [verification/plan_studio_api_test.mjs](../verification/plan_studio_api_test.mjs) | Executable regression check for plan studio api. |
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
