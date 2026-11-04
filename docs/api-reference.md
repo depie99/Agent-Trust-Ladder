@@ -20,6 +20,7 @@ Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`,
 | `/api/assistant` | `runtime/lib/control-plane-server.mjs` |
 | `/api/backups` | `runtime/lib/control-plane-server.mjs` |
 | `/api/backups/preview` | `runtime/lib/control-plane-server.mjs` |
+| `/api/batch` | `runtime/lib/control-plane-server.mjs` |
 | `/api/brain` | `runtime/lib/control-plane-server.mjs` |
 | `/api/browser-access` | `runtime/lib/control-plane-server.mjs` |
 | `/api/command` | `runtime/lib/control-plane-server.mjs` |
