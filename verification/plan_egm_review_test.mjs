@@ -77,7 +77,7 @@ fs.writeFileSync(path.join(codexHome, "config.toml"), '[windows]\nsandbox = "ele
 fs.writeFileSync(path.join(codexHome, "auth.json"), "{}");
 fs.mkdirSync(path.join(codexHome, "plugins", "cache", "egm", "egm", "0.1.0"), { recursive: true });
 
-const config = { egmReview: { enabled: true, codexHome, model: "gpt-fake", versionSha: "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24", maxMinutes: 5 } };
+const config = { egmReview: { enabled: true, codexHome, model: "gpt-fake", versionSha: "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24", maxMinutes: 5, maxReviewsPerDay: 100 } };
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify(config, null, 2));
 

@@ -17,6 +17,39 @@ function planFingerprint(artifact, intent, evidence) {
   return crypto.createHash("sha256").update(JSON.stringify({ artifact, intent, evidence })).digest("hex");
 }
 
+// Cross-process review gate: held for the whole provider call (not just the
+// commit), so two runtimes can never run reviews on one draft at once.
+// Stale locks from dead runtimes are recovered with the same pid probe as
+// withDraftLock. Returns nothing; throws 409-class errors on conflict.
+function acquireReviewLock(dir) {
+  const lock = path.join(dir, "review.lock");
+  let fd;
+  try { fd = fs.openSync(lock, "wx"); } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+    let owner;
+    try { owner = JSON.parse(fs.readFileSync(lock, "utf8")); } catch { /* a lock still being initialized is active */ }
+    if (Number.isInteger(owner?.pid)) {
+      let alive = true;
+      try { process.kill(owner.pid, 0); } catch (probe) { if (probe.code === "ESRCH") alive = false; }
+      if (!alive) {
+        let current;
+        try { current = JSON.parse(fs.readFileSync(lock, "utf8")); } catch (recoveryError) {
+          if (recoveryError.code !== "ENOENT") throw recoveryError;
+          return acquireReviewLock(dir);
+        }
+        if (current.pid === owner.pid && current.created_at === owner.created_at) fs.rmSync(lock, { force: true });
+        return acquireReviewLock(dir);
+      }
+    }
+    const conflict = new Error(`a review is already running for this plan draft (started by pid ${owner?.pid ?? "unknown"})`);
+    conflict.statusCode = 409;
+    throw conflict;
+  }
+  try { fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, created_at: new Date().toISOString() })); } finally { fs.closeSync(fd); }
+}
+function releaseReviewLock(dir) {
+  fs.rmSync(path.join(dir, "review.lock"), { force: true });
+}
 function withDraftLock(dir, operation) {
   const lock = path.join(dir, "artifact.lock");
   let fd;
@@ -103,6 +136,8 @@ export function reviewPlanArtifact(root, draft, review, { expectedRevision = nul
     return { ...loaded, revision: envelope.revision, artifact: envelope.artifact, review: result, saved_at: envelope.saved_at };
   });
 }
+
+export { acquireReviewLock, releaseReviewLock };
 
 export function planReviewSnapshotCurrent(root, draft) {
   try {

@@ -12,6 +12,27 @@ import { spawn } from "node:child_process";
 export const EGM_REQUIRED_REPORTS = ["zoom_out_report.md", "comprehension_report.md", "critic_report.md", "intermediate_zoom_out_report.md", "implementation_readiness_report.md", "consolidated_review_report.md"];
 export const EGM_INPUT_FILE = "plan-review-input.md";
 
+// Daily budget for deep reviews. Counted at START (a review spends its
+// provider session even when it fails), reset per local day, ledger kept
+// beside the manager state so it survives restarts and is auditable.
+export function egmReviewBudgetGate(root, config, { now = () => new Date() } = {}) {
+  const max = Number(config.maxReviewsPerDay) || 3;
+  const day = now().toISOString().slice(0, 10);
+  const file = path.join(root, ".trust", "manager", "plan-review-usage.json");
+  let ledger = { day, started: 0 };
+  try { const saved = JSON.parse(fs.readFileSync(file, "utf8")); if (saved.day === day) ledger = saved; } catch { /* first review */ }
+  if (ledger.started >= max) {
+    const refused = new Error(`the EGM deep-review daily budget is exhausted (${ledger.started}/${max} started today, cap egmReview.maxReviewsPerDay). A deep review costs a full provider session and roughly 15–25 minutes; raise the cap or wait for the next local day.`);
+    refused.statusCode = 429;
+    return { ok: false, reason: refused.message, status: refused.statusCode };
+  }
+  ledger.day = day;
+  ledger.started += 1;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(ledger, null, 2) + "\n");
+  return { ok: true, started: ledger.started, max };
+}
+
 export function readEgmReviewConfig(cfg = {}) {
   const section = cfg.egmReview && typeof cfg.egmReview === "object" ? cfg.egmReview : null;
   if (!section || section.enabled !== true) return { enabled: false, backend: "codex", problems: ["EGM review is not enabled. Set egmReview.enabled=true in config/manager.json after installing the EGM plugin in a dedicated CODEX_HOME."] };
@@ -33,7 +54,7 @@ export function readEgmReviewConfig(cfg = {}) {
     }
     if (!model) problems.push("egmReview.model is required (the exact ChatGPT model id EGM should run on).");
   }
-  return { enabled: problems.length === 0, backend, codexHome, model, versionSha, maxMinutes: Number(section.maxMinutes) || 20, maxMinutesPerCall: Number(section.maxMinutesPerCall) || 10, problems };
+  return { enabled: problems.length === 0, backend, codexHome, model, versionSha, maxMinutes: Number(section.maxMinutes) || 20, maxMinutesPerCall: Number(section.maxMinutesPerCall) || 10, maxReviewsPerDay: Number(section.maxReviewsPerDay) || 3, problems };
 }
 
 export function buildEgmReviewInput(draft) {
