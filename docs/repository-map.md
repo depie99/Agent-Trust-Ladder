@@ -505,6 +505,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_egm_e2e_real_test.mjs](../verification/plan_egm_e2e_real_test.mjs) | Executable regression check for plan egm e2e real. |
 | [verification/plan_egm_glm_e2e_real_test.mjs](../verification/plan_egm_glm_e2e_real_test.mjs) | Executable regression check for plan egm glm e2e real. |
 | [verification/plan_egm_glm_review_test.mjs](../verification/plan_egm_glm_review_test.mjs) | Executable regression check for plan egm glm review. |
+| [verification/plan_egm_journey_test.mjs](../verification/plan_egm_journey_test.mjs) | Executable regression check for plan egm journey. |
 | [verification/plan_egm_parser_real_test.mjs](../verification/plan_egm_parser_real_test.mjs) | Executable regression check for plan egm parser real. |
 | [verification/plan_egm_review_test.mjs](../verification/plan_egm_review_test.mjs) | Executable regression check for plan egm review. |
 | [verification/plan_publish_test.mjs](../verification/plan_publish_test.mjs) | Executable regression check for plan publish. |
