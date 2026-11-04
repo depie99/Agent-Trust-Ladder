@@ -555,9 +555,23 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
           failure.workdir = run.workdir;
           throw failure;
         }
+        // Staleness first: an edit during the review is a 409 even when the
+        // provider also returned an unreadable report.
+        const current = loadPlanDraft(root, draftId);
+        if ((Number(current.revision) || 1) !== (loaded.revision || 1)) {
+          const stale = new Error("plan review is stale because the draft changed while the provider was reviewing it");
+          stale.statusCode = 409;
+          throw stale;
+        }
         const parsed = parseEgmReports(run.workdir);
         if (parsed.missingReports.length) {
           const failure = new Error(`EGM review incomplete — missing report files: ${parsed.missingReports.join(", ")}. The raw run is preserved at ${run.workdir}; no review was recorded.`);
+          failure.statusCode = 502;
+          failure.workdir = run.workdir;
+          throw failure;
+        }
+        if (parsed.verdictHint !== "passed" && parsed.findings.length === 0) {
+          const failure = new Error(`EGM review produced an unreadable consolidated report (verdict hint "${parsed.verdictHint ?? "none"}", zero parseable findings${parsed.severitySectionsSeen ? " despite severity sections being present" : ""}). The raw run is preserved at ${run.workdir}; no review was recorded.`);
           failure.statusCode = 502;
           failure.workdir = run.workdir;
           throw failure;

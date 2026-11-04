@@ -158,6 +158,7 @@ export function parseEgmReports(workdir) {
   const consolidatedPath = path.join(workdir, "consolidated_review_report.md");
   const findings = [];
   let verdictHint = null;
+  let severitySectionsSeen = false;
   if (!missing.length) {
     const report = fs.readFileSync(consolidatedPath, "utf8");
     const verdict = /##\s*Verdict\s*\n+([\s\S]*?)(?=\n##\s|\n*$)/i.exec(report);
@@ -171,7 +172,7 @@ export function parseEgmReports(workdir) {
         push();
         const heading = line.replace(/^#+\s*/, "");
         const matched = SEVERITY_SECTIONS.find((entry) => entry.match.test(heading) && !/^[A-Za-z]\d+\s*[—-]/.test(heading));
-        if (matched) severity = matched.severity;
+        if (matched) { severity = matched.severity; severitySectionsSeen = true; }
         continue;
       }
       if (/^####\s/.test(line)) {
@@ -191,7 +192,7 @@ export function parseEgmReports(workdir) {
     }
     push();
   }
-  return { findings, verdictHint, missingReports: missing, consolidatedPath };
+  return { findings, verdictHint, severitySectionsSeen, missingReports: missing, consolidatedPath };
 }
 
 // ---- glm-goldfish backend -------------------------------------------------
