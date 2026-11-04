@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "id": "fixture-value",
+  "owner": "rowan",
+  "tools": ["node"],
+  "prerequisites": [
+    {
+      "files": ["src/value.txt", "verification/accept.mjs"],
+      "command": ["node", "--check", "verification/accept.mjs"]
+    }
+  ],
+  "baseline": {
+    "commands": [["node", "--check", "verification/readback.mjs"]]
+  },
+  "checks": [
+    {
+      "id": "value is fixed and persisted",
+      "command": ["node", "verification/accept.mjs"],
+      "expected": { "exit_code": 0, "stdout_includes": "value=ok" },
+      "readback": {
+        "command": ["node", "verification/readback.mjs"],
+        "expected": { "exit_code": 0, "stdout_includes": "persisted=ok" }
+      },
+      "artifacts": [".atl-evidence/result.json"]
+    }
+  ],
+  "content": ["src/value.txt", "verification/accept.mjs", "verification/readback.mjs"],
+  "evidence": ".atl-evidence/project-verifier.json"
+}
