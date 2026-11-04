@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { prepareInputs, startBaseline } from "./handoffs.mjs";
+import { checkProjectReadiness, validateProjectVerifier } from "../../skills/atl/scripts/project-verifier.mjs";
 
 function inside(workspace, relative) {
   const file = path.resolve(workspace, relative);
@@ -11,6 +12,22 @@ function inside(workspace, relative) {
 export function dispatchPreflight(root, task, tasks, { providerReady = true, provisionLocal = false, execute = spawnSync, allowIntegration = false } = {}) {
   if (!providerReady) return { ready: false, cause: "provider-unavailable", recovery_owner: "owner", reason: "provider executable or credentials unavailable" };
   if (!task.workspace || !fs.existsSync(task.workspace)) return { ready: false, cause: "workspace", reason: "isolated workspace unavailable" };
+  const verifierPath = task.verifier_manifest || ".atl-verifier.json";
+  const verifierFile = inside(task.workspace, verifierPath);
+  let verifier = null;
+  if (fs.existsSync(verifierFile)) {
+    try {
+      verifier = validateProjectVerifier(JSON.parse(fs.readFileSync(verifierFile, "utf8")));
+    } catch (error) {
+      return { ready: false, cause: "verifier-contract", recovery_owner: "owner", reason: `invalid project verifier: ${error.message}` };
+    }
+    const capabilities = {
+      execution: true,
+      ...(task.host_capabilities || task.dispatch_contract?.capabilities || {}),
+    };
+    const readiness = checkProjectReadiness(verifier, task.workspace, { execute, capabilities });
+    if (!readiness.ready) return readiness;
+  }
   const prepared = prepareInputs(root, task, tasks);
   const integration = !prepared.ready && prepared.cause === "overlapping-edits" && allowIntegration;
   if (!prepared.ready && !integration) return prepared;
@@ -54,6 +71,12 @@ export function dispatchPreflight(root, task, tasks, { providerReady = true, pro
     if (result.status !== 0) return { ready: false, cause: "verifier-assumption", reason: `preflight command failed: ${command.join(" ")}: ${String(result.stderr || result.error || result.status).slice(-2000)}` };
   }
   startBaseline(root, task);
-  task.dispatch_preflight = { version: 1, ready: true, input_revisions: task.input_revisions, at: new Date().toISOString() };
+  task.dispatch_preflight = {
+    version: 1,
+    ready: true,
+    input_revisions: task.input_revisions,
+    at: new Date().toISOString(),
+    verifier: verifier ? { id: verifier.id, version: verifier.version, manifest: verifierPath } : null,
+  };
   return { ready: true, integration };
 }

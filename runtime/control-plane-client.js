@@ -95,7 +95,7 @@
   `;
   document.head.append(taskLayoutStyle);
   const routes = [
-    ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["sources", "?", "Issue sources"], ["assistant", "✦", "Ask ATL"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"],
+    ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["shipped", "✔", "Shipped"], ["sources", "?", "Issue sources"], ["assistant", "✦", "Ask ATL"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"],
     ["team", "♙", "Agent Team"], ["projects", "⌂", "Projects"], ["approvals", "✓", "Approvals"], ["operations", "▣", "Operations"], ["brain", "◈", "Knowledge"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
   ];
   const fallback = {
@@ -112,6 +112,7 @@
   let filter = "All";
   let query = "";
   let queueFilter = "All";
+let queueFilterTouched = false;
   let dialogOpen = false;
   let detailExecution = null;
   let cliHistory = ["ATL control plane connected. Type help."];
@@ -536,6 +537,19 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     ]);
     return { tasks, queues, agents, events };
   }
+  // Tasks whose whole queue has reached terminal states leave the Tasks
+  // board and live on the Shipped page instead, so the board only ever
+  // shows work that can still run.
+  function shippedTaskIds(tasks) {
+    const byQueue = new Map();
+    for (const task of tasks) { const list = byQueue.get(task.queue) || []; list.push(task); byQueue.set(task.queue, list); }
+    const shipped = new Set();
+    for (const list of byQueue.values()) {
+      if (list.some((task) => !["done", "rejected", "archived"].includes(task.rawStatus))) continue;
+      for (const task of list) if (["done", "rejected"].includes(task.rawStatus)) shipped.add(task.id);
+    }
+    return shipped;
+  }
 
   const taskRowActions = (task) => {
     const liveRun = liveRunState(task);
@@ -700,8 +714,17 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     },
     tasks: () => {
       const { tasks } = derived();
-      const allTasks = tasks.filter((task) => !task.archived);
-      const queueTasks = allTasks.filter((task) => queueFilter === "All" || task.queue === queueFilter);
+      const shippedIds = shippedTaskIds(tasks);
+      const shippedCount = tasks.filter((task) => shippedIds.has(task.id)).length;
+      const allTasks = tasks.filter((task) => !task.archived && !shippedIds.has(task.id));
+      // Until the owner picks a queue explicitly, the board starts on the
+      // active queue (plus unqueued drafts) so finished queues never crowd the page.
+      const activeQueueLabel = derived().queues.find((queue) => queue.id === snapshot.queues?.active_queue)?.label || null;
+      // Auto-scope only when the active queue still holds runnable work;
+      // a finished (fully shipped) queue falls back to the unfiltered board.
+      if (!queueFilterTouched && queueFilter === "All" && activeQueueLabel && allTasks.some((task) => task.queue === activeQueueLabel)) queueFilter = activeQueueLabel;
+      const autoScope = !queueFilterTouched && Boolean(activeQueueLabel) && queueFilter === activeQueueLabel;
+      const queueTasks = allTasks.filter((task) => queueFilter === "All" || task.queue === queueFilter || (autoScope && task.queue === "Unqueued"));
       const visible = queueTasks.filter((task) => (filter === "All" || task.status === filter) && [task.title, task.id, task.agent, task.desc].join(" ").toLowerCase().includes(query.toLowerCase()));
       const queueOptions = [...new Set(tasks.map((task) => task.queue).filter((queue) => queue !== "Unqueued"))];
       const scoped = queueFilter !== "All";
@@ -710,7 +733,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
       const totalFor = (status) => status === "All" ? allTasks.length : allTasks.filter((task) => task.status === status).length;
       const countBadgeLabel = scoped ? (status) => `${countFor(status)}/${totalFor(status)}` : (status) => `${totalFor(status)}`;
       const blockedTotal = totalFor("Blocked");
-      const taskPageActions = (blockedTotal > 0 ? btn(`◈ Blocked (${blockedTotal})`, "blockers", "sm") : "") + btn("+ Create task", "new", "primary") + (selectedQueue?.id === "default" ? btn("Clear Default queue", "queue-clear:default", "danger") : "");
+      const taskPageActions = (blockedTotal > 0 ? btn(`◈ Blocked (${blockedTotal})`, "blockers", "sm") : "") + btn("+ Create task", "new", "primary") + (shippedCount ? btn(`✔ Shipped (${shippedCount})`, "go:shipped", "sm") : "") + (selectedQueue?.id === "default" ? btn("Clear Default queue", "queue-clear:default", "danger") : "");
       const bulkToolbar = `<div class="tasks-bulk-bar"><div class="bar"><span class="pill green">${selectedTasks.size} selected</span><span class="muted tiny">Bulk task actions</span></div><div class="bar">${btn("Select visible", "tasks-select-visible", "sm")}${selectedTasks.size ? btn("Clear selection", "tasks-clear-selection", "sm") + btn(`Archive ${selectedTasks.size}`, "tasks-archive-selected", "sm danger") : ""}</div></div>`;
       const kpiCards = [
         ["All", "Total Active", countFor("All"), ""],
@@ -723,6 +746,16 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
       return head("WORKSPACE / TASKS", "Task management", "Author, prioritize, assign and inspect work without leaving the UI.", taskPageActions)
         + `<div class="tasks-kpi-grid">${kpiCards}</div>`
         + `<div class="panel tasks-shell"><div class="tasks-command-bar"><div class="tasks-search-row"><div class="tasks-search-box"><span class="search-glyph" aria-hidden="true">⌕</span><input class="input" id="taskSearch" placeholder="Search tasks..." value="${escapeHtml(query)}"></div><select id="queueSelect" class="input" style="width:185px" aria-label="Filter by queue"><option value="All">All</option>${queueOptions.map((queue) => `<option ${queue === queueFilter ? "selected" : ""}>${escapeHtml(queue)}</option>`).join("")}</select>${btn("Select visible", "tasks-select-visible", "sm")}</div><div class="tasks-filter-row"><div class="tasks-segmented" role="tablist" aria-label="Filter tasks by status">${filterTabs}</div><span class="muted tiny">Showing <b>${visible.length}</b> of <b>${allTasks.length}</b> active task${allTasks.length === 1 ? "" : "s"}</span></div>${scoped ? `<div class="notice" style="padding:9px 12px"><div class="row between"><span>Showing queue <b>${escapeHtml(queueFilter)}</b>. Counts are <b>this queue / all queues</b>.</span>${btn("Show all queues", "queue:All", "sm")}</div></div>` : ""}</div>${bulkToolbar}${visible.map(taskRow).join("") || '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>No matching tasks in this scope.</b><p class="sub" style="margin-top:6px">Try clearing your search filter or switching back to All queues.</p></div>'}</div>`;
+    },
+    shipped: () => {
+      const { tasks } = derived();
+      const shippedIds = shippedTaskIds(tasks);
+      const shipped = tasks.filter((task) => shippedIds.has(task.id) || task.archived);
+      const grouped = new Map();
+      for (const task of shipped) { const list = grouped.get(task.queue) || []; list.push(task); grouped.set(task.queue, list); }
+      const sections = [...grouped.entries()].map(([queue, items]) => card(`<span class="row" style="gap:10px;flex-wrap:wrap"><span>${escapeHtml(queue)}</span><span class="pill blue">${items.length} shipped</span></span>`, items.map(taskRow).join(""))).join("");
+      return head("WORKSPACE / SHIPPED", "Shipped archive", "Completed tasks from finished queues live here, off the active Tasks board. The board only holds work that can still run.", btn("Refresh", "refresh"))
+        + (shipped.length ? `<div class="space">${sections}</div>` : '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>Nothing shipped yet.</b><p class="sub" style="margin-top:6px">When every task in a queue reaches a terminal state, the finished ones move here automatically.</p></div>');
     },
 studio: () => {
       const providers = studioProviders || [];
@@ -900,7 +933,8 @@ operations: () => {
 
   function nav() {
     const { tasks } = derived();
-    const activeTasks = tasks.filter((task) => !task.archived);
+    const shippedIds = shippedTaskIds(tasks);
+    const activeTasks = tasks.filter((task) => !task.archived && !shippedIds.has(task.id));
     const runningCount = activeTasks.filter((task) => liveRunState(task) === "running" || task.rawStatus === "in_progress").length;
     const blockedCount = activeTasks.filter((task) => task.rawStatus === "blocked" || task.rawStatus === "escalated").length;
     const pendingApprovals = (snapshot.approvals?.proposals || []).filter((item) => item.status === "pending").length;
@@ -2120,7 +2154,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "savequeue") { const id = $("#queueId")?.value.trim().toLowerCase(); const name = $("#queueName")?.value.trim() || id; if (id) await mutation(`queue create ${id} --name "${name.replaceAll('"', '\\"')}"`, "queues"); return; }
     if (value.startsWith("queue-use:")) return mutation(`queue use ${value.slice(10)}`, "queues");
     if (value.startsWith("queue-toggle:")) { const id = value.slice(13); const queue = derived().queues.find((item) => item.id === id); return mutation(`queue ${queue?.status === "paused" ? "resume" : "pause"} ${id}`, "queues"); }
-    if (value.startsWith("queue:")) { queueFilter = decodeURIComponent(value.slice(6)); filter = "All"; page = "tasks"; render(); return; }
+    if (value.startsWith("queue:")) { queueFilter = decodeURIComponent(value.slice(6)); queueFilterTouched = true; filter = "All"; page = "tasks"; render(); return; }
     if (value === "run-preview" || value.startsWith("run-preview:")) { const id = value.includes(":") ? value.slice(value.indexOf(":") + 1) : snapshot.queues?.active_queue; try { const result = await apiCommand(`launch --dry-run${id ? ` --queue ${id}` : ""}`); popup("Launch preview", `<div class="terminal">${escapeHtml((result.lines || []).join("\n"))}</div><div class="notice"><b>Nothing has started.</b><p>Confirm only after reviewing providers, blockers, order, and budget.</p></div>`, btn("Cancel", "close") + btn("Run this queue", `run-start:${id || ""}`, "primary")); } catch (error) { popup("Preview failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
     if (value === "run-confirm" || value.startsWith("run-confirm:")) { const id = value.includes(":") ? value.slice(value.indexOf(":") + 1) : snapshot.queues?.active_queue; return action(`run-preview:${id || ""}`); }
     if (value === "run-preview-multi" || value === "run-confirm-multi") {
@@ -2268,7 +2302,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.id === "brainSkillChoice") { const skill = (snapshot.brain?.installed_skills || [])[Number(event.target.value)]; const details = $("#brainSkillDetails"); if (skill && details) details.innerHTML = `<b>${escapeHtml(skill.id)}</b><p class="sub">${escapeHtml(skill.description)}</p>`; return; }
     if (event.target.id === "projectSelectAll") { (snapshot.supervisor?.projects || []).filter((project) => `${project.name} ${project.root} ${project.id}`.toLowerCase().includes(projectQuery.toLowerCase())).forEach((project) => event.target.checked ? selectedProjects.add(project.id) : selectedProjects.delete(project.id)); render(); return; }
     if (event.target.dataset?.projectSelect) { if (event.target.checked) selectedProjects.add(event.target.dataset.projectSelect); else selectedProjects.delete(event.target.dataset.projectSelect); render(); return; }
-    if (event.target.id === "queueSelect") { queueFilter = event.target.value; render(); return; }
+    if (event.target.id === "queueSelect") { queueFilter = event.target.value; queueFilterTouched = true; render(); return; }
     if (event.target.id === "reviewKindSelect") { studioReviewKind = event.target.value; render(); return; }
     if (event.target.id === "providerSelect") {
       studioProviderExplicit=true;

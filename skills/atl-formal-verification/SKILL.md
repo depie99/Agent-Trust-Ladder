@@ -70,4 +70,6 @@ A passing bounded model proves only the modeled scope. A timeout is not a pass. 
 
 ## Handoff
 
+For a TLA+ check, make every result readable through `atl-diagrams` [statechart mode](../atl-diagrams/references/statecharts.md). If PStack `statechart` is installed, refer to it by name in the generated local verification skill and read its installed instructions; do not freeze its changing commands or paths into the suite. If unavailable, retain raw checker output and generate an explicitly labeled native projection. Include successful results as well as failures; timeout, tool failure, and unchecked properties remain unknown. Replay each counterexample action against real code before calling it a product bug.
+
 Return the generated skill path, suite path, selected tool and rationale, property, bounds, mutation result, command, findings, and gaps. Suggest a second target only when the inspection found a closely related high-value invariant. Feed the result into `atl-verify`; do not advance autonomy without `atl-trust`.

@@ -19,6 +19,7 @@ import { reconcileLeases } from "./leases.mjs";
 import { listBackups } from "./backup.mjs";
 import { listRoutineRuns, schedulerStatus } from "./routines.mjs";
 import { bundledRoot } from "./skill-router.mjs";
+import { listBatches } from "./batch-runner.mjs";
 
 // Inventory only: installed skill metadata is not promotion evidence.
 function installedSkills(root) {
@@ -186,6 +187,7 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
       default_provider: readManagerConfig(root).providers?.use || readManagerConfig(root).providers?.default || "codex",
     },
     overnight: readOvernightRun(root),
+    batches: (() => { try { return listBatches(root); } catch { return []; } })(),
     team: teamRoles(root, state, queues, latestRoleSessions(root), brief),
     brain: {
       sources: sourceStatus(root),

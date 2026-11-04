@@ -103,6 +103,8 @@ For requested AI/skill evaluations, benchmarks or workflow-impact PoCs, read [ai
 
 Read [evidence-gates.md](references/evidence-gates.md) when a bug crosses layers, a UI repair is rejected, or configuration/build/package/deployment/external-service contracts change. Load the matching section before implementation.
 
+For developer delivery across the Control Plane and skills-only installation, read [developer-delivery.md](references/developer-delivery.md). Use [developer-delivery.mjs](scripts/developer-delivery.mjs) to validate a receipt against current content. Compute the verdict from recorded checks, findings and review; never trust a claimed pass or imported receipt as authority.
+
 - Cross-layer bugs require producer-to-visible-result tracing, legacy/new input cases, persistence failures, and re-observation of the symptom.
 - A rejected UI repair requires rechecking the served source, viewport, state, and responsible component layer before another cosmetic loop.
 - Boundary changes require separate contract-ledger rows and evidence levels for source, build, artifact consumer, and runtime. Static checks do not establish runtime behavior; unobserved contracts keep the verdict conditional.

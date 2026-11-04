@@ -14,7 +14,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .app{display:flex;min-height:100vh}
 .sidebar{width:229px;background:var(--side);border-right:1px solid var(--border);padding:21px 13px;display:flex;flex-direction:column;flex-shrink:0}
 .brand{font-size:17px;font-weight:800;display:flex;align-items:center;gap:10px;padding:0 7px 21px}
-.brandicon{background:var(--accent);color:var(--on-accent);border-radius:8px;padding:4px 10px}
+.brandicon{display:flex;align-items:center;flex:none}
+.brandicon img{display:block;width:32px;height:32px}
 .subbrand{font-size:10px;color:var(--muted);letter-spacing:1px}
 .workspace{padding:12px;background:var(--chip);border:1px solid var(--border);border-radius:8px;margin:4px 2px 16px}
 .tiny{font-size:11px}
@@ -264,6 +265,15 @@ textarea.input{resize:vertical;min-height:110px}
 .review-table { width: 100%; border-collapse: collapse; text-align: start; }
 .review-table caption { text-align: start; font-weight: 700; padding-block: 12px; }
 .review-table td, .review-table th { border-block-end: 1px solid var(--border); padding: 8px; text-align: start; }
+.review-receipt { margin-block: 16px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--pane); }
+.review-receipt h3, .review-receipt h4 { margin-block: 12px 6px; }
+.review-receipt .review-table { font-size: 12px; }
+.review-receipt .review-table td:first-child { min-width: 120px; }
+.review-receipt .notice { margin-block: 10px; }
+.review-receipt[data-delivery-verdict="verified-local"] { border-color: var(--accent); }
+.review-receipt[data-delivery-verdict="blocked"] .pill[data-delivery-status] { border-color: var(--red); color: var(--red); }
+.review-receipt[data-delivery-verdict="incomplete"] .pill[data-delivery-status],
+.review-receipt[data-delivery-verdict="review-required"] .pill[data-delivery-status] { border-color: var(--blue); color: var(--blue); }
 .task-change-review :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 760px) {
   .review-files { grid-template-columns: minmax(0, 1fr); }
@@ -464,3 +474,39 @@ textarea.input{resize:vertical;min-height:110px}
 .execution-report td:nth-child(2){min-width:180px}
 .execution-report ol{padding-inline-start:20px;overflow-wrap:anywhere}
 .execution-report li{margin-block:10px}
+
+
+/* Task statechart: make the recorded path read as a review canvas. */
+.review-statechart-svg { max-width: 100% !important; min-height: 200px; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--surface, #fff) 82%, var(--bg, #f4f7fa)); }
+.review-statechart-svg rect { fill: var(--surface, #fff); }
+.review-statechart-svg rect[stroke="var(--accent, #07856c)"] { fill: color-mix(in srgb, #07856c 10%, var(--surface, #fff)); }
+.review-statechart-svg text { font-family: inherit; }
+@media (max-width: 720px) {
+  .review-statechart-svg { padding: 8px; min-height: 140px; }
+  .review-statechart-svg text { font-size: 12px; }
+}
+
+.review-statechart-layout { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(230px, 1fr); gap: 14px; align-items: start; margin-block: 14px; }
+.review-statechart-canvas, .review-statechart-inspector { min-width: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface, #fff); }
+.review-statechart-canvas-head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 700; }
+.review-statechart-svg { max-width: 100% !important; min-height: 190px; padding: 14px; background: color-mix(in srgb, var(--surface, #fff) 82%, var(--bg, #f4f7fa)); }
+.review-statechart-svg rect { fill: var(--surface, #fff); }
+.review-statechart-svg rect[stroke="var(--accent, #07856c)"] { fill: color-mix(in srgb, #07856c 10%, var(--surface, #fff)); }
+.review-statechart-svg text { font-family: inherit; }
+.review-statechart-inspector { overflow: hidden; }
+.review-statechart-inspector-head { display: grid; gap: 8px; padding: 14px; background: color-mix(in srgb, var(--surface, #fff) 80%, var(--bg, #eef2f6)); border-bottom: 1px solid var(--border); }
+.review-statechart-inspector-head strong { font-size: 1.2rem; }
+.review-statechart-inspector dl { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 0; padding: 14px; }
+.review-statechart-inspector dt { color: var(--muted); font-size: .8rem; }
+.review-statechart-inspector dd { margin: 0 0 8px; overflow-wrap: anywhere; }
+@media (max-width: 720px) { .review-statechart-layout { grid-template-columns: 1fr; } .review-statechart-svg { padding: 8px; min-height: 140px; } }
+
+.review-statechart-svg-wrap { overflow-x: auto; }
+.review-statechart-contract { width: 650px !important; max-width: 100% !important; min-height: 320px; color: var(--muted); }
+.review-statechart-contract .review-statechart-edge { fill: none; stroke: #8493a5; stroke-width: 1.5; opacity: .7; }
+.review-statechart-contract .review-statechart-node { stroke: #8b9aab; stroke-width: 1.5; fill: var(--surface, #fff); }
+.review-statechart-contract .review-statechart-node.is-current { stroke: #07856c; stroke-width: 3; fill: color-mix(in srgb, #07856c 14%, var(--surface, #fff)); }
+.review-statechart-contract .review-statechart-name { text-anchor: middle; dominant-baseline: middle; fill: var(--text); font-size: 12px; font-weight: 700; }
+.review-statechart-contract .review-statechart-step { text-anchor: middle; fill: var(--muted); font-size: 9px; }
+
+.review-statechart-path-head { padding: 10px 16px; border-top: 1px solid var(--border); font-weight: 700; }

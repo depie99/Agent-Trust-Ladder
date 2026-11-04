@@ -62,6 +62,16 @@ For a cross-layer persistence bug, route through bug-fix tracing even if the ini
 
 ## Forward-test examples
 
+For AI/skill evaluations, benchmark comparisons, or workflow-impact PoCs, use
+the Skill or workflow authoring playbook and [ai-evaluation.md](ai-evaluation.md).
+Do not route a decision-only pilot as implementation evidence or a unit suite as
+an agent benchmark. Compare matched baseline/ATL attempts and retain ties and
+unknown telemetry.
+
+- “Draw this TLA+ counterexample so operators understand the failure.” → `atl-diagrams` statechart mode, preserving the real report and code replay; add `atl-formal-verification` when the model needs creating or repairing.
+- “Show this task's next permitted states in Diagram.” → contract-derived statechart only; no checker, installation, worker execution, or formal pass claim.
+- “Make the architecture diagram look like a blueprint.” → existing `atl-diagrams` styling; no formal-verification route unless a behavioral property needs checking.
+
 - “The login callback works locally but production redirects incorrectly after the build pipeline changed.” → delivery/investigation plus contract ledger, artifact-consumer inspection, and deployed callback observation.
 - “The selected store jumps back after clicking a new seller.” → bug fix plus cross-layer trace, legacy/new identifier matrix, missing-reference case, and user-visible re-observation.
 - “Change this button label from Save to Apply in the isolated settings component.” → direct local edit and proportionate check; no deployment gate.

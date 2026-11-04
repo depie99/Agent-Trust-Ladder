@@ -31,3 +31,17 @@ A plan exists (or the user asked for a bounded fix within the stated dose). If t
 Stop instead of improvising when: intent is ambiguous or conflicting; authority is missing (credentials, production, spend, publication, irreversible deletion); a required verifier is missing or unreliable; budgets are exhausted; protected work is at risk. Report: facts, evidence so far, the exact decision needed, a recommended safe default, and what can still proceed safely.
 
 End with: per-task states, evidence collected so far, suggested next mode (`verify`).
+
+## Delivery receipt
+
+When implementation reaches a reviewable local result, read `../references/developer-delivery.md` and use the bundled `../scripts/developer-delivery.mjs` helper. Bind required checks and separate review to the exact final content manifest, including relevant dirty and untracked files. A successful worker exit or an imported receipt is not delivery evidence.
+
+Record each finding with a stable ID, severity, affected requirement/path and disposition. Only a passing recheck on the current content revision resolves one; risk acceptance needs an authorized decision with a reason. Write both the JSON receipt and its Markdown rendering (`render <receipt> --output <file>`) into project-local evidence with relative artifact links.
+
+Read `../references/project-verifier.md` when the project has an acceptance behavior to reproduce. Use the existing verifier or the bundled `../scripts/project-verifier.mjs`; first observe the genuine failure, then repair the product and rerun the same check plus any independent readback.
+
+## UI implementation gate
+
+When a task changes an interactive surface, source edits and static tests are not sufficient evidence. Reinstall or restart the executable surface, replay the reported input against the running TUI or browser, and verify the visible target identity and route after the event. Keep renderer, hit-test, and regression tests on one geometry/state model. Record any browser or PTY interaction that was not actually replayed as `NOT OBSERVED`.
+
+For the control-plane work, read `.trust/specs/017-agentic-developer-control-plane/feedback-pattern.md` before claiming completion. Its completion rule is binding for the reported route/tab/selection defects.

@@ -7,7 +7,7 @@ Choose the model from the relationship the reader must understand, not from the 
 | What exists around the system? | System context / C4 context | People, external systems, and scope matter | clean SVG or architecture SVG |
 | What is inside the system? | C4 container / component | Services, modules, stores, and dependencies matter | architecture SVG |
 | How does work move over time? | Process flow / sequence / swimlane | Order, actors, handoffs, or decisions matter | clean SVG or Excalidraw |
-| What states can it occupy? | Lifecycle / state machine | Transitions, retries, rollback, or terminal states matter | clean SVG |
+| What states can it occupy? | Lifecycle / state machine | Transitions, retries, rollback, or terminal states matter; use [statechart mode](statecharts.md) for model-check results | Mermaid source + SVG; Pele for PStack charts |
 | Where does it run? | Deployment view | Hosts, environments, packaging, and external boundaries matter | architecture SVG |
 | Who owns or touches what? | Swimlane / responsibility map / hub-spoke | Teams, roles, handoffs, or specialist ownership matter | clean SVG or Excalidraw |
 | What does this change affect? | Impact map / dependency graph | Consumers, contracts, docs, UI, tests, or rollback matter | clean SVG |

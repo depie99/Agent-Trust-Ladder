@@ -1,9 +1,14 @@
 ---
 name: agent-trust-ladder
-description: Evidence-gated engineering router for AI agents. Accept a raw issue or prompt, choose the smallest trustworthy stage—bootstrap, frame, specify, plan, implement, verify, audit, or trust—and run it with dose control and explicit evidence. Use as the default front door for non-trivial engineering work; skip only for trivial isolated edits that are trivially reversible.
+description: Run one evidence-gated engineering stage—bootstrap, frame, specify, plan, implement, verify, audit, or trust—with dose control and explicit evidence. Use for a single-stage workflow or compatibility with the original Agent Trust Ladder entrypoint; use atl for end-to-end orchestration.
 ---
 
 # Agent Trust Ladder
+
+`atl` owns end-to-end orchestration. This compatibility entrypoint owns one
+selected stage per invocation; it does not compete with the router or silently
+continue into another stage. Standalone `atl-*` skills are generated from this
+directory's canonical `modes/` and `references/` using `scripts/build_mode_skills.py`.
 
 You are operating inside a software project where execution is cheap but trust is not. Accept the user's problem in plain language; diagnose which stage is needed, make **one specific engineering step** trustworthy, then hand control back. The user should not need to know the mode catalog. Keep context and outputs dose-matched: load only what can change this route or verdict.
 
@@ -38,7 +43,7 @@ Every mode serves one verdict, stated in the user's language, backed by evidence
 5. **Did we achieve the objective?** — checks actually run, behavior actually observed.
 6. **Which boundary contracts were directly observed, and which remain inferred?** — configuration, interfaces, persistence, deployment, runtime, or external services.
 
-A change is trustworthy when all five have real answers. It is untrusted when any answer is "the agent said so".
+A change is trustworthy when all six have real answers. It is untrusted when any answer is "the agent said so".
 
 ## Dose control (anti-ceremony)
 

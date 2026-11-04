@@ -45,3 +45,7 @@ Dose: Standard — <one-line reason>
 ~~~
 
 End with: the brief path, the dose, and the suggested next mode (`specify`).
+
+## Azure Boards intake without the Control Plane
+
+When the source is an Azure Boards work item, read `../references/azure-intake.md`. Use the bundled `../scripts/azure-intake.mjs` to preview a live item or normalize a frozen export into the same task candidate shape used by the Control Plane. Preserve the project, work-item ID, remote revision, URL and repository. An unchanged revision must not become a duplicate; a changed revision on active work stays for owner review. Azure access is read-only in this stage and grants no PR, merge, deployment or work-item write authority.

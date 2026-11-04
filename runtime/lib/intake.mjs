@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import https from "node:https";
 import { extractResources, normalizeResource } from "./resources.mjs";
+import { fetchAzureTasks } from "../../skills/atl/scripts/azure-intake.mjs";
 
 export class IntakeError extends Error {}
 
@@ -262,9 +263,8 @@ export async function probeGitHubRepo(repo) {
 // cfg: { org_url (includes collection), project, iteration_path, token_env,
 //        types, wiql, tls_allow_untrusted }
 export async function intakeFromAzure(cfg, { requestImpl = requestJson } = {}) {
-  const tokenEnv = cfg.token_env || "AZDO_PAT";
-  const pat = process.env[tokenEnv];
-  if (!pat) {
+  if (!process.env[cfg.token_env || "AZDO_PAT"]) {
+    const tokenEnv = cfg.token_env || "AZDO_PAT";
     throw new IntakeError(
       `Azure intake needs a personal access token in the ${tokenEnv} environment variable.\n` +
       `  1. On ${new URL(cfg.org_url).host} create a PAT (Work Items: Read).\n` +
@@ -272,63 +272,25 @@ export async function intakeFromAzure(cfg, { requestImpl = requestJson } = {}) {
       `  3. re-run: node runtime\\atl-manager.mjs intake --source azure`
     );
   }
-  const auth = "Basic " + Buffer.from(":" + pat).toString("base64");
-  const org = new URL(String(cfg.org_url || ""));
-  if (org.protocol !== "https:" || org.username || org.password || org.search || org.hash) throw new IntakeError("Azure collection URL must be a plain HTTPS URL");
-  const base = `${org.href.replace(/\/$/, "")}/${encodeURIComponent(cfg.project)}`;
-  const headers = { Authorization: auth, "Content-Type": "application/json" };
-  const tls = { allowUntrusted: !!cfg.tls_allow_untrusted };
-
-  const iteration = cfg.iteration_path || `${cfg.project}\\${cfg.sprint || "Current"}`;
-  const wiql =
-    cfg.wiql ||
-    `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${String(cfg.project).replace(/'/g, "''")}' ` +
-    `AND [System.IterationPath] = '${iteration.replace(/'/g, "''")}' ` +
-    `AND [System.WorkItemType] IN (${(cfg.types || ["Task", "Bug", "User Story"]).map((t) => `'${String(t).replace(/'/g, "''")}'`).join(", ")})`;
-
-  const query = await requestImpl(`${base}/_apis/wit/wiql?api-version=6.0`, {
-    method: "POST", headers, body: { query: wiql }, ...tls,
-  });
-  const ids = (query.workItems || []).map((w) => w.id).slice(0, 100);
-  if (ids.length === 0) return [];
-
-  const batch = await requestImpl(`${base}/_apis/wit/workitemsbatch?api-version=6.0`, {
-    method: "POST",
-    headers,
-    body: { ids, fields: ["System.Id", "System.Rev", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "Microsoft.VSTS.Common.Priority", "System.Description"], "$expand": "Relations" },
-    ...tls,
-  });
-
-  return (batch.value || []).map((w) => {
-    const f = w.fields || {};
-    const assigned = f["System.AssignedTo"] && f["System.AssignedTo"].displayName;
-    const description = String(f["System.Description"] || "");
-    return {
-      title: `${f["System.WorkItemType"]} ${w.id}: ${f["System.Title"]}`,
-      objective_hint: description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 800),
-      completion_checks: [],
-      priority: normalizePriority(String(f["Microsoft.VSTS.Common.Priority"] || "")),
-      risk: f["System.WorkItemType"] === "Bug" ? "normal" : "normal",
-      labels: [f["System.State"], assigned ? `assigned:${assigned}` : "unassigned"].filter(Boolean),
-      source: {
-        type: "azure",
-        url: `${base}/_workitems/edit/${w.id}`,
-        thread: `${cfg.org_url}/${cfg.project}/_workitems/edit/${w.id}`,
-        project: cfg.project, iteration, remote_id: w.id, revision: f["System.Rev"] || null,
-        excerpt: String(f["System.Title"] || ""),
+  try {
+    return await fetchAzureTasks(cfg, {
+      requestImpl,
+      resourceMapper: (workItem, normalized) => {
+        const description = String(workItem.fields?.["System.Description"] || "");
+        return [
+          ...extractResources(description, { source: "azure", baseUrl: `${normalized.base}/_workitems/edit/${workItem.id}` }),
+          ...(workItem.relations || [])
+            .filter((relation) => relation && relation.url && (!relation.rel || /attachedfile|hyperlink/i.test(relation.rel)))
+            .map((relation) => normalizeResource(relation.url, {
+              label: relation.attributes?.name || relation.attributes?.comment || "Azure attachment",
+              source: "azure",
+            })),
+        ].filter(Boolean);
       },
-      resources: [
-        ...extractResources(description, { source: "azure", baseUrl: `${base}/_workitems/edit/${w.id}` }),
-        ...(w.relations || [])
-          .filter((relation) => relation && relation.url && (!relation.rel || /attachedfile|hyperlink/i.test(relation.rel)))
-          .map((relation) => normalizeResource(relation.url, {
-            label: relation.attributes?.name || relation.attributes?.comment || "Azure attachment",
-            source: "azure",
-          })),
-      ].filter(Boolean),
-      intake_key: `azure:${org.href.replace(/\/$/, "")}:${cfg.project}:${w.id}:${f["System.Rev"] || 0}`,
-    };
-  });
+    });
+  } catch (error) {
+    throw new IntakeError(error.message);
+  }
 }
 
 // ---------- adapter: Jira issues (read-only search)
