@@ -205,6 +205,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/defaults/model-routing.json](../runtime/defaults/model-routing.json) | model routing: source/configuration for its containing feature. |
 | [runtime/lib/approvals.mjs](../runtime/lib/approvals.mjs) | Durable, exact-action approvals.  A grant is evidence of permission, never |
 | [runtime/lib/backup.mjs](../runtime/lib/backup.mjs) | Recoverable project-local snapshots. Backups are explicit owner operations; |
+| [runtime/lib/batch-runner.mjs](../runtime/lib/batch-runner.mjs) | Manager-side adapter for one finite sequential batch. The checkpoint rules |
 | [runtime/lib/brain.mjs](../runtime/lib/brain.mjs) | Evidence-linked project memory. Human-readable knowledge may live in |
 | [runtime/lib/browser-access.mjs](../runtime/lib/browser-access.mjs) | browser access: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/change-review-store.mjs](../runtime/lib/change-review-store.mjs) | change review store: runtime implementation; inspect exports and matching verification. |
@@ -212,7 +213,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/command-console.mjs](../runtime/lib/command-console.mjs) | command console: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/composer.mjs](../runtime/lib/composer.mjs) | The control room's composition path: free text or imported candidates in, |
 | [runtime/lib/control-assistant.mjs](../runtime/lib/control-assistant.mjs) | control assistant: runtime implementation; inspect exports and matching verification. |
-| [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | The browser Studio draft response: artifact plus the honest source label. |
+| [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | Batch ids with a runner active in this process. The checkpoint lease remains |
 | [runtime/lib/control-plane.mjs](../runtime/lib/control-plane.mjs) | Inventory only: installed skill metadata is not promotion evidence. |
 | [runtime/lib/dashboard.mjs](../runtime/lib/dashboard.mjs) | Read-only terminal dashboard for the ATL manager. |
 | [runtime/lib/delivery.mjs](../runtime/lib/delivery.mjs) | delivery: runtime implementation; inspect exports and matching verification. |
@@ -335,14 +336,26 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-adr/references/writing-guide.md](../skills/atl-adr/references/writing-guide.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-adr/SKILL.md](../skills/atl-adr/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-audit/agents/openai.yaml](../skills/atl-audit/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-audit/references/azure-intake.md](../skills/atl-audit/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-audit/references/developer-delivery.md](../skills/atl-audit/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-audit/references/evidence.md](../skills/atl-audit/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-audit/references/ladder.md](../skills/atl-audit/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-audit/references/project-verifier.md](../skills/atl-audit/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-audit/references/spec-core.md](../skills/atl-audit/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-audit/scripts/azure-intake.mjs](../skills/atl-audit/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-audit/scripts/developer-delivery.mjs](../skills/atl-audit/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-audit/scripts/project-verifier.mjs](../skills/atl-audit/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-audit/SKILL.md](../skills/atl-audit/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-bootstrap/agents/openai.yaml](../skills/atl-bootstrap/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-bootstrap/references/azure-intake.md](../skills/atl-bootstrap/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-bootstrap/references/developer-delivery.md](../skills/atl-bootstrap/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-bootstrap/references/evidence.md](../skills/atl-bootstrap/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-bootstrap/references/ladder.md](../skills/atl-bootstrap/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-bootstrap/references/project-verifier.md](../skills/atl-bootstrap/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-bootstrap/references/spec-core.md](../skills/atl-bootstrap/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-bootstrap/scripts/azure-intake.mjs](../skills/atl-bootstrap/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-bootstrap/scripts/developer-delivery.mjs](../skills/atl-bootstrap/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-bootstrap/scripts/project-verifier.mjs](../skills/atl-bootstrap/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-bootstrap/SKILL.md](../skills/atl-bootstrap/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-content-quality/agents/openai.yaml](../skills/atl-content-quality/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl-content-quality/references/checklist.md](../skills/atl-content-quality/references/checklist.md) | Supporting reference for its parent skill; read when that contract requires it. |
@@ -352,29 +365,54 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-diagrams/references/format-selection.md](../skills/atl-diagrams/references/format-selection.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/references/model-registry.md](../skills/atl-diagrams/references/model-registry.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/references/quality-checklist.md](../skills/atl-diagrams/references/quality-checklist.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-diagrams/references/statecharts.md](../skills/atl-diagrams/references/statecharts.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-diagrams/SKILL.md](../skills/atl-diagrams/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-formal-verification/agents/openai.yaml](../skills/atl-formal-verification/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl-formal-verification/SKILL.md](../skills/atl-formal-verification/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-frame/agents/openai.yaml](../skills/atl-frame/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-frame/references/azure-intake.md](../skills/atl-frame/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-frame/references/developer-delivery.md](../skills/atl-frame/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-frame/references/evidence.md](../skills/atl-frame/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-frame/references/ladder.md](../skills/atl-frame/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-frame/references/project-verifier.md](../skills/atl-frame/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-frame/references/spec-core.md](../skills/atl-frame/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-frame/scripts/azure-intake.mjs](../skills/atl-frame/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-frame/scripts/developer-delivery.mjs](../skills/atl-frame/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-frame/scripts/project-verifier.mjs](../skills/atl-frame/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-frame/SKILL.md](../skills/atl-frame/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-implement/agents/openai.yaml](../skills/atl-implement/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-implement/references/azure-intake.md](../skills/atl-implement/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-implement/references/developer-delivery.md](../skills/atl-implement/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-implement/references/evidence.md](../skills/atl-implement/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-implement/references/ladder.md](../skills/atl-implement/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-implement/references/project-verifier.md](../skills/atl-implement/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-implement/references/spec-core.md](../skills/atl-implement/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-implement/scripts/azure-intake.mjs](../skills/atl-implement/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-implement/scripts/developer-delivery.mjs](../skills/atl-implement/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-implement/scripts/project-verifier.mjs](../skills/atl-implement/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-implement/SKILL.md](../skills/atl-implement/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-maintain-verification/SKILL.md](../skills/atl-maintain-verification/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-plan/agents/openai.yaml](../skills/atl-plan/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-plan/references/azure-intake.md](../skills/atl-plan/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-plan/references/developer-delivery.md](../skills/atl-plan/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-plan/references/evidence.md](../skills/atl-plan/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-plan/references/ladder.md](../skills/atl-plan/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-plan/references/project-verifier.md](../skills/atl-plan/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-plan/references/spec-core.md](../skills/atl-plan/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-plan/scripts/azure-intake.mjs](../skills/atl-plan/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-plan/scripts/developer-delivery.mjs](../skills/atl-plan/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-plan/scripts/project-verifier.mjs](../skills/atl-plan/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-plan/SKILL.md](../skills/atl-plan/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-specify/agents/openai.yaml](../skills/atl-specify/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-specify/references/azure-intake.md](../skills/atl-specify/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-specify/references/developer-delivery.md](../skills/atl-specify/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/references/evidence.md](../skills/atl-specify/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/references/ladder.md](../skills/atl-specify/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-specify/references/project-verifier.md](../skills/atl-specify/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/references/spec-core.md](../skills/atl-specify/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-specify/scripts/azure-intake.mjs](../skills/atl-specify/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-specify/scripts/developer-delivery.mjs](../skills/atl-specify/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-specify/scripts/project-verifier.mjs](../skills/atl-specify/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-specify/SKILL.md](../skills/atl-specify/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-team/agents/openai.yaml](../skills/atl-team/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl-team/SKILL.md](../skills/atl-team/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
@@ -388,9 +426,15 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-tech-docs/references/writing-guide.md](../skills/atl-tech-docs/references/writing-guide.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-tech-docs/SKILL.md](../skills/atl-tech-docs/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-trust/agents/openai.yaml](../skills/atl-trust/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-trust/references/azure-intake.md](../skills/atl-trust/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-trust/references/developer-delivery.md](../skills/atl-trust/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-trust/references/evidence.md](../skills/atl-trust/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-trust/references/ladder.md](../skills/atl-trust/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-trust/references/project-verifier.md](../skills/atl-trust/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-trust/references/spec-core.md](../skills/atl-trust/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-trust/scripts/azure-intake.mjs](../skills/atl-trust/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-trust/scripts/developer-delivery.mjs](../skills/atl-trust/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-trust/scripts/project-verifier.mjs](../skills/atl-trust/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-trust/SKILL.md](../skills/atl-trust/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-ui-review/agents/openai.yaml](../skills/atl-ui-review/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl-ui-review/references/fix-loop.md](../skills/atl-ui-review/references/fix-loop.md) | Supporting reference for its parent skill; read when that contract requires it. |
@@ -398,19 +442,32 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-ui-review/references/ui-quality-standard.md](../skills/atl-ui-review/references/ui-quality-standard.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-ui-review/SKILL.md](../skills/atl-ui-review/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-verify/agents/openai.yaml](../skills/atl-verify/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-verify/references/azure-intake.md](../skills/atl-verify/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-verify/references/developer-delivery.md](../skills/atl-verify/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/references/evidence.md](../skills/atl-verify/references/evidence.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/references/ladder.md](../skills/atl-verify/references/ladder.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-verify/references/project-verifier.md](../skills/atl-verify/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-verify/references/spec-core.md](../skills/atl-verify/references/spec-core.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-verify/scripts/azure-intake.mjs](../skills/atl-verify/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl-verify/scripts/developer-delivery.mjs](../skills/atl-verify/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl-verify/scripts/project-verifier.mjs](../skills/atl-verify/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-verify/SKILL.md](../skills/atl-verify/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl/agents/openai.yaml](../skills/atl/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl/references/ai-evaluation.md](../skills/atl/references/ai-evaluation.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/references/azure-intake.md](../skills/atl/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/case-studies.md](../skills/atl/references/case-studies.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/references/developer-delivery.md](../skills/atl/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/evidence-gates.md](../skills/atl/references/evidence-gates.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/playbooks.md](../skills/atl/references/playbooks.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/project-assessment.md](../skills/atl/references/project-assessment.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/references/project-verifier.md](../skills/atl/references/project-verifier.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/resource-execution.md](../skills/atl/references/resource-execution.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/routing.md](../skills/atl/references/routing.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl/references/skill-catalog.md](../skills/atl/references/skill-catalog.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl/scripts/azure-intake.mjs](../skills/atl/scripts/azure-intake.mjs) | azure intake: source/configuration for its containing feature. |
+| [skills/atl/scripts/batch-runner.mjs](../skills/atl/scripts/batch-runner.mjs) | Shared sequential batch state machine. Runtime and skills-only hosts use the |
+| [skills/atl/scripts/developer-delivery.mjs](../skills/atl/scripts/developer-delivery.mjs) | developer delivery: source/configuration for its containing feature. |
+| [skills/atl/scripts/project-verifier.mjs](../skills/atl/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl/SKILL.md](../skills/atl/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/verify-atl-manager-lifecycle/SKILL.md](../skills/verify-atl-manager-lifecycle/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 
