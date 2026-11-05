@@ -1,7 +1,7 @@
 {
   "name": "agent-trust-ladder",
   "version": "0.4.0",
-  "description": "A smart trust control plane plus evidence-gated engineering and UI review workflows.",
+  "description": "Full ATL: engineering skills, workflows, persistent tasks, bounded execution and the local Control Plane.",
   "author": {
     "name": "depie99",
     "url": "https://github.com/depie99"
@@ -11,15 +11,19 @@
   "license": "MIT",
   "keywords": ["agents", "trust", "verification", "specification"],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "onboardingSkill": "./skills/atl-plugin/SKILL.md",
+  "requires_local_executor": true,
   "interface": {
     "displayName": "Agent Trust Ladder",
-    "shortDescription": "Evidence-gated engineering workflows",
-    "longDescription": "Use ATL as one smart entry point that assesses the project and composes available Trust Ladder, pstack, Matt Pocock, and evidence-driven UI review skills, or invoke individual workflows directly.",
+    "shortDescription": "Tasks, execution, workflows and Control Plane",
+    "longDescription": "Use the complete bundled ATL runtime and engineering workflows inside your harness. Initialize an application, manage persistent tasks and queues, preview bounded provider execution, open the local Control Plane, and inspect review evidence without installing ATL separately.",
     "developerName": "depie99",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Write"],
     "websiteURL": "https://github.com/depie99/Agent-Trust-Ladder",
     "defaultPrompt": [
+      "Initialize this application and open its ATL Control Plane.",
       "Assess this project and choose the smallest trustworthy workflow.",
       "Specify observable behavior and acceptance examples.",
       "Inspect and fix this implemented UI against its real states and requirements.",
