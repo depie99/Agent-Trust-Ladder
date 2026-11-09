@@ -41,3 +41,9 @@ node_modules/
 scripts/__pycache__/
 verification/_*.log
 verification/_probe_*
+
+# Archived task workspaces and revalidation baselines are local full-repository
+# copies. Staged, they become gitlinks without a .gitmodules entry (breaking
+# actions/checkout cleanup) or thousands of duplicated files.
+.trust/manager/workspace-archive/
+.trust/manager/revalidation-baseline-*/
