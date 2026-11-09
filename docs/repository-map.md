@@ -198,6 +198,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | File | Purpose |
 |---|---|
 | [runtime/atl-manager.mjs](../runtime/atl-manager.mjs) | atl-manager — the runtime that keeps the ATL digital team alive. |
+| [runtime/atl-plugin-mcp.mjs](../runtime/atl-plugin-mcp.mjs) | Dependency-free MCP stdio transport. stdout is reserved for JSON-RPC. |
 | [runtime/control-plane-changes.js](../runtime/control-plane-changes.js) | control plane changes: source/configuration for its containing feature. |
 | [runtime/control-plane-client.js](../runtime/control-plane-client.js) | control plane client: source/configuration for its containing feature. |
 | [runtime/control-plane-i18n.js](../runtime/control-plane-i18n.js) | control plane i18n: source/configuration for its containing feature. |
@@ -242,6 +243,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/plan-model.mjs](../runtime/lib/plan-model.mjs) | One bounded model planning call against a configured user provider. |
 | [runtime/lib/plan-publish.mjs](../runtime/lib/plan-publish.mjs) | plan publish: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/plan-studio.mjs](../runtime/lib/plan-studio.mjs) | The root directory listing is reviewer context, not reviewed evidence. It |
+| [runtime/lib/plugin-host.mjs](../runtime/lib/plugin-host.mjs) | Shared full-runtime bridge for native harness plugins and stdio MCP. |
 | [runtime/lib/provider-quota.mjs](../runtime/lib/provider-quota.mjs) | provider quota: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/providers.mjs](../runtime/lib/providers.mjs) | Provider discovery and per-role provider profiles for the control room. |
 | [runtime/lib/queue-recovery.mjs](../runtime/lib/queue-recovery.mjs) | Durable budgets belong to blocker identities, never to runner lifetimes. |
@@ -426,6 +428,7 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-plan/scripts/outcome-economics.mjs](../skills/atl-plan/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-plan/scripts/project-verifier.mjs](../skills/atl-plan/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-plan/SKILL.md](../skills/atl-plan/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
+| [skills/atl-plugin/SKILL.md](../skills/atl-plugin/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-specify/agents/openai.yaml](../skills/atl-specify/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl-specify/references/azure-intake.md](../skills/atl-specify/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
 | [skills/atl-specify/references/developer-delivery.md](../skills/atl-specify/references/developer-delivery.md) | Supporting reference for its parent skill; read when that contract requires it. |
@@ -629,6 +632,8 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
 | [verification/plan_studio_journey_test.mjs](../verification/plan_studio_journey_test.mjs) | Executable regression check for plan studio journey. |
 | [verification/plan_studio_test.mjs](../verification/plan_studio_test.mjs) | Executable regression check for plan studio. |
+| [verification/plugin_bundle_test.mjs](../verification/plugin_bundle_test.mjs) | Executable regression check for plugin bundle. |
+| [verification/plugin_connect_test.mjs](../verification/plugin_connect_test.mjs) | Executable regression check for plugin connect. |
 | [verification/portable_overnight_batch_test.mjs](../verification/portable_overnight_batch_test.mjs) | Executable regression check for portable overnight batch. |
 | [verification/project_readiness_verifier_test.mjs](../verification/project_readiness_verifier_test.mjs) | Executable regression check for project readiness verifier. |
 | [verification/provider_quota_failover_test.mjs](../verification/provider_quota_failover_test.mjs) | Executable regression check for provider quota failover. |
