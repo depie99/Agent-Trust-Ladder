@@ -7,6 +7,9 @@ description: Create or compress ATL implementation plans into concise developer 
 
 Produce a plan that an agent can execute unambiguously and a developer can scan comfortably. Optimize for both audiences: plain task sentences first, exact execution details in a compact reference in the same document. Brevity means removing repetition, not removing meaning. Match the user's language; keep paths, commands, and contract identifiers exact. This is a planning workflow; return the plan without starting implementation.
 
+## Parallel ideation
+
+For an open-ended planning decision, run the isolated multi-call pipeline in [method and configuration](references/method.md). It uses fresh read-only Codex sessions for framed candidate generation, separate critic and clustering, focused survivors, and final synthesis. Read the method before running: defaults use up to 10 model calls, so they can cost more than a single-pass plan. Respect the user's budget and provider policy. Ground the context in actual project evidence and exclude secrets. Treat generated output as a draft: independently inspect all referenced files, commands, assumptions, acceptance coverage, and approval gates before saving the canonical plan. If Codex CLI or independent calls are unavailable, say so and use the compact single-pass workflow only when the user accepts that fallback; never claim independent branches or critique ran.
 ## Preserve the contract
 
 - Inspect repository instructions, protected work, relevant code/callers, spec, and actual verifier configuration. Read only decision-changing sources; never invent files, commands, approval, or evidence.
