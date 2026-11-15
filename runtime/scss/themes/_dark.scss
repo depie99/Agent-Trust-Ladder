@@ -1,5 +1,7 @@
-// Dark theme (default) for the ATL Control Plane app. Every value is the
-// exact color the app shipped with, so dark rendering is preserved verbatim.
+// Dark theme (default) for the ATL Control Plane app.
+// 2026-11 refinement: palette derived from the ATL favicon gradient —
+// violet #9b8cff→#c0b5ff, mint spark #5fe0c2, amber spark #f4c67e,
+// violet-black surfaces #0b0b10 / #11111a / #211b3b, violet-gray edge #4c467a.
 //
 // Token groups:
 //   surfaces — page, sidebar, panels, buttons, pills, fields, terminal,
@@ -8,69 +10,83 @@
 //   lines    — borders and hairlines per surface family
 //   brand    — the five status hues, tuned per theme for text contrast
 //   effects  — modal backdrop, dialog shadow, pulse fade
+//   accent family — brand violet: primary fill (--accent-strong), soft fills
+//              (--accent-bg/--accent-edge), focus ring (--focus), diagram
+//              canvas (--surface)
+//   success family — mint: --green/--green-bg/--green-edge/--green-fade.
+//              Success and running states reference ONLY this family, so
+//              changing the brand accent can never change status meaning.
 //
 // Every token MUST exist in both theme maps — _tokens.scss fails the build
 // otherwise. When adding a token, add it to _light.scss in the same change.
-//
-// Note: --on-accent unifies the two shipped on-accent darks (#09231b for the
-// primary button, #0b231d for the brand chip) into one value; the 2-unit
-// difference was invisible.
 
 $theme: (
   // surfaces
-  "bg": #0b1018,
-  "side": #0c131d,
-  "pane": #121b28,
-  "raised": #192535,
-  "chip": #172335,
-  "btn-bg": #1b293a,
-  "btn-bg-hover": #24374c,
-  "pill-bg": #1a2b3e,
-  "field-bg": #0c1520,
-  "step-on-bg": #16342d,
-  "term-bg": #080e17,
-  "dialog-bg": #152131,
-  "dock-bg": #0d1520,
-  "avatar-bg": #1b3b36,
-  "notice-bg": #282319,
-  "mobile-bg": #111b29,
-  "row-hover": #1a2b3b,
-  "nav-on": #20352f,
-  "track": #2b3a4d,
+  "bg": #0d0d13,
+  "side": #101017,
+  "pane": #15151f,
+  "raised": #1a1a26,
+  "chip": #181824,
+  "btn-bg": #1c1c29,
+  "btn-bg-hover": #232334,
+  "pill-bg": #1a1a28,
+  "field-bg": #111119,
+  "step-on-bg": #152a24,
+  "term-bg": #0b0b10,
+  "dialog-bg": #16161f,
+  "dock-bg": #10101a,
+  "avatar-bg": #1d1730,
+  "notice-bg": #251d14,
+  "mobile-bg": #101018,
+  "row-hover": #1a1a27,
+  "nav-on": #1e1834,
+  "track": #262637,
   // text
-  "text": #e4ecf7,
-  "muted": #8b9bb0,
-  "faint": #7689a5,
-  "nav-ink": #a9b8cd,
-  "btn-ink": #dbe6f5,
-  "label-ink": #a0b0c8,
-  "step-ink": #abbbd0,
-  "term-ink": #c9d8eb,
-  "kbd-ink": #7790a6,
-  "on-accent": #09231b,
+  "text": #e9e7f4,
+  "muted": #9d9ab8,
+  "faint": #8a87ad,
+  "nav-ink": #a8a5c5,
+  "btn-ink": #e4e1f2,
+  "label-ink": #a3a0c2,
+  "step-ink": #a8cbbc,
+  "term-ink": #cbccdd,
+  "kbd-ink": #9a97bd,
+  "on-accent": #ffffff,
   // lines
-  "border": #29384b,
-  "row-line": #273347,
-  "btn-edge": #3b4c63,
-  "btn-edge-hover": #6d879d,
-  "pill-edge": #3b4d63,
-  "key-edge": #455773,
-  "field-edge": #40516a,
-  "step-on-edge": #398c76,
-  "term-edge": #314459,
-  "dialog-edge": #536781,
-  "dock-edge": #34445c,
-  "avatar-edge": #3c7f70,
-  "notice-edge": #635036,
-  "plan-edge": #526482,
-  // brand
-  "accent": #4fe1b6,
-  "red": #fb8792,
-  "amber": #f3c073,
-  "blue": #90b4fa,
-  "violet": #bea9ff,
+  "border": #26263a,
+  "row-line": #20202e,
+  "btn-edge": #32324a,
+  "btn-edge-hover": #4a4a6a,
+  "pill-edge": #32324a,
+  "key-edge": #3d3d5c,
+  "field-edge": #33334d,
+  "step-on-edge": #2e7d64,
+  "term-edge": #26263a,
+  "dialog-edge": #3a3a56,
+  "dock-edge": #262636,
+  "avatar-edge": #463c78,
+  "notice-edge": #63512f,
+  "plan-edge": #3d3d5c,
+  // brand — five status hues, violet accent
+  "accent": #9b8cff,
+  "red": #f27d8a,
+  "amber": #f4c67e,
+  "blue": #8fb0f5,
+  "violet": #c3b3ff,
   // effects
-  "backdrop": #03070bda,
-  "dialog-shadow": #0009,
-  "accent-fade": #4fe1b600,
+  "backdrop": #06060bd9,
+  "dialog-shadow": #000c,
+  "accent-fade": #9b8cff00,
+  // accent family — primary fill, soft fills, focus, diagram canvas
+  "accent-strong": #6e55e0,
+  "accent-strong-hover": #7e66ee,
+  "accent-bg": #1e1834,
+  "accent-edge": #4a3f8f,
+  "focus": #a795ff,
+  "surface": #171722,
+  // success family — mint, from the favicon spark
+  "green": #5fe0c2,
+  "green-bg": #14271f,
+  "green-edge": #2e7d64,
+  "green-fade": #5fe0c200,
 );

@@ -8,29 +8,34 @@
   input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); flex-shrink: 0; }
   .input { font-size: 11.5px; min-height: 35px; padding: 8px 10px; }
 }
-.source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.source-card { display: flex; flex-direction: column; }
+.source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 16px; }
+.source-card { display: flex; flex-direction: column; align-self: start; }
 .source-card.is-enabled { border-color: var(--step-on-edge); }
 .source-card .paneltitle { background: var(--raised); padding: 12px 15px; gap: 8px; }
 .source-card h2 { font-size: 13px; }
 .source-icon { width: 25px; height: 25px; display: inline-grid; place-items: center; border: 1px solid var(--pill-edge); border-radius: 6px; font-size: 12px; font-weight: 800; background: var(--chip); }
-.source-github { color: var(--accent); background: var(--step-on-bg); border-color: var(--step-on-edge); }
+.source-github { color: var(--green); background: var(--step-on-bg); border-color: var(--step-on-edge); }
 .source-jira { color: var(--blue); }
 .source-azure { color: var(--violet); }
 .source-status { display: inline-block; border: 1px solid var(--pill-edge); border-radius: 12px; background: var(--pill-bg); color: var(--muted); padding: 2px 10px; font-size: 10px; white-space: nowrap; }
-.source-status.is-enabled { background: var(--step-on-bg); border-color: var(--step-on-edge); color: var(--accent); }
+.source-status.is-enabled { background: var(--green-bg); border-color: var(--green-edge); color: var(--green); }
 .source-body { display: flex; flex: 1; flex-direction: column; gap: 12px; padding: 13px 15px; }
 .source-readiness { margin: 0; padding: 8px 10px; border: 1px solid var(--notice-edge); background: var(--notice-bg); border-radius: 6px; color: var(--amber); font-size: 10.5px; overflow-wrap: anywhere; min-height: 51px; display: flex; align-items: center; }
 .source-card[data-source="github"] .source-readiness { color: var(--blue); background: var(--pill-bg); border-color: var(--pill-edge); }
-.source-readiness.is-ready { color: var(--accent); background: var(--step-on-bg); border-color: var(--step-on-edge); }
+.source-readiness.is-ready { color: var(--green); background: var(--green-bg); border-color: var(--green-edge); }
 .source-enable { display: flex; gap: 8px; align-items: center; font-size: 11.5px; }
 .source-field { min-width: 0; }
 .source-field .label { margin-bottom: 5px; font-size: 10.5px; }
+.source-pat-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.source-pat-label-row .label { margin-bottom: 5px; }
+.source-pat-edit { min-height: 26px; min-width: 30px; padding: 2px 7px; line-height: 1; }
+.source-pat-field input:disabled { cursor: not-allowed; opacity: .78; }
 .source-field-pair { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; }
 .source-hint { margin: 0; color: var(--faint); font-size: 10.5px; line-height: 1.7; }
 .source-hint .pill { display: table; margin-top: 8px; }
 .source-actions { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--row-line); padding-top: 12px; margin-top: auto; }
 .source-workbench { margin-top: 18px; }
+.source-workbench.source-quickfind { padding: 13px 16px 12px; }
 .source-workbench > .paneltitle { background: var(--raised); gap: 12px; flex-wrap: wrap; }
 .source-notice { padding: 10px 18px; margin: 0; font-size: 11px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .source-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 18px; background: var(--dialog-bg); border-bottom: 1px solid var(--border); }
@@ -41,8 +46,20 @@
 .source-import-controls { display: flex; gap: 8px; align-items: center; margin-inline-start: auto; font-size: 10.5px; flex-wrap: wrap; }
 .source-import-controls .input { width: 132px; }
 .source-import-controls .btn { white-space: nowrap; }
+.source-repository-picker { min-width: min(400px, 100%); max-width: 560px; margin: 0; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--pane); }
+.source-repository-picker legend { padding-inline: 5px; font-size: 11px; font-weight: 800; }
+.source-repository-picker p { margin: 0 0 6px; color: var(--muted); font-size: 10px; }
+.source-repository-picker label { display: grid; grid-template-columns: auto minmax(100px, .5fr) minmax(120px, 1fr); align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid var(--row-line); }
+.source-repository-picker label small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .source-table-scroll { overflow-x: auto; }
 .source-table { width: 100%; border-collapse: collapse; text-align: start; font-size: 11px; }
+.source-workbench[aria-label="Imported requests"] .source-table { min-width: 720px; table-layout: fixed; }
+.source-workbench[aria-label="Imported requests"] .source-table th:first-child { width: 54%; }
+.source-workbench[aria-label="Imported requests"] .source-table th:nth-child(2) { width: 20%; }
+.source-workbench[aria-label="Imported requests"] .source-table th:nth-child(3) { width: 26%; }
+.source-workbench[aria-label="Imported requests"] .source-table td { vertical-align: top; overflow-wrap: anywhere; }
+.source-workbench[aria-label="Imported requests"] .imported-content-copy { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
+.source-history-actions { align-items: flex-start; flex-direction: column; gap: 7px; }
 .source-table th { padding: 7px 10px; background: var(--field-bg); color: var(--faint); font-size: 9.5px; text-transform: uppercase; text-align: start; white-space: nowrap; }
 .source-table th:first-child, .source-table td:first-child { padding-inline-start: 18px; width: 36px; }
 .source-table td { padding: 12px 10px; border-top: 1px solid var(--border); }
@@ -52,7 +69,9 @@
 .source-issue-copy { min-width: 230px; max-width: 550px; }
 .source-issue-copy b { display: block; font-size: 12px; overflow-wrap: anywhere; }
 .source-issue-copy > span { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: var(--muted); margin-top: 3px; font-size: 10.5px; overflow-wrap: anywhere; }
-.source-empty { padding: 30px 18px; color: var(--muted); font-size: 12px; text-align: center; }
+.source-toolbar:has(+ .source-table-scroll tbody:empty),
+.source-table-scroll:has(tbody:empty) { display: none; }
+.source-empty { min-height: 96px; display: grid; place-items: center; margin: 0; padding: 18px; color: var(--muted); font-size: 12px; text-align: center; }
 .source-footnote { margin: 0; padding: 12px 18px; border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); }
 @media (max-width: 1150px) {
   .source-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -66,7 +85,168 @@
   .source-import-controls { margin-inline-start: 0; width: 100%; }
   .source-import-controls .input { flex: 1; min-width: 80px; }
   .source-import-controls label { width: 100%; }
+  .source-repository-picker { width: 100%; min-width: 0; }
+  .source-repository-picker label { grid-template-columns: auto minmax(0, 1fr); }
+  .source-repository-picker label small { grid-column: 2; }
   .source-toolbar { padding: 12px; }
   .source-tabs { max-width: 100%; flex-wrap: wrap; }
   .source-workbench > .paneltitle { padding: 12px; }
+  .source-workbench.source-quickfind { padding: 12px; }
+}
+
+// Projects work map: per-repository cards linking requests, plans, queues and tasks.
+.workmap-card { display: flex; flex-direction: column; gap: 0; padding: 14px; }
+.workmap-card.workmap-busy { border-color: var(--step-on-edge); }
+.workmap-card > .paneltitle { gap: 8px; flex-wrap: wrap; }
+.workmap-root { margin: 0; padding: 0 0 4px; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.workmap-stats { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 15px 12px; }
+.workmap-chip { display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--field-bg); font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+.workmap-chip b { font-size: 12px; color: var(--text); }
+.workmap-chip.has-value { border-color: var(--pill-edge); }
+.workmap-chip.amber, .workmap-chip.red, .workmap-chip.green { border-color: currentColor; }
+.workmap-chip.amber b, .workmap-chip.red b, .workmap-chip.green b { color: inherit; }
+.workmap-section summary { cursor: pointer; padding: 9px 15px; font-weight: 700; font-size: 12px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; list-style: none; }
+.workmap-section summary::-webkit-details-marker { display: none; }
+.workmap-section summary::after { content: "▸"; margin-left: auto; color: var(--muted); transition: transform .15s ease; }
+.workmap-section[open] summary::after { transform: rotate(90deg); }
+.workmap-section > .pad { display: flex; flex-direction: column; gap: 7px; border-top: 1px solid var(--border); }
+.workmap-row { padding: 8px 10px; border-radius: 8px; background: var(--field-bg); align-items: center; gap: 10px; }
+.workmap-row > div:first-child { min-width: 0; flex: 1; }
+.workmap-empty { color: var(--muted); font-size: 10.5px; }
+.workmap-toolbar { margin-top: 18px; padding: 0 0 12px; }
+.workmap-row .bar { flex-wrap: wrap; justify-content: flex-end; }
+.workstream-card { border: 1px solid var(--border); border-radius: 9px; background: var(--pane); overflow: hidden; }
+.workstream-request, .workstream-node { display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; }
+.workstream-request { background: var(--raised); border-bottom: 1px solid var(--border); }
+.workstream-step { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .09em; }
+.workstream-request b, .workstream-node b { overflow-wrap: anywhere; }
+.workstream-branch { position: relative; margin-inline-start: 28px; border-inline-start: 2px solid var(--border); }
+.workstream-node { border-bottom: 1px solid var(--row-line); }
+.workstream-tasks { display: grid; gap: 6px; padding: 9px 12px 11px 20px; }
+.workstream-task { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 7px; background: var(--field-bg); }
+.workstream-task b { min-width: 0; overflow-wrap: anywhere; }
+.workstream-task .btn { grid-column: 4; }
+.workstream-empty { padding: 9px 12px; color: var(--muted); font-size: 10.5px; }
+.workmap-registry > summary { cursor: pointer; padding: 12px 2px; font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 8px; list-style: none; }
+.workmap-registry > summary::-webkit-details-marker { display: none; }
+.workmap-registry > summary::after { content: "▸"; margin-left: auto; color: var(--muted); transition: transform .15s ease; }
+.workmap-registry[open] > summary::after { transform: rotate(90deg); }
+@media (max-width: 620px) {
+  .workstream-request, .workstream-node { grid-template-columns: 1fr auto; }
+  .workstream-step { grid-column: 1 / -1; }
+  .workstream-request .bar { grid-column: 1 / -1; }
+  .workstream-task { grid-template-columns: auto minmax(0, 1fr); }
+  .workstream-task .pill, .workstream-task .muted, .workstream-task .btn { grid-column: 2; justify-self: start; }
+}
+
+// ==== mockup: projects work map + issue-source quickfind/branches ====
+// Compact KPI strip in the Projects page head (mockup: atl-projects.svg).
+.workmap-kpis { align-items: center; flex-wrap: wrap; gap: 10px; }
+.workmap-kpi { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--field-bg); }
+.workmap-kpi small { font-size: 9px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); }
+.workmap-kpi b { font-size: 15px; }
+.workmap-filter .input { min-width: 180px; }
+
+// Numbered section eyebrows inside a repository card.
+.workmap-eyebrow { margin: 16px 0 8px; font-size: 9.5px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); }
+.workmap-eyebrow.is-green { color: var(--green); }
+.workmap-eyebrow.is-blue { color: var(--blue); }
+.workmap-eyebrow.is-amber { color: var(--amber); }
+
+// Card head: name + path left, health/cap/+Plan right.
+.workmap-cardhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 0 0 4px; flex-wrap: wrap; }
+.workmap-cardtitle { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.workmap-name { font-size: 15px; font-weight: 800; }
+.workmap-root { max-width: 100%; }
+
+// Section 1: request row + plan/need boxes with a left tree rail.
+.workmap-request { border: 1px solid var(--border); border-radius: 8px; background: var(--field-bg); padding: 8px 10px; }
+.workmap-request-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.workmap-key { display: inline-block; padding: 2px 8px; border-radius: 5px; border: 1px solid var(--pill-edge); background: var(--chip); color: var(--violet); font-size: 9.5px; font-weight: 800; white-space: nowrap; }
+.workmap-requestlist { display: flex; flex-direction: column; gap: 8px; }
+.workmap-planbox, .workmap-needbox { margin: 8px 0 0 14px; border: 1px solid var(--accent); border-radius: 6px; background: var(--pane); padding: 8px 10px; }
+.workmap-planbox.is-approved { border-color: var(--pill-edge); }
+.workmap-planbox-eyebrow { font-size: 9px; font-weight: 800; letter-spacing: 1px; color: var(--accent); }
+.workmap-planbox-body { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.workmap-planbox-body > div:first-child { min-width: 0; }
+.workmap-planbox-tasks { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: var(--muted); }
+.workmap-planbox-tasks .truncate { display: inline-block; max-width: 420px; vertical-align: bottom; }
+.workmap-needbox { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-color: var(--amber); background: var(--notice-bg); flex-wrap: wrap; }
+.workmap-needbox b { color: var(--amber); font-size: 11.5px; }
+.workmap-needbox div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+
+// Section 2: queue bars + subtask rows.
+.workmap-queues { display: flex; flex-direction: column; gap: 10px; }
+.workmap-queue { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.workmap-queuebar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--field-bg); flex-wrap: wrap; }
+.workmap-queuebar b { font-size: 11.5px; }
+.workmap-subtask { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-top: 1px solid var(--border); }
+.workmap-subtask > b { min-width: 0; }
+.subtask-glyph { width: 14px; text-align: center; color: var(--blue); font-weight: 800; }
+.subtask-glyph.is-done, .subtask-glyph.is-running { color: var(--green); }
+.subtask-glyph.is-blocked { color: var(--red); }
+
+// Section 3: assign bar.
+.workmap-assign { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+.workmap-assign .input { flex: 1 1 240px; min-width: 0; }
+.workmap-assign select.input { flex: 0 0 110px; }
+
+// Idle repositories strip.
+.workmap-idlehead { margin: 20px 0 8px; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); }
+.workmap-idlegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.workmap-idlecard { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 12px; flex-wrap: wrap; }
+.workmap-idle-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.workmap-idle-main b { font-size: 12.5px; }
+
+// ==== mockup: issue-source quickfind + repo pills + request branch cards ====
+.source-quickfind { margin-top: 16px; }
+.source-quickfind-eyebrow { font-size: 9.5px; font-weight: 800; letter-spacing: 1.2px; color: var(--accent); margin-bottom: 8px; }
+.source-quickfind-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.source-quickfind-label { font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.source-quickfind-row .input { flex: 1 1 220px; min-width: 0; }
+.source-quickfind .source-hint { margin-top: 8px; }
+
+// Multi-repo selection pills (replaces the checkbox fieldset).
+.source-repo-pills { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.source-repo-pills-label { font-size: 9.5px; font-weight: 800; letter-spacing: 1px; color: var(--muted); }
+.source-repo-pill { position: relative; display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--field-bg); color: var(--muted); font-size: 10.5px; cursor: pointer; white-space: nowrap; }
+.source-repo-pill input { position: absolute; opacity: 0; pointer-events: none; }
+.source-repo-pill:has(input:checked) { background: var(--step-on-bg); border-color: var(--accent); color: var(--accent); font-weight: 800; }
+
+// Imported request cards with per-repository branch columns.
+.source-request { border: 1px solid var(--row-line); border-radius: 10px; background: var(--pane); margin: 12px 18px; }
+.source-request-head { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.source-request-title { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 3px; }
+.source-request-title b { font-size: 13px; }
+.source-request-actions { align-items: center; flex-wrap: wrap; gap: 7px; }
+.source-request-actions .source-remove-icon { display: inline-grid; place-items: center; width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 0; }
+.source-request-actions .source-remove-icon svg { display: block; }
+.source-request-content summary { cursor: pointer; padding: 8px 14px; color: var(--muted); font-size: 10.5px; }
+.source-request-content[open] summary { border-bottom: 1px solid var(--border); }
+.source-request-content .imported-content-copy, .source-request-content ul { margin: 10px 14px; }
+.source-branch-eyebrow { padding: 10px 14px 0; font-size: 9.5px; font-weight: 800; letter-spacing: 1.2px; color: var(--muted); }
+.source-branch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; padding: 10px 14px 14px; }
+@media (max-width: 1100px) { .source-branch-grid { grid-template-columns: minmax(0, 1fr); } }
+.source-branch { border: 1.5px solid var(--accent); border-radius: 9px; display: flex; flex-direction: column; gap: 8px; padding: 12px; min-width: 0; }
+.source-branch:has(.pill.amber) { border-color: var(--amber); }
+.source-branch-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.source-branch-head b { font-size: 13px; }
+.source-branch-step { font-size: 9px; font-weight: 800; letter-spacing: 1px; color: var(--muted); margin-top: 4px; }
+.source-branch-box { border: 1px solid var(--border); border-radius: 6px; background: var(--field-bg); padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
+.source-branch-box.is-empty { border-style: dashed; color: var(--muted); font-size: 11px; }
+.source-branch-box > div:first-child { min-width: 0; }
+.source-branch-box .bar { justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.source-branch-task { display: flex; gap: 6px; align-items: center; font-size: 10.5px; color: var(--muted); min-width: 0; }
+.source-branch-actions { flex-wrap: wrap; gap: 7px; }
+.source-history-drawer { margin-top: 18px; }
+.source-history-drawer > summary { cursor: pointer; padding: 12px 18px; font-weight: 700; font-size: 12px; list-style: none; display: flex; align-items: center; gap: 8px; }
+.source-history-drawer > summary::-webkit-details-marker { display: none; }
+
+@media (max-width: 760px) {
+  .workmap-card { padding: 12px; }
+  .workmap-cardhead > .bar { width: 100%; }
+  .workmap-cardhead > .bar .btn { margin-inline-start: auto; }
+  .workmap-request-head { align-items: flex-start; }
+  .workmap-planbox, .workmap-needbox { margin-inline-start: 0; }
+  .workmap-assign select.input { flex: 1 1 110px; }
 }

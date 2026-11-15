@@ -1,6 +1,6 @@
 {
   "name": "agent-trust-ladder",
-  "version": "0.4.0",
+  "version": "0.6.10",
   "description": "Full ATL: engineering skills, workflows, persistent tasks, bounded execution and the local Control Plane.",
   "author": {
     "name": "depie99",
@@ -9,7 +9,12 @@
   "homepage": "https://github.com/depie99/Agent-Trust-Ladder",
   "repository": "https://github.com/depie99/Agent-Trust-Ladder",
   "license": "MIT",
-  "keywords": ["agents", "trust", "verification", "specification"],
+  "keywords": [
+    "agents",
+    "trust",
+    "verification",
+    "specification"
+  ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "onboardingSkill": "./skills/atl-plugin/SKILL.md",
@@ -20,7 +25,10 @@
     "longDescription": "Use the complete bundled ATL runtime and engineering workflows inside your harness. Initialize an application, manage persistent tasks and queues, preview bounded provider execution, open the local Control Plane, and inspect review evidence without installing ATL separately.",
     "developerName": "depie99",
     "category": "Developer Tools",
-    "capabilities": ["Interactive", "Write"],
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
     "websiteURL": "https://github.com/depie99/Agent-Trust-Ladder",
     "defaultPrompt": [
       "Initialize this application and open its ATL Control Plane.",

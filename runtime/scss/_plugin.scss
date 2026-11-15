@@ -1,0 +1,86 @@
+// Plugin presentation (ZCode native panel). Every rule is scoped under
+// html[data-atl-context="plugin"], which only plugins/panel-entry.mjs sets,
+// so the default browser Control Plane renders exactly as before.
+// Colors are token-only (dark/light parity holds automatically) and layout
+// uses logical properties, so the Persian RTL locale needs no overrides.
+//
+// Breakpoints per the plugin design contract:
+//   <640px   one column + bottom navigation
+//   640–959  top navigation + one content column
+//   ≥960px   list/detail split on the Tasks screen
+
+// ---- Shell: no sidebar, no CLI dock, no footer — the compact header owns chrome.
+html[data-atl-context="plugin"] .app { display: block; min-height: 100dvh; }
+html[data-atl-context="plugin"] .sidebar { display: none; }
+html[data-atl-context="plugin"] .cliDock { display: none; }
+html[data-atl-context="plugin"] .footer { display: none; }
+
+// Compact header: project name + connection status + overflow replace the
+// breadcrumb chrome; New task stays as the primary action. The header wraps
+// instead of overflowing at the narrowest host widths.
+html[data-atl-context="plugin"] .topbar,
+html[data-atl-context="plugin"] .topbar .row { flex-wrap: wrap; min-width: 0; }
+html[data-atl-context="plugin"] .topbar { height: auto; min-height: 63px; padding-block: 10px; }
+html[data-atl-context="plugin"] .topbar .row > b.muted { display: none; }
+html[data-atl-context="plugin"] .topbar .pill.hotkey { display: none; }
+html[data-atl-context="plugin"] #searchBtn,
+html[data-atl-context="plugin"] #noticesBtn,
+html[data-atl-context="plugin"] #themeBtn,
+html[data-atl-context="plugin"] #localeBtn { display: none; }
+.plugin-topbar { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.plugin-project { font-weight: 700; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+// Overflow menu (⋯): language, theme and command search.
+.plugin-overflow { position: relative; display: inline-flex; }
+.plugin-overflow-menu { position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 40; min-width: 210px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--pane); }
+.plugin-overflow-menu .nav { border: 0; background: none; text-align: start; min-height: 40px; }
+
+// ---- Primary navigation: the four plugin destinations live in #mobile.
+// The same container is a top tab strip from 640px up and a bottom bar below.
+html[data-atl-context="plugin"] .mobile { display: flex; align-items: center; gap: 4px; padding: 8px 0; margin: 0 0 14px; border-bottom: 1px solid var(--border); }
+html[data-atl-context="plugin"] .mobile .btn { min-height: 40px; min-width: 64px; justify-content: center; }
+html[data-atl-context="plugin"] .mobile .btn { gap: 5px; }
+html[data-atl-context="plugin"] .tasks-search-row > [data-action="tasks-select-visible"] { display: none; }
+.plugin-overflow .nav:focus-visible,
+html[data-atl-context="plugin"] .mobile .btn:focus-visible,
+html[data-atl-context="plugin"] .task-row:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 639px) {
+  html[data-atl-context="plugin"] .mobile { position: fixed; inset-inline: 0; bottom: 0; z-index: 30; margin: 0; padding: 6px max(10px, env(safe-area-inset-left)) max(6px, env(safe-area-inset-bottom)); border-bottom: 0; border-top: 1px solid var(--border); background: var(--pane); justify-content: space-around; }
+  html[data-atl-context="plugin"] .mobile .btn { flex: 1; min-width: 0; }
+  html[data-atl-context="plugin"] .mobile .btn { flex-wrap: wrap; gap: 2px 4px; font-size: 11px; }
+  html[data-atl-context="plugin"] .mobile .btn > [aria-hidden="true"] { display: none; }
+  html[data-atl-context="plugin"] body { padding-bottom: 72px; }
+}
+
+// Generous click targets and visible focus on interactive rows across the
+// plugin screens, matching the bottom-bar target size.
+html[data-atl-context="plugin"] .task-row .btn { min-height: 34px; }
+
+// ---- Tasks screen: one column below 960px, list/detail split from 960px.
+.plugin-tasks-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.plugin-task-list { min-width: 0; }
+.plugin-task-pane { min-width: 0; }
+.plugin-task-pane .task-inspector-layout { margin: 0; }
+.plugin-tasks-split [data-task].plugin-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--pane)); }
+@media (min-width: 960px) {
+  .plugin-tasks-split.with-pane { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+  .plugin-task-pane { position: sticky; top: 12px; max-height: calc(100dvh - 130px); overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--pane); scrollbar-gutter: stable; }
+}
+
+// Dedicated detail screen (narrow plugin widths): the shared inspector
+// composition stacks into one column.
+.task-detail-screen { min-width: 0; }
+.task-detail-screen .task-inspector-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.task-detail-screen .task-inspector-side { min-width: 0; }
+
+// ---- More screen: labeled links to the specialist screens.
+.plugin-more-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.plugin-more-link { display: grid; gap: 3px; width: 100%; min-height: 56px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.plugin-more-link:hover { background: var(--row-hover); }
+.plugin-more-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.plugin-more-link b { font-size: 13px; }
+@media (min-width: 640px) { .plugin-more-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } .plugin-more-link { border: 1px solid var(--border); background: var(--raised); } }
+
+// ---- Attention screen keeps the shared approval/blocker cards; only the
+// section headers are tightened.
+html[data-atl-context="plugin"] .approval-request { margin-bottom: 10px; }
