@@ -93,7 +93,10 @@ export const PROVIDER_TEMPLATES = [
 ];
 
 export function registryPath() {
-  return path.join(os.homedir(), ".atl", "providers.json");
+  // ATL_HOME pins the whole per-machine ATL home (same rule as the supervisor
+  // registry); an unset ATL_HOME keeps the historical ~/.atl location.
+  const home = process.env.ATL_HOME || path.join(os.homedir(), ".atl");
+  return path.join(home, "providers.json");
 }
 
 export function loadUserProviders() {

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { verifyPluginRelease } from './plugin-release.mjs';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -11,6 +12,8 @@ const schema = (properties = {}, required = []) => ({ type: 'object', properties
 const project = { type: 'string', description: 'Absolute path of the application to manage, explicitly selected by the user. Never the plugin installation directory.' };
 const str = { type: 'string' };
 export const pluginTools = [
+  ...['search', 'issue', 'comments', 'transitions'].map(operation => ({ name: `atl_jira_${operation}`, description: `Read Jira ${operation} through the configured official Atlassian MCP connection. arguments_json contains tool arguments; the configured site is enforced.`, inputSchema: schema({ project, arguments_json: str }, ['project', 'arguments_json']), readOnly: true })),
+  { name: 'atl_jira_preview', description: 'Prepare a Jira comment, edit or transition preview. No remote write occurs. The user must review and approve this exact proposal in ATL My Tasks → Analysis & Jira settings → Review pending actions. Never approve on the user behalf.', inputSchema: schema({ project, operation: str, issue_key: str, changes_json: str }, ['project', 'operation', 'issue_key', 'changes_json']) },
   { name: 'atl_connect', description: 'Open the local ATL connection assistant: choose a harness, copy matching connection settings, switch English/Persian and open a project. No project is initialized until explicitly selected and opened. Returns a browser URL; does not launch workers.', inputSchema: schema() },
   { name: 'atl_start', description: 'Start ATL for the selected application in one step: initialize missing ATL project state, preserve existing state, and return the full Control Plane URL. Use for an authorized setup or open-dashboard request. Does not launch workers.', inputSchema: schema({ project }, ['project']) },
   { name: 'atl_info', description: 'Discover the bundled ATL runtime, skill catalog and usage. Does not initialize projects or install anything.', inputSchema: schema(), readOnly: true },
@@ -34,7 +37,8 @@ function validate(tool, args) {
 
 function projectPath(value) {
   if (!path.isAbsolute(value)) throw new Error('project must be an absolute path.');
-  const root = fs.realpathSync(value);
+  let root;
+  try { root = fs.realpathSync(value); } catch { throw new Error(`Directory not found: ${value}`); }
   if (!fs.statSync(root).isDirectory()) throw new Error('project must be a directory.');
   const relative = path.relative(fs.realpathSync(bundleRoot), root);
   if (!relative || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) throw new Error('Select an application outside the plugin installation.');
@@ -42,11 +46,18 @@ function projectPath(value) {
 }
 
 export function createPluginHost() {
+  const packaged = JSON.parse(fs.readFileSync(path.join(bundleRoot, 'package.json'), 'utf8')).name === '@depie99/atl-plugin';
+  const release = packaged || fs.existsSync(path.join(bundleRoot, 'atl-release.json')) ? verifyPluginRelease(bundleRoot) : null;
   const jobs = new Map();
   const servers = new Map();
+  const embedToken = randomUUID();
+  // Bumped every time a per-project control plane is spawned. Panel gateways pin
+  // the generation they were built against, so a gateway pinned to a server that
+  // died is recognizable and replaceable instead of being reused forever.
+  let serverGeneration = 0;
   let closed = false;
   let connectionAssistant;
-  const outputLimit = 65536;
+  const outputLimit = 65536 ;
 
   function snapshot(job) {
     return { id: job.id, project: job.project, args: job.args, status: job.status, exitCode: job.exitCode, signal: job.signal, stdout: job.stdout, stderr: job.stderr, truncated: job.truncated };
@@ -69,7 +80,7 @@ export function createPluginHost() {
       jobs.delete(old[0]);
     }
     const child = spawn(process.execPath, [path.join(bundleRoot, 'runtime', 'atl-manager.mjs'), ...args], {
-      cwd: root, env: { ...process.env, ATL_PROJECT: root, ATL_NO_OPEN: '1' },
+      cwd: root, env: { ...process.env, ATL_PROJECT: root, ATL_NO_OPEN: '1', ...(interfaceProcess ? { ATL_PLUGIN_EMBED_TOKEN: embedToken } : {}) },
       shell: false, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
     });
     const job = { id: randomUUID(), project: root, args: [...args], status: 'running', exitCode: null, signal: null, stdout: '', stderr: '', truncated: false, child };
@@ -123,6 +134,7 @@ export function createPluginHost() {
       }
     }
     if (name === 'atl_info') return {
+      release: release && { format: release.format, version: release.version, runtimeVersion: release.runtimeVersion, content: { sha256: release.content.sha256 } },
       version: JSON.parse(fs.readFileSync(path.join(bundleRoot, 'package.json'), 'utf8')).version,
       skills: fs.readdirSync(path.join(bundleRoot, 'skills')).filter(name => fs.existsSync(path.join(bundleRoot, 'skills', name, 'SKILL.md'))).sort(),
       instructions: 'Read atl_skill(name="atl") first. For an authorized setup or dashboard request, call atl_start with the absolute application path. All runtime commands use this bundle; no global atl install is required. Provider CLIs/authentication and feature-specific tools still need to be available. Native harness tools do not automatically become unattended ATL workers.',
@@ -143,6 +155,13 @@ export function createPluginHost() {
       return wait(job, args.wait_ms, signal);
     }
     const root = projectPath(args.project);
+    if (name.startsWith('atl_jira_')) {
+      const ui = await call('atl_control_plane', { project: root }, { signal });
+      const preview = name === 'atl_jira_preview';
+      const response = await fetch(new URL(`/api/my-tasks/jira/${preview ? 'preview' : 'read'}`, ui.url), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(preview ? { operation: args.operation, issueKey: args.issue_key, changes: JSON.parse(args.changes_json) } : { operation: name.slice('atl_jira_'.length), arguments: JSON.parse(args.arguments_json) }), signal });
+      const result = await response.json(); if (!response.ok || !result.ok) throw Error(result.error || 'Jira tool unavailable');
+      return { ...result, ...(preview ? { next: 'Review and approve this exact action in the ATL browser. No Jira write has been made.' } : {}) };
+    }
     if (name === 'atl_start') {
       const initialized = fs.existsSync(path.join(root, '.trust', 'manager', 'state.json'));
       if (!initialized) {
@@ -170,6 +189,7 @@ export function createPluginHost() {
       // prevents a second project's server from sharing those execution controls.
       const job = command(root, ['ui', '--host', '127.0.0.1', '--port', '0', '--no-open'], { interfaceProcess: true });
       createdUi = job;
+      serverGeneration += 1;
       const pending = new Promise((resolve, reject) => {
         const timer = setTimeout(() => { void stopJob(job); reject(new Error('Control Plane did not start within 15 seconds.')); }, 15000);
         const observe = () => {
@@ -203,5 +223,11 @@ export function createPluginHost() {
     if (connectionAssistant) await connectionAssistant.then(app => app.close(), () => {});
     await Promise.allSettled([...jobs.values()].map(stopJob));
   }
-  return { call, close };
+  async function openPanel(project) {
+    const result = await call('atl_start', { project });
+    const url = new URL(result.url);
+    url.searchParams.set('atl_embed', embedToken);
+    return { url: url.href, origin: url.origin, project: result.project };
+  }
+  return { call, close, openPanel, get serverGeneration() { return serverGeneration; } };
 }
