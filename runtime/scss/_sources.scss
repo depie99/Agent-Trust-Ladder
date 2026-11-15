@@ -1,5 +1,6 @@
 .issue-sources {
-  font-family: ui-monospace, Consolas, "SFMono-Regular", monospace;
+  // 2026-11-15: the page-wide monospace treatment is gone — the app
+  // type stack reads calmer and mono stays reserved for identifiers.
   .pagehead { align-items: flex-start; gap: 16px; }
   .pagehead h1 { font-size: 26px; letter-spacing: -.6px; }
   .pagehead > :last-child { flex-shrink: 0; }
@@ -65,7 +66,7 @@
 .source-table td { padding: 12px 10px; border-top: 1px solid var(--border); }
 .source-table tr:has(input:checked) { background: color-mix(in srgb, var(--accent) 5%, var(--pane)); }
 .source-table tr[hidden] { display: none; }
-.source-key { display: inline-block; white-space: nowrap; padding: 3px 8px; border: 1px solid var(--pill-edge); border-radius: 5px; font-size: 10.5px; font-weight: 800; }
+.source-key { display: inline-block; white-space: nowrap; padding: 3px 8px; border: 1px solid var(--pill-edge); border-radius: 5px; font-size: 10.5px; font-weight: 800; font-family: "Cascadia Mono", Consolas, monospace; }
 .source-issue-copy { min-width: 230px; max-width: 550px; }
 .source-issue-copy b { display: block; font-size: 12px; overflow-wrap: anywhere; }
 .source-issue-copy > span { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: var(--muted); margin-top: 3px; font-size: 10.5px; overflow-wrap: anywhere; }
@@ -204,6 +205,14 @@
 .source-quickfind-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .source-quickfind-label { font-size: 11.5px; font-weight: 700; white-space: nowrap; }
 .source-quickfind-row .input { flex: 1 1 220px; min-width: 0; }
+// Sprint / work-item combobox row: two labeled fields plus an action
+// cluster, so quick find reads as a small form instead of one mystery row.
+.source-quickfind-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+.source-quickfind-field { display: grid; gap: 5px; min-width: 0; }
+.source-quickfind-field .input { min-width: 0; height: 36px; }
+.source-quickfind-grid .source-quickfind-label { font-size: 10px; font-weight: 800; letter-spacing: .1em; color: var(--faint); }
+.source-quickfind-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-block: 1px; }
+@media (max-width: 900px) { .source-quickfind-grid { grid-template-columns: 1fr; } }
 .source-quickfind .source-hint { margin-top: 8px; }
 
 // Multi-repo selection pills (replaces the checkbox fieldset).

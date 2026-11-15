@@ -243,6 +243,8 @@ let queueFilterTouched = false;
   // Most returning users come here to inspect and import work, not to edit
   // credentials. Keep configuration available, but out of the inbox's way.
   let sourcesConnectorsOpen = false;
+  let azureIterations = [];
+  let azureSprintsNotice = "";
   const sourceImportRepos = new Set();
   const sourceDraftKey = 'atl-source-draft:' + (document.querySelector('meta[name="atl-csrf"]')?.content || 'local');
   let sourceDraft = {}; try { sourceDraft = JSON.parse(sessionStorage.getItem(sourceDraftKey) || '{}'); } catch {}
@@ -1088,7 +1090,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
       return `<tr data-preview-source="${escapeHtml(source)}" data-preview-search="${escapeHtml([item.title, key, item.objective_hint, item.source?.repo].filter(Boolean).join(" ").toLowerCase())}"><td><input type="checkbox" data-source-index="${item.index}" aria-label="Select ${escapeHtml(item.title)}" checked></td><td><span class="source-key source-${escapeHtml(source)}">${escapeHtml(short)} · ${escapeHtml(key)}</span></td><td class="source-issue-copy"><b dir="auto">${escapeHtml(item.title)}</b><span dir="auto">${escapeHtml(item.source?.repo || item.objective_hint || "No description")}</span></td><td><span class="pill">${escapeHtml(source === "azure" ? item.source?.iteration || azure.iteration_path || "Work item" : item.priority || "Issue")}</span></td><td><span class="source-status is-enabled">Ready</span></td><td>${btn("Import", "sources-import-one:" + item.index, "sm")}</td></tr>`;
     }).join("");
     return `<div class="issue-sources">${head("WORKSPACE / ISSUE SOURCES", "Issue sources", "Connect read-only sources, verify server token readiness, inspect issues, then import requests for planning.", btn("Check token readiness", "sources-readiness") + btn("Refresh sources", "sources-load"))}
-      <section class="panel source-workbench source-quickfind" aria-label="Find Azure work"><div class="source-quickfind-eyebrow">AZURE BOARDS · SAVED CONNECTION</div><div class="source-quickfind-row"><span class="source-quickfind-label">Find work item or sprint:</span><input class="input" id="sourceAzureWorkItem" placeholder="#6376 or https://…/_workitems/edit/6376" aria-label="Work item number or link"><input class="input" id="sourceAzureSearchIteration" placeholder="74 or Project\Sprint 74" aria-label="Sprint number or iteration path">${btn("⌕ Preview Azure work", "sources-preview:azure", "primary")}${btn(`⚙ Connectors (3)`, "sources-connectors", sourcesConnectorsOpen ? "" : "ghost")}</div><p class="source-hint">A work item number or link takes precedence over the sprint filter. Searches never change your saved connection.</p></section>
+      <section class="panel source-workbench source-quickfind" aria-label="Find Azure work"><div class="source-quickfind-eyebrow">AZURE BOARDS · SAVED CONNECTION</div><div class="source-quickfind-grid"><label class="source-quickfind-field"><span class="source-quickfind-label">Sprint</span><input class="input" id="sourceAzureSearchIteration" list="sourceAzureSprintList" placeholder="${azureIterations.length ? "Pick a sprint, or leave empty for all sprints" : "Load sprints, or type 74 / Project\\Sprint 74"}" autocomplete="off"><datalist id="sourceAzureSprintList">${azureIterations.map((it) => `<option value="${escapeHtml(it.path)}">${escapeHtml(it.name)}${it.finish ? ` · until ${escapeHtml(String(it.finish).slice(0, 10))}` : ""}</option>`).join("")}</datalist></label><label class="source-quickfind-field"><span class="source-quickfind-label">Work item</span><input class="input" id="sourceAzureWorkItem" list="sourceAzureWorkItemList" placeholder="#6376 or https://…/_workitems/edit/6376" autocomplete="off" aria-label="Work item number or link"><datalist id="sourceAzureWorkItemList">${(sourcePreview?.candidates || []).filter((item) => (item.source?.type || sourcePreview?.source) === "azure" && item.source?.remote_id != null).map((item) => `<option value="${escapeHtml(String(item.source.remote_id))}">${escapeHtml(item.title)}</option>`).join("")}</datalist></label><div class="source-quickfind-actions">${btn("⟳ Sprints", "sources-azure-sprints", azure.token_present ? "sm" : "sm ghost")}${btn("⌕ Preview Azure work", "sources-preview:azure", "primary")}${btn(`⚙ Connectors (3)`, "sources-connectors", sourcesConnectorsOpen ? "" : "ghost")}</div></div><p class="source-hint">${azureSprintsNotice ? `${escapeHtml(azureSprintsNotice)} · ` : ""}A work item number or link takes precedence over the sprint filter. Searches never change your saved connection.</p></section>
       ${sourcesConnectorsOpen ? `<div class="source-grid">
         ${sourceCard("github", "GH", "GitHub issues", github, field("sourceGithubRepos", "Repositories (owner/name, comma-separated)", (github.repos || []).join(", "), "owner/repository"), "Read-only fetch · authentication checked when searching", false, "GitHub CLI with REST fallback. Save repositories, then find issues." + (github.repos?.length ? `<span class="pill blue">${github.repos.length} configured repo${github.repos.length === 1 ? "" : "s"}</span>` : ""))}
         ${sourceCard("jira", "JR", "Jira issues", jira, field("sourceJiraUrl", "Jira base URL (HTTPS)", jira.base_url || "", "https://jira.example.com") + `<div class="source-field-pair">${field("sourceJiraProjects", "Project keys", (jira.projects || []).join(", "), "IT, IS")}${field("sourceJiraToken", "Token env variable", jira.token_env || "JIRA_TOKEN")}</div>`, jira.token_present ? "✓ " + (jira.token_env || "JIRA_TOKEN") + " available in server environment" : "◇ Env var " + (jira.token_env || "JIRA_TOKEN") + " not set in server shell", jira.token_present)}
@@ -2371,6 +2373,16 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
       render(); return;
     }
+    if (value === "sources-azure-sprints") {
+      try {
+        const response = await fetch("/api/intake/azure/iterations", { cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "Could not list sprints");
+        azureIterations = result.iterations || [];
+        azureSprintsNotice = azureIterations.length ? `${azureIterations.length} sprint(s) loaded — pick one in the Sprint field, then Preview.` : "Azure returned no sprints under this project.";
+      } catch (error) { azureSprintsNotice = ""; sourceNotice = error.message; }
+      render(); return;
+    }
     if (value === "sources-azure-connect" || value === "sources-azure-disconnect") {
       const tokenInput = $("#sourceAzurePat"), token = tokenInput?.value || "";
       if (value === "sources-azure-connect" && !token.trim() && !sourceSettings?.azure?.token_present) { sourceNotice = "Select the PAT edit icon, enter your Azure token, then connect."; render(); return; }
@@ -2382,7 +2394,14 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         if (tokenInput) tokenInput.value = "";
         sourceDraft.sourceAzurePatEditing = false;
         try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
-        await loadIssueSources(); sourceNotice = value === "sources-azure-disconnect" ? "Saved Azure connection removed. Any server environment credential is still managed by the server owner." : "Azure connection saved. Preview a work item or sprint below to verify access.";
+        await loadIssueSources(); sourceNotice = value === "sources-azure-disconnect" ? "Saved Azure connection removed. Any server environment credential is still managed by the server owner." : "Azure connection saved. Load sprints below, then preview a work item to verify access.";
+        if (value === "sources-azure-connect") {
+          try {
+            const sprints = await fetch("/api/intake/azure/iterations", { cache: "no-store" });
+            const data = await sprints.json();
+            if (sprints.ok && data.ok) { azureIterations = data.iterations || []; azureSprintsNotice = azureIterations.length ? `${azureIterations.length} sprint(s) loaded — pick one in the Sprint field, then Preview.` : ""; }
+          } catch { /* the ⟳ Sprints button still loads them manually */ }
+        }
       } catch (error) { sourceNotice = error.message; }
       render(); return;
     }

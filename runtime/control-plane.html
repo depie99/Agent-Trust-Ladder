@@ -3449,9 +3449,6 @@ textarea.input {
   font-weight: 700;
 }
 
-.issue-sources {
-  font-family: ui-monospace, Consolas, "SFMono-Regular", monospace;
-}
 .issue-sources .pagehead {
   align-items: flex-start;
   gap: 16px;
@@ -3851,6 +3848,7 @@ textarea.input {
   border-radius: 5px;
   font-size: 10.5px;
   font-weight: 800;
+  font-family: "Cascadia Mono", Consolas, monospace;
 }
 
 .source-issue-copy {
@@ -4505,6 +4503,44 @@ textarea.input {
   min-width: 0;
 }
 
+.source-quickfind-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.source-quickfind-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.source-quickfind-field .input {
+  min-width: 0;
+  height: 36px;
+}
+
+.source-quickfind-grid .source-quickfind-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+}
+
+.source-quickfind-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-block: 1px;
+}
+
+@media (max-width: 900px) {
+  .source-quickfind-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .source-quickfind .source-hint {
   margin-top: 8px;
 }
@@ -5002,6 +5038,22 @@ textarea.input {
   max-height: min(900px, 78dvh);
   overflow: auto;
   scrollbar-gutter: stable;
+}
+
+.mtr-board.is-kanban .mtr-status-group > summary {
+  cursor: default;
+}
+
+.mtr-board.is-kanban .mtr-status-group > summary::after {
+  content: none;
+}
+
+.mtr-board.is-kanban .mtr-status-group[data-mtr-group=proposed] > summary {
+  background: color-mix(in srgb, var(--blue) 8%, var(--pane));
+}
+
+.mtr-board.is-kanban .mtr-status-group[data-mtr-group=inprogress] > summary {
+  background: color-mix(in srgb, var(--amber) 9%, var(--pane));
 }
 
 .mtr-board.is-kanban .mtr-status-group > summary {

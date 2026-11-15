@@ -46,6 +46,13 @@
 .mtr-analysis-settings label:has([type=checkbox]) { display:flex; align-items:center; }
 .mtr-jira-proposal { margin-bottom:20px; }
 .mtr-board.is-kanban .mtr-status-group { max-height: min(900px, 78dvh); overflow:auto; scrollbar-gutter:stable; }
+// Kanban lanes are always-open columns: the +/− affordance and manual
+// collapse belong to the list view only, so the two views stay visually
+// distinct (owner feedback 2026-11-15: kanban looked identical to a closed list).
+.mtr-board.is-kanban .mtr-status-group > summary { cursor: default; }
+.mtr-board.is-kanban .mtr-status-group > summary::after { content: none; }
+.mtr-board.is-kanban .mtr-status-group[data-mtr-group="proposed"] > summary { background: color-mix(in srgb, var(--blue) 8%, var(--pane)); }
+.mtr-board.is-kanban .mtr-status-group[data-mtr-group="inprogress"] > summary { background: color-mix(in srgb, var(--amber) 9%, var(--pane)); }
 .mtr-board.is-kanban .mtr-status-group > summary { position:sticky; top:0; z-index:1; background:var(--pane); }
 .mtr-board.is-kanban .mtr-done-group > summary { background:color-mix(in srgb,var(--green) 7%,var(--pane)); }
 @media(max-width:800px) { .mtr-board.is-kanban .mtr-status-group { max-height:none; overflow:visible; } }
