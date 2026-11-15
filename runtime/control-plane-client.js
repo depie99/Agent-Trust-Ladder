@@ -245,6 +245,21 @@ let queueFilterTouched = false;
   let sourcesConnectorsOpen = false;
   let azureIterations = [];
   let azureSprintsNotice = "";
+  // Workflow runs (Batches page): the selected run is presentation state and
+  // survives reloads; its step tree loads from /api/batch on selection.
+  let workflowSelected = (() => { try { return sessionStorage.getItem("atl-cp-batch") || null; } catch { return null; } })();
+  let workflowDetail = null;
+  async function loadWorkflowDetail(id) {
+    workflowDetail = { loading: true };
+    render();
+    try {
+      const response = await fetch(`/api/batch?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+      workflowDetail = { summary: result.summary || null };
+    } catch (error) { workflowDetail = { error: error.message }; }
+    render();
+  }
   const sourceImportRepos = new Set();
   const sourceDraftKey = 'atl-source-draft:' + (document.querySelector('meta[name="atl-csrf"]')?.content || 'local');
   let sourceDraft = {}; try { sourceDraft = JSON.parse(sessionStorage.getItem(sourceDraftKey) || '{}'); } catch {}
@@ -1334,25 +1349,45 @@ operations: () => {
     },
     batches: () => {
       const batches = snapshot.batches || [];
-      const runningCount = batches.filter((batch) => batch.status === "running").length;
-      const recoveryCount = batches.filter((batch) => batch.recovery_required).length;
-      const cards = batches.map((batch) => {
+      const skills = snapshot.brain?.skills || [];
+      const routines = snapshot.brain?.routines || [];
+      const selected = batches.find((batch) => batch.id === workflowSelected) || null;
+      const runRows = batches.map((batch) => {
         const progress = batch.progress || {};
-        const tone = batch.status === "complete" ? (batch.successful ? "green" : "amber") : batch.status === "recovery_required" ? "red" : batch.status === "running" ? "blue" : "amber";
-        const primary = batch.status === "running" ? btn("Stop", `batch-stop:${batch.id}`, "sm danger")
-          : batch.recovery_required ? btn("Reconcile", `batch-reconcile:${batch.id}`, "sm primary")
-            : batch.complete ? btn("Run again", `batch-run:${batch.id}`, "sm") : btn("Resume", `batch-run:${batch.id}`, "sm primary");
-        const receipts = (batch.receipts || []).length
-          ? `<p class="sub">${batch.receipts.map((receipt) => `${escapeHtml(receipt.task)}: ${escapeHtml(receipt.verdict?.status || "unknown")}`).join(" · ")}</p>` : "";
-        const decision = batch.human_decision ? `<p class="sub">Next decision: ${escapeHtml(batch.human_decision.task)} · ${escapeHtml(batch.human_decision.reason || "")}</p>` : "";
-        return `<div class="event"><div class="row between"><b>${escapeHtml(batch.id)}</b><span class="pill ${tone}">${escapeHtml(batch.status)}${batch.valid === false ? " · invalid" : ""}</span></div>`
-          + `<div class="muted tiny">${progress.succeeded || 0}/${progress.total || 0} succeeded · ${progress.blocked || 0} blocked · ${progress.failed || 0} failed · ${progress.attempts || 0} attempts · ${escapeHtml(String(batch.limits?.max_minutes ?? "?"))} min · ${escapeHtml(String(batch.limits?.max_attempts ?? "?"))} attempts/task · deadline ${escapeHtml(batch.deadline_at || "unknown")}</div>`
-          + `${batch.stop_reason ? `<p class="sub">${escapeHtml(batch.stop_reason)}</p>` : ""}${receipts}${decision}`
-          + `<div class="bar" style="margin-top:8px;flex-wrap:wrap">${primary}${btn("Summary", `batch-summary:${batch.id}`, "sm")}${btn("Details", `batch-view:${batch.id}`, "sm")}${batch.recovery_required ? btn("Stop", `batch-stop:${batch.id}`, "sm danger") : ""}</div></div>`;
+        const pillTone = batch.status === "complete" ? (batch.successful ? "green" : "amber") : batch.status === "running" ? "blue" : batch.recovery_required ? "red" : "";
+        const icon = batch.status === "running" ? '<span class="running-mark" aria-hidden="true"></span>' : batch.complete ? '<span class="wf-ico done">✓</span>' : batch.recovery_required ? '<span class="wf-ico blocked">!</span>' : '<span class="wf-ico">◇</span>';
+        return `<button class="wf-run ${batch.id === workflowSelected ? "on" : ""}" data-action="workflow-select:${escapeHtml(batch.id)}"><span class="wf-run-ico">${icon}</span><span class="wf-run-name">${escapeHtml(batch.id)}<span class="wf-run-sub">${progress.succeeded || 0}/${progress.total || 0} steps · max ${escapeHtml(String(batch.limits?.max_minutes ?? "?"))} min</span></span><span class="pill ${pillTone}">${escapeHtml(batch.status)}${batch.valid === false ? " · invalid" : ""}</span></button>`;
       }).join("");
-      return head("OPERATIONS / BATCHES", "Bounded overnight batches", "A fixed task list runs sequentially with durable time and attempt limits. A restart is reconciled before any uncertain work is repeated.", btn("New batch", "batch-new", "primary") + btn("Refresh", "refresh"))
-        + `<div class="grid three">${stat("Batches", batches.length, "Finite scopes, concurrency 1")}${stat("Running", runningCount, "One item at a time")}${stat("Needs review", recoveryCount, "Reconcile before resuming")}</div>`
-        + `<section class="panel space"><div class="paneltitle"><h2>Batch checkpoints</h2><span class="muted tiny">${batches.length} recorded</span></div><div class="pad">${cards || '<p class="sub">No batches recorded. Start one with an explicit task list and time/attempt limits.</p>'}</div></section>`;
+      const recipes = [
+        ...skills.map((skill) => ({ name: skill.id, sub: `Gold skill · v${escapeHtml(skill.version)}${skill.trust_basis === "user-designated" ? " · user-designated" : ""}` })),
+        ...routines.map((routine) => ({ name: routine.id, sub: `${escapeHtml(routine.skill_id || "")} · ${escapeHtml(routine.schedule || "manual")} · ${routine.enabled ? "enabled" : "approval gated"}` })),
+      ];
+      const recipeRows = recipes.map((recipe) => `<button class="wf-run wf-recipe" data-page="brain" title="Open Knowledge"><span class="wf-run-ico">◇</span><span class="wf-run-name">${escapeHtml(recipe.name)}<span class="wf-recipe-sub">${recipe.sub}</span></span></button>`).join("");
+      let detailHtml;
+      if (!selected) {
+        detailHtml = `<div class="panel pad wf-detail-empty"><b>Select a workflow run</b><p class="sub">Runs are bounded overnight batches: a fixed task list runs one step at a time with durable time and attempt limits. A restart is reconciled before any uncertain work repeats.</p></div>`;
+      } else if (workflowDetail?.error) {
+        detailHtml = `<div class="panel pad"><p class="red" role="alert">${escapeHtml(workflowDetail.error)}</p><div class="bar" style="margin-top:10px">${btn("Retry", `workflow-select:${escapeHtml(selected.id)}`, "sm")}</div></div>`;
+      } else if (workflowDetail?.loading) {
+        detailHtml = `<div class="panel pad" role="status">Loading run steps…</div>`;
+      } else {
+        const summary = workflowDetail?.summary;
+        const items = summary?.items || [];
+        const progress = selected.progress || {};
+        const tone = selected.status === "complete" ? (selected.successful ? "green" : "amber") : selected.status === "running" ? "blue" : selected.recovery_required ? "red" : "amber";
+        const steps = items.map((item) => {
+          const verdict = item.receipt?.verdict?.status;
+          const attempts = Number(item.attempts) || 0;
+          const icon = item.status === "running" ? '<span class="running-mark" aria-hidden="true"></span>' : ["complete", "passed"].includes(item.status) ? '<span class="wf-ico done">✓</span>' : ["failed", "blocked", "needs_reconciliation"].includes(item.status) ? '<span class="wf-ico blocked">!</span>' : '<span class="wf-ico">◇</span>';
+          return `<div class="wf-step ${item.status === "running" ? "is-running" : ""}"><span class="wf-step-ico">${icon}</span><span class="wf-step-main"><b>${escapeHtml(item.task)}</b>${item.reason ? `<span class="wf-step-reason">${escapeHtml(item.reason)}</span>` : ""}</span>${attempts > 1 ? `<span class="pill violet">×${attempts}</span>` : ""}<span class="pill ${verdict ? "green" : ""}">${escapeHtml(verdict || item.status)}</span></div>`;
+        }).join("") || '<p class="sub pad">This run has no recorded steps yet.</p>';
+        const primary = selected.status === "running" ? btn("Stop", `batch-stop:${selected.id}`, "sm danger")
+          : selected.recovery_required ? btn("Reconcile", `batch-reconcile:${selected.id}`, "sm primary")
+            : selected.complete ? btn("Run again", `batch-run:${selected.id}`, "sm") : btn("Resume", `batch-run:${selected.id}`, "sm primary");
+        detailHtml = `<div class="panel wf-detail"><div class="paneltitle"><div><h2>${escapeHtml(selected.id)}</h2><p class="sub">${progress.total || items.length} steps · max ${escapeHtml(String(selected.limits?.max_minutes ?? "?"))} min · max ${escapeHtml(String(selected.limits?.max_attempts ?? "?"))} attempts per task</p></div><span class="pill ${tone}">${escapeHtml(selected.status)}${selected.valid === false ? " · invalid" : ""}</span></div><div class="wf-steps">${steps}</div>${selected.stop_reason ? `<p class="sub wf-stopreason">${escapeHtml(selected.stop_reason)}</p>` : ""}<div class="wf-detail-foot"><div class="bar">${primary}${btn("Summary", `batch-summary:${selected.id}`, "sm")}${selected.human_decision ? `<span class="muted tiny">Next decision: ${escapeHtml(selected.human_decision.task)} · ${escapeHtml(selected.human_decision.reason || "")}</span>` : ""}</div></div></div>`;
+      }
+      return head("OPERATIONS / BATCHES", "Workflow runs", "Bounded overnight batches: a fixed task list runs sequentially with durable time and attempt limits. A restart is reconciled before any uncertain work repeats.", btn("New batch", "batch-new", "primary") + btn("Refresh", "refresh"))
+        + `<div class="wf-layout"><aside class="wf-side"><section class="panel wf-panel"><div class="wf-eyebrow">WORKFLOW RUNS</div><div class="wf-runlist">${runRows || '<p class="sub pad">No runs recorded yet. New batch starts one with an explicit task list and time/attempt limits.</p>'}</div></section><section class="panel wf-panel"><div class="wf-eyebrow">RECIPES</div><div class="wf-runlist">${recipeRows || '<p class="sub pad">No Gold skills or routines registered yet.</p>'}</div><p class="sub pad wf-recipes-note">Recipes are this workspace's Gold skills and approval-gated routines — managed on Knowledge.</p></section></aside>${detailHtml}</div>`;
     },
         activity: () => { const { events } = derived(); const filtered = events.filter((event) => !activityFilter || event.join(" ").toLowerCase().includes(activityFilter.toLowerCase())); return head("OPERATIONS / EVIDENCE", "Activity & Logs", "Searchable decisions, feedback, blockers, verification and overnight handoffs.", btn("Refresh", "refresh") + btn("Export", "export")) + `<div class="grid three">${stat("Events", filtered.length, activityFilter ? "Filtered events" : "Authoritative state log")}${stat("Blockers", derived().tasks.filter((task) => task.rawStatus === "blocked").length, "Actions awaiting owner")}${stat("Connection", connected ? "Live" : "Stale", "Runtime-backed feed")}</div><div class="panel pad"><label class="label" for="activitySearch">Filter audit events</label><input id="activitySearch" class="input" value="${escapeHtml(activityFilter)}" placeholder="actor, task, event, or text"></div><div class="grid twocol space">${card("Timeline", `<div class="pad">${filtered.map(eventRow).join("") || '<span class="muted">No matching events.</span>'}</div>`)}${card("Runtime handoff", `<div class="pad"><div class="row between"><strong>ATL state</strong>${badge(connected ? "Live" : "Unknown")}</div><p class="sub">The browser reads authoritative state through the local bridge and marks it stale when refreshes fail.</p><div class="lined row between"><span>Captured</span><b>${escapeHtml(snapshot.captured_at ? new Date(snapshot.captured_at).toLocaleTimeString() : "unknown")}</b></div></div>`)}</div>`; },
     usage: () => { const provider = snapshot.usage?.default_provider || "codex"; const rows = (snapshot.usage?.snapshots || []).filter((item) => item.provider === provider); const latest = rows.at(-1); const remote = rows.filter((item) => item.source === "provider-adapter").at(-1); const localSessions = rows.filter((item) => item.source === "atl-session").reduce((total, item) => total + Number(item.used?.sessions || 0), 0); const captured = latest?.captured_at ? new Date(latest.captured_at).toLocaleString() : "Never"; const verified = remote?.confidence === "verified"; const noticeTone = verified ? "green" : "amber"; const reset = remote?.reset_at ? new Date(remote.reset_at).toLocaleString() : "Not reported"; const provenance = Array.isArray(remote?.provenance) && remote.provenance.length ? `<div class="muted tiny" style="margin-top:12px;letter-spacing:1px">PROVENANCE BADGES</div><div class="bar" style="margin-top:6px">${remote.provenance.map((badgeId) => `<span class="pill green">${escapeHtml(String(badgeId))}</span>`).join("")}</div>` : ""; return head("OPERATIONS / RESOURCE MONITOR", "Usage & Limits", "Provider evidence, local run observations, and dispatch safeguards.", btn("Refresh providers", "usage-refresh", "primary") + btn("Refresh snapshot", "refresh")) + `<div class="usage-banner ${verified ? "is-verified" : "is-standby"}" role="status"><b>${verified ? "✦" : "◈"} <span class="${noticeTone}">${verified ? "Provider telemetry verified" : "Provider telemetry unavailable"}</span></b><span class="pill ${noticeTone}">${verified ? "Verified" : "Local observations"}</span></div><p class="sub" style="margin:10px 0 0">${escapeHtml(remote?.detail || `No verified quota data for ${provider}. Local session observations are shown separately.`)}</p><div class="grid three space">${stat("Default provider", provider, latest?.model || "No usage sample for this provider")}${stat("Quota remaining", remote?.remaining == null ? "Unknown" : Number(remote.remaining).toLocaleString(), remote?.remaining != null ? "tokens" : remote?.reset_at ? `Resets · ${reset}` : "No verified provider quota")}${stat("Local sessions", localSessions, `${rows.length} recorded observations · latest ${captured}`)}</div><div class="grid two space">${card("Telemetry evidence & provenance", `<div class="pad"><div class="event between" style="justify-content:space-between"><span>Provider probe</span>${badge(verified ? "Verified" : "Unknown")}</div><div class="event between" style="justify-content:space-between"><span>Source</span><b class="muted">${escapeHtml(remote?.source || "No provider sample")}</b></div><div class="event between" style="justify-content:space-between"><span>Last capture</span><b class="muted">${escapeHtml(remote?.captured_at ? new Date(remote.captured_at).toLocaleString() : "Never")}</b></div><div class="event between" style="justify-content:space-between"><span>Recorded local runs</span><b>${localSessions}</b></div><p class="muted tiny" style="margin:13px 0 0">Provider quota is displayed only after a provider-specific authenticated response. Local sessions are separate evidence, not a quota estimate.</p></div>`)}${card("Preflight dispatch safeguards", '<div class="pad"><div class="row between"><span>Provider limit</span>' + (remote?.remaining != null ? '<span class="pill green">Enabled ✓</span>' : badge("Unknown")) + '</div><div class="lined row between"><span>Dispatch policy</span><span class="pill amber">Confirm risks ⚠</span></div><div class="lined row between"><span>Stop on rate-limit</span><span class="green">Required</span></div><div class="lined row between"><span>Quota provenance</span><span class="muted">Provider adapter only</span></div>' + provenance + "</div>")}</div>` + economicsMarkup(); },
@@ -2226,19 +2261,28 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       } catch (error) { const node = $("#batchError"); if (node) node.textContent = error.message; else popup("Batch was not created", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
+    if (value.startsWith("workflow-select:")) {
+      const id = value.slice(16);
+      workflowSelected = id;
+      try { sessionStorage.setItem("atl-cp-batch", id); } catch { /* storage may be unavailable */ }
+      void loadWorkflowDetail(id);
+      return;
+    }
     if (value.startsWith("batch-run:")) {
       const id = value.slice(10);
-      try { await batchRequest({ action: "run", id, confirm: true }); await refresh(); page = "batches"; render(); }
+      try { await batchRequest({ action: "run", id, confirm: true }); await refresh(); page = "batches"; render(); if (workflowSelected === id) void loadWorkflowDetail(id); }
       catch (error) { popup("Batch did not start", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
     if (value.startsWith("batch-stop:")) {
-      try { await batchRequest({ action: "stop", id: value.slice(11), reason: "stopped from Control Plane" }); await refresh(); render(); }
+      const id = value.slice(11);
+      try { await batchRequest({ action: "stop", id, reason: "stopped from Control Plane" }); await refresh(); render(); if (workflowSelected === id) void loadWorkflowDetail(id); }
       catch (error) { popup("Batch did not stop", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
     if (value.startsWith("batch-reconcile:")) {
-      try { await batchRequest({ action: "reconcile", id: value.slice(16) }); await refresh(); render(); }
+      const id = value.slice(16);
+      try { await batchRequest({ action: "reconcile", id }); await refresh(); render(); if (workflowSelected === id) void loadWorkflowDetail(id); }
       catch (error) { popup("Reconciliation failed", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
