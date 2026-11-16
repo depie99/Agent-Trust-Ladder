@@ -21,6 +21,10 @@ jobs:
       - run: npm ci
       - run: npx playwright install chromium
       - run: node --check runtime/atl-manager.mjs
+      - run: npm run ui:css:check
+      - run: npm run plugins:test
+      - run: python scripts/build_mode_skills.py --check
+      - run: node verification/sync_skills_test.mjs
       - run: node verification/approval_test.mjs
       - run: node verification/owner_session_approval_test.mjs
       - run: node verification/supervisor_test.mjs

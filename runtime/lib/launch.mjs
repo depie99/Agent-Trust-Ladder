@@ -276,7 +276,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
   // queue launches; previously they issued credentials with no valid lease.
   budget.taskSessions ||= new Map();
   if (!lease && !dryRun) {
-    const ownedLease = acquireLease(root, { project: path.resolve(root), task: taskId, role: nextRole(loadState(root).tasks[taskId]) || "rowan", run: budget.runId || `local-${process.pid}-${Date.now()}` });
+    const ownedLease = acquireLease(root, { project: path.resolve(root), task: taskId, role: nextRole(loadState(root).tasks[taskId]) || "rowan", run: budget.runId || `local-${process.pid}-${Date.now()}`, ttlMs: 900000 });
     const heartbeat = setInterval(() => { try { heartbeatLease(root, ownedLease); } catch { /* fenced requests fail closed */ } }, 5000);
     try {
       return await driveTaskUntilGate(root, taskId, budget, { overnight, dryRun, worker, auth, envPolicy, resolveWorker, lease: ownedLease, onProgress, onSession, pauseAfterSession, onReview, echo, contractRepair });
@@ -593,6 +593,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     const blockers = [];
     if(provider.decision.blocked)blockers.push(provider.decision.blocked);
     if (task.plan_review_required) blockers.push("external GitHub/Azure task needs an approved Plan Studio accuracy review before execution");
+    if (task.intake_only) blockers.push('imported request is source context; run the executable tasks created by its approved plan');
     if (task.plan_draft_id && !planReviewSnapshotCurrent(root, task.plan_draft_id)) blockers.push("approved Plan Studio plan or its referenced evidence changed; re-review and approve the current draft before execution");
     if (task.execution_budget && task.execution_budget.used >= task.execution_budget.max_sessions) blockers.push(`persistent session budget exhausted (${task.execution_budget.used}/${task.execution_budget.max_sessions}); increase the task budget before resuming`);
     if ((task.plan_depends_on || []).length) {
@@ -949,7 +950,7 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
     }
     say(root, "runner", `launch queue: taking ${fresh.id} — ${fresh.title}`, { task: fresh.id });
     let lease;
-    try { lease = acquireLease(root, { project: path.resolve(root), task: fresh.id, role: fresh.assigned_worker || "rowan", run: runId || "preview" }); }
+    try { lease = acquireLease(root, { project: path.resolve(root), task: fresh.id, role: fresh.assigned_worker || "rowan", run: runId || "preview", ttlMs: 900000 }); }
     catch (error) { results.push({ id: fresh.id, status: "queued", reason: error.message, lease: false }); onProgress(`${fresh.id}: ${error.message}`); continue; }
     const leaseHeartbeat = setInterval(() => { try { heartbeatLease(root, lease); } catch { /* expiry is surfaced at the next mutation */ } }, 5000);
     try {

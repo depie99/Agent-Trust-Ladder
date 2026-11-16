@@ -1,5 +1,18 @@
 # Recurring task blockers: causes and prevention
 
+## Measured project reliability
+
+The Control Plane Usage page reports five separate measures and their own
+denominators. Session exit success uses recorded session exit codes;
+`verified-local` uses delivery packets with a recorded verdict; needs-review
+and blocked use the current non-triaged task set. Rates appear only when that
+measure has at least 20 observations. The page shows each denominator and the
+latest persisted observation date. Owner-abandoned is not recorded by the
+current task contract, so that measure remains **no measurement**. No single
+overall reliability percentage is currently published: the measures have
+different units, and the existing record set is too small or incomplete for a
+defensible combined baseline.
+
 Observed 2026-10-27. Audience: maintainers operating task runs. Sources: T-022
 worker transcripts and recovery records in `.trust/manager/overnight/T-022/`,
 the task feed, the runtime implementation and executable verification suites.
@@ -29,7 +42,7 @@ Credential lifetime covers the bounded worker session.
 | --- | --- | --- |
 | Overlapping upstream files | Integration dropped prior queue controls and plan context; reviewing only the small bidi patch missed the loss. | Compare each conflicting predecessor snapshot, restore prior behavior, run consumer regressions, require independent review of the composed output. |
 | Hidden integration attempt cap | Two prior attempts could prevent a repaired task from launching despite unused visible task budget. | Use the persistent task session budget and count integration when the worker session starts. Preserve prior usage. |
-| Installed API paired with newer project UI | Recovery button requested a route absent from the running installed server and displayed `not found`. | `ui-refresh` imports matching project server and assets together. Running older processes must be restarted with the repaired runtime. |
+| Installed API paired with newer project UI | Recovery button requested a route absent from the running installed server and displayed `not found`. | `atl ui` imports matching project server and assets together automatically. Running older processes must be restarted with the repaired runtime. |
 | Unscoped or stale worker credentials | Direct launches lacked a lease; a worker could not submit its role handoff. | Manager retains scoped credentials, validates lease generation for every command and releases the lease on exit. |
 | Incomplete bidi coverage | Helper tests passed while queue log consumers still used plain escaping. | Exercise actual consumers and review dynamic logs, evidence, paths and timestamp cells; retain fresh rendered evidence for the current source revision. |
 

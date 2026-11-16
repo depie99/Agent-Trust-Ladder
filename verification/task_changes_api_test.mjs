@@ -21,6 +21,13 @@ try {
   const response = await fetch(`${running.url}api/task-changes/capture`, { method: "POST", headers, body: JSON.stringify({ task_id: "T-001" }) });
   const captured = await response.json(); assert.equal(response.status, 200, JSON.stringify(captured));
   assert.equal(captured.status, "blocked"); assert.equal(captured.total_files, 5);
+  // Change profile: bounded line counts land on the page; binary/redacted stay null.
+  assert.equal(captured.additions, 2); assert.equal(captured.deletions, 2);
+  assert.equal(captured.stats_complete, false, "binary and redacted files have no line counts");
+  const example = captured.files.find((file) => file.path === "runtime/example.js");
+  assert.equal(example.additions, 1); assert.equal(example.deletions, 1);
+  assert.equal(captured.files.find((file) => file.path === ".env").additions, null);
+  assert.equal(captured.workspace, f.workspace); assert.equal(captured.repository, null);
   const diff = await (await get(`api/task-change-diff?taskId=T-001&changeSetId=${captured.id}&fileId=${digest("runtime/example.js")}`)).json();
   assert.equal(diff.availability, "available"); assert.match(diff.patch, /after/);
   assert.equal((await get(`api/task-change-diff?taskId=T-001&changeSetId=${captured.id}&fileId=foreign`)).status, 404);

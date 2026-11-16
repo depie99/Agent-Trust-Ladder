@@ -5,6 +5,19 @@ description: "Set up and use the complete bundled ATL plugin: persistent tasks, 
 
 # Full ATL in the current harness
 
+For “Open ATL” (or `atl-open`), select the current application workspace, call
+`atl_start` and open its returned URL with the harness browser capability; if no
+browser capability is available, provide the clickable URL. The browser presents
+the complete shared Control Plane. ZCode means Z.ai's ZCode, not Zed. Use its
+native bundle when available. In ZCode Desktop versions with UI Plugin support,
+open the installed **ATL Control Plane** session panel directly. It binds the
+current local workspace and shows the complete Control Plane inside the app
+without a model turn, `@` mention, or slash command. Older hosts can use the
+browser URL. Opening either interface does not launch workers.
+Plugin updates carry the matching Control Plane snapshot; `atl_info` exposes its
+release fingerprint. Never repair an installed bundle by downloading a separate
+runtime or editing packaged UI files: update or rebuild the full plugin instead.
+
 Use the bundled tools (their names may have a host prefix). Call `atl_info` to discover the installed bundle, then `atl_skill` with `name: "atl"` to load the workflow router. Supporting references are read with `atl_skill(name, file)` only when needed. Native skill discovery and this tool expose the same source files; do not load both copies.
 
 Ask for the application path only when the active workspace does not identify it. Every runtime call takes its **absolute project path**; the plugin install directory is never the application. Never initialize a project merely because this skill loaded.

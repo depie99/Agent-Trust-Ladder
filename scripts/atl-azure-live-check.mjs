@@ -50,6 +50,7 @@ export function redactItem(item) {
   return {
     remote_id: source.remote_id ?? null,
     revision: source.revision ?? null,
+    iteration: source.iteration || null,
     intake_key: item?.intake_key || null,
     title_sha256: digest(title),
     title_length: title.length,
@@ -110,11 +111,12 @@ export async function runAzureLiveCheck({
     if (itemId == null) return items;
     return items.filter((item) => String(item?.source?.remote_id) === String(itemId));
   };
-  const controlPlane = pick(await intakeFromAzure(cfg, { requestImpl: requestImpls.controlPlane }));
-  const skillsOnly = pick(await fetchAzureTasks(cfg, { requestImpl: requestImpls.skillsOnly, env }));
+  const readCfg = itemId == null ? cfg : { ...cfg, work_item_id: itemId };
+  const controlPlane = pick(await intakeFromAzure(readCfg, { requestImpl: requestImpls.controlPlane }));
+  const skillsOnly = pick(await fetchAzureTasks(readCfg, { requestImpl: requestImpls.skillsOnly, env }));
   const parity = compareSurfaces(controlPlane, skillsOnly);
   const selected = controlPlane[0] || skillsOnly[0] || null;
-  if (itemId != null && !selected) throw new Error(`Work item ${itemId} is not returned by iteration ${cfg.iteration_path}`);
+  if (itemId != null && !selected) throw new Error(`Work item ${itemId} was not returned by direct read in Azure project ${cfg.project}`);
   return {
     schema: LIVE_CHECK_SCHEMA,
     kind: "atl-azure-live-check",
@@ -126,7 +128,7 @@ export async function runAzureLiveCheck({
       iteration_path: cfg.iteration_path,
       auth: `${tokenEnv} (personal access token, Work Items: Read)`,
       tls_allow_untrusted: cfg.tls_allow_untrusted === true,
-      remote_mutation: "none: WIQL query and work-items batch are read-only calls",
+      remote_mutation: itemId == null ? "none: WIQL query and work-items batch are read-only calls" : "none: direct work-item GET is read-only",
     },
     item: selected ? redactItem(selected) : null,
     surfaces: {
@@ -148,7 +150,7 @@ export function renderLiveCheckMarkdown(record) {
     "| --- | --- |",
     `| Collection | ${record.host.org_url} |`,
     `| Project | ${record.host.project} |`,
-    `| Iteration | ${record.host.iteration_path} |`,
+    `| Requested iteration | ${record.host.iteration_path} |`,
     `| Auth | ${record.host.auth} |`,
     `| TLS | ${record.host.tls_allow_untrusted ? "untrusted certificate allowed for this self-hosted server" : "verified certificate"} |`,
     `| Remote mutation | ${record.host.remote_mutation} |`,
@@ -156,7 +158,7 @@ export function renderLiveCheckMarkdown(record) {
   if (record.item) {
     lines.push(
       "",
-      `Selected item **${record.item.remote_id}** at revision **${record.item.revision}**, title digest \`${record.item.title_sha256}\` (${record.item.title_length} characters, not reproduced here).`,
+      `Selected item **${record.item.remote_id}** at revision **${record.item.revision}**, current iteration **${record.item.iteration || "not reported"}**, title digest \`${record.item.title_sha256}\` (${record.item.title_length} characters, not reproduced here).`,
     );
   }
   lines.push(
@@ -186,6 +188,7 @@ async function main() {
     org_url: option(args, "--org-url"),
     project: option(args, "--project"),
     iteration_path: option(args, "--iteration-path"),
+    types: option(args, "--types")?.split(",").map((type) => type.trim()).filter(Boolean),
   });
   const itemId = option(args, "--item") ?? null;
   let record;

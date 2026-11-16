@@ -250,13 +250,16 @@ textarea.input{resize:vertical;min-height:110px}
 @media(max-width:1050px){
   .sidebar{width:185px}
   .four{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .twocol{grid-template-columns:1fr}
+  .twocol{grid-template-columns:minmax(0,1fr)}
   .body{padding:20px}
 }
 @media(max-width:720px){
   .app{display:block}
   .sidebar{display:none}
   .mobile{display:flex;overflow:auto;gap:6px;background:var(--mobile-bg);padding:8px}
+  .mobile{scrollbar-width:none;scroll-behavior:smooth}
+  .mobile::-webkit-scrollbar{display:none;height:0}
+  .mobile{mask-image:linear-gradient(to left,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%);-webkit-mask-image:linear-gradient(to left,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%)}
   .mobile button{white-space:nowrap}
   .body{padding:15px}
   .four,.three,.two{grid-template-columns:1fr}
@@ -290,6 +293,28 @@ textarea.input{resize:vertical;min-height:110px}
 .review-add { color: var(--green); background: color-mix(in srgb, var(--green) 9%, transparent); }
 .review-delete { color: var(--red); background: color-mix(in srgb, var(--red) 9%, transparent); }
 .review-hunk { color: var(--blue); }
+/* Change profile chart: per-file additions/deletions bars in the review overview. */
+.review-chart { margin-block: 14px; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.review-chart h3 { margin: 0; }
+.review-chart-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block: 6px 2px; }
+.review-chart-kinds { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.review-chart-legend { display: flex; gap: 16px; margin-block: 6px 10px; align-items: center; }
+.review-chart-key { display: inline-block; width: 12px; height: 9px; border-radius: 2px; vertical-align: baseline; }
+.review-chart-key.add { background: color-mix(in srgb, var(--green) 75%, transparent); }
+.review-chart-key.del { background: color-mix(in srgb, var(--red) 75%, transparent); }
+.review-chart-rows { display: grid; gap: 2px; }
+.review-chart-row { display: grid; grid-template-columns: minmax(140px, 34%) minmax(80px, 1fr) auto; gap: 10px; align-items: center; width: 100%; text-align: start; border: 1px solid transparent; border-radius: 5px; background: transparent; color: inherit; padding: 4px 6px; font: inherit; cursor: pointer; }
+.review-chart-row:hover { border-color: var(--border); background: color-mix(in srgb, var(--panel) 70%, transparent); }
+.review-chart-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.review-chart-path { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; direction: ltr; unicode-bidi: isolate; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-chart-bar { display: flex; min-width: 0; height: 10px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--panel) 60%, transparent); }
+.review-chart-add { background: color-mix(in srgb, var(--green) 72%, transparent); }
+.review-chart-del { background: color-mix(in srgb, var(--red) 72%, transparent); }
+.review-chart-none { flex: 1; background: repeating-linear-gradient(45deg, transparent, transparent 4px, color-mix(in srgb, var(--border) 80%, transparent) 4px, color-mix(in srgb, var(--border) 80%, transparent) 6px); }
+.review-chart-count { font-family: "Cascadia Mono", Consolas, monospace; font-size: 11px; white-space: nowrap; color: var(--muted); }
+.review-chart-totals { font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; }
+.review-chart-more { margin-block: 8px 0; }
+@media (max-width: 640px) { .review-chart-row { grid-template-columns: minmax(0, 1fr) 64px; } .review-chart-bar { display: none; } }
 .review-evidence { margin-block: 10px; border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
 .review-evidence summary { cursor: pointer; }
 .review-evidence pre, .review-record { white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }
@@ -393,6 +418,12 @@ textarea.input{resize:vertical;min-height:110px}
 .tasks-seg-count{font-size:10px;padding:0 5px;border-radius:999px;background:var(--chip);color:var(--muted)}
 .tasks-seg-btn.active .tasks-seg-count{color:var(--accent)}
 .tasks-bulk-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:9px 14px;background:var(--step-on-bg);border-bottom:1px solid var(--step-on-edge);font-size:11px}
+
+.shipped-queue-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:10px 14px;background:var(--raised);border-bottom:1px solid var(--border)}
+.shipped-queue-name{font-weight:800;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shipped-queue-head .btn.shipped-collapse{min-width:28px;padding:4px 8px;font-size:12px;color:var(--muted)}
+.shipped-queue-collapsed .shipped-queue-head{border-bottom:0}
+.shipped-queue-collapsed .shipped-queue-body{display:none}
 
 .tableitem.task-row{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(175px,.75fr) minmax(230px,auto);align-items:center;gap:16px;padding:14px 18px;border-bottom:1px solid var(--row-line);transition:background .12s ease;position:relative;cursor:pointer}
 .tableitem.task-row:hover{background:var(--row-hover)}
@@ -635,3 +666,64 @@ textarea.input{resize:vertical;min-height:110px}
 .review-statechart-contract .review-statechart-step { text-anchor: middle; fill: var(--muted); font-size: 9px; }
 
 .review-statechart-path-head { padding: 10px 16px; border-top: 1px solid var(--border); font-weight: 700; }
+
+// ---------- Workflow runs view (Kiro-style task process tracking) ----------
+.wf-chain { display: flex; flex-direction: column; }
+.wf-step { display: flex; align-items: flex-start; gap: 12px; inline-size: 100%; text-align: start; padding: 11px 12px; background: transparent; border: 0; border-block-end: 1px solid var(--border); cursor: pointer; color: inherit; }
+.wf-step:last-child { border-block-end: 0; }
+.wf-step:hover { background: var(--raised, var(--bg)); }
+.wf-step.live { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.wf-dot { inline-size: 22px; block-size: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; font-size: 12px; font-weight: 700; border: 1.5px solid var(--border); background: var(--bg); }
+.wf-dot.done { border-color: var(--success, #16a34a); color: var(--success, #16a34a); }
+.wf-dot.running { border-color: var(--accent); color: var(--accent); animation: wf-pulse 1.6s ease-in-out infinite; }
+.wf-dot.blocked { border-color: var(--warn, #b45309); color: var(--warn, #b45309); }
+.wf-dot.failed { border-color: var(--danger, #dc2626); color: var(--danger, #dc2626); }
+.wf-dot.pending { opacity: 0.72; }
+@keyframes wf-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.wf-stepmain { flex: 1 1 auto; min-inline-size: 0; }
+.wf-steptitle { display: flex; flex-direction: column; gap: 2px; }
+.wf-stepside { flex: none; }
+.wf-session { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0 9px 14px; border-inline-start: 2px solid var(--border); }
+.wf-checks { display: flex; flex-direction: column; gap: 7px; }
+.wf-check { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; }
+.wf-check .wf-dot { inline-size: 18px; block-size: 18px; font-size: 10px; }
+.wf-stream { display: flex; flex-direction: column; gap: 4px; font-family: var(--mono, ui-monospace, monospace); font-size: 11.5px; overflow-wrap: anywhere; }
+.wf-event { padding: 3px 0; border-block-end: 1px dashed var(--border); overflow-wrap: anywhere; }
+.wf-event:last-child { border-block-end: 0; }
+
+// ---------- Narrow-viewport shell hardening (2026-11-16 responsive sweep) ----------
+// The three-zone topbar grid squeezed the action buttons until their labels
+// wrapped into tall blobs that broke out of the 54px header (the "+ New task"
+// button escaped the page top), and the crumb row wrapped letter-by-letter.
+@media(max-width:720px){
+  html:not([data-atl-context="plugin"]) .topbar{display:flex;flex-wrap:wrap;height:auto;min-height:54px;row-gap:8px;padding:8px 12px}
+  html:not([data-atl-context="plugin"]) .topbar .row:first-child{flex:1 1 auto}
+  html:not([data-atl-context="plugin"]) .topbar .cmdbar{order:3;flex:1 1 100%;min-width:0}
+  html:not([data-atl-context="plugin"]) .topbar .row:last-child{margin-inline-start:auto}
+  html:not([data-atl-context="plugin"]) .topbar .row:first-child{min-width:0;overflow:hidden;white-space:nowrap}
+  html:not([data-atl-context="plugin"]) .topbar .row:first-child > #crumb{min-width:0;overflow:hidden;text-overflow:ellipsis}
+}
+
+// ---------- Developer-grade diff view (task Changes tab) ----------
+.diff-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.diff-path{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1 1 auto}
+.diff-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:none}
+.diff-kind.kind-add{color:var(--green)}
+.diff-kind.kind-del{color:var(--red)}
+.diff-kind.kind-mod{color:var(--blue)}
+.diff-stat.add{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent);font-weight:700}
+.diff-stat.del{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent);font-weight:700}
+.diff-view{border:1px solid var(--border);border-radius:9px;overflow:auto;max-height:62vh;background:var(--pane,var(--bg));direction:ltr;scrollbar-width:thin}
+.diff-hunkbar{display:flex;gap:10px;align-items:center;padding:5px 12px;background:color-mix(in srgb,var(--accent) 9%,transparent);border-block:1px solid var(--border);position:sticky;top:0;font-size:11px}
+.diff-hunkbar code{font-family:"Cascadia Mono",Consolas,monospace;font-size:11px;color:var(--muted)}
+.diff-line{display:grid;grid-template-columns:40px 40px 18px minmax(0,1fr);font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre}
+.diff-line .diff-no{text-align:end;padding:0 6px;color:var(--faint);user-select:none;border-inline-end:1px solid var(--border)}
+.diff-line .diff-sign{text-align:center;color:var(--faint);user-select:none}
+.diff-line .diff-code{padding-inline:8px;min-width:0}
+.diff-line.add{background:color-mix(in srgb,var(--green) 11%,transparent)}
+.diff-line.add .diff-sign,.diff-line.add .diff-no:nth-child(2){color:var(--green);font-weight:700}
+.diff-line.del{background:color-mix(in srgb,var(--red) 10%,transparent)}
+.diff-line.del .diff-sign{color:var(--red);font-weight:700}
+.diff-line.ctx{opacity:.8}
+.diff-line.note{opacity:.6;font-style:italic}
+.diff-line:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}

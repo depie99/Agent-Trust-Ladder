@@ -11,7 +11,14 @@
     "url": "getting-started.html",
     "title": "Getting started",
     "group": "Start here",
-    "description": "Open a local ATL project and create your first reviewed task. Skills provide engineering instructions; the runtime stores and coordinates work. Install them separately as"
+    "description": "Use the complete ATL plugin inside your harness, or install the runtime and skills separately. Initialize an application and create your first reviewed task."
+  },
+  {
+    "source": "docs/plugin-install.md",
+    "url": "plugin-install.html",
+    "title": "Install the plugin",
+    "group": "Start here",
+    "description": "Add the full ATL plugin to ZCode Desktop, Codex, Claude Code, Cursor, DeepSeek Harness, Gemini CLI, or any harness with local stdio MCP tools, and verify that it loaded."
   },
   {
     "source": "docs/control-room.md",
@@ -40,6 +47,13 @@
     "title": "Plan Studio",
     "group": "Workflows",
     "description": "Use Plan Studio when a request describes an outcome but lacks independently executable tasks. Planning proposes work; review and owner approval decide whether it can ente"
+  },
+  {
+    "source": "docs/task-preparation.md",
+    "url": "task-preparation.html",
+    "title": "Task preparation",
+    "group": "Workflows",
+    "description": "Prepare an assigned Azure task before planning: a saved brief, separated owner-decision and investigation questions, bounded code discovery, and an idempotent handoff into Plan Studio that stays locked until consequential questions are settled."
   },
   {
     "source": "docs/tasks-and-queues.md",
@@ -81,7 +95,7 @@
     "url": "task-run-reliability.html",
     "title": "Run reliability",
     "group": "Workflows",
-    "description": "Observed 2026-10-27. Audience: maintainers operating task runs. Sources: T-022 worker transcripts and recovery records in .trust/manager/overnight/T-022/, the task feed, "
+    "description": "Project-state reliability metrics include denominators and dates; rates stay hidden below 20 active tasks. Sources: current task state, recovery records, and verification suites. "
   },
   {
     "source": "docs/plan-studio-contract.md",

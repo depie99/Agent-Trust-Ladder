@@ -32,6 +32,7 @@ import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDelivery
 import { inspectHandoffChain } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview } from "./change-review-store.mjs";
+import { buildExecutionProjection } from "./execution-projection.mjs";
 import { taskStatechart } from "./task-statechart.mjs";
 import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
 import { previewPlanPublish, publishPlan, verifyImportedSource, refreshImportedAzureSource } from "./plan-publish.mjs";
@@ -228,6 +229,14 @@ function resolvePreviewSafe(root, options) {
   }
 }
 
+// The overnight-run gate serializes planning provider calls (generate,
+// review, regenerate) against queue runs so quota-limited providers are not
+// shared mid-run. Owners who accept sharing the provider with an active run
+// set planning.concurrentWithQueueRun=true in manager settings and the gate
+// stops refusing planning and review calls while a run is active.
+function planningConcurrentAllowed(root) {
+  try { return readManagerConfig(root).planning?.concurrentWithQueueRun === true; } catch { return false; }
+}
 function planningRunActive(root) {
   const lock = readRunLock(root);
   if (!lock?.pid) return false;
@@ -589,7 +598,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       // and names the real blocker instead of "provider id required".
       try { assertPreparationReady(root, payload.sourceTaskId ? String(payload.sourceTaskId) : null); }
       catch (error) { return json(res, 409, { ok: false, error: error.message, preparation: error.preparation || null }); }
-      if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — planning calls wait until the run gate is free" });
+      if (!planningConcurrentAllowed(root) && planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — planning calls wait until the run gate is free (or set planning.concurrentWithQueueRun=true in manager settings)" });
       // Provider-backed generation is always an explicit, bounded spend: the
       // provider must be configured and ready, no queue run may be active,
       // and the call itself is one confirmed planning session with a timeout.
@@ -645,7 +654,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
         if (!artifact || artifact.plan_contract_version !== 2) return json(res, 409, { ok: false, error: "local skeleton and legacy drafts need a version 2 model plan first — use Complete with model, then review" });
         validatePlanArtifact(artifact);
         validatePlanGrounding(root, artifact, { repoRoot });
-        if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free" });
+        if (!planningConcurrentAllowed(root) && planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free (or set planning.concurrentWithQueueRun=true in manager settings)" });
         const config = readEgmReviewConfig(readManagerConfig(root));
         if (!config.enabled) return json(res, 409, { ok: false, error: "EGM deep review is not usable: " + config.problems.join(" ") });
         const egmProviderId = payload.provider || loaded.provider;
@@ -709,7 +718,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       validatePlanArtifact(artifact);
       validatePlanGrounding(root, artifact, { repoRoot });
       const entry = planningEntry(root,payload,{...artifact,title:artifact.title||loaded.intent},'planning-review',providerId);
-      if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free" });
+      if (!planningConcurrentAllowed(root) && planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free (or set planning.concurrentWithQueueRun=true in manager settings)" });
       acquireReviewLock(loaded.dir);
       reviewKey = "acquired";
       reviewDir = loaded.dir;
@@ -767,7 +776,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       const providerId = payload.provider || loaded.provider;
       if (!providerId) return json(res, 400, { ok: false, error: "this draft has no retained provider — select one before regenerating" });
       const entry = planningEntry(root,payload,normalizeProposals(loaded.artifact).find(p=>p.id===proposalId)||{title:loaded.intent},'planning',providerId);
-      if (planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — planning calls wait until the run gate is free" });
+      if (!planningConcurrentAllowed(root) && planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — planning calls wait until the run gate is free (or set planning.concurrentWithQueueRun=true in manager settings)" });
       const updated = await regenerateProposal(root, draftId, proposalId, {
         confirm: payload.confirm === true,
         role: "pip",
@@ -1025,6 +1034,21 @@ export function buildWindowsMyTasksStartupScript({ nodePath, runtimeEntry, proje
   return `Set shell = CreateObject("WScript.Shell")\r\nshell.CurrentDirectory = "${root}"\r\nshell.Environment("PROCESS").Item("ATL_NO_OPEN") = "1"\r\nshell.Run """${node}"" """${entry}"" ui", 0, False\r\n`;
 }
 
+// Snapshot fingerprint with per-build volatile stamps removed: build timestamps
+// must not make an unchanged dashboard look changed to delta clients.
+// observed_at is derived (newest evidence stamp, falling back to the volatile
+// state.updated_at), so scheduler rewrites would otherwise dirty every tick.
+const VOLATILE_SNAPSHOT_KEYS = ['captured_at', 'checked_at', 'created_at', 'updated_at', 'observed_at'];
+const stableSnapshotFingerprint = value => {
+  if (Array.isArray(value)) return value.map(stableSnapshotFingerprint);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const key of Object.keys(value)) if (!VOLATILE_SNAPSHOT_KEYS.includes(key)) out[key] = stableSnapshotFingerprint(value[key]);
+    return out;
+  }
+  return value;
+};
+
 export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {}, egmRunner = null, myTasksFetch = null, myTasksReviewInvoke = null, taskTriageInvoke = null, jiraTransportCall = null, azureFetch = globalThis.fetch } = {}) {
   if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) throw new Error("control plane only supports loopback hosts");
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters, egmRunner, azureFetch };
@@ -1124,7 +1148,24 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     error: durable.error || null,
   } : { status: "idle", queueId: null, taskIds: null, queueIds: null, startedAt: null, finishedAt: null, progress: [], results: [], error: null };
   const streams = new Set();
-  const streamTimer = setInterval(() => { for (const stream of streams) { try { const snapshot = createControlPlaneSnapshot(root); stream.res.write(`event: snapshot\ndata: ${JSON.stringify({ cursor: snapshot.state?.log?.length || 0, snapshot })}\n\n`); } catch { streams.delete(stream); } } }, 2000);
+  // Build the snapshot once per tick and push it to connected streams only when
+  // it actually changed: an idle dashboard then costs one in-process build and
+  // zero wire bytes per tick instead of a full snapshot per client every 2 s.
+  // Each changed frame gets a monotonically increasing version; reconnecting
+  // clients echo the version they hold and receive a tiny liveness block while
+  // they are already up to date.
+  let cachedFrame = null; // { cursor, content, json } of the latest built snapshot
+  let frameVersion = 0;
+  let forceFullNextConnect = false; // set on any content change, even without version growth
+  const streamTimer = setInterval(() => {
+    let snapshot, content;
+    try { snapshot = createControlPlaneSnapshot(root); content = JSON.stringify(stableSnapshotFingerprint(snapshot)); } catch { return; }
+    if (cachedFrame && cachedFrame.content === content) return;
+    frameVersion += 1;
+    forceFullNextConnect = Boolean(cachedFrame); // a real change; the first cached build is not one
+    cachedFrame = { cursor: frameVersion, content, json: JSON.stringify({ cursor: frameVersion, snapshot }) };
+    for (const stream of streams) { try { stream.res.write(`event: snapshot\ndata: ${cachedFrame.json}\n\n`); } catch { streams.delete(stream); } }
+  }, 2000);
   streamTimer.unref?.();
   return http.createServer(async (req, res) => {
     try {
@@ -1168,7 +1209,17 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         sendJavascript(res, assetRoot, "control-plane-changes.js"); return;
       }
       if (req.method === "GET" && url.pathname === "/api/snapshot") {
-        json(res, 200, createControlPlaneSnapshot(root));
+        const cursor = Number(url.searchParams.get("cursor") || 0);
+        if (cachedFrame && !forceFullNextConnect && cursor > 0 && cursor === cachedFrame.cursor) {
+          json(res, 200, { unchanged: true, cursor });
+        } else {
+          // A fresh read (no cursor) must never serve a pre-mutation cached
+          // frame: build current state so recent mutations are visible
+          // immediately; only cursor-holding pollers ride the cache.
+          const payload = cursor > 0 && cachedFrame ? JSON.parse(cachedFrame.json).snapshot : createControlPlaneSnapshot(root);
+          json(res, 200, { ...payload, cursor: cachedFrame?.cursor ?? 1 });
+          forceFullNextConnect = false;
+        }
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/memory") {
@@ -1205,7 +1256,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             if (!url.searchParams.get("changeSetId") || !record) throw new ChangeReviewError("change_set_missing", "A pinned change set is required", 400);
             json(res, 200, { change_set_id: record.id, ...fileDiff(root, record, url.searchParams.get("fileId")) }); return;
           }
-          const review = record ? { ...describeChanges(task, record, { cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit") }), revisions: listChangeReviews(root, task) } : unavailableReview(task);
+          const review = record ? { ...describeChanges(task, record, { cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit"), root }), revisions: listChangeReviews(root, task) } : unavailableReview(task);
           const delivery = record ? taskDeliveryReceiptFromRecord(task, record) : null;
           json(res, 200, {
             ...review,
@@ -1215,6 +1266,19 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         } catch (error) {
           json(res, error instanceof ChangeReviewError ? error.status : 409, { error: error instanceof ChangeReviewError ? error.message : "Source inspection failed; no task state was changed", availability: error instanceof ChangeReviewError ? error.code : "inspection_unavailable" });
         }
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/task-execution") {
+        // Same posture as source previews: the projection joins workspace
+        // paths, session log paths and evidence, so the owner session is
+        // required even on GET.
+        const token = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length);
+        if (!validateOwnerSession(root, decodeURIComponent(token || ""), String(req.headers["x-atl-csrf"] || ""))) { json(res, 403, { error: "Owner session is required for execution inspection", availability: "forbidden" }); return; }
+        const taskId = String(url.searchParams.get("taskId") || "");
+        const taskState = loadState(root);
+        if (!taskState.tasks[taskId]) { json(res, 404, { error: "Task not found", availability: "task_missing" }); return; }
+        try { json(res, 200, buildExecutionProjection(root, taskId, { state: taskState })); }
+        catch (error) { json(res, 409, { error: "Execution projection failed; no task state was changed", availability: "projection_unavailable", message: error.message }); }
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/task-recovery") {
@@ -1415,6 +1479,9 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         const payload = JSON.parse(await readBody(req) || "{}");
         const command = String(payload.command || "").trim();
         const result = dispatchTuiCommand(root, command, { selectedTaskId: payload.selectedTaskId || null });
+        // A mutation must be readable immediately: drop the cached delta frame
+        // so the next read and the next stream tick rebuild post-mutation state.
+        cachedFrame = null;
         json(res, result.ok ? 200 : 400, result);
         return;
       }

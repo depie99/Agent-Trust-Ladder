@@ -19,7 +19,8 @@ const fixture = (id, revision, title) => ({
 function fakeAzure(items) {
   const calls = [];
   const requestImpl = async (url, options = {}) => {
-    calls.push({ url, method: options.method || "GET" });
+    calls.push({ url, method: options.method || "GET", body: options.body });
+    if (/\/workitems\/\d+\?/.test(url)) return items.find((item) => String(item.id) === url.match(/\/workitems\/(\d+)\?/)[1]) || null;
     if (url.includes("/wiql")) return { workItems: items.map((item) => ({ id: item.id })) };
     if (url.includes("/workitemsbatch")) return { value: items };
     throw new Error(`unexpected Azure call: ${url}`);
@@ -36,6 +37,7 @@ try {
   }));
   const cfg = readAzureConfig(root);
   assert.equal(cfg.project, "example-project");
+  assert.deepEqual(readAzureConfig(root, { types: ["Feature"] }).types, ["Feature"], "explicit work item types can include Azure Features");
   assert.equal(cfg.tls_allow_untrusted, true);
   assert.equal(readAzureConfig(root, { iteration_path: "example-project\\Sprint 74" }).iteration_path, "example-project\\Sprint 74", "an explicit override wins over stored config");
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), "atl-azure-live-bare-"));
@@ -67,6 +69,7 @@ try {
   assert.deepEqual(record.item, {
     remote_id: 741,
     revision: 3,
+    iteration: "example-project\\Sprint 73",
     intake_key: "azure:https://devops.example.invalid:32678/example-org:example-project:741:3",
     title_sha256: redactItem({ title: "Bug 741: Broken middleware retry" }).title_sha256,
     title_length: 32,
@@ -78,8 +81,9 @@ try {
   assert.ok(!serialized.includes("Internal reproduction steps"), "the raw work-item description is not reproduced in evidence");
   assert.match(record.host.remote_mutation, /read-only/);
   assert.ok(healthy.calls.every((call) => /_apis\/wit\//.test(call.url)), "the live check only touches work-item read endpoints");
-  assert.equal(healthy.calls.filter((call) => call.method === "POST").length, 4, "each surface reads through the documented WIQL and work-items batch POST endpoints");
-  assert.equal(healthy.calls.filter((call) => /wiql/.test(call.url)).length, 2, "both entry points run the same WIQL query");
+  assert.equal(healthy.calls.filter((call) => call.method === "POST").length, 0, "single-item checks use only direct GET requests");
+  assert.equal(healthy.calls.filter((call) => /workitems\/741\?/.test(call.url)).length, 2, "both entry points directly read the requested item");
+  assert.equal(record.item.iteration, "example-project\\Sprint 73", "the live item iteration is reported separately from the configured iteration");
 
   const drifted = fakeAzure([fixture(741, 4, "Broken middleware retry")]);
   const failed = await runAzureLiveCheck({
@@ -106,7 +110,7 @@ try {
   assert.equal(selected.surfaces.control_plane.items, 1);
   await assert.rejects(
     runAzureLiveCheck({ cfg, env: { AZDO_PAT: "synthetic-token" }, root, itemId: 999, requestImpls: { controlPlane: mixed.requestImpl, skillsOnly: mixed.requestImpl } }),
-    /is not returned by iteration/,
+    /was not returned by direct read/,
   );
   console.log("azure live check tests passed");
 } finally {

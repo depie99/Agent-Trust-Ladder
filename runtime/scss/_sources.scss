@@ -244,6 +244,7 @@
 .source-branch-box { border: 1px solid var(--border); border-radius: 6px; background: var(--field-bg); padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
 .source-branch-box.is-empty { border-style: dashed; color: var(--muted); font-size: 11px; }
 .source-branch-box > div:first-child { min-width: 0; }
+.source-branch-box > div:first-child > b.truncate { display: block; }
 .source-branch-box .bar { justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .source-branch-task { display: flex; gap: 6px; align-items: center; font-size: 10.5px; color: var(--muted); min-width: 0; }
 .source-branch-actions { flex-wrap: wrap; gap: 7px; }

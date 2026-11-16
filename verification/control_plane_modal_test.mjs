@@ -45,59 +45,70 @@ try {
 
     await page.locator('[data-page="tasks"]:visible').first().click();
     await page.locator('[data-task="T-022"]').first().click();
-    await dialog.locator(".task-detail-title").waitFor();
-    await dialog.locator('[data-action="task-actions:T-022"]').click();
+    const workspace = page.locator("#taskWorkspace");
+    await workspace.locator(".task-detail-title").waitFor();
+    assert.equal(await workspace.getAttribute("data-task-view"), "activity", "task-detail links open the Activity view");
+    if (process.env.ATL_MODAL_SCREENSHOT && viewport.width === 390) { await page.evaluate(() => document.documentElement.classList.remove("light")); await workspace.screenshot({ path: process.env.ATL_MODAL_SCREENSHOT }); }
+    const titleFont = await workspace.locator(".task-detail-title").evaluate((node) => getComputedStyle(node).fontFamily);
+    assert.doesNotMatch(titleFont, /ui-monospace|Consolas/i, "task text uses a reading font");
+    // Blocker surfaces inline above the composer with its recovery actions.
+    await workspace.locator('[data-action="unblock:T-022"]').waitFor();
+    await workspace.locator('[data-action="task-recovery:T-022"]').waitFor();
+    // Operator tools stay reachable; the route flow returns to the workspace.
+    await workspace.locator('[data-action="task-actions:T-022"]').click();
     await dialog.locator('[data-action="task-route:T-022"]').click();
     await dialog.locator("#taskRouteSelect").waitFor();
     assert.equal(await dialog.locator("#taskRouteSelect").inputValue(), "", "task route inherits the project by default");
     await dialog.locator('[data-action="task-route-save:T-022"]').click();
-    await dialog.locator(".task-detail-title").waitFor();
-    if (process.env.ATL_MODAL_SCREENSHOT && viewport.width === 390) { await page.evaluate(() => document.documentElement.classList.remove("light")); await dialog.screenshot({ path: process.env.ATL_MODAL_SCREENSHOT }); }
-    assert.equal(await dialog.locator(".dialogfoot .btn").count(), 3, "primary task actions stay concise");
-    const titleFont = await dialog.locator(".task-detail-title").evaluate((node) => getComputedStyle(node).fontFamily);
-    assert.doesNotMatch(titleFont, /ui-monospace|Consolas/i, "task text uses a reading font");
+    await page.keyboard.press("Escape");
+    await workspace.locator(".task-detail-title").waitFor();
     const budgetBefore = JSON.stringify(state.tasks["T-022"].execution_budget);
+    // Browser access lives in its disclosure; the inline decision points there.
+    await workspace.locator('[data-workspace-disclosure="browser"] summary').click();
+    await workspace.locator("#taskBrowserAccess").waitFor();
     await page.route("**/api/browser-access", (route) => route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ ok: false, error: "not found" }) }));
-    await dialog.locator('[data-action="browser-check:T-022"]').click();
-    await dialog.getByText("The running server does not support browser access settings. Restart it from this project's runtime, then reload this page.", { exact: true }).waitFor();
+    await workspace.locator('[data-action="browser-check:T-022"]').click();
+    await workspace.getByText("The running server does not support browser access settings. Restart it from this project's runtime, then reload this page.", { exact: true }).waitFor();
     await page.unroute("**/api/browser-access");
-    await dialog.locator("#taskBrowserAccess").selectOption("approved");
-    await dialog.locator('[data-action="browser-task-save:T-022"]').click();
-    await dialog.locator("[data-browser-access] .pill.green").waitFor();
+    await workspace.locator("#taskBrowserAccess").selectOption("approved");
+    await workspace.locator('[data-action="browser-task-save:T-022"]').click();
+    await workspace.locator('[data-workspace-disclosure="browser"] [data-browser-access] .pill.green').waitFor();
     const browserConfig = JSON.parse(fs.readFileSync(path.join(root, "config/manager.json"), "utf8"));
     assert.equal(browserConfig.ui_review.browser_access.tasks["T-022"], "approved");
     assert.equal(JSON.stringify(JSON.parse(fs.readFileSync(path.join(root, ".trust/manager/state.json"), "utf8")).tasks["T-022"].execution_budget), budgetBefore);
-    await dialog.locator("#taskBrowserAccess").selectOption("inherit");
-    await dialog.locator('[data-action="browser-task-save:T-022"]').click();
-    await dialog.locator("[data-browser-access] .pill.amber").waitFor();
-    assert.equal(await dialog.locator("#taskBrowserAccess").inputValue(), "inherit");
-    const taskOverflow = await dialog.locator("[data-browser-access]").evaluate((node) => node.scrollWidth - node.clientWidth);
+    await workspace.locator("#taskBrowserAccess").selectOption("inherit");
+    await workspace.locator('[data-action="browser-task-save:T-022"]').click();
+    await workspace.locator('[data-workspace-disclosure="browser"] [data-browser-access] .pill.amber').waitFor();
+    assert.equal(await workspace.locator("#taskBrowserAccess").inputValue(), "inherit");
+    const taskOverflow = await workspace.locator('[data-workspace-disclosure="browser"] [data-browser-access]').evaluate((node) => node.scrollWidth - node.clientWidth);
     assert.ok(taskOverflow <= 1, "browser access controls fit the desktop/mobile task inspector");
-    await dialog.locator(".task-detail-disclosure").first().locator("summary").click();
-    assert.equal(await dialog.locator(".task-detail-disclosure").first().getAttribute("open"), "", "evidence expands on demand");
+    await workspace.locator('[data-workspace-disclosure="acceptance"] summary').click();
+    assert.equal(await workspace.locator('[data-workspace-disclosure="acceptance"]').getAttribute("open"), "", "acceptance criteria expand on demand");
+    // Ask ATL mounts inline in the workspace composer.
     await page.route("**/api/assistant", async (route) => {
       const response = await route.fetch(); const result = await response.json();
       result.providers = [{ id: "codex", label: "Codex", installed: true, signedIn: true, defaultModel: "test-model", models: [{ id: "test-model" }] }];
       await route.fulfill({ response, json: result });
     });
-    await dialog.locator('[data-action="assistant-open:T-022"]').click();
-    await dialog.locator(".assistant-guidance").waitFor();
+    await workspace.locator('[data-action="assistant-open:T-022"]').click();
+    await workspace.locator(".assistant-guidance").waitFor();
+    assert.equal(await workspace.locator("#assistantTranscript").count(), 1, "inline assistant lives in the workspace");
     let checkedProvider;
     await page.route("**/api/execution-access", async (route) => {
       if (route.request().method() !== "POST") return route.continue();
       checkedProvider = route.request().postDataJSON().provider;
       await route.fulfill({ json: { ok: true, check: { ok: true, detail: "Selected provider verified" } } });
     });
-    await dialog.locator('[data-action="access-open:T-022"]').click();
+    await workspace.locator('[data-action="access-open:T-022"]').first().click();
     await dialog.locator('[data-action="access-check:T-022"]').click();
     await dialog.getByText("Selected provider verified", { exact: true }).waitFor();
     assert.equal(checkedProvider, "codex", "the probe checks the selected provider, not the unrelated GapCode default");
     await page.unroute("**/api/execution-access");
-    await dialog.locator('[data-action="assistant-open:T-022"]').click();
-    await dialog.locator('[data-action="browser-open:T-022"]').click();
-    await dialog.locator("#taskBrowserAccess").waitFor();
-    assert.equal(await page.evaluate(() => document.activeElement?.id), "taskBrowserAccess", "MCP denial leads directly to the task browser permission control");
     await page.keyboard.press("Escape");
+    // MCP denial shortcut lands on the browser permission control.
+    await workspace.locator('[data-action="browser-open:T-022"]').first().click();
+    await workspace.locator("#taskBrowserAccess").waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "taskBrowserAccess", "MCP denial leads directly to the task browser permission control");
 
     await page.locator('[data-page="assistant"]:visible').first().click();
     await page.locator('[data-action="assistant-open:global"]').first().click();

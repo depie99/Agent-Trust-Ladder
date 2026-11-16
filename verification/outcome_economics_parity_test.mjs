@@ -5,7 +5,7 @@ import path from "node:path";
 import * as portable from "../skills/atl/scripts/outcome-economics.mjs";
 import * as runtime from "../runtime/lib/outcome-economics.mjs";
 import { recordExecution, unknownTokens } from "../runtime/lib/execution-report.mjs";
-import { emptyState, saveState } from "../runtime/lib/state.mjs";
+import { emptyState, loadState, saveState } from "../runtime/lib/state.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-outcome-economics-"));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
@@ -108,6 +108,7 @@ try {
   assert.equal(report.summary.outcomes.accepted, 1);
   assert.equal(report.summary.outcomes.failed, 1);
   assert.equal(report.summary.usage.coverage, "partial");
+  assert.deepEqual(report.summary.usage.sources, { "provider-adapter": 1, unknown: 1 });
   assert.equal(report.summary.usage.total, 2000);
   assert.ok(report.summary.coverage_gaps.some((gap) => gap.kind === "missing-telemetry"));
   assert.ok(report.summary.coverage_gaps.every((gap) => gap.kind !== "outside-admission-boundary") === false, "external host calls are declared outside the admission boundary");
@@ -124,9 +125,29 @@ try {
     const snapshot = await snapshotResponse.json();
     assert.equal(snapshotResponse.status, 200, `snapshot responds: ${JSON.stringify(snapshot).slice(0, 200)}`);
     assert.equal(snapshot.usage.economics.summary.denominators.attempts, 2, "the snapshot reports the same attempt denominator");
+    assert.equal(snapshot.usage.reliability.sample_size, 0, "an empty project has a zero reliability denominator");
+    assert.equal(snapshot.usage.reliability.rates.session_exit, null, "session rates stay hidden below minimum sample");
+    assert.equal(snapshot.usage.reliability.rates.task_verified_local, null, "task rates stay hidden below minimum sample");
+    assert.equal(snapshot.usage.reliability.counts.owner_abandoned, null, "owner abandonment is explicitly unknown until lifecycle data exists");
     assert.equal(snapshot.usage.economics.summary.usage.total, 2000);
     assert.equal(snapshot.usage.economics.admission.enforcement_scope, "wrapped");
     assert.ok(snapshot.usage.economics.admission.gaps.some((gap) => gap.kind === "ledger-corrupt"));
+    const measuredState=loadState(root);
+    for(let index=0;index<20;index++){
+      const id=`R-${String(index+1).padStart(3,"0")}`;
+      measuredState.tasks[id]={id,status:index===0?"blocked":index===1?"in_review":"done",updated_at:`2026-11-${String(index%7+1).padStart(2,"0")}T00:00:00.000Z`};
+      recordExecution(root,{id:`reliability-${id}`,taskId:id,role:"rowan",provider:"fixture",startedAt:"2026-11-01T00:00:00.000Z",finishedAt:"2026-11-01T00:01:00.000Z",exitCode:index===19?1:0,timedOut:false});
+    }
+    saveState(root,measuredState);
+    fs.writeFileSync(path.join(root,".trust","manager","delivery-packets.json"),JSON.stringify({packets:Array.from({length:20},(_,index)=>({task_id:`R-${String(index+1).padStart(3,"0")}`,verdict:"verified-local"}))}));
+    const measured=(await (await fetch(new URL("/api/snapshot",running.url))).json()).usage.reliability;
+    assert.equal(measured.counts.session_exit,19);
+    assert.equal(measured.denominators.session_exit,20);
+    assert.equal(measured.rates.session_exit,0.95);
+    assert.equal(measured.rates.task_verified_local,1);
+    assert.equal(measured.counts.needs_review,1);
+    assert.equal(measured.counts.blocked,1);
+    assert.equal(measured.rates.owner_abandoned,null);
     browser = await (await import("playwright")).chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     page.setDefaultTimeout(9000);

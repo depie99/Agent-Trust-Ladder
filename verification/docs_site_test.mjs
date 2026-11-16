@@ -52,7 +52,8 @@ try{
  await page.locator('.copy-code').first().click();
  await page.waitForFunction(()=>document.querySelector('.copy-code')?.textContent==='Copied');
  assert.equal(await page.locator('.copy-code').first().innerText(),'Copied');
- assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/git clone/);
+ const firstCode = await page.locator('.code-block pre').first().innerText();
+ assert.equal((await page.evaluate(()=>navigator.clipboard.readText())).trim(),firstCode.trim(),'copy-code copies the code it labels');
  await page.getByRole('button',{name:'Toggle theme'}).click();
  const theme=await page.locator('html').getAttribute('data-theme');
  await page.reload();

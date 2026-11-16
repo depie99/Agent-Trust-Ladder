@@ -7,6 +7,12 @@ import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-playwright-e2e-"));
+// The supervisor registry is machine state (~/.atl): pin it so the test's
+// "E2E Project" registration never lands in the owner's Projects page.
+process.env.USERPROFILE = root;
+process.env.HOME = root;
+process.env.ATL_HOME = path.join(root, ".atl");
+fs.mkdirSync(process.env.ATL_HOME, { recursive: true });
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1 }));
 saveState(root, emptyState());
@@ -31,5 +37,7 @@ const snapshot = await page.evaluate(() => fetch("/api/snapshot").then((response
 assert.ok(snapshot.supervisor.projects.some((project) => project.root === root));
 assert.ok(snapshot.backups.length >= 1);
 assert.equal(failures.length, 0, `browser console failures: ${failures.join("; ")}`);
-await browser.close(); server.close(); fs.rmSync(root, { recursive: true, force: true });
+await browser.close(); server.close();
+delete process.env.ATL_HOME;
+fs.rmSync(root, { recursive: true, force: true });
 console.log("PASS: Playwright full Control Plane journey covers Plan Studio, projects, operations, and backup");

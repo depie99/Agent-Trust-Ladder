@@ -59,4 +59,8 @@ This conceptual workflow is not the literal status enumeration. Exact values and
 
 Use `atl why T-001`, `atl show T-001`, and task evidence/relationships. Missing handoffs, failed checks, unavailable providers, and incomplete approvals must remain visible. See [overnight runs](overnight-runs.md), [queue recovery](queue-recovery.md), and [change review](task-change-review.md).
 
-Source: `runtime/lib/state.mjs`, `queue.mjs`, `launch.mjs`, `dispatcher.mjs`. Checks: `verification/task_dependency_contract_test.mjs`, `supervisor_runner_test.mjs`, `overnight_issue_e2e_test.mjs`.
+## Task workspace
+
+In the browser Control Plane the Tasks page is a two-column workspace: a searchable list with All / Running / Needs attention / Completed filters on the left, and the selected task on the right with **Activity** (recorded stages and attempts from the execution projection), **Changes** (the embedded change review), and **Process** (repository → stages → changed files → checks). Ask ATL stays available as a bottom composer; approvals, blocker recovery and browser approval appear inline only when a decision is needed. Acceptance criteria, full specification, task properties, browser configuration, resources and tokens, raw logs and lifecycle history live in collapsed disclosures. Selection, view, scroll and disclosure state survive reloads; below 960px one pane shows at a time with Back navigation. See [change review](task-change-review.md) for the inspection contract.
+
+Source: `runtime/lib/state.mjs`, `queue.mjs`, `launch.mjs`, `dispatcher.mjs`. Checks: `verification/task_dependency_contract_test.mjs`, `supervisor_runner_test.mjs`, `overnight_issue_e2e_test.mjs`, `verification/task_ui_workspace_test.mjs`, `verification/execution_projection_test.mjs`.

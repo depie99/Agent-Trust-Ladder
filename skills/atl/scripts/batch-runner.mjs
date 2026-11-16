@@ -17,6 +17,12 @@ export const TERMINAL_ITEM_STATUSES = Object.freeze([
   "succeeded", "failed", "blocked", "exhausted", "interrupted", "needs_reconciliation", "skipped",
 ]);
 
+export function repairableBlocker(reason) {
+  const text=String(reason||"");
+  if (/\bneeds_reconciliation\b|external (?:effect|side effect)|unknown (?:effect|outcome)|owner-only|product decision|approval required|credential|permission denied/i.test(text)) return false;
+  return /no verified result|verification failed|check failed|test failed|lint failed|typecheck failed|stalled worker|unchanged status/i.test(text);
+}
+
 const TERMINAL = new Set(TERMINAL_ITEM_STATUSES);
 const ALLOWED = new Set(ITEM_STATUSES);
 
@@ -67,6 +73,7 @@ export function createBatch({ id, project = null, tasks, limits = {}, now = Date
       depends_on: entry.depends_on,
       status: "pending",
       attempts: 0,
+      repair_attempts: 0,
       started_at: null,
       ended_at: null,
       reason: null,
@@ -91,6 +98,7 @@ export function validateBatch(batch) {
     seen.add(item.task);
     if (!ALLOWED.has(item.status)) return fail(`unknown item status: ${item.status}`);
     if (!Number.isInteger(item.attempts) || item.attempts < 0) return fail(`invalid attempts for ${item.task}`);
+    if (!Number.isInteger(item.repair_attempts || 0) || (item.repair_attempts || 0) < 0 || (item.repair_attempts || 0) > 1) return fail(`invalid repair attempts for ${item.task}`);
   }
   const limits = batch.limits || {};
   if (!(limits.max_minutes > 0) || limits.max_minutes > 24 * 60) return fail("invalid time limit");
@@ -192,12 +200,14 @@ export function requeueBatchItem(batch, task, { reason = "bounded retry", now = 
   const item = batch.items.find((candidate) => candidate.task === task);
   if (!item) throw new Error(`unknown batch task ${task}`);
   if (item.status !== "failed") throw new Error(`only a failed item can be requeued; ${task} is ${item.status}`);
+  if ((item.repair_attempts || 0) >= 1) throw new Error(`repair retry already used for ${task}`);
   if (item.attempts >= batch.limits.max_attempts) {
     item.status = "exhausted";
     item.reason = `${reason}; attempt limit reached`;
   } else {
     item.status = "pending";
     item.reason = reason;
+    item.repair_attempts = (item.repair_attempts || 0) + 1;
     if (batch.status === "complete") { batch.status = "running"; delete batch.finished_at; }
   }
   item.ended_at = iso(now);
@@ -284,7 +294,7 @@ export function batchSummary(batch) {
     finished_at: batch?.finished_at || null,
     progress: { total: batch?.items?.length || 0, ...counts, attempts: (batch?.items || []).reduce((sum, item) => sum + (item.attempts || 0), 0) },
     items: (batch?.items || []).map((item) => ({
-      task: item.task, status: item.status, attempts: item.attempts, reason: item.reason,
+      task: item.task, status: item.status, attempts: item.attempts, repair_attempts: item.repair_attempts || 0, reason: item.reason,
       receipt: item.receipt || null, started_at: item.started_at, ended_at: item.ended_at,
     })),
     receipts: (batch?.items || []).filter((item) => item.receipt).map((item) => ({ task: item.task, ...item.receipt })),

@@ -5,8 +5,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { paths, loadState } from "./state.mjs";
 import { discoverProvider } from "./providers.mjs";
 
-const modes = new Set(["read-only", "workspace-write"]);
-const validateMode = (mode) => { if (!modes.has(mode)) throw new Error("Choose read-only or workspace-write access."); return mode; };
+const modes = new Set(["read-only", "workspace-write", "full-access"]);
+const validateMode = (mode) => { if (!modes.has(mode)) throw new Error("Choose read-only, workspace-write, or full-access access."); return mode; };
 function configFor(root) {
   const file = paths(root).config;
   return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
@@ -38,8 +38,16 @@ export function saveExecutionAccess(root, { task = null, mode }) {
 
 // A single permission contract for Ask ATL and built-in queue workers.
 // GapCode on Windows resolves named profiles rather than the legacy sandbox flag.
+// "full-access" maps to the provider's own unsandboxed mode: required when a
+// task's verifiers must spawn child processes (test runners, Playwright), which
+// the Windows restricted-token workspace sandbox denies with spawn EPERM.
 export function executionPermissionArgs(provider, mode, platform = process.platform) {
   validateMode(mode);
+  if (mode === "full-access") {
+    return ["gapgpt", "codex"].includes(provider)
+      ? [...(provider === "codex" ? ["--sandbox", "danger-full-access"] : ["--sandbox", "danger-full-access"]), "-c", 'windows.sandbox="unelevated"']
+      : ["--sandbox", "danger-full-access"];
+  }
   return ["gapgpt", "codex"].includes(provider) && platform === "win32"
     ? [...(provider === "codex" ? ["--sandbox", mode] : []), "-c", `default_permissions=":${mode === "workspace-write" ? "workspace" : "read-only"}"`, "-c", 'windows.sandbox="unelevated"']
     : ["--sandbox", mode];

@@ -2,6 +2,8 @@
 
 Evidence-gated engineering skills and a local Control Plane for tasks, queues, agent teams, and bounded execution.
 
+Use the [complete ATL plugin](docs/getting-started.md#use-the-complete-plugin) to get the runtime, Control Plane and all skills inside Codex, ZCode, Claude Code, Cursor, DeepSeek Harness, Gemini CLI or another harness with local MCP tools. Compatible ZCode Desktop versions show the complete Control Plane in an ATL session panel; other hosts can open its bundled browser UI. ATL Connect provides bilingual setup and project opening. Build local bundles with `npm run plugins:build`; the public marketplace distribution lives at [depie99/atl-marketplace](https://github.com/depie99/atl-marketplace). The standalone installation below remains available.
+
 [Documentation website](https://depie99.github.io/Agent-Trust-Ladder/) · [Getting started](docs/getting-started.md) · [Feature map](docs/guides.md) · [فارسی](README.fa.md)
 
 ## Start a project
@@ -25,6 +27,10 @@ atl ui --port 4317
 
 Open the printed loopback URL. Install skills separately with `npx skills add depie99/Agent-Trust-Ladder --all`, restart your agent, and invoke `$atl` with the problem.
 
+### Keep installed skills in sync
+
+Run `npm run skills:check` to compare installed ATL skills with this checkout. It prints per-skill tree hashes and, for mismatches, file hashes and the first differing line. `npm run skills:sync` updates only files whose installed hash matches the recorded release and stores backups beside the skills directory. If you intentionally want to replace local edits too, use `node scripts/sync-skills.mjs --sync --include-local-edits`; it also creates backups and reports each path before finishing.
+
 ![ATL Control Plane with synthetic tasks](docs/assets/screenshots/overview.jpg)
 
 ## Find a workflow
@@ -32,6 +38,7 @@ Open the printed loopback URL. Install skills separately with `npx skills add de
 | Goal | Guide |
 |---|---|
 | Connect Jira, GitHub, or Azure Boards | [Issue sources](docs/issue-sources.md) |
+| Understand assigned tasks with cached ATL reviews and diagrams | [My Tasks reviews](docs/my-tasks-reviews.md) |
 | Convert a description into reviewed tasks | [Plan Studio](docs/plan-studio.md) |
 | Manage tasks and named queues | [Tasks and queues](docs/tasks-and-queues.md) |
 | Run bounded unattended work | [Overnight runs](docs/overnight-runs.md) |

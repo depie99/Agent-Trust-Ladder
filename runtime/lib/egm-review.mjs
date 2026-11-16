@@ -149,6 +149,30 @@ const SEVERITY_SECTIONS = [
   { match: /\bnit|minor/i, severity: "minor" },
 ];
 
+const REPORT_TEXT_KEYS = new Set([
+  "consolidatedmarkdown", "markdown", "markdownfindings", "report", "content", "text", "output",
+]);
+
+// EGM normally writes markdown reports, but some Codex/plugin versions persist
+// their structured response envelope verbatim (for example
+// {"consolidated markdown":"# ..."}). Unwrap only known textual fields and
+// leave any unrecognized payload untouched so the parser still fails closed.
+function unwrapEgmReport(raw) {
+  let text = String(raw || "").replace(/^\uFEFF/, "").trim();
+  for (let depth = 0; depth < 3; depth += 1) {
+    const fenced = /^```(?:json|markdown|md)?\s*\n?([\s\S]*?)\n?```$/i.exec(text);
+    if (fenced) text = fenced[1].trim();
+    let envelope;
+    try { envelope = JSON.parse(text); } catch { break; }
+    if (typeof envelope === "string") { text = envelope.trim(); continue; }
+    if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) break;
+    const entry = Object.entries(envelope).find(([key, value]) => REPORT_TEXT_KEYS.has(key.toLowerCase().replace(/[^a-z]/g, "")) && typeof value === "string");
+    if (!entry) break;
+    text = entry[1].trim();
+  }
+  return text;
+}
+
 // Converts the consolidated EGM report into ATL review findings. EGM's
 // report format has drifted between runs (numbered bold items vs `#### A1`
 // headings), so both shapes are parsed; anything unrecognized still yields a
@@ -160,7 +184,7 @@ export function parseEgmReports(workdir) {
   let verdictHint = null;
   let severitySectionsSeen = false;
   if (!missing.length) {
-    const report = fs.readFileSync(consolidatedPath, "utf8");
+    const report = unwrapEgmReport(fs.readFileSync(consolidatedPath, "utf8"));
     const verdict = /##\s*Verdict\s*\n+([\s\S]*?)(?=\n##\s|\n*$)/i.exec(report);
     if (verdict) verdictHint = /not ready|not implementation-ready/i.test(verdict[1]) ? "blocked" : /ready for implementation/i.test(verdict[1]) ? "passed" : null;
     let severity = null;

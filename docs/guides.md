@@ -7,6 +7,7 @@ Find the reader procedure, implementing boundary, and verification entry point f
 | Feature | How-to | Main source | Verification entry point |
 |---|---|---|---|
 | Install and initialize | [Guide](getting-started.md) | `runtime/atl-manager.mjs` | `package_smoke_test.mjs` |
+| Plugin installation per harness | [Guide](plugin-install.md) | `scripts/build-plugins.mjs, runtime/lib/plugin-release.mjs` | `plugin_bundle_test.mjs, plugin_connect_test.mjs` |
 | Browser and terminal | [Guide](control-room.md) | `runtime/control-plane-client.js` | `control_plane_server_test.mjs` |
 | Jira, GitHub, Azure and files | [Guide](issue-sources.md) | `intake.mjs, composer.mjs` | `issue_source_ui_journey_test.mjs` |
 | Plans, clarification and publishing | [Guide](plan-studio.md) | `plan-studio.mjs, plan-publish.mjs` | `plan_contract_test.mjs, plan_publish_test.mjs` |

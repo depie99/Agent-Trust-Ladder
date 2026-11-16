@@ -9,7 +9,7 @@ const md=new MarkdownIt({html:true});
 let failures=0, links=0;
 const fail=message=>{failures++;console.error('FAIL: '+message);};
 const slug=text=>text.toLowerCase().replace(/<[^>]*>/g,'').replace(/[^\p{L}\p{N}\s_-]/gu,'').trim().replace(/\s/g,'-');
-const ignored=new Set(['node_modules','.git','.trust','.atl-evidence','%T%']);
+const ignored=new Set(['node_modules','.git','.trust','.atl-evidence','dist','%T%','.tmp-ui-review','.tmp-codex-probe','.tmp-gapcode-probe','.tmp-ship-run','.atl','.edge-ui-review']);
 function walk(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()?(ignored.has(entry.name)?[]:walk(path.join(dir,entry.name))):entry.name.endsWith('.md')?[path.join(dir,entry.name)]:[]);}
 const sources=walk(root);
 const anchors=new Map();

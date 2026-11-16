@@ -8,6 +8,8 @@
 .trust/manager/learning.json
 .trust/manager/overnight/
 .trust/manager/attachments/
+# Spec 021 "My Tasks": the independent local work-item store is runtime data.
+.trust/manager/my-tasks/
 
 # Generated review handoffs are local artifacts, not repository source.
 .atl/tasks/
@@ -18,6 +20,8 @@
 
 # Local dependency install for the docs CSS build (sass devDependency).
 node_modules/
+dist/
+.trust/plugin-test/
 
 # Local UI-review artifacts and broken tooling output must never be committed:
 # .edge-ui-review holds Edge browser binaries (~400MB, over GitHub's limit);

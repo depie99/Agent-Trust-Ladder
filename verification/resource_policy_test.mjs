@@ -7,6 +7,8 @@ import {providerProfile} from '../runtime/lib/providers.mjs';
 import {startControlPlaneServer} from '../runtime/lib/control-plane-server.mjs';
 import {emptyState,saveState} from '../runtime/lib/state.mjs';
 import {buildLaunchPlan} from '../runtime/lib/launch.mjs';
+import {savePlanDraft} from '../runtime/lib/plan-studio.mjs';
+import {legacyLocalPlan} from './plan_local_fixture.mjs';
 
 const policy={enabled:true,default_sessions:8,max_sessions:18,auto_extend:true,auto_models:true,max_model_tier:'advanced',models:[
   {provider:'small',model:'routine-model',tier:'economy',cost_order:1,enabled:true},
@@ -77,7 +79,10 @@ try {
   assert.equal(resourceView(root).policy.default_sessions,9,'an active queue keeps its resource policy');
   fs.unlinkSync(lock);
   const local=await fetch(started.url+'api/plan/local',{method:'POST',body:JSON.stringify({intent:'Fix a typo in README'})}).then(r=>r.json());
-  assert.equal(local.ok,true,local.error);assert.ok(Object.keys(local.draft.resources).length,'Plan Studio returns per-card resource previews');
+  assert.equal(local.ok,true,local.error);assert.equal(Object.keys(local.draft.resources).length,0,'a local skeleton has no cards, so no resource previews');
+  const carded=savePlanDraft(root,{intent:'Fix a typo in README',artifact:legacyLocalPlan('Fix a typo in README'),stage:'plan'});
+  const cardResponse=await fetch(started.url+'api/plan/card',{method:'POST',body:JSON.stringify({draftId:carded.id,action:'add'})}).then(r=>r.json());
+  assert.equal(cardResponse.ok,true,cardResponse.error);assert.ok(Object.keys(cardResponse.draft.resources).length,'Plan Studio returns per-card resource previews');
   const snapshot=await fetch(started.url+'api/snapshot').then(r=>r.json());
   assert.ok(JSON.stringify(snapshot).includes('resource_preview'));
 } finally {if(server)await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}

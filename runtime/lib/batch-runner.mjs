@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   BATCH_KIND, BATCH_VERSION, batchSummary, claimBatchItem, createBatch, leaseActive,
-  markDeadline, nextBatchItem, reconcileBatchAfterRestart, renderBatchSummary,
+  markDeadline, nextBatchItem, reconcileBatchAfterRestart, renderBatchSummary, repairableBlocker,
   requeueBatchItem, resumeBatch, sealBatch, settleBatchItem, stopBatch, validateBatch,
 } from "../../skills/atl/scripts/batch-runner.mjs";
 import { loadState } from "./state.mjs";
@@ -99,6 +99,7 @@ function classify(root, taskId, outcome) {
   const task = loadState(root).tasks?.[taskId];
   const reason = outcome?.reason || task?.waiting_reason || task?.blocker?.reason || null;
   if (task?.status === "done") return { status: "succeeded", reason: outcome?.status === "completed" ? "task reached done" : reason };
+  if (outcome?.status === "blocked" && repairableBlocker(reason === "bounded" || reason === "transient provider failure" ? "no verified result" : reason || "no verified result") && task?.recovery?.recovery_owner !== "owner") return { status: "failed", reason: reason === "bounded" || reason === "transient provider failure" ? "no verified result" : reason || "no verified result" };
   if (task?.recovery?.recovery_owner === "owner" && task.recovery.status !== "resolved") return { status: "blocked", reason: reason || "owner-only recovery" };
   if (task?.recovery?.status === "exhausted") return { status: "exhausted", reason: reason || "automatic recovery is exhausted" };
   if (task?.status === "blocked" || task?.status === "escalated") return { status: "blocked", reason: reason || `task is ${task.status}` };
@@ -168,8 +169,8 @@ export async function runBatch(root, id, { launch = executeLaunchQueue, onProgre
       const classification = classify(root, next.item.task, outcome);
       let settled = settleBatchItem(batch, next.item.task, { status: classification.status, reason: classification.reason, now: now() });
       const item = settled.items.find((candidate) => candidate.task === next.item.task);
-      if (classification.status === "failed" && item.attempts < settled.limits.max_attempts) {
-        settled = requeueBatchItem(settled, next.item.task, { reason: `bounded retry after: ${classification.reason}`, now: now() });
+      if (classification.status === "failed" && repairableBlocker(classification.reason) && item.attempts < settled.limits.max_attempts && (item.repair_attempts || 0) < 1) {
+        settled = requeueBatchItem(settled, next.item.task, { reason: `bounded repair retry after: ${classification.reason}`, now: now() });
       }
       batch = settled;
       writeBatch(root, batch);

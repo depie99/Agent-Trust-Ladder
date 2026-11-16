@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { sharedContent, dependencyContent, verifyPluginRelease } from '../runtime/lib/plugin-release.mjs';
 import { spawn, execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { buildPlugins } from '../scripts/build-plugins.mjs';
@@ -14,10 +16,10 @@ const children = [];
 const cleanup = [];
 
 function client(bundle, variable, legacy = false) {
-  const config = variable === 'universal' ? { mcpServers: { atl: { command: 'node', args: [path.join(bundle, 'runtime', 'atl-plugin-mcp.mjs')] } } } : JSON.parse(fs.readFileSync(path.join(bundle, variable === '${extensionPath}' ? 'gemini-extension.json' : legacy || variable === '${CLAUDE_PLUGIN_ROOT}' ? '.mcp.json' : 'mcp.json'), 'utf8'));
+  const config = variable === 'universal' ? { mcpServers: { atl: { command: 'node', args: [path.join(bundle, 'runtime', 'atl-plugin-mcp.mjs')] } } } : JSON.parse(fs.readFileSync(path.join(bundle, variable === '${ZCODE_PLUGIN_ROOT}' ? '.zcode-plugin/plugin.json' : variable === '${extensionPath}' ? 'gemini-extension.json' : legacy || variable === '${CLAUDE_PLUGIN_ROOT}' ? '.mcp.json' : 'mcp.json'), 'utf8'));
   const server = config.mcpServers.atl;
   const args = server.args.map(arg => variable && variable !== 'universal' ? arg.replace(variable, bundle) : arg);
-  const cwd = server.cwd ? path.resolve(bundle, server.cwd) : scratch;
+  const cwd = server.cwd === '${ZCODE_PROJECT_DIR}' ? scratch : server.cwd ? path.resolve(bundle, server.cwd) : scratch;
   assert.ok(fs.existsSync(path.resolve(cwd, args[0])), 'manifest resolves to an actual shipped executable');
   const child = spawn(process.execPath, args, { cwd, env: { ...process.env, ATL_PROJECT: path.join(scratch, 'wrong-inherited-project'), ATL_HOME: path.join(scratch, 'user-home'), ATL_NO_OPEN: '1' }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   children.push(child);
@@ -74,11 +76,47 @@ try {
   assert.throws(() => buildPlugins({ out: path.dirname(root) }), /inside this checkout/);
   const catalog = JSON.parse(fs.readFileSync(path.join(scratch, 'bundles', '.agents', 'plugins', 'marketplace.json')));
   assert.ok(fs.existsSync(path.join(scratch, 'bundles', catalog.plugins[0].source.path, 'plugin.json')));
+  const zcodeCatalog = JSON.parse(fs.readFileSync(path.join(scratch, 'bundles', '.zcode-plugin', 'marketplace.json')));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(scratch, 'bundles', 'marketplace.json'))), zcodeCatalog, 'installed ZCode discovers the root marketplace catalog');
+  assert.equal(zcodeCatalog.plugins[0].version, bundles[0].version, 'ZCode update catalog follows the plugin version');
+  assert.ok(fs.existsSync(path.join(scratch, 'bundles', zcodeCatalog.plugins[0].source, '.zcode-plugin', 'plugin.json')));
+  const release = JSON.parse(fs.readFileSync(path.join(bundles[0].path, 'atl-release.json')));
+  const expected = { version: bundles[0].version, runtimeVersion: JSON.parse(fs.readFileSync(path.join(root, 'package.json'))).version, content: sharedContent(root), dependencies: dependencyContent(root, release.dependencies.packages), ui: release.ui };
   for (const bundle of bundles) {
+    verifyPluginRelease(bundle.path, expected);
+    const asset = path.join(bundle.path, 'runtime', 'control-plane-client.js');
+    const original = fs.readFileSync(asset);
+    fs.appendFileSync(asset, '\n// stale distribution');
+    assert.throws(() => verifyPluginRelease(bundle.path, expected), /differs/);
+    fs.writeFileSync(asset, original);
+    const panel = path.join(bundle.path, 'plugin-ui/panel.js');
+    const panelOriginal = fs.readFileSync(panel);
+    fs.appendFileSync(panel, '\n// stale panel');
+    assert.throws(() => verifyPluginRelease(bundle.path, expected), /panel asset differs/);
+    fs.writeFileSync(panel, panelOriginal);
+    assert.ok(!fs.existsSync(path.join(bundle.path, 'node_modules/@modelcontextprotocol/ext-apps')), 'browser SDK is compiled into the panel asset');
+    if (bundle.target === 'zcode') {
+      const manifest = JSON.parse(fs.readFileSync(path.join(bundle.path, '.zcode-plugin/plugin.json')));
+      assert.equal(manifest.ui.surfaces[0].resourceUri, 'ui://atl/control-plane.html');
+      assert.equal(manifest.mcpServers.atl.env.ATL_PLUGIN_PROJECT, '${ZCODE_PROJECT_DIR}');
+    }
+    fs.unlinkSync(asset);
+    assert.throws(() => verifyPluginRelease(bundle.path, expected), /differs/);
+    fs.writeFileSync(asset, original);
     for (const file of ['runtime/atl-manager.mjs', 'runtime/atl-plugin-mcp.mjs', 'runtime/atl-connect.mjs', 'runtime/connect.html', 'runtime/connect.css', 'runtime/connect.js', 'start.cmd', 'start.sh', 'runtime/control-plane.html', 'runtime/control-plane-client.js', 'config/manager-state-contract.json', 'skills/atl/SKILL.md', 'skills/atl-team/SKILL.md', 'skills/atl-plugin/SKILL.md']) assert.ok(fs.existsSync(path.join(bundle.path, file)), `${bundle.target}: complete runtime and skills`);
-    assert.ok(!fs.existsSync(path.join(bundle.path, 'node_modules')), 'runtime needs no npm install');
+    assert.ok(!fs.existsSync(path.join(bundle.path, 'node_modules/playwright')), 'development dependencies are not shipped');
+    for (const name of release.dependencies.packages) assert.ok(fs.existsSync(path.join(bundle.path, name, 'package.json')), 'production dependencies are bundled without a user npm install');
+    if (bundle.target === 'zcode' && release.dependencies.packages.length) {
+      const dependency = path.join(bundle.path, release.dependencies.packages[0], 'package.json');
+      const original = fs.readFileSync(dependency);
+      fs.appendFileSync(dependency, '\n ');
+      assert.throws(() => verifyPluginRelease(bundle.path, expected), /dependencies differ/);
+      fs.unlinkSync(dependency);
+      assert.throws(() => verifyPluginRelease(bundle.path, expected), /dependencies differ/);
+      fs.writeFileSync(dependency, original);
+    }
     if (bundle.target === 'deepseek') continue;
-    const variable = { codex: '${PLUGIN_ROOT}', claude: '${CLAUDE_PLUGIN_ROOT}', cursor: '${CURSOR_PLUGIN_ROOT}', gemini: '${extensionPath}', universal: 'universal' }[bundle.target];
+    const variable = { codex: '${PLUGIN_ROOT}', claude: '${CLAUDE_PLUGIN_ROOT}', cursor: '${CURSOR_PLUGIN_ROOT}', gemini: '${extensionPath}', zcode: '${ZCODE_PLUGIN_ROOT}', universal: 'universal' }[bundle.target];
     const api = client(bundle.path, variable);
     const initialized = await api.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'atl-test', version: '1' } });
     assert.equal(initialized.result.protocolVersion, '2025-06-18');
@@ -88,6 +126,7 @@ try {
     const connect = await api.tool('atl_connect');
     assert.equal((await fetch(connect.url)).status, 200);
     assert.equal((await api.tool('atl_connect')).url, connect.url, 'connection assistant is reused');
+    assert.equal(info.release.content.sha256, expected.content.sha256);
     assert.ok(info.skills.includes('atl-team'));
     const skill = await api.tool('atl_skill', { name: 'atl' });
     assert.match(skill.content, /ATL/);
@@ -139,6 +178,11 @@ try {
     // Synthetic node fixture: no credentials, paid model, or external writes.
     const configFile = path.join(project, 'config', 'manager.json');
     const config = JSON.parse(fs.readFileSync(configFile));
+    assert.equal(fs.existsSync(path.join(bundle.path, 'config', 'manager.json')), false, 'bundle excludes project manager settings');
+    assert.deepEqual(config.intake.github.repos, [], 'new projects do not inherit repositories');
+    assert.equal(config.intake.azure.org_url, '', 'new projects do not inherit an Azure organization');
+    assert.equal(config.intake.azure.tls_allow_untrusted, false, 'TLS verification is enabled by default');
+    assert.deepEqual(config.workspaces.repos, {}, 'new projects do not inherit workspace mappings');
     const marker = path.join(project, 'provider-ran.txt');
     config.providers = { default: 'fixture', auth: 'subscription', catalog: { fixture: { command: process.execPath, args: ['-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'observed');`] } } };
     fs.writeFileSync(configFile, JSON.stringify(config));
@@ -161,12 +205,18 @@ try {
     await api.close();
     await assert.rejects(fetch(ui.url), 'unloading closes the owned UI server');
     if (bundle.target === 'codex') {
+      const persisted = fs.readFileSync(stateFile, 'utf8');
       const compatibility = client(bundle.path, '', true);
       assert.ok((await compatibility.tool('atl_info')).skills.includes('atl'));
+      const resumed = await compatibility.tool('atl_start', { project });
+      assert.equal(resumed.initialized, false);
+      assert.equal(fs.readFileSync(stateFile, 'utf8'), persisted, 'restart preserves project data');
+      assert.equal((await fetch(`${resumed.url}api/snapshot`).then(r => r.json())).state.tasks[task.id].title, title);
       await compatibility.close();
     }
     console.log(`PASS: ${bundle.target} distribution initializes, composes, gates, serves and executes a bounded fixture worker`);
   }
+  execFileSync(process.execPath, [path.join(root, 'verification/plugin_native_panel_test.mjs'), bundles.find(bundle => bundle.target === 'zcode').path], { stdio: 'inherit', timeout: 60000 });
 
   // Exercise the native adapter from the archive consumers actually install.
   const dsh = bundles.find(b => b.target === 'deepseek');
@@ -174,10 +224,15 @@ try {
   const packed = JSON.parse(execFileSync(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', scratch], { cwd: dsh.path, encoding: 'utf8', shell: process.platform === 'win32' }));
   const files = packed[0].files.map(file => file.path);
   for (const file of ['cordis.patch.yml', 'plugins/deepseek.mjs', 'runtime/atl-manager.mjs', 'runtime/atl-plugin-mcp.mjs', 'skills/atl-plugin/SKILL.md']) assert.ok(files.includes(file), `DSH tarball includes ${file}`);
-  assert.ok(!files.some(file => file.startsWith('.trust/') || file.startsWith('node_modules/')));
-  const extracted = path.join(scratch, 'extracted'); fs.mkdirSync(extracted);
+  assert.ok(!files.some(file => file.startsWith('.trust/') || file.startsWith('node_modules/playwright/')));
+  const extracted = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-plugin-extracted-'));
+  cleanup.unshift(() => { fs.rmSync(extracted, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); });
   execFileSync('tar', ['-xf', path.join(scratch, packed[0].filename), '-C', extracted]);
   const installed = path.join(extracted, 'package');
+  verifyPluginRelease(installed, expected);
+  const planning = execFileSync(process.execPath, ['verification/plan_studio_api_test.mjs'], { cwd: installed, encoding: 'utf8', timeout: 120000, windowsHide: true });
+  assert.match(planning, /PASS|OK/);
+  console.log('PASS: extracted package model selection, plan generation, review and recovery API regression');
   const pkg = JSON.parse(fs.readFileSync(path.join(installed, 'package.json')));
   assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
   const definitions = new Map();
@@ -211,13 +266,13 @@ try {
   await assert.rejects(cancelled);
   const nativeValue = await native('atl_info', {});
   assert.equal(JSON.parse(definitions.get('atl_info').output.render({}, nativeValue)[0].text).version, pkg.version);
-  for (const close of cleanup.splice(0)) await close();
+  for (const close of cleanup.splice(0).reverse()) await close();
   await assert.rejects(fetch(nativeUi.url));
   console.log('PASS: DeepSeek native registration, skills, initialization, UI and cancellation contract (host contract fixture)');
 
-  console.log('PASS: installable DeepSeek tarball contains the full runtime and skills, with no install scripts or local state');
+  console.log('PASS: installable DeepSeek tarball contains runtime, skills and production dependencies, with no install scripts or local state');
 } finally {
-  for (const close of cleanup) await close();
+  for (const close of [...cleanup].reverse()) await close();
   await Promise.all(children.filter(child => child.exitCode === null).map(child => new Promise(resolve => {
     child.once('exit', resolve); child.stdin.end(); child.kill();
   })));

@@ -21,7 +21,7 @@ try {
   const project = path.join(scratch, "project"); fs.mkdirSync(project);
   const env = { ...process.env, ATL_PROJECT: project, ATL_HOME: path.join(scratch, "home"), ATL_NO_OPEN: "1" };
   execFileSync(process.execPath, [cli, "init"], { cwd: project, env, stdio: "pipe" });
-  child = spawn(process.execPath, [cli, "ui-refresh", "--port", "0"], { cwd: project, env, stdio: ["ignore", "pipe", "pipe"] });
+  child = spawn(process.execPath, [cli, "ui", "--port", "0"], { cwd: project, env, stdio: ["ignore", "pipe", "pipe"] });
   const url = await new Promise((resolve, reject) => {
     let output = ""; const timer = setTimeout(() => reject(new Error(`server did not start: ${output}`)), 15000);
     child.stdout.on("data", (chunk) => { output += chunk; const match = output.match(/ATL browser control plane: (http:\/\/[^\s]+)/); if (match) { clearTimeout(timer); resolve(match[1]); } });
