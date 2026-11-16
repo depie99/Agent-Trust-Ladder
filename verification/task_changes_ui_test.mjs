@@ -7,7 +7,7 @@ import vm from "node:vm";
 const listeners = {}, dialogListeners = {}, requests = [];
 const mount = { isConnected: true, innerHTML: "", addEventListener: (name, fn) => { listeners[name] = fn; }, querySelectorAll: () => [], querySelector: () => null, contains: () => false, closest: () => dialog };
 const dialog = { classList: { add() {} }, setAttribute() {}, addEventListener: (name, fn) => { dialogListeners[name] = fn; }, querySelectorAll: () => [] };
-const data = { id: "capture-one", task_id: "T-001", status: "blocked", captured_at: "2026-10-27T07:10:00Z", baseline_revision: "base", output_revision: "output", source_kind: "inspection", packet_revision: 1, input_revisions: {}, total_files: 2, next_cursor: 1, files: [{ id: "file-one", path: "runtime/example.js", kind: "modified" }], revisions: [{ id: "capture-one", captured_at: "2026-10-27", output_revision: "output" }], evidence: [{ id: "evidence-one", freshness: "stale", kind: "review", result: "approve", actor: "sage", note: "<script>attack</script>" }], attention: [{ code: "blocked", reason: "Needs review" }] };
+const data = { id: "capture-one", task_id: "T-001", status: "blocked", captured_at: "2026-10-27T07:10:00Z", baseline_revision: "base", output_revision: "output", source_kind: "inspection", packet_revision: 1, input_revisions: {}, total_files: 2, next_cursor: 1, repository: "S2HStoreFrontend2", workspace: "D:\\ws\\storefront", additions: 3, deletions: 1, stats_complete: false, files: [{ id: "file-one", path: "runtime/example.js", kind: "modified", additions: 3, deletions: 1 }], revisions: [{ id: "capture-one", captured_at: "2026-10-27", output_revision: "output" }], evidence: [{ id: "evidence-one", freshness: "stale", kind: "review", result: "approve", actor: "sage", note: "<script>attack</script>" }], attention: [{ code: "blocked", reason: "Needs review" }] };
 let hold = null;
 const context = vm.createContext({ window: {}, URLSearchParams, setTimeout, document: { documentElement: { lang: "en-US" }, activeElement: null, querySelector: (selector) => selector === "#taskChangeReview" ? mount : { content: "test-csrf" }, getElementById: () => null }, fetch: async (url, init) => {
   requests.push({ url, init });
@@ -23,6 +23,14 @@ const flush = async () => { await new Promise(setImmediate); await new Promise(s
 const click = async (action) => { listeners.click({ target: { closest: () => ({ dataset: { reviewAction: action } }) } }); await flush(); };
 await context.window.ATL_CHANGE_REVIEW.open({ id: "T-001" }, host);
 assert.match(mount.innerHTML, /Needs review/); assert.match(mount.innerHTML, /blocked/);
+// Change profile chart: per-file bars, totals and repository context replace the status statechart.
+assert.match(mount.innerHTML, /Change profile/);
+assert.match(mount.innerHTML, /S2HStoreFrontend2/);
+assert.match(mount.innerHTML, /D:\\ws\\storefront/);
+assert.match(mount.innerHTML, /review-chart-row/);
+assert.match(mount.innerHTML, /\+3 \/ −1/);
+assert.match(mount.innerHTML, /counts for loaded files/);
+assert.doesNotMatch(mount.innerHTML, /Statechart/, "the status statechart is gone from the change review");
 assert.equal(requests.length, 1); assert.equal(requests[0].init.headers["x-atl-csrf"], "test-csrf");
 await click("tab:files"); assert.match(mount.innerHTML, /runtime\//); assert.equal(requests.length, 1, "opening files does not eagerly load patches");
 await click("file:file-one");
@@ -43,12 +51,13 @@ listeners.click({ target: { closest: () => ({ dataset: { reviewAction: "refresh"
 mount.isConnected = false; const abandoned = mount.innerHTML;
 release(); await flush(); assert.equal(mount.innerHTML, abandoned, "a late request cannot overwrite a closed dialog");
 
-const unavailableData = { availability: "capture_required", message: "Capture the task workspace to inspect its current changes.", files: [], total_files: null };
+const unavailableData = { availability: "capture_required", message: "Capture the task workspace to inspect its current changes.", repository: "S2HStoreFrontend2", workspace: "D:\\ws\\storefront", files: [], total_files: null };
 const unavailableMount = { ...mount, isConnected: true, innerHTML: "", addEventListener: (name, fn) => { listeners[name] = fn; } };
 context.document.querySelector = (selector) => selector === "#taskChangeReview" ? unavailableMount : { content: "test-csrf" };
 context.fetch = async () => ({ ok: true, json: async () => structuredClone(unavailableData) });
 await context.window.ATL_CHANGE_REVIEW.open({ id: "T-024" }, host);
 assert.match(unavailableMount.innerHTML, /Capture the task workspace/);
+assert.match(unavailableMount.innerHTML, /S2HStoreFrontend2/, "the empty state names the repository");
 assert.doesNotMatch(unavailableMount.innerHTML, /Loading changes/);
 await click("refresh");
 assert.match(unavailableMount.innerHTML, /Capture the task workspace/, "uncaptured review remains usable after refresh");

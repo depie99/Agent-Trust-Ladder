@@ -59,8 +59,7 @@ Owner gates (the human's levers, no incantations)
 Manager view
   wake                          the wake loop: what Mira should do next
   brief [--save]                Mira's manager brief
-  ui [--port n]                 open the browser-native ATL control plane
-  ui-refresh [--port n]         restart the browser UI from current source
+  ui [--port n]                 open the latest browser-native ATL control plane
   tui [--once] [--plain]        terminal compatibility control room (alias: dashboard)
   control-plane [--port n]      browser-native ATL control plane (aliases: ui, web)
 
@@ -285,25 +284,23 @@ function defaultConfig() {
       file: { enabled: true },
       github: {
         enabled: false,
-        repos: ["example-org/example-app"],
+        repos: [],
         note: "enable with: atl intake enable github --repo owner/name (probes access first); public repos work unauthenticated, private need gh auth login or GITHUB_TOKEN",
       },
       azure: {
         enabled: false,
-        org_url: "https://devops.example.invalid/example-org",
-        project: "example-project",
-        team: "example-project Team",
-        iteration_path: "example-project\Sprint 73",
+        org_url: "",
+        project: "",
+        team: "",
+        iteration_path: "",
         token_env: "AZDO_PAT",
-        tls_allow_untrusted: true,
-        note: "set enabled=true and provide AZDO_PAT (Work Items: Read). tls_allow_untrusted is ON for the self-hosted server certificate; turn it off if you install a trusted cert.",
+        tls_allow_untrusted: false,
+        note: "Configure your Azure DevOps connection and provide AZDO_PAT before enabling intake.",
       },
     },
     workspaces: {
       root: ".trust/manager/workspaces",
-      repos: {
-        "example-org/example-app": { path: "" },
-      },
+      repos: {},
       note: "put a local clone path in repos.<owner/name>.path to get cheap git worktrees instead of fresh clones",
     },
   };

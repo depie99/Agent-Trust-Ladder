@@ -24,15 +24,15 @@ dsh unmounts the keyed `main` slot on tab switch; ATL's panel kept everything in
 Discovery done from working tree (in-flight 0.6.11 files preserved, layered on top). No hidden failures: remount test is red before the fix (observed). Evidence commands are the repo's own verifiers. Owner approval recorded above; no irreversible action without the stated release step.
 
 ## Tasks
-- [ ] T1 Remount scenario in panel test (RED first) — files: `verification/deepseek_panel_test.mjs` — verify: `node verification/deepseek_panel_test.mjs ../atl-marketplace/deepseek` — done when: existing assertions still pass and the new remount assertion FAILS on the 0.6.11 bundle (form reappears).
-- [ ] T2 Client persistence (RT-1) — files: `plugins/deepseek-client.mjs` — verify: same command after rebuild — done when: remount shows the same panel without the form; fresh page auto-opens the remembered workspace.
-- [ ] T3 Recovery test (RED) + generation fix (RT-2) — files: `verification/deepseek_recovery_test.mjs` (new), `runtime/lib/plugin-host.mjs`, `plugins/deepseek-panel.mjs` — verify: `node verification/deepseek_recovery_test.mjs ../atl-marketplace/deepseek` — done when: kill child server → remount → new panel id, tasks visible, no harness restart.
-- [ ] T4 ENOENT humanize + frame copy — files: `runtime/lib/plugin-host.mjs`, `plugins/deepseek-frame.mjs` — verify: panel test invalid-dir assertion shows "Directory not found:" — done when: alert text matches.
-- [ ] T5 Build 0.6.12 — files: `.codex-plugin/plugin.json` — verify: `npm run plugins:build` with fresh `--out` (verifyPluginRelease runs in-build) — done when: all 7 targets verified at 0.6.12.
-- [ ] T6 Verification set green against the new build — verify: `node verification/deepseek_panel_test.mjs <dist>/deepseek && node verification/deepseek_recovery_test.mjs <dist>/deepseek && node verification/plan_repository_scoping_test.mjs && node verification/control_plane_plugin_ui_test.mjs` — done when: all exit 0.
-- [ ] T7 Marketplace release — files: `${PROJECTS}\atl-marketplace` (deepseek/, README) — verify: hash-compare dist deepseek vs clone; `git tag deepseek-v0.6.12` — done when: pushed commit + tag.
-- [ ] T8 Reinstall + prove — audit profile reinstall, harness restart, re-run audit s2/s4/s8 — done when: S2 shows NO form on tab return; S8 recovers without restart.
-- [ ] T9 Owner profile reinstall + restart + fresh URL handed over.
+- [x] T1 Remount scenario in panel test (RED first) — done: RED on 0.6.11, GREEN on 0.6.12 (2026-11-15).
+- [x] T2 Client persistence (RT-1) — done: `livePanel` + localStorage `atl-dsh-workspace`, idempotent /api/atl/open; real host 10/10 tab cycles, 534 ms fresh-page auto-open.
+- [x] T3 Recovery test (RED) + generation fix (RT-2) — done: `deepseek_recovery_test.mjs` + plugin-host `serverGeneration`; kill → remount heals ~1 s, no harness restart.
+- [x] T4 ENOENT humanize + frame copy — done: "Directory not found: …" live-proven.
+- [x] T5 Build 0.6.12 — done: 7 targets verified at 0.6.12.
+- [x] T6 Verification set green — done (panel + recovery + repo-scoping; plugin-UI was red then for an unrelated working-tree reason, green since 0.6.15).
+- [x] T7 Marketplace release — done: commit `accd430`, tag `deepseek-v0.6.12`, pushed.
+- [x] T8 Reinstall + prove — done: audit profile 0.6.12 + audit s2/s4/s8 re-run green.
+- [x] T9 Owner profile reinstall + restart + fresh URL handed over — done: web profile 0.6.12, restarted, token handed over (2026-11-15).
 
 ## Verification plan
 Smallest credible set: extended panel test (remount + auto-open), new recovery test, repo-scoping + plugin-UI suites (regression), then the audit scripts S2/S4/S8 against the installed 0.6.12 on the real host.

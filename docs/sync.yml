@@ -17,10 +17,10 @@ verified_against:
   release_ref: v0.2.0
   fingerprints: .atl-evidence/docs-refresh/source-fingerprints.json
 last_sync:
-  date: '2026-11-04'
-  scope: public guides, project entry points, generated site, package docs, Pages gates
-  public_pages: 37
-  maintained_markdown_files_checked: 158
+  date: '2026-11-14'
+  scope: public guides, project entry points, generated site, package docs, Pages gates; added the per-harness plugin install guide (docs/plugin-install.md)
+  public_pages: 39
+  maintained_markdown_files_checked: 242
   rendered_mermaid_diagrams: 7
   current_control_plane_captures: 7
 verification:

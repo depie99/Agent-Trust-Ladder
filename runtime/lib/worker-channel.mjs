@@ -63,9 +63,24 @@ function packetArguments(args, workspace) {
 function publish(file, value) {
   // Exclusive creation prevents a worker from pre-planting a temporary-file
   // symlink and turning the manager's response into an outside-workspace write.
-  const temporary = `${file}.${crypto.randomUUID()}.tmp`;
-  fs.writeFileSync(temporary, JSON.stringify(value), { flag: "wx" });
-  try { fs.renameSync(temporary, file); } finally { fs.rmSync(temporary, { force: true }); }
+  // The rename races the worker client reading the same path; on Windows that
+  // read can hold the target long enough for renameSync to fail with EPERM or
+  // EBUSY, so a bounded retry keeps a live channel from dying on a timing hit.
+  let lastError = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const temporary = `${file}.${crypto.randomUUID()}.tmp`;
+    try {
+      fs.writeFileSync(temporary, JSON.stringify(value), { flag: "wx" });
+      try { fs.renameSync(temporary, file); return; } finally { try { fs.rmSync(temporary, { force: true }); } catch { /* best effort */ } }
+    } catch (error) {
+      lastError = error;
+      try { fs.rmSync(temporary, { force: true }); } catch { /* best effort */ }
+      if (!["EPERM", "EBUSY", "EACCES"].includes(error?.code)) throw error;
+      const wait = Date.now() + 40;
+      while (Date.now() < wait) { /* 40ms spin */ }
+    }
+  }
+  throw lastError;
 }
 
 function checkDirectory(workspace, directory) {
@@ -93,7 +108,12 @@ export function createWorkerChannel(root, { workspace, task, role, credential, c
     lastHeartbeat = Date.now();
   };
   const authenticate = () => {
-    if (!validateWorkerCredential(credential, { project: path.resolve(root), task, role, run: credential.run, generation: credential.generation }) || !leaseAllows(root, { key: credential.lease_key, id: credential.lease_id, generation: credential.generation })) throw new Error("Worker handoff rejected: expired credential or stale lease.");
+    const credOk = validateWorkerCredential(credential, { project: path.resolve(root), task, role, run: credential.run, generation: credential.generation });
+    const leaseOk = leaseAllows(root, { key: credential.lease_key, id: credential.lease_id, generation: credential.generation });
+    if (!credOk || !leaseOk) {
+      const current = (() => { try { return JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "leases.json"), "utf8")).sessions[credential.lease_key] || null; } catch { return null; } })();
+      throw new Error(`Worker handoff rejected: expired credential or stale lease. (credential=${credOk ? "ok" : "invalid"}; lease=${leaseOk ? "ok" : `file=${current ? `status=${current.status} gen=${current.generation} expires_at=${new Date(current.expires_at).toISOString()} now=${new Date().toISOString()}` : "absent"} credential id=${credential.lease_id} gen=${credential.generation}`})`);
+    }
   };
   authenticate(); status("ready");
   const handle = async (name) => {
@@ -123,11 +143,23 @@ export function createWorkerChannel(root, { workspace, task, role, credential, c
     if (closed) return;
     try {
       checkDirectory(workspace, directory);
-      if (Date.now() - lastHeartbeat >= 1000) status("ready");
+      // A failed heartbeat publish must not close the channel: the worker
+      // client reading status.json can hold the rename target briefly.
+      try { if (Date.now() - lastHeartbeat >= 1000) status("ready"); } catch { /* raced a reader; the next poll retries */ }
       for (const name of fs.readdirSync(directory).sort()) {
         if (!/^[a-f0-9-]{36}\.request\.json$/.test(name) || processed.has(name)) continue;
         processed.add(name);
-        pending = pending.then(() => handle(name)).catch(() => { closed = true; clearInterval(timer); });
+        pending = pending.then(() => handle(name)).catch((error) => {
+          // One bad request must not kill the channel: a transient fs error on a
+          // request file used to close the channel for good, so the worker saw a
+          // dead manager mid-task. Answer with an error response and keep serving.
+          try {
+            const id = name.slice(0, -".request.json".length);
+            publish(path.join(directory, `${id}.response.json`), { version: 1, id, code: 1, stdout: "", stderr: `error: ${error?.message || "worker channel request failed"}
+` });
+            fs.rmSync(path.join(directory, name), { force: true });
+          } catch { closed = true; clearInterval(timer); }
+        });
       }
     } catch { closed = true; clearInterval(timer); }
   };

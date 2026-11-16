@@ -21,6 +21,18 @@
     "auth": "subscription",
     "by_role": {},
     "catalog": {
+      "codex": {
+        "command": "codex",
+        "args": [
+          "exec",
+          "--cd",
+          "{cwd}",
+          "--sandbox",
+          "danger-full-access",
+          "--ephemeral",
+          "-"
+        ]
+      },
       "gapgpt": {
         "command": "gapcode",
         "model": "gpt-6-luna",
@@ -40,8 +52,8 @@
     },
     "note": "spec 014 launch boundary: per-role override, e.g. \"by_role\": { \"sage\": \"claude\" }; custom CLIs/models live under catalog. Discovery validates PATH before any preview/launch; a missing executable blocks the run with an actionable message.",
     "model_by_role": {},
-    "use": "gapgpt",
-    "model": "gpt-6-luna"
+    "use": "codex",
+    "model": null
   },
   "codex_bridge": {
     "enabled": true,
@@ -79,7 +91,7 @@
       "note": "leftover from the 2026-10-20 intake test; repo is private and gh is unauthenticated. Re-enable only after gh auth login (or GITHUB_TOKEN), otherwise intake 404s."
     },
     "azure": {
-      "enabled": false,
+      "enabled": true,
       "org_url": "https://devops.example.invalid/example-org",
       "project": "example-project",
       "team": "example-project Team",
@@ -91,6 +103,7 @@
   },
   "workspaces": {
     "root": ".trust/manager/workspaces",
+    "provisionLocal": true,
     "repos": {
       "example-org/example-app": {
         "path": ""
@@ -106,5 +119,34 @@
     "backend": "glm-goldfish",
     "versionSha": "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24",
     "maxMinutesPerCall": 10
+  },
+  "execution_access": {
+    "default": "workspace-write",
+    "tasks": {
+      "T-037": "full-access",
+      "T-040": "full-access"
+    }
+  },
+  "ui_review": {
+    "browser_access": {
+      "default": "approval-required",
+      "tasks": {
+        "T-040": "approved",
+        "T-037": "approved"
+      }
+    }
+  },
+  "resource_policy": {
+    "enabled": false,
+    "default_sessions": 8,
+    "max_sessions": 20,
+    "auto_extend": true,
+    "auto_models": false,
+    "quota_failover": false,
+    "max_model_tier": "advanced",
+    "models": []
+  },
+  "planning": {
+    "concurrentWithQueueRun": true
   }
 }

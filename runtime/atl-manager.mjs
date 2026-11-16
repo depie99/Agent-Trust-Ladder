@@ -61,6 +61,32 @@ import { snapshot as contentSnapshot } from "./lib/handoffs.mjs";
 const ROOT = process.env.ATL_PROJECT ? path.resolve(process.env.ATL_PROJECT) : process.cwd();
 const P = paths(ROOT);
 
+function completeControlPlaneRuntime(candidate) {
+  if (!candidate) return null;
+  const runtime = path.resolve(candidate);
+  return fs.existsSync(path.join(runtime, "control-plane.html"))
+    && fs.existsSync(path.join(runtime, "control-plane-client.js"))
+    && fs.existsSync(path.join(runtime, "lib", "control-plane-server.mjs"))
+    ? runtime
+    : null;
+}
+
+function preferredControlPlaneRuntime(projectRoot) {
+  // A project's own runtime takes priority for a checked-out ATL project.
+  const projectRuntime = completeControlPlaneRuntime(path.join(projectRoot, "runtime"));
+  if (projectRuntime) return projectRuntime;
+
+  // The installer records its checkout so a globally installed `atl` keeps
+  // serving the newest local ATL source while managing another project.
+  const installHome = process.env.ATL_HOME ? path.resolve(process.env.ATL_HOME) : path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+  try {
+    const marker = JSON.parse(fs.readFileSync(path.join(installHome, "source.json"), "utf8"));
+    return completeControlPlaneRuntime(path.join(String(marker.source_root || ""), "runtime"));
+  } catch {
+    return null;
+  }
+}
+
 function openControlPlane(url) {
   if (process.env.ATL_NO_OPEN === "1") return;
   if (process.platform === "win32") {
@@ -170,8 +196,7 @@ Owner gates (the human's levers, no incantations)
 Manager view
   wake                          the wake loop: what Mira should do next
   brief [--save]                Mira's manager brief
-  ui [--port n]                 open the browser-native ATL control plane
-  ui-refresh [--port n]         restart the browser UI from current source
+  ui [--port n]                 open the latest browser-native ATL control plane
   tui [--once] [--plain]        terminal compatibility control room (alias: dashboard)
   control-plane [--port n]      browser-native ATL control plane (aliases: ui, web)
 
@@ -396,25 +421,23 @@ function defaultConfig() {
       file: { enabled: true },
       github: {
         enabled: false,
-        repos: ["example-org/example-app"],
+        repos: [],
         note: "enable with: atl intake enable github --repo owner/name (probes access first); public repos work unauthenticated, private need gh auth login or GITHUB_TOKEN",
       },
       azure: {
         enabled: false,
-        org_url: "https://devops.example.invalid/example-org",
-        project: "example-project",
-        team: "example-project Team",
-        iteration_path: "example-project\\Sprint 73",
+        org_url: "",
+        project: "",
+        team: "",
+        iteration_path: "",
         token_env: "AZDO_PAT",
-        tls_allow_untrusted: true,
-        note: "set enabled=true and provide AZDO_PAT (Work Items: Read). tls_allow_untrusted is ON for the self-hosted server certificate; turn it off if you install a trusted cert.",
+        tls_allow_untrusted: false,
+        note: "Configure your Azure DevOps connection and provide AZDO_PAT before enabling intake.",
       },
     },
     workspaces: {
       root: ".trust/manager/workspaces",
-      repos: {
-        "example-org/example-app": { path: "" },
-      },
+      repos: {},
       note: "put a local clone path in repos.<owner/name>.path to get cheap git worktrees instead of fresh clones",
     },
   };
@@ -1416,17 +1439,7 @@ async function main() {
     }
 
     case "ui-refresh":
-      flags.noOpen = false;
-      // When invoked from an ATL project, serve that project's checked-in
-      // runtime assets so an installed CLI can refresh its UI from source.
-      // Without this, ui-refresh only restarted the stale installed artifact.
-      {
-        const projectRuntime = path.join(ROOT, "runtime");
-        flags.assetRoot = fs.existsSync(path.join(projectRuntime, "control-plane.html"))
-          && fs.existsSync(path.join(projectRuntime, "control-plane-client.js"))
-          ? projectRuntime
-          : null;
-      }
+      throw new StateError("ui-refresh was removed. Use `atl ui`; it automatically serves the latest complete project UI.");
     case "ui":
     case "control-plane":
     case "web": {
@@ -1437,17 +1450,17 @@ async function main() {
       const host = String(flags.host || "127.0.0.1");
       const port = Number(flags.port || 0);
       if (!Number.isInteger(port) || port < 0 || port > 65535) throw new StateError("--port must be an integer from 0 to 65535");
-      // Project assets and API routes must come from the same runtime version.
-      // An installed CLI may be older than the project it is refreshing.
+      // Keep browser assets and API routes on one runtime version. An installed
+      // CLI uses its registered checkout when it manages a different project.
+      const assetRoot = preferredControlPlaneRuntime(ROOT);
+      const projectServer = assetRoot ? path.join(assetRoot, "lib", "control-plane-server.mjs") : null;
       let startServer = startControlPlaneServer;
-      if (flags.assetRoot) {
-        const projectServer = path.join(flags.assetRoot, "lib", "control-plane-server.mjs");
-        if (!fs.existsSync(projectServer)) throw new StateError("Project UI assets are present but their matching Control Plane server is missing.");
+      if (assetRoot) {
         const module = await import(pathToFileURL(projectServer).href);
         if (typeof module.startControlPlaneServer !== "function") throw new StateError("Project Control Plane server does not export startControlPlaneServer.");
         startServer = module.startControlPlaneServer;
       }
-      const running = await startServer(ROOT, { host, port, ...(flags.assetRoot ? { assetRoot: flags.assetRoot } : {}) });
+      const running = await startServer(ROOT, { host, port, ...(assetRoot ? { assetRoot } : {}) });
       console.log(`ATL browser control plane: ${running.url}`);
       console.log("Live state and commands are served from this project. Press Ctrl+C to stop.");
       if (!flags.noOpen) openControlPlane(running.url);

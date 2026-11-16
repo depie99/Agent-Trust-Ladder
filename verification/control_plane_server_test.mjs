@@ -29,7 +29,8 @@ try {
   assert.match(client, /data-page/, "live client owns page navigation");
   assert.match(client, /\/api\/command/, "live client uses the ATL command bridge");
   assert.match(client, /Run active queue/, "browser exposes queue execution without a terminal handoff");
-  assert.match(client, /Generate local preview/, "browser exposes the deterministic local planning flow");
+  assert.match(client, /Generate local skeleton/, "browser exposes the deterministic local skeleton flow (never approvable without a model plan)");
+  assert.match(client, /plan_skeleton/, "the client renders local skeletons as structure-only previews");
   assert.match(client, /Generate with model/, "browser exposes the provider-backed planning mode");
   assert.match(client, /task-delete-confirm:/, "task deletion is available through a confirmed, recoverable archive action");
   assert.match(client, /queue-clear-confirm:/, "queues expose a confirmed clear action");
@@ -43,6 +44,8 @@ try {
   assert.match(client, /data-pm-current-thinking/, "sidebar provider modal exposes current-provider thinking/effort");
   assert.match(client, /data-pm-current-key/, "sidebar provider modal exposes safe API-key replacement");
   assert.match(client, /Keep the source objective and references visible/, "Plan Studio preserves the prompt after generation");
+  assert.match(client, /plan-question-suggest:/, "Plan Studio renders model-suggested answers as selectable Q&A choices");
+  assert.match(client, /plan-question-submit:/, "Plan Studio keeps a freeform answer path beside suggested answers");
   assert.match(client, /value === "studio-clear"/, "Plan Studio retains an explicit user-controlled clear action");
   assert.match(client, /class="task-controls"/, "task rows group status, ownership, and actions in one control region");
   assert.match(client, /class="task-prop-key">Assigned to/, "task ownership is explicitly labelled in task properties");

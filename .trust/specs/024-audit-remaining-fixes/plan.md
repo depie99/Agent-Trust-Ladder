@@ -22,13 +22,13 @@ Spec: approved 2026-11-15 — owner instruction: "fix every findings, and contin
 Same evidence rules as 023; owner pre-authorized the non-stop chain; verifiers are the repo's own plus two new standalone node tests.
 
 ## Tasks
-- [ ] T1 snapshot delta (server) — files: `runtime/lib/control-plane-server.mjs` — verify: `node verification/snapshot_delta_test.mjs` — done when: idle reconnect poll < 5 KB, change poll returns full snapshot.
-- [ ] T2 providers home parity — files: `runtime/lib/userProviders.mjs` — verify: `node verification/providers_home_test.mjs` — done when: pinned ATL_HOME registry is separate from ~/.atl.
-- [ ] T3 themed failure frame — files: `plugins/deepseek-frame.mjs` — verify: panel suite still green (visual via failure shot).
-- [ ] T4 draft survival — files: `runtime/control-plane-client.js` — verify: extended `deepseek_panel_test.mjs` draft scenario — done when: draft text survives remount + reopen.
-- [ ] T5 workspace chips — files: `plugins/deepseek-client.mjs` — verify: extended panel test chip scenario — done when: chip click opens the remembered workspace.
-- [ ] T6 fa RTL re-verify with exact `fa-IR` seed — verify: audit v2 script RTL check — done when: `dir=rtl` in the embedded frame (or a genuine bug filed if broken).
-- [ ] T7 build 0.6.13 + full verification set + release + reinstall + audit v2.
+- [x] T1 snapshot delta (server) — done 0.6.13/0.6.14 (frameVersion + cursor polls); 0.6.15 added mutation-fresh reads (no-cursor /api/snapshot rebuilds; /api/command drops the cache) and the client `unchanged` SSE liveness listener — verify: `node verification/snapshot_delta_test.mjs` — PASS (full=819KB → idle=27B → change=full; volatile-rewrite stays unchanged; lease heartbeat pushes)
+- [x] T2 providers home parity — done 0.6.14 — verify: `node verification/providers_home_test.mjs` — PASS (pinned ATL_HOME registry separate from ~/.atl)
+- [x] T3 themed failure frame — done 0.6.14 (deepseek-frame.mjs themed catch)
+- [x] T4 draft survival — done 0.6.14 (sessionStorage atl-task-draft) — verify: extended `deepseek_panel_test.mjs` — PASS (draft survives remount + reopen)
+- [x] T5 workspace chips — done 0.6.14 (remembered workspaces, one-click) — verify: extended `deepseek_panel_test.mjs` — PASS
+- [x] T6 fa RTL re-verify with exact `fa-IR` seed — RESOLVED as audit false positive (seeded `fa`, not `fa-IR`); re-proven on the 0.6.15 rig (`audit-v2-delta.json`: dir=rtl, lang=fa-IR, atl-rtl)
+- [x] T7 build + full verification set + release + reinstall + audit v2 — 0.6.14 (2026-11-16 wave 2) then **0.6.15** (marketplace HEAD `4ebb669` = content `e6d41ba` + release-manifest fix, tag `deepseek-v0.6.15` reconciled): delta liveness + mutation-fresh reads + observed_at volatile + shipped-archive client; quiet-gated build, `plugins:test` 11/11 green; both dsh profiles reinstalled and restarted clean; **audit v2 PASS on the real rig** (1000-task: full=2 052 118 B → idle 29 B ×6/6 unchanged; mutation visible immediately; fa-IR RTL) — `results/audit-v2-delta.json`.
 
 ## Verification plan
 New delta + providers tests, extended panel test (draft + chips), existing 6-suite set, then audit v2 on the real host (RTL, perf bytes on the 1000-task fixture, keyboard count, lang toggle, chips, draft, recovery).

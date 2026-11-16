@@ -87,9 +87,9 @@ try {
   await page.getByText(`EGM deep review ${blockedBody.review.verdict}`, { exact: false }).waitFor();
   await page.getByText("EGM deep review (glm-goldfish · 5ba5afa", { exact: false }).waitFor();
   await page.getByText("A1 — Strengthen the verifier", { exact: false }).waitFor();
-  await page.getByRole("button", { name: "Approve and create Plan Queue" }).click();
-  await page.getByText("Plan approval failed", { exact: false }).waitFor();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Approve → Plan Queue" }).isDisabled(), true, "a blocked deep review keeps the approve button disabled");
+  const blockedApprove = await page.evaluate(async (draftId) => { const r = await fetch("/api/plan/approve", { method: "POST", headers: { "content-type": "application/json", "x-atl-csrf": document.querySelector('meta[name="atl-csrf"]')?.content || "" }, credentials: "same-origin", body: JSON.stringify({ draftId }) }); return r.status; }, blockedBody.draft.id);
+  assert.equal(blockedApprove, 409, "the server still refuses approval after a blocked deep review");
   assert.equal(Object.values(loadState(root).tasks).filter((task) => task.plan_draft_id).length, 0, "a blocked deep review creates no queue tasks");
 
   // Scenario B: after a passing deep review the same draft approves.
@@ -99,7 +99,7 @@ try {
   const passedResponse = await reviewResponse;
   assert.equal(passedResponse.status(), 200, JSON.stringify(await passedResponse.json()).slice(0, 300));
   await page.getByText("EGM deep review passed", { exact: false }).waitFor();
-  await page.getByRole("button", { name: "Approve and create Plan Queue" }).click();
+  await page.getByRole("button", { name: "Approve → Plan Queue" }).click();
   await page.getByText("Plan approved — Plan Queue created").waitFor();
   const tasks = Object.values(loadState(root).tasks).filter((task) => task.plan_draft_id);
   assert.equal(tasks.length, 1, "the passing deep review approves into exactly one queued task");

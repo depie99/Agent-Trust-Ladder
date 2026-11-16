@@ -37,6 +37,7 @@ export function AtlPanel() {
   const [panel, setPanel] = useState(recallPanel());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [auto, setAuto] = useState(true);
   const restored = useRef(false);
 
   async function openProject(value) {
@@ -48,6 +49,7 @@ export function AtlPanel() {
   }
   async function open(event) {
     event.preventDefault();
+    setAuto(false);
     submit(project.trim());
   }
   function submit(value) {
@@ -55,16 +57,17 @@ export function AtlPanel() {
     openProject(value).then(setPanel).catch(failure => setError(failure.message)).finally(() => setBusy(false));
   }
   useEffect(() => {
-    // Automatic workspace opening: restore the remembered workspace on mount. The
-    // open route is idempotent — the same project returns the live panel id, and a
-    // control plane that died while hidden is re-spawned under a fresh id.
+    // Automatic workspace opening: first launch shows no directory form. A stored
+    // workspace re-opens; otherwise an empty project lets the server resolve the
+    // machine default (last opened, else the ATL home workspace). The open route
+    // is idempotent — the same project returns the live panel id, and a control
+    // plane that died while hidden is re-spawned under a fresh id.
     if (restored.current) return;
     restored.current = true;
     const stored = recallProject();
-    if (!stored) return;
     const attachedId = recallPanel()?.id ?? null;
     setBusy(true);
-    openProject(stored).then(result => { if (result.id !== attachedId) setPanel(result); }).catch(() => { if (!recallPanel()) setError(`Could not reopen "${stored}". Enter the directory again.`); }).finally(() => setBusy(false));
+    openProject(stored || '').then(result => { if (result.id !== attachedId) setPanel(result); }).catch(failure => { if (!recallPanel()) setError(failure.message); }).finally(() => { setBusy(false); setAuto(false); });
   }, []);
   const buttonStyle = { border: '1px solid currentColor', borderRadius: 8, padding: '8px 14px', color: 'inherit', background: 'transparent', cursor: 'pointer' };
   if (panel) return h('section', { style: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 } },
@@ -72,6 +75,12 @@ export function AtlPanel() {
     h('iframe', { title: 'ATL Control Plane', src: new URL(`api/atl/view?id=${encodeURIComponent(panel.id)}`, document.baseURI).href, style: { border: 0, width: '100%', flex: 1, minHeight: 400 }, allow: 'clipboard-write' }));
   const remembered = recallWorkspaces().filter(entry => entry !== project);
   const chipStyle = { border: '1px solid currentColor', borderRadius: 999, padding: '5px 12px', color: 'inherit', background: 'transparent', cursor: 'pointer', font: 'inherit', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+  // First launch never sees the directory setup: the workspace opens itself.
+  // The form remains only as the explicit "Change project" path and as the
+  // fallback when automatic opening fails.
+  if (auto && !error) return h('section', { style: { maxWidth: 680, margin: '48px auto', padding: 24, color: 'inherit' } },
+    h('h1', null, 'ATL Control Plane'),
+    h('p', { style: { opacity: 0.75 } }, 'Opening your ATL workspace…'));
   return h('section', { style: { maxWidth: 680, margin: '48px auto', padding: 24, color: 'inherit' } },
     h('h1', null, 'ATL Control Plane'),
     h('p', null, 'Plan work, review tasks and manage runs inside DeepSeek Harness.'),
@@ -79,7 +88,7 @@ export function AtlPanel() {
       remembered.length ? h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 } }, remembered.map(entry => h('button', { key: entry, type: 'button', title: entry, style: chipStyle, disabled: busy, onClick: () => { setProject(entry); submit(entry); } }, entry))) : null,
       h('label', { htmlFor: 'atl-project', style: { display: 'block', marginBottom: 8 } }, 'Project directory'),
       h('input', { id: 'atl-project', value: project, onChange: event => setProject(event.target.value), placeholder: '${PROJECTS}', required: true, disabled: busy, style: { width: '100%', padding: 12, border: '1px solid currentColor', borderRadius: 8, background: 'transparent', color: 'inherit', font: 'inherit', marginBottom: 16 } }),
-      h('p', { style: { opacity: 0.75 } }, 'Opening prepares ATL project state and starts no workers. Your workspace reopens automatically; register other repositories on the Projects page.'),
+      h('p', { style: { opacity: 0.75 } }, 'ATL keeps its records in one workspace; opening prepares ATL project state and starts no workers. Your workspace reopens automatically — register other repositories on the Projects page.'),
       h('button', { type: 'submit', disabled: busy || !project.trim(), style: buttonStyle }, busy ? 'Opening…' : 'Open Control Plane'),
       error ? h('p', { role: 'alert' }, error) : null));
 }
@@ -87,5 +96,5 @@ export function AtlPanel() {
 export function apply(ctx) {
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL }, AtlPanel));
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: PANEL, order: 15, label: () => 'ATL' }, ({ size = 20 }) => h('span', { 'aria-hidden': true, style: { fontSize: size, fontWeight: 700 } }, '◇')));
-  ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({ name: 'plugins.bundle.config', key: '@depie99/atl-plugin' }, () => h('section', { style: { padding: '20px 0' } }, h('h2', null, 'ATL Control Plane'), h('p', null, 'Open the embedded workspace to select a project and manage your work.'), h('button', { type: 'button', onClick: () => ctx.layout.selectPanel(PANEL) }, 'Open Control Plane'))));
+  ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({ name: 'plugins.bundle.config', key: '@depie99/atl-plugin' }, () => h('section', { style: { padding: '20px 0' } }, h('h2', null, 'ATL Control Plane'), h('p', null, 'Open the embedded workspace to manage your work.'), h('button', { type: 'button', onClick: () => ctx.layout.selectPanel(PANEL) }, 'Open Control Plane'))));
 }

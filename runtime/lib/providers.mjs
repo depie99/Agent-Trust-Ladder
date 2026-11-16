@@ -10,6 +10,11 @@ import { loadUserProviders } from "./userProviders.mjs";
 export const KNOWN_PROVIDERS = ["codex", "claude", "gapgpt"];
 
 const CODEX_MODEL_RE = /^\s*model\s*=\s*["']([^"']+)["']\s*$/m;
+// The desktop Codex CLI can advertise API-only models in models_cache.json.
+// In particular, ChatGPT-authenticated CLI sessions currently reject this
+// model before a request starts. Keep the exception here (rather than in the
+// Plan Studio UI) so generate, regenerate, and review share the same gate.
+const CODEX_CHATGPT_UNSUPPORTED_MODELS = new Set(["gpt-6.1-terra"]);
 
 const INSTALL_HINTS = {
   codex: "npm install -g @openai/codex  (then run: codex login)",
@@ -63,6 +68,36 @@ export function providerModels(name, { env = process.env } = {}) {
   } catch {
     return [];
   }
+}
+
+export function planningModelChoices(provider) {
+  const models = (provider?.models || []).map((model) => typeof model === "string" ? model : model?.id).filter(Boolean).map(String);
+  if (provider?.id === "codex" && provider?.method === "chatgpt") {
+    return models.filter((model) => !CODEX_CHATGPT_UNSUPPORTED_MODELS.has(model));
+  }
+  return models;
+}
+
+// Resolve an explicit model for every built-in planning call. Allowing Codex
+// to fall back to its global default made Plan Studio depend on a user setting
+// that may be valid for the app/API but unavailable to a ChatGPT CLI session.
+export function resolvePlanningModel(provider, requestedModel = null) {
+  const requested = String(requestedModel || "").trim();
+  const available = planningModelChoices(provider);
+  const unsupported = provider?.id === "codex" && provider?.method === "chatgpt" && CODEX_CHATGPT_UNSUPPORTED_MODELS.has(requested);
+  if (unsupported) {
+    const fallback = available[0] || "a model listed by the Codex CLI";
+    throw new Error(`Model "${requested}" is unavailable for this Codex ChatGPT sign-in. Choose "${fallback}" or another listed model; no provider request was sent.`);
+  }
+  if (requested && provider?.id === "codex" && provider?.method === "chatgpt" && available.length && !available.includes(requested)) {
+    throw new Error(`Model "${requested}" is not in this Codex CLI's compatible ChatGPT model list. Choose "${available[0]}" or another listed model; no provider request was sent.`);
+  }
+  if (requested) return requested;
+  const preferred = String(provider?.defaultModel || "").trim();
+  if (provider?.id !== "codex" || provider?.method !== "chatgpt") return preferred || available[0] || null;
+  if (preferred && available.includes(preferred)) return preferred;
+  if (available.length) return available[0];
+  throw new Error(`No compatible model is available for ${provider?.label || provider?.id || "this provider"}. Refresh the provider connection, then select an exact model.`);
 }
 
 // How to connect each built-in worker: one CLI login against a subscription.

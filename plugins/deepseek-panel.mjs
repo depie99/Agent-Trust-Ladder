@@ -1,6 +1,32 @@
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createPanelGateway } from '../runtime/lib/plugin-panel.mjs';
 import { frameBootstrap } from './deepseek-frame.mjs';
+
+const homeDir = () => process.env.ATL_HOME || path.join(os.homedir(), '.atl');
+const workspaceRecord = () => path.join(homeDir(), 'workspace.json');
+// First launch opens without asking for a directory: the last workspace opened
+// by this machine's plugin (survives harness restarts and profile wipes), or a
+// dedicated home workspace under ATL_HOME. A subdir — not ~/.atl itself — so
+// the runtime home is never re-initialized as a project (its runtime/ copy must
+// not be mistaken for the project's control-plane runtime).
+function defaultProject() {
+  try {
+    const stored = JSON.parse(fs.readFileSync(workspaceRecord(), 'utf8')).project;
+    if (typeof stored === 'string' && stored.trim() && fs.existsSync(stored.trim())) return stored.trim();
+  } catch { /* no record yet: first ever launch */ }
+  const homeWorkspace = path.join(homeDir(), 'workspace');
+  fs.mkdirSync(homeWorkspace, { recursive: true });
+  return homeWorkspace;
+}
+function rememberProject(project) {
+  try {
+    fs.mkdirSync(homeDir(), { recursive: true });
+    fs.writeFileSync(workspaceRecord(), JSON.stringify({ project, updated_at: new Date().toISOString() }, null, 2) + '\n');
+  } catch { /* advisory only: the client keeps its own copy */ }
+}
 
 // Connection's exact Fetch routes enforce host trust, browser authentication,
 // and owner-only access before calling these handlers.
@@ -12,10 +38,13 @@ export function registerDeepSeekPanel(ctx, host) {
     try { return await handler(request); } catch (error) { return json({ error: error.message }, 400); }
   } });
   register('/api/atl/open', ['POST'], async request => {
-    const { project } = await request.json();
-    if (typeof project !== 'string' || !project.trim()) throw new Error('Enter an absolute project directory.');
+    const body = await request.json().catch(() => ({}));
+    const requested = typeof body?.project === 'string' ? body.project.trim() : '';
+    // No directory given: automatic workspace opening (first launch, fresh
+    // profile or harness restart) resolves the machine's default workspace.
     // openPanel validates the project path and starts no workers.
-    const panel = await host.openPanel(project.trim());
+    const panel = await host.openPanel(requested || defaultProject());
+    rememberProject(panel.project);
     const generation = host.serverGeneration;
     let reuse = null;
     for (const [id, entry] of panels) {

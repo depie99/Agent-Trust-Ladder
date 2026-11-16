@@ -14,9 +14,11 @@ const cfg = { enabled: true, org_url: 'https://devops.example.invalid:32678/exam
 const calls = [];
 const requestImpl = async (url, options) => {
   calls.push({ url, ...options });
+  const direct = /\/workitems\/(\d+)\?/.exec(url);
+  if (direct) return { id: Number(direct[1]), fields: { 'System.Rev': 9, 'System.Title': 'Direct bug with repro steps', 'System.WorkItemType': 'Bug', 'Microsoft.VSTS.TCM.ReproSteps': '<p>Scroll the loaded rows to reach Load More.</p>', 'System.IterationPath': 'example-project\\Sprint 73' } };
   if (url.includes('/wiql?')) return { workItems: [{ id: 741 }, { id: 742 }] };
   return { value: [
-    { id: 741, fields: { 'System.Rev': 3, 'System.Title': 'Repair queue retry status', 'System.WorkItemType': 'Bug', 'System.State': 'New', 'System.Description': '<p>Interrupted middleware tasks must resume and show an accurate queue status.</p>', 'Microsoft.VSTS.Common.Priority': 1 } },
+    { id: 741, fields: { 'System.Rev': 3, 'System.Title': 'Repair queue retry status', 'System.WorkItemType': 'Bug', 'System.State': 'New', 'System.Description': '<p>Interrupted middleware tasks must resume and show an accurate queue status.</p>', 'Microsoft.VSTS.Common.AcceptanceCriteria': '<ul><li>Resume an interrupted task.</li><li>Show the accurate queue status.</li></ul>', 'Microsoft.VSTS.Common.Priority': 1 } },
     { id: 742, fields: { 'System.Rev': 5, 'System.Title': 'Improve overnight delivery', 'System.WorkItemType': 'User Story', 'System.State': 'New', 'System.Description': '<p>Make overnight work reliable.</p>' } },
   ] };
 };
@@ -31,7 +33,11 @@ try {
   assert.equal(candidates[0].source.revision, 3);
   assert.equal(candidates[0].priority, 'urgent');
   assert.equal(candidates[0].objective_hint.includes('<p>'), false);
+  assert.deepEqual(candidates[0].completion_checks, ['Resume an interrupted task.', 'Show the accurate queue status.'], 'Azure acceptance criteria become explicit intake checks');
   assert.ok(calls[0].body.query.includes("[System.IterationPath] = 'example-project\\Sprint 74'"));
+  assert.equal(calls[1].body.fields.includes("System.Rev"), true, "the work item batch requests the revision needed by live intake");
+  assert.equal(calls[1].body.fields.includes("Microsoft.VSTS.Common.AcceptanceCriteria"), true, "the work item batch requests acceptance criteria for the plan");
+  assert.equal(Object.hasOwn(calls[1].body, "$expand"), false, "work item batch does not combine fields with the incompatible expand parameter");
   assert.equal(calls[0].headers.Authorization, `Basic ${Buffer.from(':synthetic-only').toString('base64')}`);
   assert.equal(calls[0].allowUntrusted, false);
   assert.deepEqual(calls[1].body.ids, [741, 742]);
@@ -48,8 +54,13 @@ try {
   fs.mkdirSync(path.join(root, 'config'), { recursive: true });
   fs.writeFileSync(path.join(root, 'config/manager.json'), JSON.stringify({ version: 1 }));
   saveState(root, emptyState());
-  const running = await startControlPlaneServer(root, { intakeAdapters: { azure: config => intakeFromAzure(config, { requestImpl }) } });
+  const running = await startControlPlaneServer(root, { intakeAdapters: { azure: (config, options = {}) => intakeFromAzure(config, { requestImpl, token: options.token }) } });
   server = running.server;
+  const shell = await fetch(running.url);
+  const ownerCookie = shell.headers.get('set-cookie').split(';')[0];
+  const html = await shell.text();
+  const csrf = html.match(/name="atl-csrf" content="([^"]+)"/)?.[1];
+  const uiHeaders = { 'content-type': 'application/json', origin: new URL(running.url).origin, cookie: ownerCookie, 'x-atl-csrf': csrf };
   const post = async (endpoint, body) => {
     const response = await fetch(running.url + endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     return { status: response.status, ...await response.json() };
@@ -59,8 +70,15 @@ try {
   const saved = await post('api/intake/sources', { source: 'azure', ...cfg });
   assert.equal(saved.sources.azure.token_present, true);
   assert.equal(JSON.stringify(saved).includes('synthetic-only'), false, 'PAT is never returned');
+  const connected = await fetch(running.url + 'api/intake/credentials/azure', { method: 'POST', headers: uiHeaders, body: JSON.stringify({ token: 'ui-only-secret' }) });
+  const connectedBody = await connected.json();
+  assert.equal(connected.status, 200);
+  assert.equal(connectedBody.credential_source, 'ui-memory');
+  assert.equal(JSON.stringify(connectedBody).includes('ui-only-secret'), false, 'UI credential is never returned');
+  calls.length = 0;
   const preview = await post('api/intake/preview', { source: 'azure' });
   assert.equal(preview.candidates.length, 2);
+  assert.equal(calls[0].headers.Authorization, `Basic ${Buffer.from(':ui-only-secret').toString('base64')}`, 'the UI credential takes precedence for preview');
   assert.equal(Object.keys(loadState(root).tasks).length, 0, 'preview does not create tasks');
   assert.equal((await post('api/intake/import', { token: preview.token, indices: [9], queueId: 'azure-intake' })).status, 400);
   const imported = await post('api/intake/import', { token: preview.token, indices: [0, 1], queueId: 'azure-intake' });
@@ -72,8 +90,30 @@ try {
   const sourceFetch = async () => ({ ok: true, text: async () => JSON.stringify({ rev: 3 }) });
   assert.equal((await verifyImportedSource(root, imported.taskIds[0], { fetchImpl: sourceFetch })).current, true);
   await assert.rejects(() => verifyImportedSource(root, imported.taskIds[0], { fetchImpl: async () => ({ ok: true, text: async () => JSON.stringify({ rev: 4 }) }) }), /changed since intake/);
+  const directPreview = await post('api/intake/preview', { source: 'azure', work_item: `${cfg.org_url}/${cfg.project}/_sprints/taskboard/Team?workitem=743`, iteration_path: '74' });
+  assert.equal(directPreview.status, 200);
+  assert.match(calls.at(-1).url, /workitems\/743\?/);
+  assert.match(directPreview.candidates[0].objective_hint, /Scroll the loaded rows/);
+  assert.equal(directPreview.candidates[0].source.iteration, 'example-project\\Sprint 73', 'direct items preserve actual sprint, even when the taskboard link is scoped elsewhere');
+  const planned = await post('api/intake/import', { token: directPreview.token, indices: [0], destination: 'planning', queueId: 'must-not-exist' });
+  assert.equal(planned.queueId, null);
+  assert.equal(loadQueueBook(root).queues['must-not-exist'], undefined, 'planning intake creates no execution queue');
+  assert.equal(loadState(root).tasks[planned.taskIds[0]].intake_only, true);
+  assert.match(loadState(root).tasks[planned.taskIds[0]].intake_snapshot.objective, /Scroll the loaded rows/);
+  const history = await (await fetch(running.url + 'api/intake/history')).json();
+  assert.equal(history.history[0].items[0].taskId, planned.taskIds[0]);
+  assert.equal(history.history[0].items[0].source.revision, 9);
+  assert.equal((await post('api/intake/preview', { source: 'azure', work_item: 'https://another.example.invalid/Project/_workitems/edit/743' })).status, 400);
+  await post('api/intake/preview', { source: 'azure', iteration_path: '75' });
+  assert.match(calls.at(-2).body.query, /Sprint 75/);
+  const settingsAfterSearch = await (await fetch(running.url + 'api/intake/sources')).json();
+  assert.equal(settingsAfterSearch.sources.azure.iteration_path, cfg.iteration_path, 'search does not overwrite saved connection defaults');
   await post('api/intake/sources', { source: 'azure', ...cfg, enabled: false });
   assert.equal((await post('api/intake/preview', { source: 'azure' })).status, 400);
+  const disconnected = await fetch(running.url + 'api/intake/credentials/azure', { method: 'POST', headers: uiHeaders, body: JSON.stringify({ action: 'disconnect' }) });
+  assert.equal((await disconnected.json()).credential_source, 'environment');
+  const noOrigin = await fetch(running.url + 'api/intake/credentials/azure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: 'should-not-connect' }) });
+  assert.equal(noOrigin.status, 403, 'credential changes require an authenticated same-origin UI session');
   console.log('PASS: Azure adapter auth/WIQL/revisions/TLS/encoding/isolation → source configuration → preview → validated import → deduplication → stale source rejection');
 } finally {
   if (server) await new Promise(resolve => server.close(resolve));

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { emptyState, saveState, logEvent } from '../runtime/lib/state.mjs';
+import { acquireLease, heartbeatLease } from '../runtime/lib/leases.mjs';
 import { startControlPlaneServer } from '../runtime/lib/control-plane-server.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-snapshot-delta-'));
@@ -53,8 +54,31 @@ try {
   const after = await firstBlock(`${base}/api/events?cursor=${cursor}`);
   assert.ok(after.includes('event: snapshot'), 'changed state must push a full snapshot');
   assert.ok(after.includes('"in_progress"'), 'pushed snapshot must contain the change');
+  const pushedCursor = Number(after.match(/"cursor":(\d+)/)?.[1] || 0);
 
-  console.log(`PASS: full=${firstBytes}B idle-reconnect=${idle.length}B change-push=${after.length}B — delta events verified`);
+  // RT-5: a scheduler-style rewrite that only moves volatile stamps (updated_at,
+  // file mtimes) must NOT invalidate the cached frame — an idle workspace stays
+  // on the tiny unchanged responses forever.
+  saveState(root, state);
+  await sleep(2600);
+  const rewritePoll = await fetch(`${base}/api/snapshot?cursor=${pushedCursor}`).then(r => r.json());
+  assert.equal(rewritePoll.unchanged, true, 'volatile-only rewrite must leave the frame unchanged');
+
+  // An active run's lease acquisition AND its periodic heartbeat are live
+  // content: the client's running detection compares lease.expires_at against
+  // the clock, so heartbeats must push fresh frames to viewers.
+  const lease = acquireLease(root, { project: 'delta', task: 'D-400', role: 'worker', run: 'delta-run', ttlMs: 30000 });
+  await sleep(2600);
+  const leasePoll = await fetch(`${base}/api/snapshot?cursor=${pushedCursor}`).then(r => r.json());
+  assert.equal(leasePoll.unchanged, undefined, 'lease acquisition must push a full frame');
+  assert.ok(JSON.stringify(leasePoll).includes(lease.id), 'pushed frame carries the new lease');
+  heartbeatLease(root, lease);
+  await sleep(2600);
+  const heartbeatPoll = await fetch(`${base}/api/snapshot?cursor=${pushedCursor}`).then(r => r.json());
+  assert.equal(heartbeatPoll.unchanged, undefined, 'lease heartbeat must push a fresh frame');
+  assert.ok(heartbeatPoll.leases.sessions.some(s => s.id === lease.id && s.expires_at > leasePoll.leases.sessions.find(s => s.id === lease.id)?.expires_at), 'heartbeat moved the lease deadline');
+
+  console.log(`PASS: full=${firstBytes}B idle-reconnect=${idle.length}B change-push=${after.length}B — delta events, volatile-rewrite stability and lease-heartbeat liveness verified`);
 } finally {
   await new Promise(resolve => running.server.close(resolve));
   fs.rmSync(root, { recursive: true, force: true });

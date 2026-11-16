@@ -4,7 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 export const digest = (value) => crypto.createHash("sha256").update(value).digest("hex");
-export const LIMITS = Object.freeze({ page: 100, text: 1024 * 1024, patch: 256 * 1024, lines: 20000, cells: 2_000_000, milliseconds: 5000 });
+export const LIMITS = Object.freeze({ page: 100, text: 1024 * 1024, patch: 256 * 1024, lines: 20000, cells: 2_000_000, milliseconds: 5000, statMilliseconds: 2500 });
 export class ChangeReviewError extends Error {
   constructor(code, message, status = 400) { super(message); this.code = code; this.status = status; }
 }
@@ -20,9 +20,11 @@ export function safePath(base, relative) {
 }
 export function validateSnapshot(snapshot) {
   if (!snapshot || !snapshot.files || !snapshot.modes || Array.isArray(snapshot.files) || Array.isArray(snapshot.modes) || Object.keys(snapshot.files).length > 100000 || digest(JSON.stringify({ files: snapshot.files, modes: snapshot.modes })) !== snapshot.revision) throw new ChangeReviewError("corrupt_manifest", "Snapshot manifest is corrupt", 409);
+  // 120000 is git's symlink mode: with core.symlinks=false Windows checks the
+  // link out as a plain file holding its target, so captures record it as-is.
   for (const [name, hash] of Object.entries(snapshot.files)) {
     safePath(".", name);
-    if (!/^[a-f0-9]{64}$/.test(hash) || !["100644", "100755"].includes(snapshot.modes[name])) throw new ChangeReviewError("corrupt_manifest", "Invalid snapshot entry", 409);
+    if (!/^[a-f0-9]{64}$/.test(hash) || !["100644", "100755", "120000"].includes(snapshot.modes[name])) throw new ChangeReviewError("corrupt_manifest", "Invalid snapshot entry", 409);
   }
   return snapshot;
 }
@@ -128,7 +130,21 @@ export function evidenceFor(task, record) {
     return { ...entry, id: `evidence-${digest(JSON.stringify([task.id, index, entry.at, entry.session_id, entry.kind, entry.code_revision, entry.packet_revision])).slice(0, 20)}`, freshness, revision_match: { packet: entry.packet_revision == null ? "missing" : packetMismatch ? "different" : "matches", code: !entry.code_revision ? "missing" : codeMismatch ? "different" : "matches" } };
   });
 }
-export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page } = {}) {
+// Change-set records are content-addressed and their blobs are immutable, so
+// per-file line counts are a pure function of (record, file). Caching keeps
+// the chart stable under server load instead of re-cutting the compute budget
+// at different files on every open.
+const statCache = new Map();
+function fileStatCached(root, record, file) {
+  const key = `${record.id}:${file.id}`;
+  if (statCache.has(key)) return statCache.get(key);
+  const diff = fileDiff(root, record, file.id);
+  const stat = { additions: diff.additions ?? null, deletions: diff.deletions ?? null, availability: diff.availability };
+  if (statCache.size >= 4000) statCache.delete(statCache.keys().next().value);
+  statCache.set(key, stat);
+  return stat;
+}
+export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page, root = null } = {}) {
   const files = compareSnapshots(record.baseline, record.output), evidence = evidenceFor(task, record), attention = [];
   const artifacts = evidence.filter((entry) => entry.artifact_hash).map((entry) => ({ id: `artifact-${digest(String(entry.artifact_hash)).slice(0, 20)}`, hash: entry.artifact_hash, evidence_id: entry.id, code_revision: entry.code_revision || null, packet_revision: entry.packet_revision ?? null, availability: "reference_only" }));
   const add = (code, reason) => attention.push({ id: code, code, reason });
@@ -139,5 +155,17 @@ export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page 
   if (current.some((entry) => entry.result === "fail" || entry.coverage === "partial")) add("failed_evidence", "Current evidence includes failed or incomplete observations");
   if (!current.some((entry) => entry.kind === "review" && entry.result === "approve")) add("review_missing", "No approval review for this exact revision");
   const offset = Math.max(0, Number.isSafeInteger(Number(cursor)) ? Number(cursor) : 0), size = Math.max(1, Math.min(LIMITS.page, Math.floor(Number(limit)) || LIMITS.page));
-  return { version: 1, capability: "task-change-review-v1", availability: "available", id: record.id, task_id: task.id, title: task.title || "", objective: task.objective || "", summary: task.last_checkpoint?.note || task.evidence?.at(-1)?.detail || null, status: task.status, captured_status: record.captured_status || null, packet_revision: record.packet_revision, captured_at: record.captured_at, source_kind: record.source_kind, run_id: record.run_id || null, baseline_revision: record.baseline.revision, output_revision: record.output.revision, input_revisions: record.input_revisions || {}, evidence, artifacts, attention, decisions: [], decisions_availability: "unavailable", total_files: files.length, additions: null, deletions: null, files: files.slice(offset, offset + size), next_cursor: offset + size < files.length ? offset + size : null, preview_complete: false };
+  // Line counts for the change chart. Bounded: files past the budget keep
+  // null counts instead of stalling the control plane.
+  const stats = new Map();
+  const started = performance.now();
+  if (root) for (const file of files.slice(offset, offset + size)) {
+    if (performance.now() - started > LIMITS.statMilliseconds) break;
+    stats.set(file.id, fileStatCached(root, record, file));
+  }
+  const withStats = files.slice(offset, offset + size).map((file) => ({ ...file, ...(stats.get(file.id) || { additions: null, deletions: null }) }));
+  const computed = [...stats.values()].filter((stat) => stat.additions != null && stat.deletions != null);
+  const additions = computed.reduce((sum, stat) => sum + stat.additions, 0) || null;
+  const deletions = computed.reduce((sum, stat) => sum + stat.deletions, 0) || null;
+  return { version: 1, capability: "task-change-review-v1", availability: "available", id: record.id, task_id: task.id, title: task.title || "", objective: task.objective || "", summary: task.last_checkpoint?.note || task.evidence?.at(-1)?.detail || null, status: task.status, captured_status: record.captured_status || null, packet_revision: record.packet_revision, captured_at: record.captured_at, source_kind: record.source_kind, run_id: record.run_id || null, baseline_revision: record.baseline.revision, output_revision: record.output.revision, input_revisions: record.input_revisions || {}, repository: task.repository_name || null, workspace: task.workspace || null, evidence, artifacts, attention, decisions: [], decisions_availability: "unavailable", total_files: files.length, additions, deletions, stats_complete: files.length > 0 && computed.length === Math.min(size, files.length) && offset + size >= files.length, files: withStats, next_cursor: offset + size < files.length ? offset + size : null, preview_complete: false };
 }

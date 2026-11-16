@@ -66,11 +66,18 @@ export function normalizeAzureWorkItem(workItem, cfg, { frozen = false, resource
   const normalized = normalizedConfig(cfg);
   const fields = workItem.fields || {};
   const assigned = fields["System.AssignedTo"]?.displayName || null;
-  const description = String(fields["System.Description"] || "");
+  const description = String(fields["System.Description"] || fields["Microsoft.VSTS.TCM.ReproSteps"] || "");
+  const acceptanceCriteria = String(fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "")
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*\/(?:p|div|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<\s*li\b[^>]*>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .split(/\r?\n/).map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").replace(/\s+/g, " ").trim()).filter(Boolean);
   return {
     title: `${fields["System.WorkItemType"] || "Work item"} ${workItem.id}: ${fields["System.Title"] || "Untitled"}`,
-    objective_hint: description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 800),
-    completion_checks: [],
+    objective_hint: description.replace(/<\s*br\s*\/?>|<\/(?:p|div|li|h[1-6])>/gi, '\n').replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/gi, ' ').replace(/&amp;/gi, '&').replace(/[ \t]+/g, " ").trim(),
+    completion_checks: acceptanceCriteria,
     priority: priority(fields["Microsoft.VSTS.Common.Priority"]),
     risk: "normal",
     labels: [fields["System.State"], assigned ? `assigned:${assigned}` : "unassigned"].filter(Boolean),
@@ -79,7 +86,7 @@ export function normalizeAzureWorkItem(workItem, cfg, { frozen = false, resource
       url: `${normalized.base}/_workitems/edit/${workItem.id}`,
       thread: `${normalized.organization.href.replace(/\/$/, "")}/${normalized.project}/_workitems/edit/${workItem.id}`,
       project: normalized.project,
-      iteration: normalized.iteration,
+      iteration: fields["System.IterationPath"] || normalized.iteration,
       remote_id: workItem.id,
       revision: fields["System.Rev"] || null,
       excerpt: String(fields["System.Title"] || ""),
@@ -105,6 +112,14 @@ export async function fetchAzureTasks(cfg, { requestImpl = requestJson, env = pr
     "Content-Type": "application/json",
   };
   const tls = { allowUntrusted: Boolean(cfg.tls_allow_untrusted) };
+  if (cfg.work_item_id != null) {
+    const id = Number(cfg.work_item_id);
+    if (!Number.isSafeInteger(id) || id < 1) throw new Error("Azure work item id must be a positive integer");
+    const fields = ["System.Id", "System.Rev", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "System.IterationPath", "Microsoft.VSTS.Common.Priority", "System.Description", "Microsoft.VSTS.TCM.ReproSteps", "Microsoft.VSTS.Common.AcceptanceCriteria"];
+    const url = `${normalized.base}/_apis/wit/workitems/${id}?fields=${encodeURIComponent(fields.join(","))}&api-version=6.0`;
+    const item = await requestImpl(url, { headers, ...tls });
+    return item ? [normalizeAzureWorkItem(item, cfg, { frozen: false, resourceMapper })] : [];
+  }
   const query = await requestImpl(`${normalized.base}/_apis/wit/wiql?api-version=6.0`, {
     method: "POST",
     headers,
@@ -118,8 +133,7 @@ export async function fetchAzureTasks(cfg, { requestImpl = requestJson, env = pr
     headers,
     body: {
       ids,
-      fields: ["System.Id", "System.Rev", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "Microsoft.VSTS.Common.Priority", "System.Description"],
-      "$expand": "Relations",
+      fields: ["System.Id", "System.Rev", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "Microsoft.VSTS.Common.Priority", "System.Description", "Microsoft.VSTS.TCM.ReproSteps", "Microsoft.VSTS.Common.AcceptanceCriteria"],
     },
     ...tls,
   });
@@ -170,8 +184,14 @@ function option(args, name) {
 async function main(args) {
   const command = args[0];
   if (command === "preview") {
-    const config = readJson(args[1] || "azure-intake.json");
-    const tasks = await fetchAzureTasks(config);
+    const loaded = readJson(args[1] || "azure-intake.json");
+    const config = loaded?.intake?.azure || loaded?.azure || loaded;
+    const types = option(args, "--types");
+    const tasks = await fetchAzureTasks({
+      ...config,
+      iteration_path: option(args, "--iteration-path") || config.iteration_path,
+      types: types ? types.split(",").map((type) => type.trim()).filter(Boolean) : config.types,
+    });
     writeJson(option(args, "--output") || "azure-intake-preview.json", { version: 1, source: "azure", live: true, tasks });
     return 0;
   }
@@ -187,7 +207,7 @@ async function main(args) {
     writeJson(option(args, "--output") || "azure-intake-export.json", { version: 1, source: "azure", live: false, frozen: true, tasks });
     return 0;
   }
-  process.stderr.write("Usage: azure-intake.mjs preview <config.json> [--output file] | from-export <export.json> --org-url <url> --project <name> [--iteration-path path] [--repository repo] [--output file]\n");
+  process.stderr.write("Usage: azure-intake.mjs preview <config.json|manager.json> [--iteration-path path] [--types Task,Bug,...] [--output file] | from-export <export.json> --org-url <url> --project <name> [--iteration-path path] [--repository repo] [--output file]\n");
   return 64;
 }
 

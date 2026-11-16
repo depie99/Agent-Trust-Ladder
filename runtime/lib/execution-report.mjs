@@ -54,7 +54,12 @@ export function executionRecords(root) {
   catch(error){if(error.code==='ENOENT')return [];throw error;}
 }
 export function recordExecution(root,record) {
-  const safe={id:record.id||hash(`${record.logPath}:${record.startedAt}`),taskId:record.taskId||null,draftId:record.draftId||null,role:record.role||'unknown',provider:record.provider||record.worker||'unknown',model:record.model||null,startedAt:record.startedAt||null,finishedAt:record.finishedAt||null,statusBefore:record.statusBefore||null,statusAfter:record.statusAfter||null,exitCode:record.exitCode??null,timedOut:Boolean(record.timedOut),tokens:record.tokens||unknownTokens(),budget:record.budget?{...record.budget}:null,complexity:record.complexity||null,tier:record.tier||null,packetRevision:record.packetRevision||null,logPath:record.logPath||null};
+  const tokens=record.tokens||unknownTokens();
+  const explicitlyUnknown=tokens.source==='unknown'||tokens.source==='not-reported'||record.usage_source==='unknown';
+  const source=!explicitlyUnknown&&['provider-turn-usage','provider-result-usage','provider-cli-summary','provider-adapter','reported'].includes(tokens.source)&&integer(tokens.total)!==null?tokens.source:(!explicitlyUnknown&&integer(tokens.total)!==null?'reported':'unknown');
+  const cleanTokens={input:integer(tokens.input),output:integer(tokens.output),cached_input:integer(tokens.cached_input),total:integer(tokens.total),source};
+  if(source==='unknown'||cleanTokens.total===null)Object.assign(cleanTokens,{input:null,output:null,cached_input:null,total:null,source:'unknown'});
+  const safe={id:record.id||hash(`${record.logPath}:${record.startedAt}`),taskId:record.taskId||null,draftId:record.draftId||null,role:record.role||'unknown',provider:record.provider||record.worker||'unknown',model:record.model||null,startedAt:record.startedAt||null,finishedAt:record.finishedAt||null,statusBefore:record.statusBefore||null,statusAfter:record.statusAfter||null,exitCode:record.exitCode??null,timedOut:Boolean(record.timedOut),tokens:cleanTokens,usage_source:source==='unknown'?'unknown':source,budget:record.budget?{...record.budget}:null,complexity:record.complexity||null,tier:record.tier||null,packetRevision:record.packetRevision||null,logPath:record.logPath||null};
   if(record.providerFailure||record.failure)safe.failure=record.providerFailure||record.failure;
   const prior=executionRecords(root).filter(r=>r.id===safe.id).at(-1);
   if(prior&&JSON.stringify(prior)===JSON.stringify(safe))return prior;
@@ -82,7 +87,7 @@ function legacySessions(root) {
             try{const size=fs.fstatSync(fd).size,buffer=Buffer.alloc(Math.min(size,262144));fs.readSync(fd,buffer,0,buffer.length,Math.max(0,size-buffer.length));const match=[...buffer.toString('utf8').matchAll(/^tokens used\r?\n([\d,]+)\s*$/gm)].at(-1);const total=match?integer(Number(match[1].replaceAll(',',''))):null;if(total!==null)tokens={...unknownTokens(),total,source:'provider-cli-summary'};}finally{fs.closeSync(fd);}
           }catch{}
         }
-        const normalized={...row,taskId:row.taskId||task.name,provider:row.provider||row.worker,logPath,tokens,id:row.id||hash(`${logPath}:${row.startedAt}`),legacy:true};
+      const normalized={...row,taskId:row.taskId||task.name,provider:row.provider||row.worker,logPath,tokens,usage_source:tokens.total==null?'unknown':'reported',id:row.id||hash(`${logPath}:${row.startedAt}`),legacy:true};
         legacyCache.set(file,{mtime:stat.mtimeMs,row:normalized});rows.push(normalized);
       }catch{}
     }
@@ -91,12 +96,12 @@ function legacySessions(root) {
 }
 
 export function summarizeExecutions(rows,{expectedSessions=rows.length}={}) {
-  const known=rows.filter(r=>r.tokens?.total!==null&&r.tokens?.total!==undefined);
+  const known=rows.filter(r=>r.usage_source!=='unknown'&&r.tokens?.total!==null&&r.tokens?.total!==undefined);
   const byStage=new Map();
   for(const row of rows) {
     const key=JSON.stringify([row.role,row.provider,row.model]);
     const group=byStage.get(key)||{role:row.role,provider:row.provider,model:row.model,sessions:0,reported_sessions:0,total:0};
-    group.sessions++;if(row.tokens?.total!=null){group.reported_sessions++;group.total+=row.tokens.total;}byStage.set(key,group);
+    group.sessions++;if(row.usage_source!=='unknown'&&row.tokens?.total!=null){group.reported_sessions++;group.total+=row.tokens?.total||0;}byStage.set(key,group);
   }
   const sum=field=>known.length&&known.every(r=>r.tokens[field]!=null)?known.reduce((total,r)=>total+r.tokens[field],0):null;
   return {sessions:Math.max(expectedSessions,rows.length),recorded_sessions:rows.length,reported_sessions:known.length,unknown_sessions:Math.max(expectedSessions,rows.length)-known.length,coverage:!known.length?'unknown':known.length===Math.max(expectedSessions,rows.length)?'complete':'partial',tokens:{total:known.length?known.reduce((total,r)=>total+r.tokens.total,0):null,input:sum('input'),output:sum('output'),cached_input:sum('cached_input')},stages:[...byStage.values()].map(group=>({...group,total:group.reported_sessions?group.total:null})),timeline:rows.slice().sort((a,b)=>String(a.startedAt).localeCompare(String(b.startedAt)))};

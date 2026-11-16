@@ -15,11 +15,13 @@ const reactModules = path.resolve('.tmp-ui-review/deepseek-host/node_modules');
 const { verifyPluginRelease } = await import(pathToFileURL(path.join(installed, 'runtime/lib/plugin-release.mjs')));
 verifyPluginRelease(installed);
 const { apply } = await import(pathToFileURL(path.join(installed, 'plugins/deepseek.mjs')));
+// Pin ATL_HOME so the first-launch auto-open targets a disposable home workspace.
+const atlHome = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-deepseek-home-'));
+process.env.ATL_HOME = atlHome;
 const routes = new Map(), cleanups = [], definitions = new Map();
 const ctx = { effect(fn) { const cleanup = fn(); if (typeof cleanup === 'function') cleanups.push(cleanup); }, tools: { register(tool) { definitions.set(tool.name, tool); } }, connection: { fetch: { register(route) { routes.set(route.path, route); return async () => routes.delete(route.path); } } }, inject(keys, fn) { fn(ctx); } };
 apply(ctx);
 assert.ok(definitions.has('atl_start'));
-const project = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-deepseek-recovery-'));
 const client = fs.readFileSync(path.join(installed, 'plugin-ui/deepseek-client.js'), 'utf8');
 const fixture = buildSync({ stdin: { contents: `import React from 'react';import{createRoot}from'react-dom/client';window.fixtureReact=React;window.fixtureRoot=createRoot;`, resolveDir: reactModules }, bundle: true, write: false, format: 'iife', platform: 'browser' }).outputFiles[0].text;
 const shell = `<!doctype html><html><head><meta charset="utf-8"></head><body><div id="root"></div><script>${fixture.replaceAll('</script', '<\\/script')}</script><script>
@@ -50,11 +52,12 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(url);
-  await page.getByRole('button', { name: 'Open Control Plane', exact: true }).click();
-  await page.getByLabel('Project directory').fill(project);
+  // First-launch auto-open: the panel opens the pinned home workspace directly,
+  // with no directory form involved.
   await page.getByRole('button', { name: 'Open Control Plane', exact: true }).click();
   const frame = page.frameLocator('iframe[title="ATL Control Plane"]');
   await frame.locator('#mobile [data-page="tasks"]').waitFor({ timeout: 30000 });
+  assert.equal(await page.locator('#atl-project').count(), 0, 'first launch must auto-open without the directory form');
   const framePage = page.frames().find(f => f.url().includes('/api/atl/view'));
   const firstId = new URL(framePage.url()).searchParams.get('id');
 
@@ -76,5 +79,5 @@ try {
   await browser?.close();
   for (const close of cleanups.reverse()) await close();
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
-  fs.rmSync(project, { recursive: true, force: true });
+  fs.rmSync(atlHome, { recursive: true, force: true });
 }

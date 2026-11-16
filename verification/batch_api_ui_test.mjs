@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { chromium } from "playwright";
 import { emptyState, createTask, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 import { claimBatchItem, readBatch, writeBatch } from "../runtime/lib/batch-runner.mjs";
@@ -15,6 +16,7 @@ const ids = [];
 for (const label of ["first", "second"]) {
   const task = createTask(state, { title: `Batch ${label}` });
   task.status = "assigned";
+  task.source_origin = { type: "azure", remote_id: 741, iteration: "Demo\\Sprint 74" };
   task.workspace = fs.mkdtempSync(path.join(os.tmpdir(), "atl-batch-api-ws-"));
   fs.writeFileSync(path.join(task.workspace, "value.txt"), `${label}\n`);
   ids.push(task.id);
@@ -45,6 +47,22 @@ try {
   const detail = await fetch(`${running.url}api/batch?id=pilot`).then((response) => response.json());
   assert.equal(detail.summary.id, "pilot");
   assert.equal(detail.running, false);
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(running.url);
+    await page.locator('[data-page="batches"]:visible').first().click();
+    await page.locator('[data-action="workflow-select:pilot"]').click();
+    await page.locator('.wf-step').first().waitFor();
+    assert.match(await page.locator('.wf-steps').innerText(), /Batch first/);
+    assert.match(await page.locator('.wf-steps').innerText(), /Azure Boards · #741 · Sprint 74/);
+    assert.equal(await page.locator('[aria-label="Import to execution"] button').count(), 3);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'workflow steps and source context fit mobile');
+    await page.locator('[data-action="go:mytasks"]').click();
+    await page.locator('.mtr-root').waitFor();
+  } finally { await browser.close(); }
 
   const snapshot = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
   assert.ok(snapshot.batches.some((batch) => batch.id === "pilot"), "the live snapshot carries the batch scope");

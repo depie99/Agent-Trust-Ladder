@@ -345,6 +345,11 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
       }else if(/"code"\s*:\s*"rate_limit_exceeded"/.test(diagnosticTail)) {
         providerFailure={kind:'provider-quota',scope:'provider',retryAfterSeconds:60,reason:'Provider reported a rate limit; ATL will try an eligible configured alternative.'};
       }
+      // A model the installed CLI/login cannot use (e.g. a catalog slug newer
+      // than the binary on PATH) is actionable: name the fix, not exit code 1.
+      if(/"code"\s*:\s*"model_not_found"/.test(diagnosticTail)||/is not supported when using (?:Codex|Claude|GapCode)/i.test(diagnosticTail)||/(?:model|model ')\s*.{0,60}?(?:does not have access to model|model_not_found)/i.test(diagnosticTail)) {
+        providerFailure={kind:'provider-model-unavailable',scope:'model',reason:'The selected model is not available to this provider CLI or login. Re-run with a model the installed CLI supports (for a Codex ChatGPT sign-in: gpt-5.6-terra), or update the provider CLI.'};
+      }
       if (/Sandbox required but unavailable: sandbox is enabled but the Windows sandbox is not active/i.test(diagnosticTail)) {
         providerFailure = { kind: "provider-sandbox-unavailable", reason: "The selected provider could not initialize its required Windows sandbox. Choose a supported provider or repair its sandbox configuration before retrying." };
       }

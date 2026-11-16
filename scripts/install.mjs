@@ -31,6 +31,7 @@ if (Number(process.versions.node.split(".")[0]) < 18) {
 // 1. copy the runtime
 fs.rmSync(path.join(home, "runtime"), { recursive: true, force: true });
 fs.cpSync(path.join(repo, "runtime"), path.join(home, "runtime"), { recursive: true });
+fs.writeFileSync(path.join(home, "source.json"), JSON.stringify({ source_root: repo }, null, 2) + "\n");
 fs.rmSync(path.join(home, "skills"), { recursive: true, force: true });
 fs.cpSync(path.join(repo, "skills"), path.join(home, "skills"), { recursive: true });
 fs.mkdirSync(path.join(home, "config"), { recursive: true });
@@ -45,11 +46,11 @@ const script = path.join(home, "runtime", "atl-manager.mjs");
 if (isWin) {
   fs.writeFileSync(
     path.join(home, "atl.cmd"),
-    `@echo off\r\nnode "${script}" %*\r\n`
+    `@echo off\r\nset "ATL_HOME=${home}"\r\nnode "${script}" %*\r\n`
   );
   fs.writeFileSync(
     path.join(home, "atl.ps1"),
-    `node "${script.replace(/'/g, "''")}" @args\r\n`
+    `$env:ATL_HOME='${home.replace(/'/g, "''")}'; node "${script.replace(/'/g, "''")}" @args\r\n`
   );
 } else {
   const shim = path.join(home, "atl");

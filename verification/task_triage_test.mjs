@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createTaskTriage, validateTriage, scoreTriage, triageInput } from '../runtime/lib/task-triage.mjs';
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-triage-test-'));
+let clock = Date.parse('2026-11-13T10:00:00Z'), calls = 0;
+let records = [{ key: 'azure|one', title: 'Checkout outage', description_text: 'Checkout is unavailable and blocks ordering.', priority: 1, state_category: 'inprogress', due_at: '2026-11-14T10:00:00Z' }, { key: 'jira|two', title: 'Done item', state_category: 'complete' }];
+const answer = { factors: { impact: { score: 100, evidence: 'Checkout is unavailable' }, timing: null, blocking: { score: 80, evidence: 'blocks ordering' }, priority: null }, confidence: 'high', explanations: { 'en-US': { reason: 'Checkout is blocked.', missing: [] }, 'fa-IR': { reason: 'Checkout', missing: [] } } };
+const settings = { enabled: true, provider: 'fixture', model: 'glm-5.3-flash', daily_limit: 1 };
+try {
+  assert.throws(() => validateTriage({ ...answer, factors: { impact: { score: 90, evidence: 'Invented outage' } } }, triageInput(records[0])), /evidence/);
+  const validated = validateTriage(answer, triageInput(records[0]));
+  assert.equal(scoreTriage(validated, records[0], clock).score, 90);
+  assert.equal(scoreTriage(validated, records[1], clock).score, null);
+  assert.equal(scoreTriage({ factors: { priority: { score: 100 } } }, records[0] = { ...records[0], due_at: null }, clock).score, null);
+  const engine = createTaskTriage(root, { items: () => records, now: () => clock, invoke: async () => { calls++; return answer; } });
+  engine.saveSettings(settings); await engine.tick();
+  assert.equal(calls, 1); assert.equal(engine.status().queued, 0);
+  const first = engine.get(records[0].key, 'en-US');
+  assert.equal(first.score, engine.get(records[0].key, 'fa-IR').score);
+  engine.ensure(); await engine.tick(); assert.equal(calls, 1, 'cached analysis is reused');
+  records[0].title += ' changed'; engine.ensure(); await engine.tick(); assert.equal(calls, 1, 'daily limit enforced');
+  clock += 86400000; await engine.tick(); assert.equal(calls, 2);
+  records[0].title += ' restart'; engine.ensure();
+  const restarted = createTaskTriage(root, { items: () => records, now: () => clock + 86400000, invoke: async () => { calls++; return { code: 0, text: JSON.stringify(answer) }; } });
+  await restarted.tick(); assert.equal(calls, 3, 'queue survives restart');
+  assert.equal(restarted.get(records[0].key).status, 'ready');
+  for (const [value, expected] of [[0, 'low'], [25, 'low'], [30, 'normal'], [55, 'normal'], [60, 'high'], [75, 'high'], [80, 'urgent'], [100, 'urgent']]) assert.equal(scoreTriage({ factors: { impact: { score: value } } }, records[0], clock).level, expected);
+  const noSetup = createTaskTriage(fs.mkdtempSync(path.join(os.tmpdir(), 'atl-triage-unconfigured-')), { items: () => records, invoke: () => { throw Error('must not run'); } }); noSetup.ensure(); await noSetup.tick(); assert.equal(noSetup.get(records[0].key).status, 'unconfigured');
+  const failedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-triage-retry-')); let failures = 0;
+  const failed = createTaskTriage(failedRoot, { items: () => records, now: () => clock, invoke: async () => { failures++; throw Object.assign(Error('503 unavailable'), { temporary: true }); } });
+  failed.saveSettings({ ...settings, daily_limit: 250 }); await failed.tick(); clock += 61000; await failed.tick(); clock += 61000; await failed.tick();
+  assert.equal(failures, 2); assert.equal(failed.get(records[0].key).status, 'failed');
+  failed.ensure(records[0].key); await failed.tick(); assert.equal(failures, 3, 'explicit retry creates a new bounded attempt');
+  const blocked = createTaskTriage(fs.mkdtempSync(path.join(os.tmpdir(), 'atl-triage-capacity-')), { items: () => records, canRun: () => false, invoke: () => { throw Error('must not run'); } }); blocked.saveSettings(settings); await blocked.tick(); assert.equal(blocked.status().queued, 1);
+  console.log('PASS: weighted urgency, grounded evidence, insufficient context, Done, locale stability, cache, daily cap, restart, retry ceiling and capacity gate');
+} finally { /* Fixtures remain outside the workspace for diagnosis. */ }

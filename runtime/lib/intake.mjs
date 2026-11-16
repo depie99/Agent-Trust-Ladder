@@ -14,7 +14,7 @@ export class IntakeError extends Error {}
 
 // ---------- shared HTTP (no dependencies; TLS opt-out for self-hosted servers)
 
-function requestJson(urlString, { method = "GET", headers = {}, body = null, allowUntrusted = false } = {}) {
+export function requestJson(urlString, { method = "GET", headers = {}, body = null, allowUntrusted = false } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(urlString);
     const req = https.request(
@@ -262,8 +262,9 @@ export async function probeGitHubRepo(repo) {
 
 // cfg: { org_url (includes collection), project, iteration_path, token_env,
 //        types, wiql, tls_allow_untrusted }
-export async function intakeFromAzure(cfg, { requestImpl = requestJson } = {}) {
-  if (!process.env[cfg.token_env || "AZDO_PAT"]) {
+export async function intakeFromAzure(cfg, { requestImpl = requestJson, token: providedToken = null } = {}) {
+  const token = providedToken || process.env[cfg.token_env || "AZDO_PAT"];
+  if (!token) {
     const tokenEnv = cfg.token_env || "AZDO_PAT";
     throw new IntakeError(
       `Azure intake needs a personal access token in the ${tokenEnv} environment variable.\n` +
@@ -275,8 +276,9 @@ export async function intakeFromAzure(cfg, { requestImpl = requestJson } = {}) {
   try {
     return await fetchAzureTasks(cfg, {
       requestImpl,
+      env: { [cfg.token_env || "AZDO_PAT"]: token },
       resourceMapper: (workItem, normalized) => {
-        const description = String(workItem.fields?.["System.Description"] || "");
+        const description = String(workItem.fields?.["System.Description"] || workItem.fields?.["Microsoft.VSTS.TCM.ReproSteps"] || "");
         return [
           ...extractResources(description, { source: "azure", baseUrl: `${normalized.base}/_workitems/edit/${workItem.id}` }),
           ...(workItem.relations || [])

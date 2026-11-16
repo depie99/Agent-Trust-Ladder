@@ -18,6 +18,7 @@ import { parseIntakeFile } from "./intake.mjs";
 import { post as feedPost } from "./feed.mjs";
 import { routeTask } from "./skill-router.mjs";
 import { addResourceToTask } from "./resources.mjs";
+import { supervisorSnapshot } from "./supervisor.mjs";
 
 export class ComposerError extends Error {}
 
@@ -117,14 +118,31 @@ export function applyDeterministicRoute(root, task) {
 
 // Apply read-only candidates into state (shared by `atl intake` and the TUI
 // import screen). Mutates `state`; the caller saves. Idempotent by intake_key.
-export function importCandidates(root, state, candidates, { cfg = {} } = {}) {
+export function importCandidates(root, state, candidates, { cfg = {}, repositoryId = null, repositoryIds = null } = {}) {
+  // One request may affect several repositories (frontend + backend); the
+  // first target is the primary binding mirrored into repository_id.
+  const targets = [...new Set([...(Array.isArray(repositoryIds) ? repositoryIds : []), ...(repositoryId ? [repositoryId] : [])].map(String).filter(Boolean))].map((id) => {
+    const project = supervisorSnapshot().projects.find((entry) => entry.id === id);
+    if (!project) throw new Error(`Unknown repository ${id}. Register it under Projects before importing against it.`);
+    return project;
+  });
   const created = [];
   let added = 0;
   let skipped = 0;
   for (const cand of candidates || []) {
     if (!cand || !cand.title || !cand.intake_key) continue;
     const dup = Object.values(state.tasks).find((t) => t.intake_key && t.intake_key === cand.intake_key);
-    if (dup) { skipped++; continue; }
+    if (dup) {
+      // Refresh missing source context on an unplanned legacy import without
+      // overwriting work, approved objectives, identity, or the original task.
+      if (dup.plan_review_required) {
+        if (!dup.objective_hint && cand.objective_hint) dup.objective_hint = cand.objective_hint;
+        if (!dup.completion_checks?.length && cand.completion_checks?.length) dup.completion_checks = cand.completion_checks;
+        if (!dup.intake_snapshot?.objective) dup.intake_snapshot = { title: cand.title, objective: cand.objective_hint || '', completion_checks: cand.completion_checks || [], source: cand.source, resources: cand.resources || [] };
+        dup.intake_only = true;
+      }
+      skipped++; continue;
+    }
     const t = createTask(state, {
       title: cand.title,
       source: cand.source,
@@ -144,7 +162,15 @@ export function importCandidates(root, state, candidates, { cfg = {} } = {}) {
       });
     }
     if (cand.objective_hint) t.objective_hint = cand.objective_hint;
-    if (cand.completion_checks.length) t.completion_checks = cand.completion_checks; // pre-filled; Pip still owns triage
+    if (cand.completion_checks?.length) t.completion_checks = cand.completion_checks; // pre-filled; Pip still owns triage
+    t.imported_at = new Date().toISOString();
+    t.intake_only = ['github', 'azure', 'jira'].includes(cand.source?.type);
+    t.intake_snapshot = { title: cand.title, objective: cand.objective_hint || '', completion_checks: cand.completion_checks || [], source: cand.source, resources: cand.resources || [] };
+    if (targets.length) {
+      t.repository_ids = targets.map((project) => project.id);
+      t.repository_id = targets[0].id;
+      t.repository_name = targets[0].name;
+    }
     const routine = matchRoutine(cfg.routines, cand);
     if (routine) applyRoutine(t, routine);
     const route = applyDeterministicRoute(root, t);

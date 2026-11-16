@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { loadPlanDraft, planningEvidence, planFingerprint } from "./plan-studio.mjs";
-import { loadState } from "./state.mjs";
+import { loadPlanDraft, planningEvidence, planFingerprint, planDraftIndex } from "./plan-studio.mjs";
+import { loadState, saveState } from "./state.mjs";
 import { readManagerConfig } from "./launch.mjs";
-import { normalizeGitHubRepo } from "./intake.mjs";
+import { normalizeGitHubRepo, requestJson } from "./intake.mjs";
+import { normalizeAzureWorkItem } from "../../skills/atl/scripts/azure-intake.mjs";
 
 function assertReviewed(root, draft) {
   const artifact = draft.artifact;
@@ -37,7 +38,7 @@ function readEnvelope(draft) {
   return { file, envelope: JSON.parse(fs.readFileSync(file, "utf8")) };
 }
 
-export async function verifyImportedSource(root, taskId, { fetchImpl = globalThis.fetch } = {}) {
+export async function verifyImportedSource(root, taskId, { fetchImpl = globalThis.fetch, azureToken = null } = {}) {
   const task = loadState(root).tasks[String(taskId || "")];
   if (!task || !["github", "azure", "jira"].includes(task.source?.type)) throw new Error("source task is missing or is not a GitHub/Azure/Jira import");
   const source = task.source;
@@ -59,15 +60,49 @@ export async function verifyImportedSource(root, taskId, { fetchImpl = globalThi
   } else {
     const cfg = readManagerConfig(root).intake?.azure;
     const tokenEnv = cfg?.token_env || "AZDO_PAT";
-    const token = process.env[tokenEnv];
+    const token = azureToken || process.env[tokenEnv];
     if (!cfg?.org_url || !cfg.project || !token) throw new Error(`checking imported Azure revision needs configured intake.azure and ${tokenEnv}`);
+    if (new URL(cfg.org_url).protocol !== 'https:') throw new Error('Azure revision checks require HTTPS.');
     const base = `${cfg.org_url.replace(/\/$/, "")}/${encodeURIComponent(cfg.project)}`;
-    const current = await callJson(fetchImpl, `${base}/_apis/wit/workitems/${source.remote_id}?api-version=6.0`, { headers: { Authorization: `Basic ${Buffer.from(`:${token}`).toString("base64")}`, "Content-Type": "application/json" } });
+    const url = `${base}/_apis/wit/workitems/${source.remote_id}?api-version=6.0`;
+    const options = { headers: { Authorization: `Basic ${Buffer.from(`:${token}`).toString("base64")}`, "Content-Type": "application/json" } };
+    const current = cfg.tls_allow_untrusted && fetchImpl === globalThis.fetch
+      ? await requestJson(url, { ...options, allowUntrusted: true })
+      : await callJson(fetchImpl, url, options);
     currentRevision = String(current.rev);
   }
   const captured = String(source.revision);
   if (String(currentRevision) !== captured) throw new Error(`imported ${source.type} item ${source.remote_id} changed since intake (${captured} → ${currentRevision}); refresh it and generate the plan again`);
   return { current: true, type: source.type, remote_id: String(source.remote_id), revision: captured, url: source.url || null };
+}
+
+export async function refreshImportedAzureSource(root, taskId, { fetchImpl = globalThis.fetch, azureToken = null } = {}) {
+  const state = loadState(root);
+  const task = state.tasks[String(taskId || "")];
+  if (!task || task.source?.type !== "azure" || !task.plan_review_required) throw new Error("Only an unapproved imported Azure request can be refreshed here");
+  if (planDraftIndex(root).some((draft) => draft.source_task_id === task.id && draft.approved)) throw new Error("This request already has an approved plan; refresh requires a separate reconciliation workflow");
+  const cfg = readManagerConfig(root).intake?.azure;
+  const token = azureToken || process.env[cfg?.token_env || "AZDO_PAT"];
+  if (!cfg?.org_url || !cfg.project || !token) throw new Error("Azure connection or token is unavailable");
+  const url = `${cfg.org_url.replace(/\/$/, "")}/${encodeURIComponent(cfg.project)}/_apis/wit/workitems/${encodeURIComponent(task.source.remote_id)}?api-version=6.0`;
+  const options = { headers: { Authorization: `Basic ${Buffer.from(`:${token}`).toString("base64")}`, "Content-Type": "application/json" } };
+  const current = cfg.tls_allow_untrusted && fetchImpl === globalThis.fetch
+    ? await requestJson(url, { ...options, allowUntrusted: true })
+    : await callJson(fetchImpl, url, options);
+  if (String(current.id) !== String(task.source.remote_id) || !current.rev) throw new Error("Azure returned an unexpected work item identity or revision");
+  const normalized = normalizeAzureWorkItem({ ...current, fields: { ...(current.fields || {}), "System.Rev": current.rev } }, cfg);
+  const title = normalized.title;
+  const description = normalized.objective_hint || title;
+  const previous = String(task.source.revision || "");
+  task.source = { ...task.source, ...normalized.source, revision: String(current.rev) };
+  task.title = title;
+  task.objective_hint = description;
+  task.completion_checks = normalized.completion_checks;
+  task.intake_snapshot = { ...(task.intake_snapshot || {}), title, objective: task.objective_hint, completion_checks: task.completion_checks, source: task.source };
+  task.imported_at = new Date().toISOString();
+  task.source_refreshed_at = task.imported_at;
+  saveState(root, state);
+  return { taskId: task.id, previousRevision: previous, revision: String(current.rev), title, objective: task.objective_hint };
 }
 
 export async function previewPlanPublish(root, draftId, destination, { fetchImpl = globalThis.fetch } = {}) {

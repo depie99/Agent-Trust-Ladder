@@ -126,5 +126,5 @@ export function captureChangeReview(root, task, { takeSnapshot = snapshot } = {}
   return record;
 }
 export function unavailableReview(task) {
-  return { version: 1, capability: "task-change-review-v1", task_id: task.id, status: task.status, availability: task.handoff_baseline ? "capture_required" : "baseline_missing", message: task.handoff_baseline ? "Capture the task workspace to inspect its current changes." : "No captured task baseline exists. The task diff cannot be reconstructed.", files: [], total_files: null, evidence: [], attention: [], revisions: [], decisions_availability: "unavailable" };
+  return { version: 1, capability: "task-change-review-v1", task_id: task.id, status: task.status, availability: task.handoff_baseline ? "capture_required" : "baseline_missing", message: task.handoff_baseline ? "Capture the task workspace to inspect its current changes." : "No captured task baseline exists. The task diff cannot be reconstructed.", repository: task.repository_name || null, workspace: task.workspace || null, files: [], total_files: null, evidence: [], attention: [], revisions: [], decisions_availability: "unavailable" };
 }

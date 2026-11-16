@@ -9,6 +9,7 @@ import {
   removeProposal, reorderProposals, runPlanProvider, savePlanDraft, validatePlanArtifact,
 } from "../runtime/lib/plan-studio.mjs";
 import { providerChoices, requireReadyProvider } from "../runtime/lib/userProviders.mjs";
+import { legacyLocalPlan } from "./plan_local_fixture.mjs";
 import { executeLaunchQueue, mergeQueues, multiQueueDryRun, readRunLock } from "../runtime/lib/launch.mjs";
 import { loadQueueBook, queueAdd, queueCreate, queuePause, queueResume } from "../runtime/lib/queue.mjs";
 
@@ -27,11 +28,15 @@ const minimalArtifact = (title, steps) => ({
   verifier_commands: [steps[0].verify],
 });
 
-// ---------- local generation is labelled deterministic and emits typed cards
-const localPlan = generateLocalPlan("Ship the editable Plan Studio with model planning");
-assert.equal(validatePlanArtifact(localPlan), true, "local plan with typed proposals validates");
-assert.equal(localPlan.generated_via, "local", "local generation is labelled as local");
-assert.equal(localPlan.task_proposals.length, 4, "local generation emits one typed card per TDD stage");
+// ---------- local generation is a skeleton; the legacy plan shape is a fixture
+const skeleton = generateLocalPlan("Ship the editable Plan Studio with model planning");
+assert.equal(skeleton.plan_skeleton, true, "local generation marks its output as a skeleton");
+assert.ok(!skeleton.task_proposals, "a local skeleton emits no approvable task cards");
+assert.throws(() => validatePlanArtifact(skeleton), /implementation_steps/, "a skeleton is refused as a plan artifact");
+const localPlan = legacyLocalPlan("Ship the editable Plan Studio with model planning");
+assert.equal(validatePlanArtifact(localPlan), true, "the legacy fixture validates as a (pre-contract) plan");
+assert.equal(localPlan.generated_via, "local", "the legacy fixture is labelled as local");
+assert.equal(localPlan.task_proposals.length, 4, "the legacy fixture carries one typed card per TDD stage");
 const ids = localPlan.task_proposals.map((proposal) => proposal.id);
 assert.equal(new Set(ids).size, ids.length, "proposal ids are unique and draft-local");
 const localDraft = savePlanDraft(root, { intent: localPlan.objective, artifact: localPlan, stage: "plan" });

@@ -22,6 +22,7 @@ import { bundledRoot } from "./skill-router.mjs";
 import { listBatches } from "./batch-runner.mjs";
 import { claimStates, latestFailureSignatures, preventionStatus, recoverMemory } from "./operational-memory.mjs";
 import { outcomeReportFromRoot } from "./outcome-economics.mjs";
+import { listDeliveryPackets } from "./delivery.mjs";
 
 // Inventory only: installed skill metadata is not promotion evidence.
 function installedSkills(root) {
@@ -194,6 +195,21 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
         } catch (error) {
           return { summary: { denominators: {}, outcomes: {}, usage: { coverage: "unknown" }, coverage_gaps: [{ kind: "economics-unavailable", detail: error.message }] }, admission: null, review: null };
         }
+      })(),
+      reliability: (() => {
+        const tasks=Object.values(state.tasks||{}),active=tasks.filter(task=>task.status!=='triaged');
+        const sessions=Object.values(reports.tasks||{}).flatMap(task=>task.timeline||[]);
+        const exited=sessions.filter(row=>Number.isInteger(row.exitCode));
+        const packets=listDeliveryPackets(root).filter(packet=>packet.task_id);
+        const packetTasks=new Map();for(const packet of packets)packetTasks.set(packet.task_id,[...(packetTasks.get(packet.task_id)||[]),packet]);
+        const sessionTaskIds=new Set(sessions.map(row=>row.taskId).filter(Boolean));
+        const verifiedTasks=[...sessionTaskIds].filter(id=>(packetTasks.get(id)||[]).some(packet=>packet.verdict==='verified-local'||packet.receipt?.claimed_verdict==='verified-local')).length;
+        const counts={session_exit:exited.filter(row=>row.exitCode===0&&!row.timedOut).length,task_verified_local:verifiedTasks,needs_review:active.filter(task=>task.status==='in_review'||task.status==='verifying').length,blocked:active.filter(task=>task.status==='blocked'||task.status==='escalated').length,owner_abandoned:null};
+        const denominators={session_exit:exited.length,task_verified_local:sessionTaskIds.size,needs_review:active.length,blocked:active.length,owner_abandoned:null};
+        const samples={...denominators},minimum=20;
+        const rates=Object.fromEntries(Object.keys(counts).map(key=>[key,counts[key]!=null&&denominators[key]>=minimum?counts[key]/denominators[key]:null]));
+        const observed=[...sessions.map(row=>row.finishedAt||row.startedAt),...tasks.map(task=>task.updated_at)].filter(Boolean).sort().at(-1)||state.updated_at||null;
+        return {source:'recorded-session-exits-and-current-task-state',cohort:'all locally recorded sessions and current project tasks',sample_size:active.length,minimum_sample:minimum,observed_at:observed,counts,denominators,samples,rates,rate_status:'per-metric minimum sample; owner-abandoned is not recorded'};
       })(),
     },
     overnight: readOvernightRun(root),

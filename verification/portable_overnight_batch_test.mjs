@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { emptyState, createTask, saveState, loadState } from "../runtime/lib/state.mjs";
 import { startBatch, runBatch, readBatch, writeBatch, reconcileBatch, resumeStoppedBatch, stopBatchRun, batchMorningSummary, listBatches } from "../runtime/lib/batch-runner.mjs";
-import { createBatch, claimBatchItem, settleBatchItem, requeueBatchItem, batchSummary, validateBatch, sealBatch, nextBatchItem } from "../skills/atl/scripts/batch-runner.mjs";
+import { createBatch, claimBatchItem, settleBatchItem, requeueBatchItem, batchSummary, validateBatch, sealBatch, nextBatchItem, repairableBlocker } from "../skills/atl/scripts/batch-runner.mjs";
 
 const dirs = [];
 const root = (label) => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), `atl-batch-${label}-`)); dirs.push(dir); return dir; };
@@ -56,6 +56,11 @@ try {
   assert.equal(calls.get(repairable), 2, "a repairable failure is retried within the attempt limit");
   assert.equal(calls.get(blocked), 1, "a genuine blocker is not retried");
   assert.equal(runA.items.find((item) => item.task === blocked).reason, "product decision required");
+  assert.equal(runA.items.find((item) => item.task === repairable).repair_attempts, 1, "the bounded repair attempt is persisted");
+  assert.equal(runA.items.find((item) => item.task === blocked).repair_attempts, 0, "owner blockers are not repaired or retried");
+  assert.equal(repairableBlocker("verification failed: missing assertion"), true);
+  assert.equal(repairableBlocker("needs_reconciliation: external effect unknown"), false);
+  assert.equal(repairableBlocker("product decision required"), false);
   const morning = batchMorningSummary(rootA, "mixed");
   assert.ok(fs.existsSync(morning.files.json));
   assert.ok(fs.existsSync(morning.files.markdown));

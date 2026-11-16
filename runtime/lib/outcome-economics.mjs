@@ -13,6 +13,7 @@ function attemptFromExecution(row) {
     status,
     accepted: status === "completed" && row.statusAfter === "done",
     tokens: row.tokens,
+    usage_source: row.usage_source === "unknown" || row.tokens?.total == null ? "unknown" : row.tokens?.source || "reported",
     wrapped: false,
     external: true,
     manual_intervention: false,

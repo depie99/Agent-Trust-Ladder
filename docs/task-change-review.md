@@ -1,6 +1,6 @@
 # Reviewing task changes
 
-Open a task in the live browser Control Plane and select **Review changes**. **Diagram** opens the Relationships tab. Inspection does not start workers, change task status, or grant delivery approval.
+Open a task in the live browser Control Plane's task workspace: the Tasks page keeps the searchable list on the left and opens the selected task on the right with **Activity**, **Changes** and **Process** views. The **Changes** view embeds the review tabs (Overview, Files, Evidence, Relationships, Statechart) in place; file links from Activity or Process open their diff for the associated capture. In the ZCode plugin pane the same workspace is shared, and the review can still open as a dialog. Inspection does not start workers, change task status, or grant delivery approval.
 
 ## Operator workflow
 
@@ -47,8 +47,13 @@ Captures publish `.trust/manager/change-reviews/<task-id>/<change-set-id>.json` 
 | `GET /api/task-changes?taskId=...&changeSetId=...&cursor=...&limit=...` | Pinned/latest metadata, history, evidence and attention; does not create captures. |
 | `GET /api/task-change-diff?taskId=...&changeSetId=...&fileId=...` | Bounded preview for a file belonging to that task/change set. |
 | `POST /api/task-changes/capture` | Explicit capture; JSON `{ "task_id": "T-001" }`. |
+| `GET /api/task-execution?taskId=...` | Read-only execution projection for the workspace Activity/Process views (stages, attempts, captures, checks). |
 
-All three require the owner cookie and `x-atl-csrf` header, including source-reading GET requests. Capture also uses the existing origin checks. The browser never supplies arbitrary filesystem paths. Periodic snapshots/SSE contain no patches or new capture work. Paths reject traversal, symlinks and Windows junctions. Record associations, manifest hashes and requested blob hashes are checked.
+All of these require the owner cookie and `x-atl-csrf` header, including source-reading GET requests. Capture also uses the existing origin checks. The browser never supplies arbitrary filesystem paths. Periodic snapshots/SSE contain no patches or new capture work. Paths reject traversal, symlinks and Windows junctions. Record associations, manifest hashes and requested blob hashes are checked.
+
+## Execution projection
+
+The workspace Activity and Process views read `GET /api/task-execution`, a pure join over records that already exist: state events, the execution ledger and overnight session summaries, captured change sets and task evidence. Stages (intake, repository preparation, planning, implementation, review, verification, integration) appear only when a recorded event, session role or evidence kind maps to them; each attempt keeps its actor, provider/model, window, exit outcome, commands, evidence references and checkpoint. Capture-to-stage links exist only when a recorded packet revision is shared. Missing links render as "Not recorded"; tasks without sessions are labeled planned. The projection introduces no new workflow engine and migrates nothing.
 
 ## Bounds and missing data
 
@@ -68,6 +73,9 @@ node verification/task_changes_test.mjs
 node verification/change_review_store_test.mjs
 node verification/task_changes_api_test.mjs
 node verification/task_changes_ui_test.mjs
+node verification/execution_projection_test.mjs
+node verification/task_ui_workspace_test.mjs
+node verification/control_plane_modal_test.mjs
 npm run ui:css:check
 ```
 

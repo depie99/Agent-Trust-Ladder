@@ -34,7 +34,7 @@ export function outcomeSummary(records = [], { expectedAttempts = null } = {}) {
     counts[status] += 1;
     if (status === "completed" && attempt.accepted !== false) counts.accepted += 1;
   }
-  const measured = attempts.filter((attempt) => attempt.tokens && attempt.tokens.total != null);
+  const measured = attempts.filter((attempt) => attempt.usage_source !== "unknown" && attempt.tokens && attempt.tokens.total != null);
   const unknownAttempts = attempts.length - measured.length;
   const sum = (field) => (measured.length && measured.every((attempt) => attempt.tokens[field] != null)
     ? measured.reduce((total, attempt) => total + Number(attempt.tokens[field]), 0)
@@ -58,6 +58,7 @@ export function outcomeSummary(records = [], { expectedAttempts = null } = {}) {
     usage: {
       measured_attempts: measured.length,
       unknown_attempts: unknownAttempts,
+      sources: Object.fromEntries([...new Set(attempts.map((attempt) => attempt.usage_source || (attempt.tokens?.total == null ? "unknown" : "reported")))].sort().map((source) => [source, attempts.filter((attempt) => (attempt.usage_source || (attempt.tokens?.total == null ? "unknown" : "reported")) === source).length])),
       coverage: attempts.length === 0 ? "unknown" : unknownAttempts === 0 ? "complete" : measured.length === 0 ? "unknown" : "partial",
       input: sum("input"),
       output: sum("output"),

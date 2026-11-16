@@ -9,6 +9,13 @@
   },
   "type": "module",
   "scripts": {
+    "plugins:build": "node scripts/build-plugins.mjs",
+    "plugins:test": "node verification/plugin_bundle_test.mjs && node verification/plugin_connect_test.mjs",
+    "skills:build": "python scripts/build_mode_skills.py",
+    "skills:lock": "node scripts/sync-skills.mjs --write-release-lock",
+    "skills:check": "python scripts/build_mode_skills.py --check && node scripts/sync-skills.mjs",
+    "skills:sync": "node scripts/sync-skills.mjs --sync",
+    "skills:test": "node verification/sync_skills_test.mjs",
     "docs:css": "sass --no-source-map docs/scss/styles.scss docs/site.css",
     "docs:css:check": "node scripts/check-docs-css.mjs",
     "docs:diagrams": "node scripts/make-diagram-light-variants.mjs",
@@ -30,6 +37,9 @@
     "./skill-router": "./runtime/lib/skill-router.mjs"
   },
   "files": [
+    ".codex-plugin/plugin.json",
+    ".mcp.json",
+    "plugins",
     "commands",
     "config",
     "runtime",
@@ -53,6 +63,9 @@
     "registry": "https://npm.pkg.github.com"
   },
   "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "esbuild": "^0.28.2",
     "markdown-it": "15.0.3",
     "mermaid": "12.2.0",
     "playwright": "^1.64.1",

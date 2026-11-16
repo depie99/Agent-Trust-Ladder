@@ -46,23 +46,39 @@ export function dispatchPreflight(root, task, tasks, { providerReady = true, pro
       if (path.isAbsolute(relative) || relative === ".." || relative.startsWith(".." + path.sep)) return { ready: false, cause: "dependency-scope", recovery_owner: "owner", reason: `local dependency ${name} is outside the worker workspace` };
     }
     if (Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).length) {
-      if (!fs.existsSync(path.join(task.workspace, "package-lock.json"))) return { ready: false, cause: "locked-dependencies", reason: "package-lock.json required for reproducible dependency preparation" };
-      const lock = fs.readFileSync(path.join(task.workspace, "package-lock.json"));
-      const dependencyReceipt = JSON.stringify({ lock: lock.toString("base64"), manifest: pkg });
-      const installed = path.join(task.workspace, "node_modules", ".package-lock.json");
+      // Lockfile-polyglot preparation: honor whichever lockfile the repository
+      // actually ships (npm ci --offline, yarn install --frozen-lockfile, or
+      // pnpm install --frozen-lockfile). An untracked dependency tree without
+      // any lockfile stays blocked — reproducibility is the point.
+      const npmLock = path.join(task.workspace, "package-lock.json");
+      const yarnLock = path.join(task.workspace, "yarn.lock");
+      const pnpmLock = path.join(task.workspace, "pnpm-lock.yaml");
+      const manager = fs.existsSync(npmLock) ? "npm" : fs.existsSync(yarnLock) ? "yarn" : fs.existsSync(pnpmLock) ? "pnpm" : null;
+      if (!manager) return { ready: false, cause: "locked-dependencies", recovery_owner: "owner", reason: "package-lock.json, yarn.lock, or pnpm-lock.yaml required for reproducible dependency preparation" };
+      const lockFile = manager === "npm" ? npmLock : manager === "yarn" ? yarnLock : pnpmLock;
+      const lock = fs.readFileSync(lockFile);
+      const dependencyReceipt = JSON.stringify({ lock: lock.toString("base64"), manifest: pkg, manager });
+      const installedMarker = manager === "npm"
+        ? path.join(task.workspace, "node_modules", ".package-lock.json")
+        : manager === "yarn"
+          ? path.join(task.workspace, "node_modules", ".yarn-integrity")
+          : path.join(task.workspace, "node_modules", ".pnpm");
       const receipt = path.join(task.workspace, ".atl-dependencies.json");
       let fresh = false;
-      try { fresh = fs.existsSync(installed) && fs.readFileSync(receipt, "utf8") === dependencyReceipt; } catch { /* requires preparation */ }
+      try { fresh = fs.existsSync(installedMarker) && fs.readFileSync(receipt, "utf8") === dependencyReceipt; } catch { /* requires preparation */ }
       if (!fresh && provisionLocal) {
-        const args = ["ci", "--offline", "--ignore-scripts", "--no-audit", "--no-fund"];
         const env = { ...process.env, npm_config_cache: path.join(root, ".trust", "manager", "npm-cache") };
+        const args = manager === "npm"
+          ? ["ci", "--offline", "--ignore-scripts", "--no-audit", "--no-fund"]
+          : ["install", "--frozen-lockfile", "--ignore-scripts"];
+        const command = manager === "npm" ? "npm" : manager;
         const result = process.platform === "win32"
-          ? execute(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm " + args.join(" ")], { cwd: task.workspace, encoding: "utf8", timeout: 120000, windowsHide: true, env })
-          : execute("npm", args, { cwd: task.workspace, encoding: "utf8", timeout: 120000, env });
-        if (result.status !== 0) return { ready: false, cause: "local-dependencies-unavailable", recovery_owner: "owner", reason: `locked packages unavailable in local cache; network is not authorized: ${String(result.stderr || result.error || "npm ci failed").slice(-2000)}` };
+          ? execute(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `${command} ${args.join(" ")}`], { cwd: task.workspace, encoding: "utf8", timeout: 600000, windowsHide: true, env })
+          : execute(command, args, { cwd: task.workspace, encoding: "utf8", timeout: 600000, env });
+        if (result.status !== 0) return { ready: false, cause: "local-dependencies-unavailable", recovery_owner: "owner", reason: `locked packages unavailable (${manager}); ${manager === "npm" ? "network is not authorized" : "install failed"}: ${String(result.stderr || result.error || `${command} install failed`).slice(-2000)}` };
         fs.writeFileSync(receipt, dependencyReceipt); fresh = true;
       }
-      if (!fresh) return { ready: false, cause: "local-dependencies", reason: "Locked dependencies are not prepared in this task workspace: node_modules/.package-lock.json or the matching .atl-dependencies.json receipt is missing or stale. Automatic offline preparation is disabled (workspaces.provisionLocal is not true). Enable workspaces.provisionLocal and run recovery; ATL will run npm ci --offline --ignore-scripts --no-audit --no-fund from its local cache without a model session." };
+      if (!fresh) return { ready: false, cause: "local-dependencies", reason: `Locked dependencies are not prepared in this task workspace (${manager} lockfile): the install marker or the matching .atl-dependencies.json receipt is missing or stale. Automatic preparation is disabled (workspaces.provisionLocal is not true). Enable workspaces.provisionLocal and run recovery; ATL will run ${manager} install ${manager === "npm" ? "ci --offline" : "--frozen-lockfile"} --ignore-scripts without a model session.` };
     }
   }
   for (const command of contract.commands || []) {

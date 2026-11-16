@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { paths } from "./state.mjs";
+import { supervisorSnapshot } from "./supervisor.mjs";
 
 export class WorkspaceError extends Error {}
 
@@ -35,6 +36,29 @@ function localRepoPath(cfg, task) {
   return fs.existsSync(p) ? p : null;
 }
 
+// spec 020: a repository-bound task works on the registered repo it names,
+// resolved through the supervisor registry. Explicit config still wins. An
+// unresolvable binding blocks execution with an honest error — the task and
+// queue stay in place; nothing is deleted.
+function boundRepositoryPath(task) {
+  if (!task.repository_id) return null;
+  const project = supervisorSnapshot().projects.find((entry) => entry.id === task.repository_id);
+  if (!project) {
+    throw new WorkspaceError(
+      `${task.id}: its repository (id ${task.repository_id}) is no longer registered under Projects. ` +
+      `Reassign the request or re-register the repository; the request and its queue stay in place.`
+    );
+  }
+  try {
+    return fs.realpathSync(project.root);
+  } catch {
+    throw new WorkspaceError(
+      `${task.id}: its repository "${project.name}" is missing on disk (${project.root}). ` +
+      `Execution stays blocked until the path exists again; the request is kept.`
+    );
+  }
+}
+
 function isGitRepo(root) {
   try {
     return Boolean(git(["rev-parse", "--show-toplevel"], root).trim());
@@ -63,7 +87,7 @@ function writeMarker(dir, { root, task, mode, from = null }) {
     mode,
     from,
     source_commit: (() => {
-      try { return git(["rev-parse", "HEAD"], root).trim(); } catch { return null; }
+      try { return git(["rev-parse", "HEAD"], from || root).trim(); } catch { return null; }
     })(),
     created_at: new Date().toISOString(),
   }, null, 2) + "\n");
@@ -173,13 +197,15 @@ export function ensureWorkspace(root, cfg, task) {
   // Use a detached worktree over a snapshot of the current checkout so dirty
   // user work is available to the worker without exposing the active checkout.
   const configuredRepo = localRepoPath(cfg, task);
-  const localRepo = configuredRepo || (!repoKey(task) && isGitRepo(root) ? path.resolve(root) : null);
+  const boundRepo = boundRepositoryPath(task);
+  const localRepo = configuredRepo || boundRepo || (!repoKey(task) && isGitRepo(root) ? path.resolve(root) : null);
   try {
     if (localRepo) {
       if (path.resolve(localRepo) === path.resolve(root)) {
         return createSnapshotWorktree(root, dir, task);
       }
-      // Preferred: a worktree of a configured local clone — cheap and fully isolated.
+      // Preferred: a worktree of a configured local clone or the task's bound
+      // repository — cheap and fully isolated.
       git(["worktree", "add", "-b", `atl/${task.id}`, dir], localRepo);
       writeMarker(dir, { root, task, mode: "worktree", from: localRepo });
       return { dir, reused: false, mode: "worktree", from: localRepo };
@@ -196,7 +222,9 @@ export function ensureWorkspace(root, cfg, task) {
     const detail = err.stderr || err.message;
     throw new WorkspaceError(
       `Could not create an isolated workspace for ${task.id} (${detail.toString().trim()}).\n` +
-      `Configure a local clone in config/manager.json under "workspaces".repos to use worktrees.`
+      (task.repository_id
+        ? `Fix the task's bound repository or reassign the request; execution stays blocked until then.`
+        : `Configure a local clone in config/manager.json under "workspaces".repos to use worktrees.`)
     );
   }
 
