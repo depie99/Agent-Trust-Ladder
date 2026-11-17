@@ -31,6 +31,7 @@ Harness adapters and full-runtime distribution contracts.
 |---|---|
 | [plugins/deepseek-client.mjs](../plugins/deepseek-client.mjs) | dsh unmounts the keyed main slot on every tab switch and remounts it on return, |
 | [plugins/deepseek-frame.mjs](../plugins/deepseek-frame.mjs) | Runs inside the same-origin DSH frame; all ATL traffic uses the authenticated |
+| [plugins/deepseek-host.mjs](../plugins/deepseek-host.mjs) | Host-native UI for DeepSeek Harness (issue #34): reuse the host's own |
 | [plugins/deepseek-panel.mjs](../plugins/deepseek-panel.mjs) | First launch opens without asking for a directory: the last workspace opened |
 | [plugins/deepseek.mjs](../plugins/deepseek.mjs) | Native Cordis contribution: tools use the same bridge as the MCP plugins. |
 | [plugins/panel-entry.mjs](../plugins/panel-entry.mjs) | Marks the plugin presentation for the Control Plane client (default browser stays unmarked). |
@@ -243,6 +244,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/control-assistant.mjs](../runtime/lib/control-assistant.mjs) | control assistant: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | Batch ids with a runner active in this process. The checkpoint lease remains |
 | [runtime/lib/control-plane.mjs](../runtime/lib/control-plane.mjs) | Inventory only: installed skill metadata is not promotion evidence. |
+| [runtime/lib/daemon.mjs](../runtime/lib/daemon.mjs) | One state owner per project (issue #34). |
 | [runtime/lib/dashboard.mjs](../runtime/lib/dashboard.mjs) | Read-only terminal dashboard for the ATL manager. |
 | [runtime/lib/delivery.mjs](../runtime/lib/delivery.mjs) | delivery: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/dependencies.mjs](../runtime/lib/dependencies.mjs) | Dependency-aware readiness for the task graph. |
@@ -302,6 +304,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/task-changes.mjs](../runtime/lib/task-changes.mjs) | Read-only, revision-pinned inspection. Content hashes are not Git commits. |
 | [runtime/lib/task-diagnostics.mjs](../runtime/lib/task-diagnostics.mjs) | Diagnose recorded facts, not a provider's successful exit code. Each finding |
 | [runtime/lib/task-preparation.mjs](../runtime/lib/task-preparation.mjs) | Spec 022 — task preparation: a persistent, task-linked record between the |
+| [runtime/lib/task-refs.mjs](../runtime/lib/task-refs.mjs) | One project model (issue #34): task ids are qualified outside their project |
 | [runtime/lib/task-statechart.mjs](../runtime/lib/task-statechart.mjs) | Project recorded transitions only; never invent steps from the workflow contract. |
 | [runtime/lib/task-triage.mjs](../runtime/lib/task-triage.mjs) | task triage: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/task-workspace.mjs](../runtime/lib/task-workspace.mjs) | task workspace: runtime implementation; inspect exports and matching verification. |
@@ -610,7 +613,9 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/control_plane_task_run_test.mjs](../verification/control_plane_task_run_test.mjs) | Executable regression check for control plane task run. |
 | [verification/control_room_test.mjs](../verification/control_room_test.mjs) | Executable regression check for control room. |
 | [verification/control_room_ui_test.mjs](../verification/control_room_ui_test.mjs) | Executable regression check for control room ui. |
+| [verification/daemon_test.mjs](../verification/daemon_test.mjs) | Executable regression check for daemon. |
 | [verification/dashboard_test.mjs](../verification/dashboard_test.mjs) | Executable regression check for dashboard. |
+| [verification/deepseek_host_ui_test.mjs](../verification/deepseek_host_ui_test.mjs) | Executable regression check for deepseek host ui. |
 | [verification/deepseek_panel_test.mjs](../verification/deepseek_panel_test.mjs) | Executable regression check for deepseek panel. |
 | [verification/deepseek_recovery_test.mjs](../verification/deepseek_recovery_test.mjs) | Executable regression check for deepseek recovery. |
 | [verification/dependencies_model.py](../verification/dependencies_model.py) | name -> (tasks [(id, priority)], edges {id: [dep ids]}) — "depends on". |

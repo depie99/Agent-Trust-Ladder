@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { latestTaskEvidence } from "./task-diagnostics.mjs";
+import { writerGate } from "./daemon.mjs";
 
 const contractFile = new URL("../../config/manager-state-contract.json", import.meta.url);
 export const STATE_CONTRACT = JSON.parse(fs.readFileSync(contractFile, "utf8"));
@@ -42,6 +43,14 @@ export function emptyState() {
     revision: 0,
     log: [],
   };
+}
+
+// True once this process successfully wrote state.json. The CLI's lease
+// self-heal (issue #34) reruns a denied command only when this is false, so
+// an ownership change mid-command never re-executes partial work.
+let wroteSinceBoot = false;
+export function hasWrittenState() {
+  return wroteSinceBoot;
 }
 
 export function loadState(root) {
@@ -95,6 +104,12 @@ function releaseLock(lock) {
 
 export function saveState(root, state, { expectedRevision = null } = {}) {
   const p = paths(root).state;
+  // One state owner (issue #34): when a live project daemon owns this
+  // project, only the owner itself or a holder of the owner's writer lease
+  // may write state.json. The file lock + revision CAS below remain the last
+  // line of defense for the bootstrap path (no live daemon) and for holders.
+  const gate = writerGate(root);
+  if (gate.verdict === "denied") throw new StateError(gate.message);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   const lock = `${p}.lock`;
   const lockFd = acquireLock(lock, "state");
@@ -117,6 +132,7 @@ export function saveState(root, state, { expectedRevision = null } = {}) {
         }
       }
     } finally { fs.rmSync(tmp, { force: true }); }
+    wroteSinceBoot = true;
   } finally {
     fs.closeSync(lockFd);
     releaseLock(lock);

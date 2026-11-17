@@ -8,6 +8,7 @@ import { loadState } from "./state.mjs";
 import { queueList } from "./queue.mjs";
 import { supervisorSnapshot } from "./supervisor.mjs";
 import { planDraftIndex, requestRepositoryIds } from "./plan-studio.mjs";
+import { qualifyTaskId } from "./task-refs.mjs";
 
 const IMPORTED = new Set(["azure", "github", "jira"]);
 const CLOSED = new Set(["done", "rejected", "archived"]);
@@ -48,7 +49,7 @@ export function projectWorkMap(root) {
       const approved = here.find((draft) => draft.approved) || null;
       const latest = approved || here[0] || null;
       return {
-        id: task.id, title: task.title, source: sourceView(task), imported_at: task.imported_at || task.created_at || null,
+        id: task.id, qualified_id: qualifyTaskId(project, task.id), title: task.title, source: sourceView(task), imported_at: task.imported_at || task.created_at || null,
         status: approved ? "planned" : latest ? "drafting" : "needs-plan",
         draft: latest ? { id: latest.id, stage: latest.stage, review: latest.review, approved: latest.approved, queue_id: latest.queue_id } : null,
         draft_count: here.length,
@@ -71,7 +72,7 @@ export function projectWorkMap(root) {
       };
     });
     const taskRows = repoTasks.map((task) => ({
-      id: task.id, title: task.title, status: task.status, worker: task.proposed_worker || null, queue_id: queueOf.get(task.id) || task.plan_queue_id || null,
+      id: task.id, qualified_id: qualifyTaskId(project, task.id), title: task.title, status: task.status, worker: task.proposed_worker || null, queue_id: queueOf.get(task.id) || task.plan_queue_id || null,
       plan_draft_id: task.plan_draft_id || null, depends_on: task.plan_depends_on || [], updated_at: task.updated_at || null,
       blocker: BLOCKED.has(task.status) ? task.blocker?.reason || task.waiting_reason || null : null,
     }));

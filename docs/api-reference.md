@@ -24,6 +24,11 @@ Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`,
 | `/api/brain` | `runtime/lib/control-plane-server.mjs` |
 | `/api/browser-access` | `runtime/lib/control-plane-server.mjs` |
 | `/api/command` | `runtime/lib/control-plane-server.mjs` |
+| `/api/daemon` | `runtime/lib/control-plane-server.mjs` |
+| `/api/daemon/lease` | `runtime/lib/control-plane-server.mjs` |
+| `/api/daemon/lease/release` | `runtime/lib/control-plane-server.mjs` |
+| `/api/daemon/lease/renew` | `runtime/lib/control-plane-server.mjs` |
+| `/api/daemon/shutdown` | `runtime/lib/control-plane-server.mjs` |
 | `/api/delivery` | `runtime/lib/control-plane-server.mjs` |
 | `/api/dispatch/preview` | `runtime/lib/control-plane-server.mjs` |
 | `/api/events` | `runtime/lib/control-plane-server.mjs` |
