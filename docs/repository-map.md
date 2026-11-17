@@ -259,6 +259,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/harness-catalog.mjs](../runtime/lib/harness-catalog.mjs) | Connection profiles only; worker-provider capability is a separate contract. |
 | [runtime/lib/history.mjs](../runtime/lib/history.mjs) | history.mjs — the unified chat-history viewer for the agent CLIs on this machine. |
 | [runtime/lib/intake.mjs](../runtime/lib/intake.mjs) | Intake adapters: local bullet files, GitHub issues, Azure Boards work items. |
+| [runtime/lib/issue-connections.mjs](../runtime/lib/issue-connections.mjs) | issue connections: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/jev.mjs](../runtime/lib/jev.mjs) | Optional Jev decision helper. ATL stays dependency-free and deterministic by default. |
 | [runtime/lib/jira-mcp.mjs](../runtime/lib/jira-mcp.mjs) | jira mcp: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/launch.mjs](../runtime/lib/launch.mjs) | Bounded launch engine for the interactive task control room (spec 014). |
@@ -660,6 +661,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/install_test.mjs](../verification/install_test.mjs) | Executable regression check for install. |
 | [verification/intake_azure_iterations_test.mjs](../verification/intake_azure_iterations_test.mjs) | Executable regression check for intake azure iterations. |
 | [verification/intake_test.mjs](../verification/intake_test.mjs) | Executable regression check for intake. |
+| [verification/issue_connections_test.mjs](../verification/issue_connections_test.mjs) | Executable regression check for issue connections. |
 | [verification/issue_source_journey_test.mjs](../verification/issue_source_journey_test.mjs) | Executable regression check for issue source journey. |
 | [verification/issue_source_ui_journey_test.mjs](../verification/issue_source_ui_journey_test.mjs) | Executable regression check for issue source ui journey. |
 | [verification/jev_router_test.mjs](../verification/jev_router_test.mjs) | Executable regression check for jev router. |

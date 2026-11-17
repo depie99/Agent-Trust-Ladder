@@ -45,6 +45,7 @@ import { resourcePolicy, resourceView, saveResourcePolicy, taskResourcePreview, 
 import {recordExecution,publishPlanningExecution} from './execution-report.mjs';
 import {recordQuotaFailure, quotaStatus} from './provider-quota.mjs';
 import { runIntake, normalizeGitHubRepo, intakeFromAzure } from './intake.mjs';
+import { loadConnections, saveConnections, validateConnection, sameConnection, connectionIdentity } from './issue-connections.mjs';
 import { importCandidates } from './composer.mjs';
 import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
 import { azureIdentity, saveAzureConnection, readAzureConnection, forgetAzureConnection } from './azure-connection.mjs';
@@ -1076,6 +1077,23 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   const ownerSession = rotateOwnerSession(root);
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters, egmRunner, azureFetch };
   const intakePreviews = new Map();
+  const azureConnectionTokens = new Map();
+  const azureCredentialDir = id => path.join(root, '.trust', 'manager', 'credentials', id);
+  const redactConnectionSecrets = value => {
+    let message = String(value ?? '');
+    const secrets = [azureUiToken, ...azureConnectionTokens.values(), ...Object.values(process.env).filter((item, index) => item && /(?:PAT|TOKEN|SECRET|CREDENTIAL)/i.test(Object.keys(process.env)[index] || ''))].filter(Boolean);
+    for (const secret of secrets) message = message.split(secret).join('[redacted]');
+    return message;
+  };
+  async function connectionAzureToken(connection) {
+    if (!connection || connection.provider !== 'azure') return null;
+    if (azureConnectionTokens.has(connection.id)) return azureConnectionTokens.get(connection.id);
+    if (connection.credential_ref === 'os-protected') {
+      const token = await readAzureConnection(connection.settings, { dir: azureCredentialDir(connection.id) });
+      if (token) { azureConnectionTokens.set(connection.id, token); return token; }
+    }
+    return process.env[connection.settings.token_env || 'AZDO_PAT'] || null;
+  }
   // UI-entered Azure PATs live only in this server instance's memory. They
   // are never added to process.env, config files, child worker environments,
   // logs, or API responses.
@@ -1541,6 +1559,96 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         json(res, 200, run);
         return;
       }
+      if (url.pathname === '/api/intake/connections' && ['GET', 'POST'].includes(req.method) || /^\/api\/intake\/connections\/[0-9a-f-]+(?:\/(?:check|credential))?$/.test(url.pathname) && ['PATCH', 'DELETE', 'POST'].includes(req.method)) {
+        try {
+          const ownerCookie = String(req.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith('atl_owner='))?.slice(10);
+          if (!validateOwnerSession(root, decodeURIComponent(ownerCookie || ''), String(req.headers['x-atl-csrf'] || '')) || req.headers.origin && !isSameLoopbackOrigin(req, server)) { json(res, 403, { ok: false, error: 'An authenticated owner session is required for issue connections.' }); return; }
+          const data = loadConnections(root, readManagerConfig(root).intake || {});
+          const parts = url.pathname.split('/');
+          const id = parts[4];
+          const index = id ? data.connections.findIndex(c => c.id === id) : -1;
+          if (id && index < 0) { json(res, 404, { ok: false, error: 'Connection not found.' }); return; }
+          if (req.method === 'GET') { json(res, 200, { ok: true, ...data, connections: data.connections.map(c => ({ ...c, token_present: c.provider === 'github' || Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
+          if (run.status === 'running' || planningRunActive(root)) { json(res, 409, { ok: false, error: 'Wait for the active run before changing issue sources.' }); return; }
+          const payload = JSON.parse(await readBody(req) || '{}');
+          if (payload.revision !== data.revision) { json(res, 409, { ok: false, error: 'Connections changed. Refresh and try again.' }); return; }
+          if (req.method === 'POST' && !id) {
+            const parsed = validateConnection(payload);
+            if (data.connections.some(c => sameConnection(c, parsed))) { json(res, 409, { ok: false, error: 'This location is already connected.' }); return; }
+            const record = { id: crypto.randomUUID(), ...parsed, status: 'unchecked', checked_at: null };
+            data.connections.push(record);
+            data.defaults[record.provider] ||= record.id;
+            saveConnections(root, data, payload.revision);
+            json(res, 201, { ok: true, connection: record, revision: data.revision }); return;
+          }
+          if (req.method === 'POST' && parts[5] === 'credential') {
+            if (!req.headers.origin || !isSameLoopbackOrigin(req, server)) { json(res, 403, { ok: false, error: 'Credentials can only be changed from the authenticated ATL UI.' }); return; }
+            const record = data.connections[index];
+            if (record.provider !== 'azure') throw new Error('Credential entry is available for Azure Boards.');
+            if (payload.action === 'disconnect') {
+              azureConnectionTokens.delete(id);
+              forgetAzureConnection(record.settings, { dir: azureCredentialDir(id) });
+              record.credential_ref = null;
+            } else {
+              const token = String(payload.token || '').trim();
+              if (!token || token.length > 4096 || /[\r\n]/.test(token)) throw new Error('Enter a valid Azure PAT.');
+              if (payload.remember === true) await saveAzureConnection(record.settings, token, { dir: azureCredentialDir(id) });
+              else forgetAzureConnection(record.settings, { dir: azureCredentialDir(id) });
+              azureConnectionTokens.set(id, token);
+              record.credential_ref = payload.remember === true ? 'os-protected' : 'session';
+            }
+            saveConnections(root, data, payload.revision);
+            json(res, 200, { ok: true, revision: data.revision, credential_source: record.credential_ref }); return;
+          }
+          if (req.method === 'PATCH' && id) {
+            const previous = data.connections[index];
+            const parsed = validateConnection({ ...previous.settings, ...previous, ...payload, provider: previous.provider });
+            if (data.connections.some(c => c.id !== id && sameConnection(c, parsed))) { json(res, 409, { ok: false, error: 'This location is already connected.' }); return; }
+            if (previous.provider === 'azure' && connectionIdentity(previous) !== connectionIdentity(parsed)) {
+              azureConnectionTokens.delete(id);
+              forgetAzureConnection(previous.settings, { dir: azureCredentialDir(id) });
+              previous.credential_ref = null;
+            }
+            data.connections[index] = { ...previous, ...parsed, status: 'unchecked', checked_at: null };
+            if (data.defaults[previous.provider] === id && previous.legacy && previous.enabled !== parsed.enabled) {
+              const manager = readManagerConfig(root);
+              manager.intake[previous.provider].enabled = parsed.enabled;
+              const file = path.join(root, 'config', 'manager.json'), temp = `${file}.${crypto.randomUUID()}.tmp`;
+              fs.writeFileSync(temp, JSON.stringify(manager, null, 2) + '\n'); fs.renameSync(temp, file);
+            }
+          } else if (req.method === 'DELETE' && id) {
+            const record = data.connections[index];
+            if (data.defaults[record.provider] === id) {
+              const replacement = data.connections.find(c => c.id !== id && c.provider === record.provider);
+              if (replacement) {
+                data.defaults[record.provider] = replacement.id;
+                const manager = readManagerConfig(root); manager.intake ||= {};
+                manager.intake[record.provider] = record.provider === 'github' ? { enabled: replacement.enabled, repos: [replacement.settings.repo] } : { ...replacement.settings, enabled: replacement.enabled };
+                const file = path.join(root, 'config', 'manager.json'), temp = `${file}.${crypto.randomUUID()}.tmp`;
+                fs.writeFileSync(temp, JSON.stringify(manager, null, 2) + '\n'); fs.renameSync(temp, file);
+              }
+              else if (!record.enabled) data.defaults[record.provider] = null;
+              else { json(res, 409, { ok: false, error: 'Pause this default connection or add another connection before removing it.' }); return; }
+            }
+            if (record.legacy) data.dismissed_legacy.push(connectionIdentity(record));
+            if (record.provider === 'azure') { azureConnectionTokens.delete(id); forgetAzureConnection(record.settings, { dir: azureCredentialDir(id) }); }
+            data.connections.splice(index, 1);
+          } else if (req.method === 'POST' && parts[5] === 'check') {
+            const record = data.connections[index];
+            const config = readManagerConfig(root);
+            config.intake ||= {};
+            config.intake[record.provider] = record.provider === 'github' ? { enabled: true, repos: [record.settings.repo] } : { ...record.settings, enabled: true };
+            const token = await connectionAzureToken(record) || (record.provider === 'azure' && record.id === data.defaults.azure ? await currentAzureToken() : null);
+            const adapters = record.provider === 'azure' && token ? { ...seam.intakeAdapters, azure: cfg => seam.intakeAdapters.azure ? seam.intakeAdapters.azure(cfg, { token }) : intakeFromAzure(cfg, { token }) } : seam.intakeAdapters;
+            try { await runIntake(config, record.provider, adapters); record.status = 'verified'; record.error = null; }
+            catch (error) { const message = redactConnectionSecrets(error.message); record.status = /auth|token|credential|unauthori|forbidden|401|403/i.test(message) ? 'needs-auth' : 'unavailable'; record.error = message.slice(0, 240); }
+            record.checked_at = new Date().toISOString();
+          } else { json(res, 405, { ok: false, error: 'Unsupported connection action.' }); return; }
+          saveConnections(root, data, payload.revision);
+          json(res, 200, { ok: true, connection: data.connections[index] || null, revision: data.revision });
+        } catch (error) { json(res, error.status || 400, { ok: false, error: redactConnectionSecrets(error.message) }); }
+        return;
+      }
       if (url.pathname === "/api/intake/sources" && ["GET", "POST"].includes(req.method)) {
         try {
           if (req.method === "POST") {
@@ -1647,9 +1755,14 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       }
       if (req.method === "POST" && url.pathname === "/api/intake/preview") {
         try {
-          const payload = JSON.parse(await readBody(req) || "{}"), source = String(payload.source || "");
+          const payload = JSON.parse(await readBody(req) || "{}");
+          const connections = payload.connection_id ? loadConnections(root, readManagerConfig(root).intake || {}) : null;
+          const connection = connections?.connections.find(c => c.id === payload.connection_id);
+          if (payload.connection_id && !connection) throw new Error('Connection not found. Refresh sources.');
+          const source = connection?.provider || String(payload.source || "");
           if (!["github", "jira", "azure"].includes(source)) throw new Error("Choose GitHub, Jira, or Azure Boards.");
           const config = readManagerConfig(root);
+          if (connection) { config.intake ||= {}; config.intake[source] = source === 'github' ? { enabled: connection.enabled, repos: [connection.settings.repo] } : { ...connection.settings, enabled: connection.enabled }; }
           if (!config.intake?.[source]?.enabled) throw new Error(`${source} source is not enabled.`);
           if (source === 'azure') {
             await currentAzureToken();
@@ -1679,16 +1792,19 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             }
             config.intake = { ...config.intake, azure: cfg };
           }
-          const adapters = source === "azure" && azureUiToken
+          const connectionToken = connection ? await connectionAzureToken(connection) : null;
+          const adapters = source === "azure" && connection && connectionToken
+            ? { ...seam.intakeAdapters, azure: cfg => seam.intakeAdapters.azure ? seam.intakeAdapters.azure(cfg, { token: connectionToken }) : intakeFromAzure(cfg, { token: connectionToken }) }
+            : source === "azure" && azureUiToken && (!connection || connection.id === connections.defaults.azure)
             ? { ...seam.intakeAdapters, azure: (cfg) => seam.intakeAdapters.azure ? seam.intakeAdapters.azure(cfg, { token: azureUiToken }) : intakeFromAzure(cfg, { token: azureUiToken }) }
             : seam.intakeAdapters;
           const results = await runIntake(config, source, adapters);
           const candidates = results.flatMap((entry) => entry.tasks);
-          const token = crypto.randomUUID(); intakePreviews.set(token, { source, candidates, at: Date.now(), selection: { work_item: source === 'azure' ? String(payload.work_item || '') : '', iteration: config.intake[source]?.iteration_path || '', project: config.intake[source]?.project || '' } });
+          const token = crypto.randomUUID(); intakePreviews.set(token, { source, connection_id: connection?.id || null, connection_identity: connection ? connectionIdentity(connection) : null, candidates, at: Date.now(), selection: { work_item: source === 'azure' ? String(payload.work_item || '') : '', iteration: config.intake[source]?.iteration_path || '', project: config.intake[source]?.project || '' } });
           json(res, 200, { ok: true, token, candidates: candidates.map((item, index) => ({ index, title: item.title, objective_hint: item.objective_hint, source: item.source, priority: item.priority })) });
         } catch (error) {
           const message = String(error?.message || "Issue search failed");
-          json(res, 400, { ok: false, error: azureUiToken ? message.split(azureUiToken).join("[redacted]") : message });
+          json(res, 400, { ok: false, error: redactConnectionSecrets(message) });
         }
         return;
       }
@@ -1740,6 +1856,11 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const queueId = String(payload.queueId || `${preview.source}-intake`).toLowerCase();
           if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(queueId)) throw new Error("Queue id must use letters, numbers, _ or -.");
           const state = loadState(root), selected = ids.map((id) => preview.candidates[id]);
+          if (preview.connection_id) {
+            const connection = loadConnections(root, readManagerConfig(root).intake || {}).connections.find(c => c.id === preview.connection_id);
+            if (!connection || !connection.enabled || connectionIdentity(connection) !== preview.connection_identity) throw new Error('Connection changed or was removed. Preview again.');
+            for (const candidate of selected) candidate.source = { ...candidate.source, connection_id: connection.id, connection_name: connection.name };
+          }
           // Optional repository bindings (spec 020 / multi-repo): an import
           // may target several registered repositories at once — one request
           // from a product team can affect frontend and backend together.
@@ -1751,7 +1872,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const imported = importCandidates(root, state, selected, { cfg: readManagerConfig(root), repositoryIds });
           state.intake_history ||= [];
           const repositoryNames = (id) => ({ id, name: registered.find((entry) => entry.id === id)?.name || null });
-          const record = { id: crypto.randomUUID(), at: new Date().toISOString(), source: preview.source, selection: preview.selection || {}, destination: payload.destination === 'planning' ? 'planning' : queueId, repository: repositoryIds[0] || null, repositories: repositoryIds.map(repositoryNames), added: imported.added, skipped: imported.skipped, items: selected.map(c => ({ title: c.title, source: c.source, taskId: Object.values(state.tasks).find(t => t.intake_key === c.intake_key)?.id || null })) };
+          const record = { id: crypto.randomUUID(), at: new Date().toISOString(), source: preview.source, connection_id: preview.connection_id || null, selection: preview.selection || {}, destination: payload.destination === 'planning' ? 'planning' : queueId, repository: repositoryIds[0] || null, repositories: repositoryIds.map(repositoryNames), added: imported.added, skipped: imported.skipped, items: selected.map(c => ({ title: c.title, source: c.source, taskId: Object.values(state.tasks).find(t => t.intake_key === c.intake_key)?.id || null })) };
           state.intake_history.push(record);
           saveState(root, state, { expectedRevision: state.revision || 0 });
           if (payload.destination !== 'planning') {

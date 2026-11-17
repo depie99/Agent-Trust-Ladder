@@ -32,6 +32,14 @@ assert.throws(() => validatePlanArtifact({ ...localPlan, title: " " }), /title a
 assert.throws(() => validatePlanArtifact({ ...localPlan, acceptance_examples: [{ given: {}, when: "w", then: "t" }] }), /given\/when\/then/);
 assert.throws(() => validatePlanArtifact({ ...localPlan, verifier_commands: [null] }), /non-empty strings/);
 const localDraft = savePlanDraft(root, { intent: localPlan.objective, artifact: localPlan, stage: "plan" });
+// Save timestamps can land in the same millisecond; draft id is the stable
+// tie-breaker so the most recently named draft remains first in the UI.
+for (const draft of [skeletonDraft, localDraft]) {
+  const file = path.join(draft.dir, "artifact.json");
+  const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
+  envelope.saved_at = "2026-01-01T00:00:00.000Z";
+  fs.writeFileSync(file, JSON.stringify(envelope, null, 2) + "\n");
+}
 assert.equal(listPlanDrafts(root)[0].id, localDraft.id, "browser-ready plan drafts are discoverable for full preview");
 
 const framed = frameIntent("Make the TUI manage named queues and show provider usage", { constraints: ["do not bypass launch confirmation"], skills: ["atl-plan", "atl-verify"] });

@@ -6286,6 +6286,155 @@ textarea.input {
     flex: 1 1 110px;
   }
 }
+.source-v2 .source-connection-notice {
+  margin: 0 0 16px;
+  border: 1px solid #a8ddcb;
+  background: #e9f8f1;
+  color: #075e45;
+  border-radius: 9px;
+  padding: 12px 16px;
+}
+
+.source-v2 .source-connection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+
+.source-v2 .source-connection-card {
+  border: 1px solid var(--line, #dcddec);
+  border-radius: 11px;
+  padding: 14px;
+  background: var(--surface, #fff);
+  min-width: 0;
+}
+
+.source-v2 .source-connection-card.is-selected {
+  border-color: #6c4aec;
+  box-shadow: 0 0 0 2px rgba(108, 74, 236, 0.1254901961);
+}
+
+.source-v2 .source-connection-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.source-v2 .source-connection-heading h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.source-v2 .source-connection-heading .source-status {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+
+.source-v2 .source-connection-location {
+  overflow-wrap: anywhere;
+  padding-block: 12px;
+  margin: 8px 0;
+  border-block: 1px solid var(--line, #e4e4ed);
+  font-size: 12px;
+}
+
+.source-v2 .source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.source-v2 .source-card-menu {
+  margin-inline-start: auto;
+  position: relative;
+}
+
+.source-v2 .source-card-menu summary {
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid var(--line, #dcddec);
+  border-radius: 7px;
+  padding: 7px 11px;
+  line-height: 1.2;
+}
+
+.source-v2 .source-card-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.source-v2 .source-card-menu > div {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 170px;
+  padding: 5px;
+  border: 1px solid var(--line, #dcddec);
+  border-radius: 8px;
+  background: var(--surface, white);
+  box-shadow: 0 12px 26px rgba(32, 32, 77, 0.1333333333);
+  display: grid;
+}
+
+.source-v2 .source-card-menu button {
+  text-align: start;
+  justify-content: start;
+}
+
+.source-v2 .source-connection-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.source-v2 .source-browse-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+}
+
+.source-v2 .source-browse-controls .source-field {
+  flex: 1 1 190px;
+  min-width: 160px;
+}
+
+.source-v2 .source-toolbar {
+  padding: 12px 16px;
+}
+
+.source-provider-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 18px;
+}
+
+.dialogbody .source-field {
+  display: block;
+  margin-block: 12px;
+}
+
+.source-form-error {
+  color: #a21d38;
+  min-height: 1.4em;
+  margin: 10px 0 0;
+}
+
+@media (max-width: 620px) {
+  .source-v2 .source-connection-grid {
+    grid-template-columns: 1fr;
+  }
+  .source-v2 .source-connection-heading {
+    flex-wrap: wrap;
+  }
+  .source-provider-tabs {
+    flex-wrap: wrap;
+  }
+}
 .mtr-root {
   max-width: 1520px;
   margin-inline: auto;

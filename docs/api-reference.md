@@ -30,6 +30,7 @@ Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`,
 | `/api/execution-access` | `runtime/lib/control-plane-server.mjs` |
 | `/api/health` | `runtime/lib/control-plane-server.mjs` |
 | `/api/intake/azure/iterations` | `runtime/lib/control-plane-server.mjs` |
+| `/api/intake/connections` | `runtime/lib/control-plane-server.mjs` |
 | `/api/intake/credentials/azure` | `runtime/lib/control-plane-server.mjs` |
 | `/api/intake/history` | `runtime/lib/control-plane-server.mjs` |
 | `/api/intake/history/clear` | `runtime/lib/control-plane-server.mjs` |

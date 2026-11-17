@@ -476,7 +476,7 @@ export function listPlanDrafts(root) {
   if (!fs.existsSync(base)) return [];
   return fs.readdirSync(base, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => {
     try { return loadPlanDraft(root, entry.name); } catch { return null; }
-  }).filter(Boolean).sort((a, b) => String(b.saved_at || "").localeCompare(String(a.saved_at || "")));
+  }).filter(Boolean).sort((a, b) => String(b.saved_at || "").localeCompare(String(a.saved_at || "")) || String(b.id || "").localeCompare(String(a.id || "")));
 }
 
 // Relationship index for the Projects work map and imported-request rows:
