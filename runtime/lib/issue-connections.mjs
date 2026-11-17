@@ -64,6 +64,31 @@ export function loadConnections(root, legacy = {}) {
   return data;
 }
 
+// Locks carry their holder's pid so a crashed writer's lock is reclaimed
+// immediately instead of blocking saves for the full stale window. A lock
+// whose holder is alive still ends in a bounded 409, never an indefinite wait.
+const LOCK_STALE_MS = 30000;
+const LOCK_LEGACY_GRACE_MS = 5000;
+const processAlive = pid => {
+  if (!pid) return false;
+  if (pid === process.pid) return true;
+  try { process.kill(pid, 0); return true; }
+  catch (error) { return error.code === 'EPERM'; }
+};
+const lockAge = lock => {
+  try { return Date.now() - fs.statSync(lock).mtimeMs; } catch { return 0; }
+};
+const reclaimable = (lock, info) => {
+  if (!info.pid && !info.at) { // unparsable or legacy empty lock
+    return lockAge(lock) > LOCK_LEGACY_GRACE_MS;
+  }
+  return !processAlive(info.pid) || lockAge(lock) > LOCK_STALE_MS;
+};
+const lockInfo = lock => {
+  try { const parsed = JSON.parse(fs.readFileSync(lock, 'utf8')); return { pid: Number(parsed.pid) || 0, at: Number(parsed.at) || 0 }; }
+  catch { return { pid: 0, at: 0 }; }
+};
+
 export function saveConnections(root, data, expectedRevision) {
   const file = fileFor(root);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -73,12 +98,15 @@ export function saveConnections(root, data, expectedRevision) {
     try { handle = fs.openSync(lock, 'wx'); break; }
     catch (error) {
       if (error.code !== 'EEXIST') throw error;
-      try { if (Date.now() - fs.statSync(lock).mtimeMs > 30000) fs.rmSync(lock); } catch {}
+      let info = { pid: 0, at: 0 };
+      try { info = lockInfo(lock); } catch {}
+      try { if (reclaimable(lock, info)) fs.rmSync(lock); } catch {}
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
     }
   }
   if (handle == null) { const error = new Error('Connections are busy. Try again.'); error.status = 409; throw error; }
   try {
+    fs.writeFileSync(handle, JSON.stringify({ pid: process.pid, at: Date.now() }), 'utf8');
     const current = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { revision: 0 };
     if (current.revision !== expectedRevision) { const error = new Error('Connections changed. Refresh and try again.'); error.status = 409; throw error; }
     data.revision = expectedRevision + 1;

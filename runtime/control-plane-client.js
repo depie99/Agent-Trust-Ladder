@@ -288,7 +288,7 @@ let queueFilterTouched = false;
   let resourceSettings = null;
   let resourceDraft = null;
   let resourceNotice = '';
-  let sourceSettings = null, sourcePreview = null, sourceNotice = "", sourceLoading = false;
+  let sourceSettings = null, sourcePreview = null, sourceNotice = "";
   let sourceConnections = [], sourceConnectionRevision = 0, sourceSelectedId = null;
   let sourcePreviewSequence = 0;
   let sourceConnectionNotice = '', sourceConnectionError = '', sourceFormBusy = false;
@@ -316,11 +316,6 @@ let queueFilterTouched = false;
   const myTasksSetupSelected = new Set();
   // Collapse state of project/area groups survives silent repaints.
   const myTasksOpen = new Map();
-  // Issue sources page: connector settings fold behind one toggle; the
-  // multi-repo selection for an import is tracked for the button label.
-  // Most returning users come here to inspect and import work, not to edit
-  // credentials. Keep configuration available, but out of the inbox's way.
-  let sourcesConnectorsOpen = false;
   let azureIterations = [];
   let azureSprintsNotice = "";
   // Workflow runs (Batches page): the selected run is presentation state and
@@ -339,12 +334,6 @@ let queueFilterTouched = false;
     render();
   }
   const sourceImportRepos = new Set();
-  const sourceDraftKey = 'atl-source-draft:' + (document.querySelector('meta[name="atl-csrf"]')?.content || 'local');
-  let sourceDraft = {}; try { sourceDraft = JSON.parse(sessionStorage.getItem(sourceDraftKey) || '{}'); } catch {}
-  // Azure quick-find values are transient query inputs, never saved settings.
-  delete sourceDraft.sourceAzureWorkItem;
-  delete sourceDraft.sourceAzureSearchIteration;
-  try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
   let accessSettings = null;
   let accessNotice = "";
   let accessDefaultDraft = null;
@@ -1215,49 +1204,20 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     return `<div class="issue-sources source-v2">${head('WORKSPACE / ISSUE SOURCES', 'Issue sources', 'Connect saved sources, verify access, browse issues, and import selected requests for planning.', btn('Check all access', 'sources-check-all') + btn('+ Add source', 'sources-add', 'primary'))}
       ${sourceConnectionNotice ? `<div class="source-notice source-connection-notice" role="status"><span>${escapeHtml(sourceConnectionNotice)}</span>${btn('Dismiss', 'sources-dismiss-notice', 'sm ghost')}</div>` : ''}
       <section class="panel source-workbench"><div class="paneltitle"><div><h2>Connected sources <span class="pill blue">${sourceConnections.length} connections</span></h2><p class="muted tiny">Saved names and locations appear here. New source forms start empty.</p></div></div><div class="source-connection-grid">${cards || '<p class="muted">No sources connected yet. Add a source to begin.</p>'}</div></section>
-      <section class="panel source-workbench"><div class="paneltitle"><div><h2>Browse issues</h2><p class="muted tiny">Select a connection, preview matching issues, and import requests for planning.</p></div></div><div class="source-browse-controls"><label class="source-field"><span class="label">Connection</span><select class="input" id="sourceConnectionSelect"><option value="">Choose a connection</option>${sourceConnections.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === sourceSelectedId ? 'selected' : ''}>${escapeHtml(c.name)} · ${providerName[c.provider]}</option>`).join('')}</select></label>${selected?.provider === 'azure' ? `<label class="source-field"><span class="label">Sprint</span><input class="input" id="sourceAzureSearchIteration" list="sourceAzureSprintList" placeholder="Sprint 74"><datalist id="sourceAzureSprintList">${azureIterations.map(it => `<option value="${escapeHtml(it.path)}">${escapeHtml(it.name)}</option>`).join('')}</datalist></label><label class="source-field"><span class="label">Work item</span><input class="input" id="sourceAzureWorkItem" placeholder="Number or link"></label>${btn('Load sprints', 'sources-azure-sprints', 'sm')}` : ''}${btn('Preview issues', 'sources-preview-selected', 'primary')}</div>${sourceNotice ? `<p class="source-notice" role="status">${escapeHtml(sourceNotice)}</p>` : ''}<div class="source-toolbar"><input id="sourceSearch" class="input" type="search" aria-label="Filter previewed issues" placeholder="Filter previewed issues"><div class="source-repo-pills" role="group" aria-label="Affected repositories">${(snapshot.supervisor?.projects || []).map(p => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(p.id)}"><span>${escapeHtml(p.name)}</span></label>`).join('')}</div>${btn(`Import selected issues (${candidates.length})`, 'sources-import', 'primary')}</div><div class="source-table-scroll"><table class="source-table"><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? 'checked' : 'disabled'}></th><th>Key</th><th>Issue</th><th>Priority</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div><p class="source-empty" ${candidates.length ? 'hidden' : ''}>${candidates.length ? 'No issues match this filter.' : 'Choose a connected source and preview issues here.'}</p></section>${sourceHistoryPanel()}</div>`;
+      <section class="panel source-workbench"><div class="paneltitle"><div><h2>Browse issues</h2><p class="muted tiny">Select a connection, preview matching issues, and import requests for planning.</p></div></div><div class="source-browse-controls"><label class="source-field"><span class="label">Connection</span><select class="input" id="sourceConnectionSelect"><option value="">Choose a connection</option>${sourceConnections.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === sourceSelectedId ? 'selected' : ''}>${escapeHtml(c.name)} · ${providerName[c.provider]}</option>`).join('')}</select></label>${selected?.provider === 'azure' ? `<label class="source-field"><span class="label">Sprint</span><input class="input" id="sourceAzureSearchIteration" list="sourceAzureSprintList" placeholder="Sprint 74"><datalist id="sourceAzureSprintList">${azureIterations.map(it => `<option value="${escapeHtml(it.path)}">${escapeHtml(it.name)}</option>`).join('')}</datalist></label><label class="source-field"><span class="label">Work item</span><input class="input" id="sourceAzureWorkItem" placeholder="Number or link"></label>${btn('Load sprints', 'sources-azure-sprints', 'sm')}${azureSprintsNotice ? `<span class="muted tiny" role="status">${escapeHtml(azureSprintsNotice)}</span>` : ''}` : ''}${btn('Preview issues', 'sources-preview-selected', 'primary')}</div>${sourceNotice ? `<p class="source-notice" role="status">${escapeHtml(sourceNotice)}</p>` : ''}<div class="source-toolbar"><input id="sourceSearch" class="input" type="search" aria-label="Filter previewed issues" placeholder="Filter previewed issues"><div class="source-repo-pills" role="group" aria-label="Affected repositories">${(snapshot.supervisor?.projects || []).map(p => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(p.id)}"><span>${escapeHtml(p.name)}</span></label>`).join('')}</div>${btn(`Import selected issues (${candidates.length})`, 'sources-import', 'primary')}</div><div class="source-table-scroll"><table class="source-table"><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? 'checked' : 'disabled'}></th><th>Key</th><th>Issue</th><th>Priority</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div><p class="source-empty" ${candidates.length ? 'hidden' : ''}>${candidates.length ? 'No issues match this filter.' : 'Choose a connected source and preview issues here.'}</p></section>${sourceHistoryPanel()}</div>`;
   }
   function issueSourcesPanel() {
     return issueSourcesPanelV2();
-    if (sourceLoading) return '<section class="panel pad" role="status"><span class="running-mark" aria-hidden="true"></span><span class="muted">Loading issue source settings…</span></section>';
-    const github = { ...sourceSettings?.github, enabled: sourceDraft.sourceGithubEnabled ?? sourceSettings?.github?.enabled }, jira = { ...sourceSettings?.jira, enabled: sourceDraft.sourceJiraEnabled ?? sourceSettings?.jira?.enabled }, azure = { ...sourceSettings?.azure, enabled: sourceDraft.sourceAzureEnabled ?? sourceSettings?.azure?.enabled };
-    const azurePatEditing = sourceDraft.sourceAzurePatEditing === true;
-    const githubTokenEditing = sourceDraft.sourceGithubTokenEditing === true;
-    const candidates = sourcePreview?.candidates || [];
-    const field = (id, label, value, placeholder = "") => `<div class="source-field"><label class="label" for="${id}">${label}</label><input class="input" id="${id}" value="${escapeHtml(sourceDraft[id] ?? value)}" placeholder="${escapeHtml(placeholder)}"></div>`;
-    const sourceCard = (source, short, title, settings, fields, readiness, ready, hint) => `<section class="panel source-card ${settings.enabled ? "is-enabled" : ""}" data-source="${source}"><div class="paneltitle"><div class="row"><span class="source-icon source-${source}">${short}</span><h2>${title}</h2></div><span class="source-status ${settings.enabled ? "is-enabled" : ""}">${settings.enabled ? "Enabled" : "Disabled"}</span></div><div class="source-body"><p class="source-readiness ${ready ? "is-ready" : ""}">${escapeHtml(readiness)}</p><label class="source-enable"><input type="checkbox" id="source${source === "github" ? "Github" : source === "jira" ? "Jira" : "Azure"}Enabled" ${settings.enabled ? "checked" : ""}> Enable ${source === "github" ? "GitHub" : source === "jira" ? "Jira" : "Azure Boards"} intake</label>${fields}${hint ? `<p class="source-hint">${hint}</p>` : ""}<div class="source-actions">${btn(source === "github" ? "Save GitHub" : source === "jira" ? "Save Jira" : "Save Azure settings", "sources-save:" + source, "primary")}${source === "azure" ? "" : btn(source === "github" ? "Find GitHub issues" : source === "jira" ? "Find Jira issues" : "Find Azure work items", "sources-preview:" + source)}</div></div></section>`;
-    const rows = candidates.map((item) => {
-      const source = item.source?.type || sourcePreview.source;
-      const short = { github: "GH", jira: "JR", azure: "AZ" }[source] || source;
-      const remoteId = item.source?.remote_id;
-      const key = remoteId == null ? "Issue" : source === "github" ? "#" + remoteId : source === "azure" ? "AB#" + remoteId : remoteId;
-      return `<tr data-preview-source="${escapeHtml(source)}" data-preview-search="${escapeHtml([item.title, key, item.objective_hint, item.source?.repo].filter(Boolean).join(" ").toLowerCase())}"><td><input type="checkbox" data-source-index="${item.index}" aria-label="Select ${escapeHtml(item.title)}" checked></td><td><span class="source-key source-${escapeHtml(source)}">${escapeHtml(short)} · ${escapeHtml(key)}</span></td><td class="source-issue-copy"><b dir="auto">${escapeHtml(item.title)}</b><span dir="auto">${escapeHtml(item.source?.repo || item.objective_hint || "No description")}</span></td><td><span class="pill">${escapeHtml(source === "azure" ? item.source?.iteration || azure.iteration_path || "Work item" : item.priority || "Issue")}</span></td><td><span class="source-status is-enabled">Ready</span></td><td>${btn("Import", "sources-import-one:" + item.index, "sm")}</td></tr>`;
-    }).join("");
-    return `<div class="issue-sources">${head("WORKSPACE / ISSUE SOURCES", "Issue sources", "Connect read-only sources, verify server token readiness, inspect issues, then import requests for planning.", btn("Check token readiness", "sources-readiness") + btn("Refresh sources", "sources-load"))}
-      ${sourceNotice ? `<p class="source-notice" role="status" style="white-space:pre-line;margin:12px 0 0">${escapeHtml(sourceNotice)}</p>` : ""}
-      <section class="panel source-workbench source-quickfind" aria-label="Find Azure work"><div class="source-quickfind-eyebrow">AZURE BOARDS · SAVED CONNECTION</div><div class="source-quickfind-grid"><label class="source-quickfind-field"><span class="source-quickfind-label">Sprint</span><input class="input" id="sourceAzureSearchIteration" list="sourceAzureSprintList" placeholder="${azureIterations.length ? "Pick a sprint, or leave empty for all sprints" : "Load sprints, or type 74 / Project\\Sprint 74"}" autocomplete="off"><datalist id="sourceAzureSprintList">${azureIterations.map((it) => `<option value="${escapeHtml(it.path)}">${escapeHtml(it.name)}${it.finish ? ` · until ${escapeHtml(String(it.finish).slice(0, 10))}` : ""}</option>`).join("")}</datalist></label><label class="source-quickfind-field"><span class="source-quickfind-label">Work item</span><input class="input" id="sourceAzureWorkItem" list="sourceAzureWorkItemList" placeholder="#6376 or https://…/_workitems/edit/6376" autocomplete="off" aria-label="Work item number or link"><datalist id="sourceAzureWorkItemList">${(sourcePreview?.candidates || []).filter((item) => (item.source?.type || sourcePreview?.source) === "azure" && item.source?.remote_id != null).map((item) => `<option value="${escapeHtml(String(item.source.remote_id))}">${escapeHtml(item.title)}</option>`).join("")}</datalist></label><div class="source-quickfind-actions">${btn("⟳ Sprints", "sources-azure-sprints", azure.token_present ? "sm" : "sm ghost")}${btn("⌕ Preview Azure work", "sources-preview:azure", "primary")}${btn(`⚙ Connectors (3)`, "sources-connectors", sourcesConnectorsOpen ? "" : "ghost")}</div></div><p class="source-hint">${azureSprintsNotice ? `${escapeHtml(azureSprintsNotice)} · ` : ""}A work item number or link takes precedence over the sprint filter. Searches never change your saved connection.</p></section>
-      ${sourcesConnectorsOpen ? `<div class="source-grid">
-        ${sourceCard("github", "GH", "GitHub issues", github, field("sourceGithubRepos", "Repositories (owner/name, comma-separated)", (github.repos || []).join(", "), "owner/repository") + `<div class="source-field source-pat-field"><div class="source-pat-label-row"><label class="label" for="sourceGithubToken">GitHub token · read access (private repos)</label><button class="btn ghost sm source-pat-edit" type="button" data-action="${githubTokenEditing ? "sources-github-token-cancel" : "sources-github-token-edit"}" aria-label="${githubTokenEditing ? "Cancel GitHub token edit" : "Edit GitHub token"}" title="${githubTokenEditing ? "Cancel edit" : "Edit token"}">${githubTokenEditing ? "Cancel" : "✎"}</button></div><input class="input" id="sourceGithubToken" type="password" autocomplete="new-password" ${!githubTokenEditing ? "disabled aria-disabled=\"true\"" : ""} placeholder="${github.token_present ? (githubTokenEditing ? "Enter replacement token" : "Saved for this session — select edit to replace") : (githubTokenEditing ? "Paste a token with read access" : "Select edit to enter a token")}"><div class="bar">${btn("Save & connect GitHub", "sources-github-token-save", "sm primary")}${github.credential_source === "ui-memory" ? btn("Disconnect", "sources-github-token-disconnect", "sm") : ""}</div></div>`, github.token_present ? (github.credential_source === "ui-memory" ? "✓ Token connected for this session — private repositories work" : "✓ GITHUB_TOKEN available in server shell") : "Anonymous fetch · public repositories only — connect a token below for private ones", Boolean(github.token_present), "GitHub CLI with REST fallback. Save repositories, then find issues. A token stays in server memory for this session only; \"gh auth login\" or GITHUB_TOKEN persists it." + (github.repos?.length ? `<span class="pill blue">${github.repos.length} configured repo${github.repos.length === 1 ? "" : "s"}</span>` : ""))}
-        ${sourceCard("jira", "JR", "Jira issues", jira, field("sourceJiraUrl", "Jira base URL (HTTPS)", jira.base_url || "", "https://jira.example.com") + `<div class="source-field-pair">${field("sourceJiraProjects", "Project keys", (jira.projects || []).join(", "), "IT, IS")}${field("sourceJiraToken", "Token env variable", jira.token_env || "JIRA_TOKEN")}</div>`, jira.token_present ? "✓ " + (jira.token_env || "JIRA_TOKEN") + " available in server environment" : "◇ Env var " + (jira.token_env || "JIRA_TOKEN") + " not set in server shell", jira.token_present)}
-        ${sourceCard("azure", "AZ", "Azure Boards", azure, field("sourceAzureUrl", "Collection URL (HTTPS)", azure.org_url || "", "https://devops.example.com/Collection") + field("sourceAzureProject", "Project", azure.project || "") + field("sourceAzureIteration", "Default sprint iteration (optional)", azure.iteration_path || "", "Project\\Sprint 74") + `<div class="source-field source-pat-field"><div class="source-pat-label-row"><label class="label" for="sourceAzurePat">Azure PAT · Work Items: Read</label><button class="btn ghost sm source-pat-edit" type="button" data-action="${azurePatEditing ? "sources-azure-pat-cancel" : "sources-azure-pat-edit"}" aria-label="${azurePatEditing ? "Cancel Azure PAT edit" : "Edit Azure PAT"}" title="${azurePatEditing ? "Cancel edit" : "Edit PAT"}">${azurePatEditing ? "Cancel" : "✎"}</button></div><input class="input" id="sourceAzurePat" type="password" autocomplete="new-password" ${!azurePatEditing ? "disabled aria-disabled=\"true\"" : ""} placeholder="${azure.token_present ? (azurePatEditing ? 'Enter replacement PAT' : 'Saved credential is kept') : (azurePatEditing ? 'Paste PAT here' : 'Select edit to enter PAT')}">${!azurePatEditing ? `<p class="source-hint">${azure.token_present ? 'Saved credential stays protected. Select the edit icon to replace it.' : 'Select the edit icon to enter your Azure PAT.'}</p>` : ""}${azure.remember_supported ? `<label class="source-enable"><input type="checkbox" id="sourceAzureRemember" ${sourceDraft.sourceAzureRemember === false ? "" : "checked"}> Remember securely on this Windows account</label>` : '<p class="source-hint">Session connection: reconnect after restarting the server.</p>'}<div class="bar">${btn("Save & connect Azure", "sources-azure-connect", "sm primary")}${['ui-memory', 'os-protected'].includes(azure.credential_source) ? btn("Disconnect & forget", "sources-azure-disconnect", "sm") : ""}</div></div>`, azure.token_present ? (azure.credential_source === "os-protected" ? "Saved connection · credential protected by your Windows account" : "Credential available · search below to verify access") : "Not connected · enter the collection, project and PAT once", azure.token_present)}
-      </div>
-      </div>` : ""}
-      <section class="panel source-workbench"><div class="paneltitle"><div class="bar"><h2>Issue preview & planning inbox</h2><span class="pill blue">${candidates.length} items loaded</span></div><span class="muted tiny">Select repos affected by the issue, then import · credentials stay local · read-only</span></div>
-      <div class="source-toolbar"><div class="source-tabs" role="group" aria-label="Filter by source">${[["all", "All"], ["github", "GitHub"], ["jira", "Jira"], ["azure", "Azure"]].map(([source, title]) => `<button class="source-tab" data-action="sources-filter:${source}" aria-pressed="${source === "all"}">${title} (${source === "all" ? candidates.length : candidates.filter(item => (item.source?.type || sourcePreview?.source) === source).length})</button>`).join("")}</div><input id="sourceSearch" class="input" type="search" aria-label="Filter previewed issues" placeholder="Filter by title, key, or summary…"><div class="source-import-controls"><div class="source-repo-pills" role="group" aria-label="Affected repositories"><span class="source-repo-pills-label">AFFECTED REPOS:</span>${(snapshot.supervisor?.projects || []).map((project) => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(project.id)}"><span>✓ ${escapeHtml(project.name)}</span></label>`).join("") || '<span class="muted tiny">Register a repository on Projects first.</span>'}</div><button class="btn primary" data-action="sources-import" ${candidates.length ? "" : "disabled"}>+ Import${sourceImportRepos.size ? ` to ${sourceImportRepos.size} repo${sourceImportRepos.size === 1 ? "" : "s"}` : ""} (${candidates.length})</button></div></div>
-      <div class="source-table-scroll"><table class="source-table"><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? "checked" : "disabled"}></th><th>Source / key</th><th>Issue title & summary</th><th>Priority / iteration</th><th>State</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="source-empty" ${candidates.length ? "hidden" : ""}>${candidates.length ? "No issues match this filter." : "Save a source, then find issues to preview them here."}</p>
-      <p class="source-footnote">Import selected requests, then create a plan. Executable tasks are created only when the reviewed plan is approved.</p></section>${sourceHistoryPanel()}</div>`;
   }
 
   function updateSourcePreview() {
-    const source = document.querySelector(".source-tab[aria-pressed=true]")?.dataset.action.slice(15) || "all";
     const search = $("#sourceSearch")?.value.trim().toLowerCase() || "";
     const rows = [...document.querySelectorAll("[data-preview-source]")];
-    for (const row of rows) row.hidden = (source !== "all" && row.dataset.previewSource !== source) || !row.dataset.previewSearch.includes(search);
+    for (const row of rows) row.hidden = !row.dataset.previewSearch.includes(search);
     const visible = rows.filter(row => !row.hidden);
     const selected = [...document.querySelectorAll("[data-source-index]:checked")].length;
     const button = document.querySelector('[data-action="sources-import"]');
-    if (button) { button.textContent = "+ Import selected (" + selected + ")"; button.disabled = selected === 0; }
+    if (button) { button.textContent = "Import selected issues (" + selected + ")"; button.disabled = selected === 0; }
     const selectAll = $("#sourceSelectAll");
     if (selectAll) {
       const checked = visible.filter(row => row.querySelector("input").checked).length;
@@ -3144,7 +3104,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "mt-settings" || value === "mt-enable") return void openMyTasksSettings();
     if (value === "mt-save") return void saveMyTasksSettings();
     if (value.startsWith("mt-row:")) return myTasksDetail(decodeURIComponent(value.slice(7)));
-    if (value.startsWith("go:")) { close(); page = value.slice(3); render(); if (page === "sources") { sourceLoading = true; render(); void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { sourceLoading = false; if (page === "sources") render(); }); } if (page === "projects" || page === "sources") void loadProjectMap(); if (page === "mytasks") { void loadMyTasks().then(() => { const loaded = myTasksSettingsData; if (loaded && (!loaded.connection?.token_present || !loaded.settings?.enabled)) void loadMyTasksProjects(); }); if (!myTasksTimer) myTasksTimer = setInterval(() => { if (page !== "mytasks") { clearInterval(myTasksTimer); myTasksTimer = null; return; } void loadMyTasks({ silent: true }); }, 5000); } return; }
+    if (value.startsWith("go:")) { close(); page = value.slice(3); render(); if (page === "sources") { render(); void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { if (page === "sources") render(); }); } if (page === "projects" || page === "sources") void loadProjectMap(); if (page === "mytasks") { void loadMyTasks().then(() => { const loaded = myTasksSettingsData; if (loaded && (!loaded.connection?.token_present || !loaded.settings?.enabled)) void loadMyTasksProjects(); }); if (!myTasksTimer) myTasksTimer = setInterval(() => { if (page !== "mytasks") { clearInterval(myTasksTimer); myTasksTimer = null; return; } void loadMyTasks({ silent: true }); }, 5000); } return; }
     if (value.startsWith("filter:")) { filter = value.slice(7); page = "tasks"; render(); return; }
     if (value === "blockers") { filter = "Blocked"; queueFilter = "All"; page = "tasks"; render(); return; }
     if (value.startsWith("edit:")) return taskForm(derived().tasks.find((task) => task.id === value.slice(5)));
@@ -3158,10 +3118,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       return;
     }
     if (value.startsWith("task-actions:")) { const task = derived().tasks.find((item) => item.id === value.slice(13)); if (task) taskActions(task); return; }
-    if (value.startsWith("sources-filter:")) {
-      document.querySelectorAll(".source-tab").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.action === value)));
-      updateSourcePreview(); return;
-    }
     if (value.startsWith("source-remove:")) { const id = value.slice(14); const request = (sourceHistory.requests || []).find((item) => item.id === id); return popup(`Remove imported request ${escapeHtml(id)}?`, `<p><b>${escapeHtml(request?.title || id)}</b> leaves Imported requests and every queue. The original GitHub/Azure item is not changed.</p><p class="sub">This archives the task, so it can be restored from the CLI. Re-importing the same source item brings it back.</p>`, btn("Cancel", "close") + btn("Remove request", `source-remove-confirm:${id}`, "danger")); }
     if (value.startsWith("source-remove-confirm:")) { const id = value.slice(22); close(); try { await apiCommand(`task archive ${id} --note "imported request removed from Issue sources"`); await refresh(false); await loadIssueSources(); sourceNotice = `${id} removed from imported requests.`; } catch (error) { sourceNotice = `Could not remove ${id}: ${error.message}`; } render(); return; }
     if (value === "source-history-clear") return popup("Clear import history?", "<p>Hides every import record up to now. Imported requests and their tasks stay as they are.</p>", btn("Cancel", "close") + btn("Clear history", "source-history-clear-confirm", "danger"));
@@ -3180,7 +3136,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         popup(`GitHub access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a token with read access to the repository. It is held by this local server for this session only — nothing is written to disk; "gh auth login" or GITHUB_TOKEN persists access.</p><label class="source-field"><span class="label">GitHub token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste token"></label><p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
         return;
       }
-      popup(`Azure access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a PAT with Work Items: Read access. The token is sent only to this local server.</p><label class="source-field"><span class="label">Personal access token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste PAT"></label>${navigator.platform?.startsWith('Win') ? '<label class="source-enable"><input id="sourceConnectionRemember" type="checkbox" checked> Remember securely on this Windows account</label>' : '<p class="source-hint">Session credential; reconnect after restarting the server.</p>'}<p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
+      popup(`Azure access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a PAT with Work Items: Read access. The token is sent only to this local server.</p><label class="source-field"><span class="label">Personal access token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste PAT"></label>${sourceSettings?.azure?.remember_supported ? '<label class="source-enable"><input id="sourceConnectionRemember" type="checkbox" checked> Remember securely on this Windows account</label>' : '<p class="source-hint">Session credential; reconnect after restarting the server.</p>'}<p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
       return;
     }
     if (value.startsWith('sources-credential-save:') || value.startsWith('sources-credential-disconnect:')) {
@@ -3247,17 +3203,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       try { const response = await fetch('/api/intake/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ connection_id: c.id, work_item: $('#sourceAzureWorkItem')?.value.trim(), iteration_path: $('#sourceAzureSearchIteration')?.value.trim() }) }); const result = await response.json(); if (sequence !== sourcePreviewSequence || sourceSelectedId !== c.id) return; if (!response.ok) throw new Error(result.error || 'Issue preview failed'); sourcePreview = { ...result, source: c.provider }; sourceNotice = `${result.candidates.length} issue(s) found. No task was created.`; }
       catch (error) { if (sequence !== sourcePreviewSequence) return; sourcePreview = null; sourceNotice = error.message; } render(); return;
     }
-    if (value === "sources-readiness" || value === "sources-load") { try { await loadIssueSources(); sourceNotice = value === "sources-readiness" ? "Server token availability refreshed. Find issues to verify source access." : "Source settings refreshed."; } catch (error) { sourceNotice = error.message; } render(); return; }
-    if (value === "sources-azure-pat-edit") {
-      sourceDraft.sourceAzurePatEditing = true;
-      try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
-      render(); $("#sourceAzurePat")?.focus(); return;
-    }
-    if (value === "sources-azure-pat-cancel") {
-      sourceDraft.sourceAzurePatEditing = false;
-      try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
-      render(); return;
-    }
     if (value === "sources-azure-sprints") {
       try {
         const response = await fetch("/api/intake/azure/iterations", { cache: "no-store" });
@@ -3266,65 +3211,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         azureIterations = result.iterations || [];
         azureSprintsNotice = azureIterations.length ? `${azureIterations.length} sprint(s) loaded — pick one in the Sprint field, then Preview.` : "Azure returned no sprints under this project.";
       } catch (error) { azureSprintsNotice = ""; sourceNotice = error.message; }
-      render(); return;
-    }
-    if (value === "sources-azure-connect" || value === "sources-azure-disconnect") {
-      const tokenInput = $("#sourceAzurePat"), token = tokenInput?.value || "";
-      if (value === "sources-azure-connect" && !token.trim() && !sourceSettings?.azure?.token_present) { sourceNotice = "Select the PAT edit icon, enter your Azure token, then connect."; render(); return; }
-      const connection = { source: 'azure', enabled: true, org_url: $('#sourceAzureUrl')?.value, project: $('#sourceAzureProject')?.value, iteration_path: $('#sourceAzureIteration')?.value, token_env: sourceSettings?.azure?.token_env || 'AZDO_PAT' };
-      const remember = Boolean($('#sourceAzureRemember')?.checked);
-      try {
-        if (value === 'sources-azure-connect') await planApi('/api/intake/sources', connection);
-        if (token.trim() || value === 'sources-azure-disconnect') await planApi('/api/intake/credentials/azure', value === 'sources-azure-disconnect' ? { action: 'disconnect' } : { token, remember });
-        if (tokenInput) tokenInput.value = "";
-        sourceDraft.sourceAzurePatEditing = false;
-        try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
-        await loadIssueSources(); sourceNotice = value === "sources-azure-disconnect" ? "Saved Azure connection removed. Any server environment credential is still managed by the server owner." : "Azure connection saved. Load sprints below, then preview a work item to verify access.";
-        if (value === "sources-azure-connect") {
-          try {
-            const sprints = await fetch("/api/intake/azure/iterations", { cache: "no-store" });
-            const data = await sprints.json();
-            if (sprints.ok && data.ok) { azureIterations = data.iterations || []; azureSprintsNotice = azureIterations.length ? `${azureIterations.length} sprint(s) loaded — pick one in the Sprint field, then Preview.` : ""; }
-          } catch { /* the ⟳ Sprints button still loads them manually */ }
-        }
-      } catch (error) { sourceNotice = error.message; }
-      render(); return;
-    }
-    if (value.startsWith("sources-save:")) {
-      const source = value.slice(13), body = source === "github" ? { source, enabled: $("#sourceGithubEnabled")?.checked, repos: $("#sourceGithubRepos")?.value } : source === "azure" ? { source, enabled: $("#sourceAzureEnabled")?.checked, org_url: $("#sourceAzureUrl")?.value, project: $("#sourceAzureProject")?.value, iteration_path: $("#sourceAzureIteration")?.value, token_env: "AZDO_PAT" } : { source, enabled: $("#sourceJiraEnabled")?.checked, base_url: $("#sourceJiraUrl")?.value, projects: $("#sourceJiraProjects")?.value, token_env: $("#sourceJiraToken")?.value };
-      try { const response = await fetch("/api/intake/sources", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Could not save source"); sourceSettings = result.sources; sourcePreview = null; sourceNotice = `${source} settings saved. No issue was imported.`; }
-      catch (error) { sourceNotice = error.message; } render(); return;
-    }
-    if (value.startsWith("sources-preview:")) {
-      const source = value.slice(16);
-      try { const response = await fetch("/api/intake/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ source, ...(source === 'azure' ? { work_item: $('#sourceAzureWorkItem')?.value.trim(), iteration_path: $('#sourceAzureSearchIteration')?.value.trim() } : {}) }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Issue search failed"); sourcePreview = { ...result, source }; sourceNotice = `${result.candidates.length} issue(s) found. No task was created.`; }
-      catch (error) { sourcePreview = null; sourceNotice = error.message; } render(); return;
-    }
-    if (value === "sources-github-token-edit") { sourceDraft.sourceGithubTokenEditing = true; try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {} render(); $("#sourceGithubToken")?.focus(); return; }
-    if (value === "sources-github-token-cancel") { sourceDraft.sourceGithubTokenEditing = false; try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {} render(); return; }
-    if (value === "sources-github-token-save") {
-      const tokenInput = $("#sourceGithubToken"), token = tokenInput?.value || "";
-      if (!token.trim() && !sourceSettings?.github?.token_present) { sourceNotice = "Select the edit icon, enter a GitHub token, then connect."; render(); return; }
-      try {
-        const response = await fetch("/api/intake/credentials/github", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "save", token }) });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Could not save the GitHub token");
-        if (tokenInput) tokenInput.value = "";
-        sourceDraft.sourceGithubTokenEditing = false;
-        try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
-        await loadIssueSources();
-        sourceNotice = result.credential_source === "ui-memory" ? "GitHub token held for this session only — search to verify access; nothing was imported. Use \"gh auth login\" or GITHUB_TOKEN to persist it." : "GitHub connection kept on GITHUB_TOKEN. Search to verify access; nothing was imported.";
-      } catch (error) { sourceNotice = error.message; }
-      render(); return;
-    }
-    if (value === "sources-github-token-disconnect") {
-      try {
-        const response = await fetch("/api/intake/credentials/github", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "disconnect" }) });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Could not disconnect the GitHub token");
-        await loadIssueSources();
-        sourceNotice = result.token_present ? "Session token disconnected. GITHUB_TOKEN from the server environment is still available." : "GitHub token disconnected; anonymous public-repository access only.";
-      } catch (error) { sourceNotice = error.message; }
       render(); return;
     }
     if (value === "sources-import" || value.startsWith("sources-import-one:")) {
@@ -3449,7 +3335,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       } catch (error) { popup("Could not save links", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); return; }
       render(); return;
     }
-    if (value === "sources-connectors") { sourcesConnectorsOpen = !sourcesConnectorsOpen; render(); return; }
     if (value.startsWith("repo-assign:")) {
       const repoId = value.slice(12);
       const project = (snapshot.supervisor?.projects || []).find((item) => item.id === repoId);
@@ -4136,10 +4021,9 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (next !== page) window.scrollTo(0, 0);
     page = next;
     pluginOverflowOpen = false;
-    if (next === "sources") sourceLoading = true;
     render();
     // The Settings page renders live provider state — refresh it on arrival.
-    if (next === "sources") void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { sourceLoading = false; if (page === "sources") render(); });
+    if (next === "sources") void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { if (page === "sources") render(); });
     if (next === "sources") void loadProjectMap();
     if (next === "projects") void loadProjectMap();
     if (next === "mytasks") {
@@ -4172,12 +4056,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.id === 'sourceConnectionSelect') { sourcePreviewSequence++; sourceSelectedId = event.target.value || null; sourcePreview = null; sourceNotice = ''; render(); return; }
     if (event.target.matches?.("[data-repo-select]") && event.target.isConnected) { const taskId = event.target.dataset.repoSelect; if (taskId) currentAssign.set(taskId, event.target.value); }
     if (event.target.matches?.("[data-import-repository]")) { if (event.target.checked) sourceImportRepos.add(event.target.value); else sourceImportRepos.delete(event.target.value); }
-    if (!event.target.closest('#modal') && event.target.id?.startsWith('source') && event.target.id !== 'sourceAzurePat'
-      && event.target.id !== 'sourceGithubToken'
-      && event.target.id !== 'sourceAzureWorkItem' && event.target.id !== 'sourceAzureSearchIteration') {
-      sourceDraft[event.target.id] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
-      try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
-    }
     if (event.target.id === "sourceSearch") { updateSourcePreview(); return; }
     if(event.target.closest('[data-resource-form]'))resourceDraft=readResourceForm();
     if (event.target.id === "goal") {

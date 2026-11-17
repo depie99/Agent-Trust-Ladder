@@ -48,7 +48,7 @@ import { runIntake, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub } fro
 import { loadConnections, saveConnections, validateConnection, sameConnection, connectionIdentity } from './issue-connections.mjs';
 import { importCandidates } from './composer.mjs';
 import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
-import { azureIdentity, saveAzureConnection, readAzureConnection, forgetAzureConnection } from './azure-connection.mjs';
+import { azureIdentity, saveAzureConnection, readAzureConnection, forgetAzureConnection, dpapiSupported } from './azure-connection.mjs';
 import { createMyTasksEngine } from './my-tasks.mjs';
 import { createMyTasksReviews } from './my-tasks-reviews.mjs';
 import { acquireLease, releaseLease } from './leases.mjs';
@@ -901,7 +901,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
     if (req.method === "GET" && path === "/api/my-tasks/settings") {
       const tokenInfo = await azureToken();
       const cfg = readManagerConfig(root).intake?.azure || {};
-      json(res, 200, { ok: true, settings: myTasks.settings(), connection: { org_url: cfg.org_url || "", project: cfg.project || "", token_present: Boolean(tokenInfo), remember_supported: process.platform === "win32" } });
+      json(res, 200, { ok: true, settings: myTasks.settings(), connection: { org_url: cfg.org_url || "", project: cfg.project || "", token_present: Boolean(tokenInfo), remember_supported: await dpapiSupported() } });
       return;
     }
     if (req.method === "POST" && path === "/api/my-tasks/settings") {
@@ -1079,9 +1079,25 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   const intakePreviews = new Map();
   const azureConnectionTokens = new Map();
   const azureCredentialDir = id => path.join(root, '.trust', 'manager', 'credentials', id);
-  const redactConnectionSecrets = value => {
+  // Warm the DPAPI capability probe so the first settings read does not pay
+  // the PowerShell spawn cost while the user is waiting.
+  void dpapiSupported();
+  // Error text must never echo a credential. Secret sources: the UI-entered
+  // Azure PAT, connection tokens cached in memory, environment values whose
+  // name marks them as credentials, and the current request payload (a
+  // just-entered PAT passed by the caller). Values shorter than 8 characters
+  // are skipped — redacting them would shred the message without protecting
+  // anything. The env scan is cached on the sorted key list so hot error
+  // paths do not rescan process.env on every failure.
+  const redactionCache = { envKeys: null, envSecrets: [] };
+  const redactConnectionSecrets = (value, ...extra) => {
     let message = String(value ?? '');
-    const secrets = [azureUiToken, ...azureConnectionTokens.values(), ...Object.values(process.env).filter((item, index) => item && /(?:PAT|TOKEN|SECRET|CREDENTIAL)/i.test(Object.keys(process.env)[index] || ''))].filter(Boolean);
+    const envKeys = Object.keys(process.env).sort().join('\u0000');
+    if (redactionCache.envKeys !== envKeys) {
+      redactionCache.envKeys = envKeys;
+      redactionCache.envSecrets = Object.entries(process.env).filter(([key, item]) => item && /(?:PAT|TOKEN|SECRET|CREDENTIAL)/i.test(key)).map(([, item]) => item);
+    }
+    const secrets = [...new Set([azureUiToken, ...azureConnectionTokens.values(), ...redactionCache.envSecrets, ...extra])].filter(secret => secret && String(secret).length >= 8);
     for (const secret of secrets) message = message.split(secret).join('[redacted]');
     return message;
   };
@@ -1593,6 +1609,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             } else {
               const token = String(payload.token || '').trim();
               if (!token || token.length > 4096 || /[\r\n]/.test(token)) throw new Error('Enter a valid Azure PAT.');
+              if (payload.remember === true && !(await dpapiSupported())) throw new Error('Windows credential protection is unavailable here — save without "Remember securely" to keep the credential for this session.');
               if (payload.remember === true) await saveAzureConnection(record.settings, token, { dir: azureCredentialDir(id) });
               else forgetAzureConnection(record.settings, { dir: azureCredentialDir(id) });
               azureConnectionTokens.set(id, token);
@@ -1650,7 +1667,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           } else { json(res, 405, { ok: false, error: 'Unsupported connection action.' }); return; }
           saveConnections(root, data, payload.revision);
           json(res, 200, { ok: true, connection: data.connections[index] || null, revision: data.revision });
-        } catch (error) { json(res, error.status || 400, { ok: false, error: redactConnectionSecrets(error.message) }); }
+        } catch (error) { json(res, error.status || 400, { ok: false, error: redactConnectionSecrets(error.message, payload?.token) }); }
         return;
       }
       if (url.pathname === "/api/intake/sources" && ["GET", "POST"].includes(req.method)) {
@@ -1686,7 +1703,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           }
           const intake = readManagerConfig(root).intake || {};
           await currentAzureToken();
-          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [], token_present: Boolean(githubUiToken || process.env.GITHUB_TOKEN), credential_source: githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none" }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(azureUiToken || process.env[intake.azure?.token_env || "AZDO_PAT"]), remember_supported: process.platform === "win32", credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : process.env[intake.azure?.token_env || "AZDO_PAT"] ? "environment" : "none" } } });
+          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [], token_present: Boolean(githubUiToken || process.env.GITHUB_TOKEN), credential_source: githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none" }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(azureUiToken || process.env[intake.azure?.token_env || "AZDO_PAT"]), remember_supported: await dpapiSupported(), credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : process.env[intake.azure?.token_env || "AZDO_PAT"] ? "environment" : "none" } } });
         } catch (error) { json(res, 400, { ok: false, error: error.message }); }
         return;
       }
@@ -1704,6 +1721,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             const token = String(payload.token || "").trim();
             if (!token || token.length > 4096 || /[\r\n]/.test(token)) throw new Error("Enter a valid Azure PAT.");
             if (!cfg.org_url || !cfg.project) throw new Error('Save the Azure collection and project first.');
+            if (payload.remember === true && !(await dpapiSupported())) throw new Error('Windows credential protection is unavailable here — save without "Remember securely" to keep the credential for this session.');
             if (payload.remember === true) await saveAzureConnection(cfg, token);
             else forgetAzureConnection(cfg);
             azureUiToken = token; azureRemembered = payload.remember === true;
