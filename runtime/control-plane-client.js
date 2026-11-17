@@ -2588,13 +2588,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (!response.ok || !result.ok) throw new Error(result.error || `command failed (${response.status})`);
     return result;
   }
-  // A dropped server must read as a stopped runtime, not as a bare browser
-  // fetch error (#32).
-  function readableRequestError(error) {
-    return /failed to fetch|networkerror|load failed/i.test(String(error?.message))
-      ? new Error("ATL server is unreachable — it may have stopped. Restart it with: atl ui (or Retry in the header).")
-      : error;
-  }
   async function refreshRun(renderAfter = true) {
     try { currentRun = await fetch("/api/run", { cache: "no-store" }).then((response) => response.json()); } catch { /* snapshot health reports connection loss */ }
     refreshTaskDetail();
@@ -2664,8 +2657,12 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       await apiCommand(command);
       await refresh(false); page = after; render();
     } catch (error) {
-      const readable = readableRequestError(error);
-      popup("Action failed", `<p class="red">${escapeHtml(readable.message)}</p>`, btn("Close", "close"));
+      // A dropped server must read as a stopped runtime, not as a bare
+      // browser fetch error (#32).
+      const message = /failed to fetch|networkerror|load failed/i.test(String(error?.message))
+        ? "ATL server is unreachable — it may have stopped. Restart it with: atl ui (or Retry in the header)."
+        : error.message;
+      popup("Action failed", `<p class="red">${escapeHtml(message)}</p>`, btn("Close", "close"));
     }
   }
   async function assistantRead(scope) {

@@ -34,8 +34,8 @@ try {
     assert.equal((await fetch(started.url+'api/resource-policy').then(r=>r.json())).policy.models[2].tier,'advanced');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Settings fit the viewport; wide route table scrolls internally');
     const artifactDir=path.join(process.cwd(),'.atl-evidence','resource-policy');fs.mkdirSync(artifactDir,{recursive:true});
-    // fullPage captures the entire settings surface; avoid scrolling a form
-    // node that can be replaced by the live settings refresh between saves.
+    // No scrollIntoView here: the 2s snapshot render replaces the DOM and can
+    // detach the located node mid-action; the capture below is fullPage.
     await page.screenshot({path:path.join(artifactDir,`settings-${viewport.width}.png`),fullPage:true});
     await page.locator('[data-action="resource-remove:2"]').click();await page.locator('[data-action="resource-save"]').click();
     await page.getByText('Resource policy saved. New sessions use these limits.',{exact:true}).waitFor();
