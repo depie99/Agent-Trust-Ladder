@@ -1463,6 +1463,236 @@ export async function runPlanProvider(root, intent, { role = "pip", provider, co
   envelope.resource_decision = response.resource_decision || null;
   envelope.generated_via = response.provider ? "provider" : "custom-invoke";
   if (jsonRepair) envelope.json_repair = { ...jsonRepair, at: new Date().toISOString() };
+  // The conversation opens with an honest generation summary so the workspace
+  // transcript reflects how this draft came to be (derived from the artifact,
+  // never invented).
+  envelope.conversation = [{
+    at: new Date().toISOString(),
+    role: "assistant",
+    text: `Drafted ${artifact.task_proposals.length} task card${artifact.task_proposals.length === 1 ? "" : "s"} from your request.`,
+    assumptions_added: (artifact.assumptions || []).slice(0, 4),
+    provider: envelope.provider,
+    model: envelope.model,
+    unresolved_questions: artifact.open_questions.filter((question) => !question.resolved).length,
+  }];
   fs.writeFileSync(draft.artifactPath, JSON.stringify(envelope, null, 2) + "\n");
-  return { ...draft, provider: envelope.provider, model: envelope.model, resource_decision:envelope.resource_decision, role };
+  return { ...draft, conversation: envelope.conversation, provider: envelope.provider, model: envelope.model, resource_decision:envelope.resource_decision, role };
+}
+
+// ---------- conversational refinement ----------
+// A refinement is one bounded model call that proposes a full candidate plan.
+// The saved draft is untouched until the manager applies the candidate, so a
+// refused, timed-out, or malformed response can never corrupt a usable plan.
+// The candidate records the revision it was based on; a manual edit in
+// between makes a later apply stale instead of silently overwriting it.
+
+const CONVERSATION_LIMIT = 200;
+
+// Comparable projection of a task card: the fields a manager would recognize
+// as "this task changed". Revision bookkeeping (revision/revisions/feedback/
+// source/defaults) is deliberately excluded so bookkeeping alone never reads
+// as a change.
+function comparableProposal(proposal) {
+  return JSON.stringify({
+    title: proposal.title,
+    objective: proposal.objective,
+    instructions: proposal.instructions,
+    completion_checks: proposal.completion_checks,
+    deliverables: proposal.deliverables,
+    requirement_ids: proposal.requirement_ids,
+    depends_on: proposal.depends_on,
+    files: proposal.files,
+    verify: proposal.verify,
+    selected_skills: proposal.selected_skills,
+    skill_reasons: proposal.skill_reasons,
+    proposed_worker: proposal.proposed_worker,
+  });
+}
+
+export function candidateChanges(currentArtifact, candidateArtifact) {
+  const current = new Map(normalizeProposals(currentArtifact).map((proposal) => [proposal.id, proposal]));
+  const changes = [];
+  for (const proposal of normalizeProposals(candidateArtifact)) {
+    const before = current.get(proposal.id);
+    if (!before) { changes.push({ kind: "added", id: proposal.id, title: proposal.title }); continue; }
+    if (comparableProposal(before) !== comparableProposal(proposal)) changes.push({ kind: "changed", id: proposal.id, title: proposal.title });
+  }
+  const proposedIds = new Set(normalizeProposals(candidateArtifact).map((proposal) => proposal.id));
+  for (const proposal of normalizeProposals(currentArtifact)) {
+    if (!proposedIds.has(proposal.id)) changes.push({ kind: "removed", id: proposal.id, title: proposal.title });
+  }
+  return changes;
+}
+
+function readEnvelope(dir) {
+  return JSON.parse(fs.readFileSync(path.join(dir, "artifact.json"), "utf8"));
+}
+
+// A refinement records a candidate without bumping the draft revision: the
+// plan itself did not change yet, so reviews, fingerprints, and parallel
+// edits stay valid. Only the conversation and pending_candidate fields move.
+function withEnvelopeUpdate(root, loaded, update) {
+  return withDraftLock(loaded.dir, () => {
+    const envelope = readEnvelope(loaded.dir);
+    const currentRevision = Number(envelope.revision) || 1;
+    if (loaded.revision != null && currentRevision !== loaded.revision) {
+      const stale = new Error("plan draft changed while this action was being prepared; reload and retry");
+      stale.statusCode = 409;
+      throw stale;
+    }
+    update(envelope);
+    writeArtifactEnvelope(path.join(loaded.dir, "artifact.json"), envelope);
+    return loadPlanDraft(root, loaded.id);
+  });
+}
+
+function pushConversation(envelope, entry) {
+  envelope.conversation = [...(envelope.conversation || []), { at: new Date().toISOString(), ...entry }].slice(-CONVERSATION_LIMIT);
+}
+
+export async function refinePlanDraft(root, draft, message, { invoke, confirm = false, provider = null, model = null, role = "planning", taskTarget = null, attachments = [] } = {}) {
+  const prompt = String(message || "").trim();
+  if (!prompt) throw new Error("a refinement message is required");
+  if (!confirm) throw new Error("Plan Studio provider calls require explicit confirmation");
+  if (typeof invoke !== "function") throw new Error("Plan Studio needs a provider invoke function");
+  const loaded = loadEditableDraft(root, draft);
+  const artifact = normalizePlanContract(loaded.artifact, loaded.intent);
+  const repoRoot = resolvePlanRepository(root, loaded).repoRoot;
+  const request = {
+    schema: PLAN_SCHEMA_VERSION,
+    task: "Revise the existing ATL plan draft according to the manager's latest message.",
+    intent: loaded.intent,
+    message: prompt,
+    task_target: taskTarget || null,
+    current_artifact: artifact,
+    saved_answers: artifact.clarifications || [],
+    manual_edits: normalizeProposals(artifact).filter((proposal) => proposal.source === "manager-edit").map((proposal) => ({ id: proposal.id, revision: proposal.revision, title: proposal.title })),
+    recent_conversation: (loaded.conversation || []).slice(-20),
+    project_evidence: planningEvidence(root, artifact, { repoRoot }),
+    required: ["summary", "artifact"],
+    field_shapes: {
+      observed_evidence: [{ path: "An existing repository-relative file or directory, or an HTTPS source URL", description: "What the supplied evidence establishes", revision: "Required for HTTPS sources; omit for local paths" }],
+      assumptions: ["Unverified claims belong here, not in observed_evidence"],
+      open_questions: [{ id: "q1", question: "Unresolved consequential decision", suggested_answers: ["A grounded candidate answer", "A different grounded candidate"], blocks_approval: true }],
+      completion_checks: ["Non-empty check statement; use strings, not objects"],
+      selected_skills: ["Exact installed skill name"], proposed_worker: "pip",
+      requirements: [{ id: "r1", source: "original intent", text: "Requirement statement" }],
+      acceptance_examples: [{ given: "Context", when: "Action", then: "Observable outcome" }],
+      implementation_steps: [{ step: "Concrete action", files: [], verify: "Existing project verifier" }],
+      task_proposals: [{ id: "p1", title: "Bounded task", objective: "Requested outcome", instructions: "Concrete implementation instructions as a string", files: [], deliverables: ["Concrete output"], requirement_ids: ["r1"], completion_checks: ["Observable outcome"], verify: "Existing project verifier as a string", selected_skills: ["Exact installed skill name"], skill_reasons: { "Exact installed skill name": "Reason for assignment" }, proposed_worker: "pip", depends_on: [] }],
+      verifier_commands: ["Existing project verifier"],
+    },
+    rule: 'Return JSON only: {"summary": "one short paragraph describing what you changed for the manager", "artifact": <the full revised plan>}. The artifact must satisfy Plan Contract v2 in full, exactly like an initial plan. Preserve every unaffected task\'s id, title, and content; change only what the message requires, and when a task_target is supplied restrict changes to that task plus any task it necessarily affects. Carry forward requirements, evidence, assumptions, clarifications, and resolved answers unchanged. Unresolved consequential decisions go in open_questions with 2-4 grounded suggested answers and blocks_approval true. Do not invent commands, paths, project facts, or skills. Do not claim checks passed; do not execute commands or change files.',
+  };
+  const logPath = path.join(loaded.dir, "provider.log");
+  const startedAt = Date.now();
+  const response = await invoke({ root, role, request, logPath });
+  if (!response || response.code !== 0) throw new Error(response?.providerFailure?.reason || `Plan refinement failed (code ${response?.code ?? "unknown"})`);
+  const text = String(response.text || response.output || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  const refused = (messageText) => Object.assign(new Error(messageText), { providerResponse: text, providerLogPath: logPath });
+  let returned;
+  try { returned = parseModelJsonWithTailRepair(text).json; } catch { throw refused("Plan refinement did not return valid JSON"); }
+  const summary = String(returned && typeof returned === "object" && returned.summary || "").trim() || "Proposed changes to the plan.";
+  const rawArtifact = returned && typeof returned === "object" && returned.artifact && typeof returned.artifact === "object" ? returned.artifact : returned;
+  let candidate;
+  try {
+    candidate = normalizePlanContract(normalizeModelEvidence(normalizeModelArtifact(rawArtifact)), loaded.intent);
+    if (candidate.plan_contract_version !== PLAN_CONTRACT_VERSION || !Array.isArray(rawArtifact.task_proposals) || !Array.isArray(rawArtifact.requirements) || !Array.isArray(rawArtifact.observed_evidence) || !Array.isArray(rawArtifact.assumptions) || !Array.isArray(rawArtifact.open_questions)) throw new Error("refinement plan must explicitly satisfy Plan Contract v2");
+    validatePlanArtifact(candidate);
+    validatePlanGrounding(root, candidate, { repoRoot });
+    candidate.task_proposals = normalizeProposals(candidate).map((proposal) => ({ ...proposal, source: "model" }));
+    candidate.task_proposals = normalizePlanContract(candidate, loaded.intent).task_proposals;
+    validatePlanGrounding(root, candidate, { repoRoot });
+    for (const proposal of candidate.task_proposals) {
+      for (const skill of proposal.selected_skills || []) if (!isSkillAvailable(root, skill)) throw new Error(`Refined plan task ${proposal.id} selects unavailable skill ${skill}`);
+    }
+  } catch (error) { throw refused(error.message); }
+  const changes = candidateChanges(artifact, candidate);
+  const assumptionsAdded = (candidate.assumptions || []).filter((item) => !(artifact.assumptions || []).includes(item));
+  return withEnvelopeUpdate(root, loaded, (envelope) => {
+    pushConversation(envelope, { role: "manager", text: prompt, attachments: (Array.isArray(attachments) ? attachments : []).map((item) => String(item.name || item)).filter(Boolean).slice(0, 10) });
+    pushConversation(envelope, {
+      role: "assistant",
+      text: summary,
+      provider: response.provider || provider || null,
+      model: response.model || model || null,
+      elapsed_ms: Date.now() - startedAt,
+      changes,
+      assumptions_added: assumptionsAdded,
+      unresolved_questions: candidate.open_questions.filter((question) => !question.resolved).length,
+    });
+    envelope.pending_candidate = {
+      based_on_revision: Number(envelope.revision) || 1,
+      artifact: candidate,
+      summary,
+      changes,
+      assumptions_added: assumptionsAdded,
+      provider: response.provider || provider || null,
+      model: response.model || model || null,
+      created_at: new Date().toISOString(),
+    };
+  });
+}
+
+// Applying a candidate is a normal artifact mutation: revision bumps, review
+// clears, and the optimistic lock guards the write. The candidate only
+// applies against the revision it was proposed against — a manual edit in
+// between makes it stale, and the manager is told to reload and retry.
+export function applyPlanCandidate(root, draft, { expectedRevision = null } = {}) {
+  const loaded = loadEditableDraft(root, draft);
+  const candidate = loaded.pending_candidate;
+  if (!candidate?.artifact) throw new Error("no pending refinement candidate to apply");
+  const liveRevision = (() => { try { return Number(readEnvelope(loaded.dir).revision) || 1; } catch { return loaded.revision; } })();
+  if (expectedRevision != null && Number(expectedRevision) !== liveRevision) {
+    const stale = new Error(`this proposed change is stale: the plan moved to rev ${liveRevision} while you were reviewing it. Reload the draft and re-check the task cards before applying.`);
+    stale.statusCode = 409;
+    throw stale;
+  }
+  if ((Number(candidate.based_on_revision) || 1) !== liveRevision) {
+    const stale = new Error(`this proposed change is based on rev ${Number(candidate.based_on_revision) || 1}, but the plan is now at rev ${liveRevision} (manual edits or answers landed in between). Reload the draft, review the current task cards, and ask again or discard the stale proposal.`);
+    stale.statusCode = 409;
+    throw stale;
+  }
+  const artifact = JSON.parse(JSON.stringify(candidate.artifact));
+  // Answers given to candidate questions ride into the applied artifact so
+  // normalization keeps them resolved and approval gating sees them.
+  const answered = (artifact.open_questions || []).filter((question) => question.resolved && String(question.answer || "").trim());
+  if (answered.length) {
+    const known = new Set((artifact.clarifications || []).map((entry) => entry.question_id));
+    artifact.clarifications = [...(artifact.clarifications || []), ...answered.filter((question) => !known.has(question.id)).map((question) => ({ question_id: question.id, question: question.question || question.text || question.id, answer: question.answer, answered_at: candidate.created_at || new Date().toISOString() }))];
+  }
+  return persistArtifact(root, loaded, artifact, {
+    pending_candidate: null,
+    last_refinement: { applied_at: new Date().toISOString(), based_on_revision: candidate.based_on_revision, summary: candidate.summary, provider: candidate.provider || null, model: candidate.model || null },
+  });
+}
+
+export function discardPlanCandidate(root, draft) {
+  const loaded = loadEditableDraft(root, draft);
+  if (!loaded.pending_candidate) throw new Error("no pending refinement candidate to discard");
+  return withEnvelopeUpdate(root, loaded, (envelope) => {
+    envelope.pending_candidate = null;
+    pushConversation(envelope, { role: "manager", text: "Discarded the proposed changes." });
+  });
+}
+
+// Candidate questions are answered before the candidate is applied; answers
+// are envelope-only updates, so they never invalidate the revision the
+// candidate is based on and never clear a review of the current plan.
+export function answerCandidateQuestion(root, draft, questionId, answer) {
+  const loaded = loadEditableDraft(root, draft);
+  const text = String(answer || "").trim();
+  if (!text) throw new Error("a clarification answer is required");
+  if (!loaded.pending_candidate?.artifact) throw new Error("no pending refinement candidate holds this question");
+  return withEnvelopeUpdate(root, loaded, (envelope) => {
+    const pending = envelope.pending_candidate;
+    const questions = Array.isArray(pending.artifact.open_questions) ? pending.artifact.open_questions : [];
+    const index = questions.findIndex((item, i) => String(item.id || `q${i + 1}`) === String(questionId));
+    if (index < 0) throw new Error(`open question ${questionId} not found in the pending candidate`);
+    const prior = questions[index];
+    const id = String(prior.id || `q${index + 1}`);
+    questions[index] = typeof prior === "string" ? { id, question: prior, resolved: true, answer: text } : { ...prior, id, resolved: true, answer: text };
+    pending.artifact.clarifications = [...(pending.artifact.clarifications || []), { question_id: id, question: typeof prior === "string" ? prior : prior.question || prior.text || id, answer: text, answered_at: new Date().toISOString() }];
+    pushConversation(envelope, { role: "manager", text, question_id: id });
+  });
 }

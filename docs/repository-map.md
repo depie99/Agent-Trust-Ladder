@@ -259,7 +259,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/harness-catalog.mjs](../runtime/lib/harness-catalog.mjs) | Connection profiles only; worker-provider capability is a separate contract. |
 | [runtime/lib/history.mjs](../runtime/lib/history.mjs) | history.mjs — the unified chat-history viewer for the agent CLIs on this machine. |
 | [runtime/lib/intake.mjs](../runtime/lib/intake.mjs) | Intake adapters: local bullet files, GitHub issues, Azure Boards work items. |
-| [runtime/lib/issue-connections.mjs](../runtime/lib/issue-connections.mjs) | issue connections: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/issue-connections.mjs](../runtime/lib/issue-connections.mjs) | Locks carry their holder's pid so a crashed writer's lock is reclaimed |
 | [runtime/lib/jev.mjs](../runtime/lib/jev.mjs) | Optional Jev decision helper. ATL stays dependency-free and deterministic by default. |
 | [runtime/lib/jira-mcp.mjs](../runtime/lib/jira-mcp.mjs) | jira mcp: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/launch.mjs](../runtime/lib/launch.mjs) | Bounded launch engine for the interactive task control room (spec 014). |
@@ -713,6 +713,8 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_studio_api_test.mjs](../verification/plan_studio_api_test.mjs) | Executable regression check for plan studio api. |
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
 | [verification/plan_studio_journey_test.mjs](../verification/plan_studio_journey_test.mjs) | Executable regression check for plan studio journey. |
+| [verification/plan_studio_refine_api_test.mjs](../verification/plan_studio_refine_api_test.mjs) | Executable regression check for plan studio refine api. |
+| [verification/plan_studio_refine_test.mjs](../verification/plan_studio_refine_test.mjs) | Executable regression check for plan studio refine. |
 | [verification/plan_studio_test.mjs](../verification/plan_studio_test.mjs) | Executable regression check for plan studio. |
 | [verification/planning_model_selection_test.mjs](../verification/planning_model_selection_test.mjs) | Executable regression check for planning model selection. |
 | [verification/plugin_bundle_test.mjs](../verification/plugin_bundle_test.mjs) | Executable regression check for plugin bundle. |

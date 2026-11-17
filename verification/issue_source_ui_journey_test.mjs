@@ -13,11 +13,13 @@ saveState(root, emptyState());
 const ghToken = process.env.GITHUB_TOKEN;delete process.env.GITHUB_TOKEN; // deterministic GitHub credential readiness
 let server, browser;
 let azureTokenSeen = null;
+let azureMode = 'ok';
 let githubUiCredential = null;
 try {
   const running = await startControlPlaneServer(root, { intakeAdapters: {
     github: async (cfg, options = {}) => { githubUiCredential = options?.token ?? null; return [{ title: `Issue in ${cfg.repos[0]}`, objective_hint: 'Fix the issue', completion_checks: [], priority: 'normal', risk: 'normal', labels: [], source: { type: 'github', repo: cfg.repos[0], remote_id: 17, revision: 'g1' }, intake_key: `github:${cfg.repos[0]}:17` }]; },
-    azure: async (_cfg, options = {}) => { azureTokenSeen = options.token || null; return []; },
+    jira: async cfg => [{ title: 'Jira intake bug', objective_hint: 'Fix the intake flow', completion_checks: [], priority: 'high', risk: 'normal', labels: [], source: { type: 'jira', remote_id: 'IT-42', revision: 'j1' }, intake_key: `jira:${(cfg.projects || []).join('+')}:IT-42` }],
+    azure: async (_cfg, options = {}) => { azureTokenSeen = options.token || null; if (azureMode === 'auth') throw new Error(`401 Unauthorized: provider rejected token ${options.token || '(none)'}`); if (azureMode === 'net') throw new Error('socket hang up'); return []; },
   } });
   server = running.server;
   browser = await chromium.launch({ headless: true });
@@ -60,7 +62,9 @@ try {
   await azureCard.locator('[data-action^="sources-credential:"]').click();
   await page.locator('#sourceConnectionPat').fill('synthetic-azure-pat');
   await page.locator('[data-action^="sources-credential-save:"]').click();
-  await page.getByText('Azure credential saved. Check access to verify it.').waitFor();
+  // With "remember" checked, the server encrypts through a PowerShell DPAPI
+  // roundtrip; on a cold CI runner that spawn can outlast the 10s default.
+  await page.getByText('Azure credential saved. Check access to verify it.').waitFor({ timeout: 30000 });
   assert.equal(await page.locator('.source-connection-card').count(), 3);
   const azureBrowse = page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }).locator('[data-action^="sources-browse:"]');
   await azureBrowse.click();
@@ -132,7 +136,68 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.locator('body').evaluate(node => node.scrollWidth <= node.clientWidth + 2), 'sources fit mobile viewport');
   await page.screenshot({ path: path.join(evidenceDir, 'saved-connections-mobile.png'), fullPage: true });
-  console.log('PASS: saved source cards, blank add form, multiple GitHub connections, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, preview/import provenance, reload and mobile');
+  // Jira lifecycle: provider-specific form → card → browse → import provenance.
+  await page.locator('[data-action="sources-add"]').click();
+  await page.locator('[data-action="sources-form-provider:jira"]').click();
+  await page.locator('#sourceFormName').fill('Ops Jira');
+  await page.locator('#sourceFormUrl').fill('https://jira.example.com');
+  await page.locator('#sourceFormProjects').fill('it');
+  await page.locator('[data-action^="sources-form-save:"]').click();
+  await page.getByText(/Ops Jira.*saved successfully/).waitFor();
+  assert.equal(await page.locator('.source-connection-card').count(), 4);
+  await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('[data-action^="sources-browse:"]').click();
+  await page.locator('[data-action="sources-preview-selected"]').click();
+  await page.getByText('1 issue(s) found. No task was created.').waitFor();
+  await page.locator('[data-action="sources-import"]').click();
+  await page.getByText(/1 request\(s\) imported for planning/).waitFor();
+  assert.ok(Object.values(loadState(root).tasks).find(item => item.title === 'Jira intake bug')?.source?.connection_id, 'jira import retains connection provenance');
+  // Access status is observed through the provider, never implied by a saved
+  // credential — and adapter errors never echo the token back.
+  await page.locator('.source-connection-card').filter({ hasText: 'Main repository' }).locator('[data-action^="sources-check:"]').click();
+  await page.getByText('Access check complete.').waitFor();
+  await page.locator('.source-connection-card').filter({ hasText: 'Main repository' }).getByText('Access verified').waitFor();
+  azureMode = 'auth';
+  await page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }).locator('[data-action^="sources-check:"]').click();
+  await azureCard.getByText('Needs authentication').waitFor();
+  const azureCardText = await azureCard.innerText();
+  assert.ok(azureCardText.includes('[redacted]'), 'adapter errors are redacted before display');
+  assert.ok(!azureCardText.includes('synthetic-azure-pat'), 'saved token never reaches the page');
+  azureMode = 'ok';
+  // Pause and resume through the overflow menu.
+  await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu summary').click();
+  await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu [data-action^="sources-toggle:"]').click();
+  // textContent concatenates adjacent nodes without separators, so match the
+  // status word directly instead of with word-boundary regexes.
+  await page.waitForFunction(() => [...document.querySelectorAll('.source-connection-card')].some(c => c.textContent.includes('Ops Jira') && c.textContent.includes('Paused')));
+  await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu summary').click();
+  await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu [data-action^="sources-toggle:"]').click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.source-connection-card')].some(c => c.textContent.includes('Ops Jira') && c.textContent.includes('Enabled')));
+  // Double submission is guarded: two clicks in one tick create one connection.
+  await page.locator('[data-action="sources-add"]').click();
+  await page.locator('#sourceFormName').fill('Race Repo');
+  await page.locator('#sourceFormRepo').fill('example/race');
+  await page.evaluate(() => { const button = document.querySelector('[data-action^="sources-form-save:"]'); button.click(); button.click(); });
+  await page.getByText(/Race Repo.*saved successfully/).waitFor();
+  assert.equal(await page.locator('.source-connection-card').count(), 5, 'double submit creates exactly one connection');
+  // Theme tokens: cards follow dark and light instead of a fixed light palette.
+  // The first card is selected (accent border) after reload, so sample another.
+  const themeProbe = () => page.locator('.source-connection-card').filter({ hasText: 'Second repository' }).evaluate(node => { const s = getComputedStyle(node); return { bg: s.backgroundColor, border: s.borderColor }; });
+  await page.evaluate(() => localStorage.setItem('atl-cp-theme', 'dark'));
+  await page.reload();
+  await page.locator('.source-connection-card').first().waitFor();
+  assert.deepEqual(await themeProbe(), { bg: 'rgb(23, 23, 34)', border: 'rgb(38, 38, 58)' }, 'cards render with dark theme tokens');
+  await page.evaluate(() => localStorage.setItem('atl-cp-theme', 'light'));
+  await page.reload();
+  await page.locator('.source-connection-card').first().waitFor();
+  assert.deepEqual(await themeProbe(), { bg: 'rgb(255, 255, 255)', border: 'rgb(222, 221, 235)' }, 'cards render with light theme tokens');
+  // RTL: the Persian locale flips direction and the layout still fits.
+  await page.locator('#localeBtn').click();
+  await page.waitForFunction(() => document.documentElement.dir === 'rtl');
+  assert.equal(await page.locator('.source-connection-grid').evaluate(node => getComputedStyle(node).direction), 'rtl', 'connection grid flips direction');
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.locator('body').evaluate(node => node.scrollWidth <= node.clientWidth + 2), 'sources fit mobile viewport in RTL');
+  await page.screenshot({ path: path.join(evidenceDir, 'saved-connections-rtl-mobile.png'), fullPage: true });
+  console.log('PASS: saved cards, blank add form, GitHub+Jira lifecycles, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, verified/needs-auth states with redaction, pause/resume, double-submit guard, dark/light/RTL rendering, reload and mobile');
 } finally {
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));

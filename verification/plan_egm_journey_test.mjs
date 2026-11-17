@@ -71,9 +71,15 @@ try {
   await page.getByRole("button", { name: "Plan task", exact: true }).click();
   await page.locator("#goal").waitFor();
   await page.locator("#goal").fill("Filter repositories by name. Preserve deletion behavior.");
+  // The planning mode lives in the composer's settings popover in the
+  // conversational split workspace; open it before choosing a mode.
+  await page.locator('.studio-settings > summary').click();
   await page.getByRole("button", { name: "Generate with model", exact: true }).click();
   await page.locator('button[data-action="generate"]').last().click();
   await page.getByText("Model plan ready", { exact: false }).waitFor();  await page.getByText("Model plan ready", { exact: false }).waitFor();
+
+  // The plan opens in the Tasks tab; review controls live in the Review tab.
+  await page.locator('.planpane-tabs [data-action="studio-plantab:review"]').click();
 
   // Pick the deep review depth; the run button stays generic.
   await page.locator("#reviewKindSelect").selectOption("egm");
@@ -87,7 +93,8 @@ try {
   await page.getByText("Changes needed before approval", { exact: false }).waitFor();
   await page.locator(".review-verdict").filter({ hasText: blockedBody.review.verdict }).waitFor();
   await page.getByText("A1 — Strengthen the verifier", { exact: false }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Approve → Plan Queue" }).isDisabled(), true, "a blocked deep review keeps the approve button disabled");
+  const approveButton = page.getByRole("region", { name: "Plan review" }).getByRole("button", { name: "Approve → Plan Queue" });
+  assert.equal(await approveButton.isDisabled(), true, "a blocked deep review keeps the approve button disabled");
   const blockedApprove = await page.evaluate(async (draftId) => { const r = await fetch("/api/plan/approve", { method: "POST", headers: { "content-type": "application/json", "x-atl-csrf": document.querySelector('meta[name="atl-csrf"]')?.content || "" }, credentials: "same-origin", body: JSON.stringify({ draftId }) }); return r.status; }, blockedBody.draft.id);
   assert.equal(blockedApprove, 409, "the server still refuses approval after a blocked deep review");
   assert.equal(Object.values(loadState(root).tasks).filter((task) => task.plan_draft_id).length, 0, "a blocked deep review creates no queue tasks");
@@ -99,7 +106,7 @@ try {
   const passedResponse = await reviewResponse;
   assert.equal(passedResponse.status(), 200, JSON.stringify(await passedResponse.json()).slice(0, 300));
   await page.getByText("Review passed", { exact: false }).first().waitFor();
-  await page.getByRole("button", { name: "Approve → Plan Queue" }).click();
+  await approveButton.click();
   await page.getByText("Plan approved — Plan Queue created").waitFor();
   const tasks = Object.values(loadState(root).tasks).filter((task) => task.plan_draft_id);
   assert.equal(tasks.length, 1, "the passing deep review approves into exactly one queued task");
