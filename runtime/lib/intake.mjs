@@ -177,18 +177,20 @@ async function ghCliList(repo) {
   return JSON.parse(stdout);
 }
 
-async function ghRestList(repo) {
+async function ghRestList(repo, tokenOverride = null) {
   const headers = { "User-Agent": "atl-manager" };
-  const token = process.env.GITHUB_TOKEN;
+  const token = tokenOverride || process.env.GITHUB_TOKEN;
   if (token) headers.Authorization = `Bearer ${token}`;
   let data;
   try {
     data = await requestJson(`https://api.github.com/repos/${repo}/issues?state=open&per_page=50`, { headers });
   } catch (err) {
-    if (/\b404\b/.test(err.message) && !token) {
+    if (/\b404\b/.test(err.message)) {
       throw new IntakeError(
-        `GitHub returned 404 for ${repo}. On an unauthenticated request this usually means the repo is private.\n` +
-        `  Fix: run "gh auth login", or set GITHUB_TOKEN=<token with repo read access>, then re-run intake.`
+        token
+          ? `GitHub returned 404 for ${repo}. Check the owner/name spelling, and that this token has read access to the repository.`
+          : `GitHub returned 404 for ${repo}. On an unauthenticated request this usually means the repo is private.\n` +
+            `  Fix: run "gh auth login", set GITHUB_TOKEN=<token with repo read access>, or connect a token on the Issue sources page, then search again.`
       );
     }
     throw err;
@@ -202,7 +204,7 @@ async function ghRestList(repo) {
     }));
 }
 
-export async function intakeFromGitHub(ghCfg, { cliListImpl = ghCliList, restListImpl = ghRestList } = {}) {
+export async function intakeFromGitHub(ghCfg, { cliListImpl = ghCliList, restListImpl = ghRestList, token = null } = {}) {
   const out = [];
   for (const entry of ghCfg.repos || []) {
     const repo = normalizeGitHubRepo(entry);
@@ -210,7 +212,7 @@ export async function intakeFromGitHub(ghCfg, { cliListImpl = ghCliList, restLis
     try {
       issues = await cliListImpl(repo);
     } catch {
-      issues = await restListImpl(repo); // unauthenticated works for public repos
+      issues = await restListImpl(repo, token); // falls back to GITHUB_TOKEN / session token / anonymous for public repos
     }
     for (const i of issues) {
       const labels = (i.labels || []).map(label => typeof label === "string" ? label : label?.name).filter(Boolean);

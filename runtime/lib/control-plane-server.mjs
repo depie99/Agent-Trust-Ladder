@@ -44,7 +44,7 @@ import { browserAccess, saveBrowserAccess, checkBrowserRuntime } from "./browser
 import { resourcePolicy, resourceView, saveResourcePolicy, taskResourcePreview, routeTask, assertModelAllowed } from "./resource-policy.mjs";
 import {recordExecution,publishPlanningExecution} from './execution-report.mjs';
 import {recordQuotaFailure, quotaStatus} from './provider-quota.mjs';
-import { runIntake, normalizeGitHubRepo, intakeFromAzure } from './intake.mjs';
+import { runIntake, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub } from './intake.mjs';
 import { loadConnections, saveConnections, validateConnection, sameConnection, connectionIdentity } from './issue-connections.mjs';
 import { importCandidates } from './composer.mjs';
 import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
@@ -1099,6 +1099,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   // logs, or API responses.
   let azureUiToken = null;
   let azureTokenIdentity = null, azureLoadedIdentity = null, azureRemembered = false;
+  let githubUiToken = null; // session-scoped token from the UI; GITHUB_TOKEN stays untouched
   async function currentAzureToken() {
     const cfg = readManagerConfig(root).intake?.azure || {}, identity = azureIdentity(cfg);
     if (azureTokenIdentity !== identity) { azureUiToken = null; azureRemembered = false; }
@@ -1568,7 +1569,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const id = parts[4];
           const index = id ? data.connections.findIndex(c => c.id === id) : -1;
           if (id && index < 0) { json(res, 404, { ok: false, error: 'Connection not found.' }); return; }
-          if (req.method === 'GET') { json(res, 200, { ok: true, ...data, connections: data.connections.map(c => ({ ...c, token_present: c.provider === 'github' || Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
+          if (req.method === 'GET') { json(res, 200, { ok: true, ...data, connections: data.connections.map(c => ({ ...c, token_present: c.provider === 'github' ? Boolean(githubUiToken || process.env.GITHUB_TOKEN) : Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
           if (run.status === 'running' || planningRunActive(root)) { json(res, 409, { ok: false, error: 'Wait for the active run before changing issue sources.' }); return; }
           const payload = JSON.parse(await readBody(req) || '{}');
           if (payload.revision !== data.revision) { json(res, 409, { ok: false, error: 'Connections changed. Refresh and try again.' }); return; }
@@ -1639,7 +1640,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             config.intake ||= {};
             config.intake[record.provider] = record.provider === 'github' ? { enabled: true, repos: [record.settings.repo] } : { ...record.settings, enabled: true };
             const token = await connectionAzureToken(record) || (record.provider === 'azure' && record.id === data.defaults.azure ? await currentAzureToken() : null);
-            const adapters = record.provider === 'azure' && token ? { ...seam.intakeAdapters, azure: cfg => seam.intakeAdapters.azure ? seam.intakeAdapters.azure(cfg, { token }) : intakeFromAzure(cfg, { token }) } : seam.intakeAdapters;
+            let adapters = record.provider === 'azure' && token ? { ...seam.intakeAdapters, azure: cfg => seam.intakeAdapters.azure ? seam.intakeAdapters.azure(cfg, { token }) : intakeFromAzure(cfg, { token }) } : seam.intakeAdapters;
+            // The session GitHub token is account-scoped: it authenticates the
+            // access check of every github connection, not one saved location.
+            if (record.provider === 'github' && githubUiToken) adapters = { ...adapters, github: cfg => seam.intakeAdapters.github ? seam.intakeAdapters.github(cfg, { token: githubUiToken }) : intakeFromGitHub(cfg, { token: githubUiToken }) };
             try { await runIntake(config, record.provider, adapters); record.status = 'verified'; record.error = null; }
             catch (error) { const message = redactConnectionSecrets(error.message); record.status = /auth|token|credential|unauthori|forbidden|401|403/i.test(message) ? 'needs-auth' : 'unavailable'; record.error = message.slice(0, 240); }
             record.checked_at = new Date().toISOString();
@@ -1682,7 +1686,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           }
           const intake = readManagerConfig(root).intake || {};
           await currentAzureToken();
-          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [] }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(azureUiToken || process.env[intake.azure?.token_env || "AZDO_PAT"]), remember_supported: process.platform === "win32", credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : process.env[intake.azure?.token_env || "AZDO_PAT"] ? "environment" : "none" } } });
+          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [], token_present: Boolean(githubUiToken || process.env.GITHUB_TOKEN), credential_source: githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none" }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(azureUiToken || process.env[intake.azure?.token_env || "AZDO_PAT"]), remember_supported: process.platform === "win32", credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : process.env[intake.azure?.token_env || "AZDO_PAT"] ? "environment" : "none" } } });
         } catch (error) { json(res, 400, { ok: false, error: error.message }); }
         return;
       }
@@ -1708,6 +1712,27 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           myTasks.resume(); // a reconnect lifts the scheduler's auth pause
           const envToken = process.env[readManagerConfig(root).intake?.azure?.token_env || "AZDO_PAT"];
           json(res, 200, { ok: true, token_present: Boolean(azureUiToken || envToken), remember_supported: process.platform === "win32", credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : envToken ? "environment" : "none" });
+        } catch (error) { json(res, 400, { ok: false, error: error.message }); }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/intake/credentials/github") {
+        // Session-scoped GitHub token entry for private repositories: held in
+        // server memory only — never written to config, state, or disk. The
+        // persistent paths stay "gh auth login" and the GITHUB_TOKEN variable.
+        try {
+          const expectedOrigin = `http://${req.headers.host}`;
+          const ownerCookie = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length);
+          if (req.headers.origin !== expectedOrigin || !validateOwnerSession(root, decodeURIComponent(ownerCookie || ""), String(req.headers["x-atl-csrf"] || ""))) {
+            json(res, 403, { ok: false, error: "GitHub credentials can only be changed from the authenticated ATL UI." }); return;
+          }
+          const payload = JSON.parse(await readBody(req) || "{}");
+          if (payload.action === "disconnect") githubUiToken = null;
+          else {
+            const token = String(payload.token || "").trim();
+            if (!token || token.length > 255 || /[\r\n]/.test(token)) throw new Error("Enter a valid GitHub token.");
+            githubUiToken = token;
+          }
+          json(res, 200, { ok: true, token_present: Boolean(githubUiToken || process.env.GITHUB_TOKEN), credential_source: githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none" });
         } catch (error) { json(res, 400, { ok: false, error: error.message }); }
         return;
       }
@@ -1793,17 +1818,22 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             config.intake = { ...config.intake, azure: cfg };
           }
           const connectionToken = connection ? await connectionAzureToken(connection) : null;
-          const adapters = source === "azure" && connection && connectionToken
+          let adapters = source === "azure" && connection && connectionToken
             ? { ...seam.intakeAdapters, azure: cfg => seam.intakeAdapters.azure ? seam.intakeAdapters.azure(cfg, { token: connectionToken }) : intakeFromAzure(cfg, { token: connectionToken }) }
             : source === "azure" && azureUiToken && (!connection || connection.id === connections.defaults.azure)
             ? { ...seam.intakeAdapters, azure: (cfg) => seam.intakeAdapters.azure ? seam.intakeAdapters.azure(cfg, { token: azureUiToken }) : intakeFromAzure(cfg, { token: azureUiToken }) }
             : seam.intakeAdapters;
+          if (source === "github" && githubUiToken) adapters = { ...adapters, github: (cfg) => seam.intakeAdapters.github ? seam.intakeAdapters.github(cfg, { token: githubUiToken }) : intakeFromGitHub(cfg, { token: githubUiToken }) };
           const results = await runIntake(config, source, adapters);
           const candidates = results.flatMap((entry) => entry.tasks);
           const token = crypto.randomUUID(); intakePreviews.set(token, { source, connection_id: connection?.id || null, connection_identity: connection ? connectionIdentity(connection) : null, candidates, at: Date.now(), selection: { work_item: source === 'azure' ? String(payload.work_item || '') : '', iteration: config.intake[source]?.iteration_path || '', project: config.intake[source]?.project || '' } });
           json(res, 200, { ok: true, token, candidates: candidates.map((item, index) => ({ index, title: item.title, objective_hint: item.objective_hint, source: item.source, priority: item.priority })) });
         } catch (error) {
-          const message = String(error?.message || "Issue search failed");
+          let message = String(error?.message || "Issue search failed");
+          // Never echo a session credential or a saved connection secret back
+          // in an error message.
+          if (azureUiToken) message = message.split(azureUiToken).join("[redacted]");
+          if (githubUiToken) message = message.split(githubUiToken).join("[redacted]");
           json(res, 400, { ok: false, error: redactConnectionSecrets(message) });
         }
         return;
@@ -1880,6 +1910,11 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             for (const item of imported.created) queueAdd(root, item.task.id, { queueId });
           }
           intakePreviews.delete(String(payload.token));
+          // A mutation must be readable immediately (same contract as
+          // /api/command): drop the cached delta frame so a cursor-holding
+          // poller cannot be told "unchanged" across this import — otherwise
+          // a Plan click on the fresh card silently misses the new task.
+          cachedFrame = null;
           json(res, 200, { ok: true, queueId: payload.destination === 'planning' ? null : queueId, added: imported.added, skipped: imported.skipped, taskIds: imported.created.map((item) => item.task.id), record });
         } catch (error) { json(res, 400, { ok: false, error: error.message }); }
         return;
@@ -1937,6 +1972,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           logEvent(state, { task: task.id, actor: "owner", event: "intake_repository_changed", detail: `${previous.map(nameOf).join(", ") || "unassigned"} -> ${targets.map((project) => project.name).join(", ") || "unassigned"}` });
           state.updated_at = new Date().toISOString();
           saveState(root, state, { expectedRevision: state.revision || 0 });
+          cachedFrame = null; // immediate readability, same contract as /api/command
           json(res, 200, { ok: true, taskId: task.id, repositoryIds: targets.map((project) => project.id), repositories: targets.map((project) => ({ id: project.id, name: project.name })), repositoryId: targets[0]?.id || null, repositoryName: targets[0]?.name || null, previousRepositoryId: previous[0] || null, previousRepositoryIds: previous, needsPlan: Boolean(task.plan_review_required) });
         } catch (error) { json(res, error.statusCode || 400, { ok: false, error: error.message }); }
         return;
