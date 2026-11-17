@@ -289,6 +289,9 @@ let queueFilterTouched = false;
   let resourceDraft = null;
   let resourceNotice = '';
   let sourceSettings = null, sourcePreview = null, sourceNotice = "", sourceLoading = false;
+  let sourceConnections = [], sourceConnectionRevision = 0, sourceSelectedId = null;
+  let sourcePreviewSequence = 0;
+  let sourceConnectionNotice = '', sourceConnectionError = '', sourceFormBusy = false;
   let sourceHistory = { history: [], requests: [] };
   // Projects work map: repository → requests/plans/queues/tasks relations
   // (fetched from /api/projects/map, refreshed on page entry and after
@@ -963,10 +966,12 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
   }
 
   async function loadIssueSources() {
-    const [response, historyResponse] = await Promise.all([fetch("/api/intake/sources", { cache: "no-store" }), fetch('/api/intake/history', { cache: 'no-store' })]);
+    const [response, historyResponse, connectionsResponse] = await Promise.all([fetch("/api/intake/sources", { cache: "no-store" }), fetch('/api/intake/history', { cache: 'no-store' }), fetch('/api/intake/connections', { cache: 'no-store', headers: { 'x-atl-csrf': document.querySelector('meta[name="atl-csrf"]')?.content || '' } })]);
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Issue sources unavailable");
     if (historyResponse.ok) sourceHistory = await historyResponse.json();
+    if (!connectionsResponse.ok) { const failure = await connectionsResponse.json().catch(() => ({})); throw new Error(failure.error || 'Connected sources unavailable'); }
+    { const connections = await connectionsResponse.json(); sourceConnections = connections.connections || []; sourceConnectionRevision = connections.revision || 0; if (!sourceConnections.some(c => c.id === sourceSelectedId)) sourceSelectedId = sourceConnections[0]?.id || null; }
     sourceSettings = result.sources; return result;
   }
   async function loadProjectMap() {
@@ -1200,7 +1205,20 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const unassigned = (map.unassigned || []).length ? `<section class="panel space"><div class="paneltitle"><h2>Requests without a repository</h2><span class="pill amber">${map.unassigned.length}</span></div><p class="sub" style="margin:0;padding:0 15px 10px">Imported requests that affect no registered repository yet. Assign them so planning inspects the right codebase.</p><div class="pad">${unassignedRows}</div></section>` : "";
     return `${unassigned}<div class="grid two" style="align-items:start">${cards || `<div class="pad muted">No repositories with active work — register one, plan imported requests, or assign a task to an idle repository below.</div>`}</div>${idleStrip}<p class="muted tiny space">A request affecting several repositories gets one plan and one queue per repository, all linked back to the same request. Plans are never moved between repositories.</p>`;
   }
+  function issueSourcesPanelV2() {
+    const selected = sourceConnections.find(c => c.id === sourceSelectedId) || null;
+    const candidates = sourcePreview?.candidates || [];
+    const providerName = { github: 'GitHub', jira: 'Jira', azure: 'Azure Boards' };
+    const location = c => c.provider === 'github' ? c.settings.repo : c.provider === 'jira' ? `${c.settings.base_url} · ${c.settings.projects.join(', ')}` : `${c.settings.org_url} · ${c.settings.project}`;
+    const cards = sourceConnections.map(c => `<article class="source-connection-card ${c.id === sourceSelectedId ? 'is-selected' : ''}"><div class="source-connection-heading"><span class="source-icon source-${c.provider}">${{ github: 'GH', jira: 'JR', azure: 'AZ' }[c.provider]}</span><div><h3>${escapeHtml(c.name)}</h3><span class="muted tiny">${providerName[c.provider]}</span></div><span class="source-status ${c.status === 'verified' ? 'is-enabled' : ''}">${escapeHtml(c.status === 'needs-auth' ? 'Needs authentication' : c.status === 'verified' ? 'Access verified' : c.status === 'unavailable' ? 'Unavailable' : 'Access not checked')}</span></div><p class="source-connection-location" dir="auto">${escapeHtml(location(c))}</p><p class="muted tiny">${c.enabled ? 'Enabled' : 'Paused'}${c.checked_at ? ` · Checked ${escapeHtml(new Date(c.checked_at).toLocaleString())}` : ''}${c.error ? ` · ${escapeHtml(c.error)}` : ''}</p><div class="source-actions">${btn('Browse issues', `sources-browse:${c.id}`, 'primary sm')}${btn('Check access', `sources-check:${c.id}`, 'sm')}${c.provider === 'azure' ? btn(c.token_present ? 'Replace PAT' : 'Connect PAT', `sources-credential:${c.id}`, 'sm') : ''}<details class="source-card-menu"><summary aria-label="More actions for ${escapeHtml(c.name)}">⋮</summary><div>${btn('Edit connection', `sources-edit:${c.id}`, 'sm ghost')}${btn(c.enabled ? 'Pause connection' : 'Enable connection', `sources-toggle:${c.id}`, 'sm ghost')}${btn('Remove connection', `sources-delete:${c.id}`, 'sm ghost')}</div></details></div></article>`).join('');
+    const rows = candidates.map(item => { const source = item.source?.type || sourcePreview?.source || selected?.provider; const key = item.source?.remote_id == null ? 'Issue' : String(item.source.remote_id); return `<tr data-preview-source="${escapeHtml(source)}" data-preview-search="${escapeHtml([item.title,key,item.objective_hint].filter(Boolean).join(' ').toLowerCase())}"><td><input type="checkbox" data-source-index="${item.index}" aria-label="Select ${escapeHtml(item.title)}" checked></td><td>${escapeHtml(key)}</td><td class="source-issue-copy"><b dir="auto">${escapeHtml(item.title)}</b><span dir="auto">${escapeHtml(item.source?.repo || item.objective_hint || '')}</span></td><td>${escapeHtml(item.priority || 'Issue')}</td><td>${btn('Import', 'sources-import-one:' + item.index, 'sm')}</td></tr>`; }).join('');
+    return `<div class="issue-sources source-v2">${head('WORKSPACE / ISSUE SOURCES', 'Issue sources', 'Connect saved sources, verify access, browse issues, and import selected requests for planning.', btn('Check all access', 'sources-check-all') + btn('+ Add source', 'sources-add', 'primary'))}
+      ${sourceConnectionNotice ? `<div class="source-notice source-connection-notice" role="status"><span>${escapeHtml(sourceConnectionNotice)}</span>${btn('Dismiss', 'sources-dismiss-notice', 'sm ghost')}</div>` : ''}
+      <section class="panel source-workbench"><div class="paneltitle"><div><h2>Connected sources <span class="pill blue">${sourceConnections.length} connections</span></h2><p class="muted tiny">Saved names and locations appear here. New source forms start empty.</p></div></div><div class="source-connection-grid">${cards || '<p class="muted">No sources connected yet. Add a source to begin.</p>'}</div></section>
+      <section class="panel source-workbench"><div class="paneltitle"><div><h2>Browse issues</h2><p class="muted tiny">Select a connection, preview matching issues, and import requests for planning.</p></div></div><div class="source-browse-controls"><label class="source-field"><span class="label">Connection</span><select class="input" id="sourceConnectionSelect"><option value="">Choose a connection</option>${sourceConnections.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === sourceSelectedId ? 'selected' : ''}>${escapeHtml(c.name)} · ${providerName[c.provider]}</option>`).join('')}</select></label>${selected?.provider === 'azure' ? `<label class="source-field"><span class="label">Sprint</span><input class="input" id="sourceAzureSearchIteration" list="sourceAzureSprintList" placeholder="Sprint 74"><datalist id="sourceAzureSprintList">${azureIterations.map(it => `<option value="${escapeHtml(it.path)}">${escapeHtml(it.name)}</option>`).join('')}</datalist></label><label class="source-field"><span class="label">Work item</span><input class="input" id="sourceAzureWorkItem" placeholder="Number or link"></label>${btn('Load sprints', 'sources-azure-sprints', 'sm')}` : ''}${btn('Preview issues', 'sources-preview-selected', 'primary')}</div>${sourceNotice ? `<p class="source-notice" role="status">${escapeHtml(sourceNotice)}</p>` : ''}<div class="source-toolbar"><input id="sourceSearch" class="input" type="search" aria-label="Filter previewed issues" placeholder="Filter previewed issues"><div class="source-repo-pills" role="group" aria-label="Affected repositories">${(snapshot.supervisor?.projects || []).map(p => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(p.id)}"><span>${escapeHtml(p.name)}</span></label>`).join('')}</div>${btn(`Import selected issues (${candidates.length})`, 'sources-import', 'primary')}</div><div class="source-table-scroll"><table class="source-table"><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? 'checked' : 'disabled'}></th><th>Key</th><th>Issue</th><th>Priority</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div><p class="source-empty" ${candidates.length ? 'hidden' : ''}>${candidates.length ? 'No issues match this filter.' : 'Choose a connected source and preview issues here.'}</p></section>${sourceHistoryPanel()}</div>`;
+  }
   function issueSourcesPanel() {
+    return issueSourcesPanelV2();
     if (sourceLoading) return '<section class="panel pad" role="status"><span class="running-mark" aria-hidden="true"></span><span class="muted">Loading issue source settings…</span></section>';
     const github = { ...sourceSettings?.github, enabled: sourceDraft.sourceGithubEnabled ?? sourceSettings?.github?.enabled }, jira = { ...sourceSettings?.jira, enabled: sourceDraft.sourceJiraEnabled ?? sourceSettings?.jira?.enabled }, azure = { ...sourceSettings?.azure, enabled: sourceDraft.sourceAzureEnabled ?? sourceSettings?.azure?.enabled };
     const azurePatEditing = sourceDraft.sourceAzurePatEditing === true;
@@ -2014,6 +2032,13 @@ operations: () => {
   }
   function popup(title, body, actions = "") { detailExecution = null; showModal(title, body, actions); }
   function popupWide(title, body, actions = "", dialogClass = "") { showModal(title, body, actions, `dialog-wide ${dialogClass}`); }
+  function sourceConnectionForm(connection = null, provider = 'github', error = '') {
+    const settings = connection?.settings || {};
+    const field = (id, label, value = '', placeholder = '') => `<label class="source-field"><span class="label">${label}</span><input class="input" id="${id}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" required></label>`;
+    const providerTabs = ['github', 'jira', 'azure'].map(p => `<button class="btn ${p === provider ? 'primary' : ''}" type="button" data-action="sources-form-provider:${p}" ${connection ? 'disabled' : ''}>${{github:'GitHub',jira:'Jira',azure:'Azure Boards'}[p]}</button>`).join('');
+    const body = `<p class="sub">Create a saved connection to browse and import issues.</p><div class="source-provider-tabs" role="group" aria-label="Provider">${providerTabs}</div>${field('sourceFormName', 'Connection name', connection?.name || '', 'e.g., Platform Backlog')}${provider === 'github' ? field('sourceFormRepo', 'Repository URL or owner/repository', settings.repo || '', 'owner/repository') : provider === 'jira' ? field('sourceFormUrl', 'Jira base URL (HTTPS)', settings.base_url || '', 'https://jira.example.com') + field('sourceFormProjects', 'Project keys', settings.projects?.join(', ') || '', 'IT, IS') + field('sourceFormToken', 'Token environment variable', settings.token_env || 'JIRA_TOKEN') : field('sourceFormUrl', 'Azure collection URL (HTTPS)', settings.org_url || '', 'https://dev.azure.com/organization') + field('sourceFormProject', 'Project', settings.project || '') + field('sourceFormIteration', 'Default sprint (optional)', settings.iteration_path || '') + field('sourceFormToken', 'Token environment variable', settings.token_env || 'AZDO_PAT')}<p class="source-hint">Credentials stay on the server. Saved values appear in connection cards and editors.</p><p id="sourceFormError" class="source-form-error" role="alert">${escapeHtml(error)}</p>`;
+    popup(connection ? 'Edit source' : 'Add source', body, btn('Cancel', 'close') + `<button class="btn primary" type="button" data-action="sources-form-save:${provider}:${connection?.id || ''}" ${sourceFormBusy ? 'disabled' : ''}>${sourceFormBusy ? 'Saving…' : 'Save connection'}</button>`);
+  }
   function enhanceCurrentProviderModal() {
     // Save connection is intentionally disabled until an existing field changes.
     const current = document.querySelector(".provider-current");
@@ -3120,6 +3145,66 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value.startsWith("source-remove-confirm:")) { const id = value.slice(22); close(); try { await apiCommand(`task archive ${id} --note "imported request removed from Issue sources"`); await refresh(false); await loadIssueSources(); sourceNotice = `${id} removed from imported requests.`; } catch (error) { sourceNotice = `Could not remove ${id}: ${error.message}`; } render(); return; }
     if (value === "source-history-clear") return popup("Clear import history?", "<p>Hides every import record up to now. Imported requests and their tasks stay as they are.</p>", btn("Cancel", "close") + btn("Clear history", "source-history-clear-confirm", "danger"));
     if (value === "source-history-clear-confirm") { close(); try { const response = await fetch("/api/intake/history/clear", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "clear failed"); await loadIssueSources(); sourceNotice = "Import history cleared."; } catch (error) { sourceNotice = `Could not clear history: ${error.message}`; } render(); return; }
+    if (value === 'sources-add') { sourceConnectionForm(); return; }
+    if (value === 'sources-dismiss-notice') { sourceConnectionNotice = ''; render(); return; }
+    if (value.startsWith('sources-form-provider:')) { sourceConnectionForm(null, value.slice(22)); return; }
+    if (value.startsWith('sources-edit:')) { const c = sourceConnections.find(item => item.id === value.slice(13)); if (c) sourceConnectionForm(c, c.provider); return; }
+    if (value.startsWith('sources-credential:')) {
+      const c = sourceConnections.find(item => item.id === value.slice(19)); if (!c) return;
+      popup(`Azure access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a PAT with Work Items: Read access. The token is sent only to this local server.</p><label class="source-field"><span class="label">Personal access token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste PAT"></label>${navigator.platform?.startsWith('Win') ? '<label class="source-enable"><input id="sourceConnectionRemember" type="checkbox" checked> Remember securely on this Windows account</label>' : '<p class="source-hint">Session credential; reconnect after restarting the server.</p>'}<p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
+      return;
+    }
+    if (value.startsWith('sources-credential-save:') || value.startsWith('sources-credential-disconnect:')) {
+      const disconnect = value.startsWith('sources-credential-disconnect:');
+      const id = value.slice(disconnect ? 30 : 24);
+      const button = document.querySelector(`.dialogfoot [data-action="${CSS.escape(value)}"]`);
+      if (button?.disabled) return;
+      if (button) button.disabled = true;
+      try {
+        const response = await fetch(`/api/intake/connections/${encodeURIComponent(id)}/credential`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ revision: sourceConnectionRevision, action: disconnect ? 'disconnect' : 'connect', token: disconnect ? '' : $('#sourceConnectionPat')?.value, remember: Boolean($('#sourceConnectionRemember')?.checked) }) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Credential could not be saved');
+        close(); await loadIssueSources(); sourceConnectionNotice = disconnect ? 'Azure credential disconnected.' : 'Azure credential saved. Check access to verify it.'; render();
+      } catch (error) { const node = $('#sourceCredentialError'); if (node) node.textContent = error.message; if (button) button.disabled = false; }
+      return;
+    }
+    if (value.startsWith('sources-form-save:')) {
+      if (sourceFormBusy) return;
+      const [, provider, id] = value.split(':');
+      const payload = { provider, name: $('#sourceFormName')?.value.trim(), repo: $('#sourceFormRepo')?.value.trim(), projects: $('#sourceFormProjects')?.value.trim(), project: $('#sourceFormProject')?.value.trim(), iteration_path: $('#sourceFormIteration')?.value.trim(), token_env: $('#sourceFormToken')?.value.trim(), revision: sourceConnectionRevision };
+      if (provider === 'jira') payload.base_url = $('#sourceFormUrl')?.value.trim();
+      if (provider === 'azure') payload.org_url = $('#sourceFormUrl')?.value.trim();
+      const errorNode = $('#sourceFormError'), button = document.querySelector('.dialogfoot [data-action^="sources-form-save:"]');
+      sourceFormBusy = true; if (button) { button.disabled = true; button.textContent = 'Saving…'; } if (errorNode) errorNode.textContent = '';
+      try {
+        const response = await fetch(id ? `/api/intake/connections/${encodeURIComponent(id)}` : '/api/intake/connections', { method: id ? 'PATCH' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not save connection');
+        close(); await loadIssueSources(); sourceSelectedId = result.connection.id; sourcePreview = null; sourceConnectionNotice = `“${result.connection.name}” saved successfully and is available in Connected sources.`; render();
+      } catch (error) { if (errorNode) errorNode.textContent = error.message; if (button) { button.disabled = false; button.textContent = 'Save connection'; } }
+      finally { sourceFormBusy = false; } return;
+    }
+    if (value.startsWith('sources-browse:')) { sourcePreviewSequence++; sourceSelectedId = value.slice(15); sourcePreview = null; sourceNotice = ''; render(); document.querySelector('#sourceConnectionSelect')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+    if (value.startsWith('sources-toggle:') || value.startsWith('sources-delete:') || value.startsWith('sources-check:') || value === 'sources-check-all') {
+      const op = value.split(':')[0];
+      const targets = value === 'sources-check-all' ? sourceConnections.filter(c => c.enabled) : [sourceConnections.find(c => c.id === value.split(':')[1])].filter(Boolean);
+      for (const c of targets) {
+        try {
+          let method = 'POST', suffix = '/check', body = { revision: sourceConnectionRevision };
+          if (op === 'sources-toggle') { method = 'PATCH'; suffix = ''; body = { ...c.settings, name: c.name, enabled: !c.enabled, revision: sourceConnectionRevision }; }
+          if (op === 'sources-delete') { if (!confirm(`Remove “${c.name}”? Imported requests stay available.`)) return; method = 'DELETE'; suffix = ''; }
+          const response = await fetch(`/api/intake/connections/${encodeURIComponent(c.id)}${suffix}`, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+          const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Connection action failed');
+          sourceConnectionRevision = result.revision; sourceConnectionNotice = op === 'sources-check' || value === 'sources-check-all' ? 'Access check complete.' : op === 'sources-delete' ? 'Connection removed.' : 'Connection updated.';
+        } catch (error) { sourceConnectionNotice = error.message; break; }
+      }
+      await loadIssueSources(); sourcePreview = null; render(); return;
+    }
+    if (value === 'sources-preview-selected') {
+      const c = sourceConnections.find(item => item.id === sourceSelectedId);
+      if (!c) { sourceNotice = 'Choose a connection first.'; render(); return; }
+      const sequence = ++sourcePreviewSequence;
+      try { const response = await fetch('/api/intake/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ connection_id: c.id, work_item: $('#sourceAzureWorkItem')?.value.trim(), iteration_path: $('#sourceAzureSearchIteration')?.value.trim() }) }); const result = await response.json(); if (sequence !== sourcePreviewSequence || sourceSelectedId !== c.id) return; if (!response.ok) throw new Error(result.error || 'Issue preview failed'); sourcePreview = { ...result, source: c.provider }; sourceNotice = `${result.candidates.length} issue(s) found. No task was created.`; }
+      catch (error) { if (sequence !== sourcePreviewSequence) return; sourcePreview = null; sourceNotice = error.message; } render(); return;
+    }
     if (value === "sources-readiness" || value === "sources-load") { try { await loadIssueSources(); sourceNotice = value === "sources-readiness" ? "Server token availability refreshed. Find issues to verify source access." : "Source settings refreshed."; } catch (error) { sourceNotice = error.message; } render(); return; }
     if (value === "sources-azure-pat-edit") {
       sourceDraft.sourceAzurePatEditing = true;
@@ -4015,9 +4100,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.id === "overlay") close();
   }, true);
   document.addEventListener("input", (event) => {
+    if (event.target.id === 'sourceConnectionSelect') { sourcePreviewSequence++; sourceSelectedId = event.target.value || null; sourcePreview = null; sourceNotice = ''; render(); return; }
     if (event.target.matches?.("[data-repo-select]") && event.target.isConnected) { const taskId = event.target.dataset.repoSelect; if (taskId) currentAssign.set(taskId, event.target.value); }
     if (event.target.matches?.("[data-import-repository]")) { if (event.target.checked) sourceImportRepos.add(event.target.value); else sourceImportRepos.delete(event.target.value); }
-    if (event.target.id?.startsWith('source') && event.target.id !== 'sourceAzurePat'
+    if (!event.target.closest('#modal') && event.target.id?.startsWith('source') && event.target.id !== 'sourceAzurePat'
       && event.target.id !== 'sourceAzureWorkItem' && event.target.id !== 'sourceAzureSearchIteration') {
       sourceDraft[event.target.id] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
       try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
