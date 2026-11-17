@@ -10,11 +10,15 @@ export class ChangeReviewError extends Error {
 }
 export function safePath(base, relative) {
   if (typeof relative !== "string" || !relative || /[\\\x00-\x1f]/.test(relative) || path.posix.isAbsolute(relative) || /^[A-Za-z]:/.test(relative) || relative.split("/").some((part) => !part || part === "." || part === "..")) throw new ChangeReviewError("unsafe_path", "Unsafe record path");
-  const resolved = path.resolve(base, ...relative.split("/"));
-  // Check the entire ancestor chain, including the store itself (Windows junctions too).
-  for (let cursor = resolved; ; cursor = path.dirname(cursor)) {
+  // Canonicalize the store base once: system-level links above the store
+  // (macOS /var -> /private/var) are not escapes and would otherwise make
+  // every tmpdir-backed store unreadable on macOS. Everything below the
+  // canonical store must still be symlink-free, junctions included.
+  let store;
+  try { store = fs.realpathSync(base); } catch { store = path.resolve(base); }
+  const resolved = path.resolve(store, ...relative.split("/"));
+  for (let cursor = resolved; cursor !== store; cursor = path.dirname(cursor)) {
     if (fs.lstatSync(cursor, { throwIfNoEntry: false })?.isSymbolicLink()) throw new ChangeReviewError("unsafe_path", "Symlinked inspection path is unavailable");
-    if (path.dirname(cursor) === cursor) break;
   }
   return resolved;
 }
