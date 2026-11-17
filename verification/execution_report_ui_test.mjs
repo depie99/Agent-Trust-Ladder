@@ -31,7 +31,9 @@ try {
     const row=page.locator(`[data-task="${task.id}"]`);await row.waitFor();
     await row.getByText('350 reported tokens',{exact:false}).waitFor();
     await row.locator('.task-title-text').click();
-    const report=page.locator('#modal [data-execution-report]');await report.waitFor();
+    const resourcesSummary=page.locator('#taskWorkspace summary',{hasText:'Resources & tokens'});
+    await resourcesSummary.click();
+    const report=page.locator('#taskWorkspace [data-execution-report]');await report.waitFor();
     await report.getByText('1 session(s) without reported token usage.',{exact:false}).waitFor();
     assert.equal(await report.locator('tbody tr').count(),2);
     await report.getByText('Session timeline (2)',{exact:true}).click();

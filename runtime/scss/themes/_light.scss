@@ -36,7 +36,7 @@ $theme: (
   "label-ink": #5f5c82,
   "step-ink": #3f6157,
   "term-ink": #33314d,
-  "kbd-ink": #6f6c92,
+  "kbd-ink": #5e5b80,
   "on-accent": #ffffff,
   // lines
   "border": #deddeb,
@@ -53,12 +53,13 @@ $theme: (
   "avatar-edge": #cfc7f2,
   "notice-edge": #ddb666,
   "plan-edge": #bab8cf,
-  // brand — five status hues, violet accent
+  // brand — five status hues, violet accent. Each clears 4.5:1 on pill,
+  // notice and raised backgrounds (issue #32 color-contrast).
   "accent": #6a4fd6,
   "red": #c23a4a,
-  "amber": #9a6709,
+  "amber": #7d5207,
   "blue": #3565c9,
-  "violet": #7a52e8,
+  "violet": #6a3fd8,
   // effects
   "backdrop": #2a2840b8,
   "dialog-shadow": #23213a66,
@@ -71,7 +72,7 @@ $theme: (
   "focus": #5b3fc9,
   "surface": #ffffff,
   // success family — deep mint for white-ground text contrast
-  "green": #0e8a6d,
+  "green": #0a6e57,
   "green-bg": #e0f2ec,
   "green-edge": #8fcab6,
   "green-fade": #0e8a6d00,
