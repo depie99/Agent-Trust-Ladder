@@ -127,10 +127,10 @@ export function saveState(root, state, { expectedRevision = null } = {}) {
 // writer won the race (issue #31 — concurrent composes must not lose tasks).
 // The mutator must be idempotent enough to re-run; compose/intake are
 // idempotent by content/intake_key.
-export function mutateState(root, mutator, { attempts = 8 } = {}) {
+export function mutateState(root, mutator, { attempts = 64 } = {}) {
   let lastError = null;
   for (let attempt = 0; attempt < attempts; attempt++) {
-    if (attempt) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.floor(10 + Math.random() * 40 * attempt));
+    if (attempt) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.floor(Math.min(250, 10 + Math.random() * 20 * attempt)));
     const state = loadState(root);
     const result = mutator(state);
     try {
