@@ -10,11 +10,7 @@ const run = (args, input = undefined) => {
 const runOptional = (args) => spawnSync("git", args, { encoding: "buffer", maxBuffer: 16 * 1024 * 1024, windowsHide: true });
 const nul = (buffer) => Buffer.from(buffer).toString("utf8").split("\0").filter(Boolean);
 const forbidden = [
-  /(^|\/)\.trust\/manager(?:\/|$)/i,
-  /(^|\/)\.trust\/live-[^/]+/i,
-  /(^|\/)\.trust\/[^/]+-result\.json$/i,
-  /(^|\/)\.trust\/specs\/[^/]+\/evidence(?:\/|$)/i,
-  /(^|\/)\.trust\/browser-[^/]+(?:\/|$)/i,
+  /(^|\/)\.trust(?:\/|$)/i,
   /(^|\/)\.atl(?:\/|$)/i,
   /(^|\/)\.atl-evidence(?:\/|$)/i,
   /(^|\/)\.humanlayer(?:\/|$)/i,

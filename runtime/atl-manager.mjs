@@ -880,9 +880,8 @@ async function main() {
     case "init": {
       const ignoreFile = path.join(ROOT, ".gitignore");
       const runtimeIgnore = [
-        "# ATL local runtime data; do not commit.",
-        "/.trust/manager/", "/.trust/live-*", "/.trust/*-result.json", "/.trust/specs/*/evidence/",
-        "/.trust/browser-*/", "/.atl/", "/.atl-evidence/", "/.humanlayer/", "/.tmp-*/",
+        "# The whole .trust/ folder is local runtime state — never commit or push it.",
+        "/.trust/", "/.atl/", "/.atl-evidence/", "/.humanlayer/", "/.tmp-*/",
         "providers.json", "owner-session.json", ".env", ".env.*", "!.env.template",
       ].join("\n");
       const currentIgnore = fs.existsSync(ignoreFile) ? fs.readFileSync(ignoreFile, "utf8") : "";

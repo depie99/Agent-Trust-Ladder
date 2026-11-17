@@ -1,10 +1,5 @@
-# Local runtime and evidence must never be committed.
-/.trust/manager/
-/.trust/manager.json.*
-/.trust/live-*
-/.trust/*-result.json
-/.trust/specs/*/evidence/
-/.trust/browser-*/
+# The whole .trust/ folder is local runtime state — never commit or push it.
+/.trust/
 /.atl/
 /.atl-evidence/
 /.humanlayer/
