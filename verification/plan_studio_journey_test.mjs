@@ -30,7 +30,7 @@ try {
   await page.goto(started.url); await page.locator('[data-page="tasks"]').first().click();
   await page.locator('[data-action="new"]').first().click(); await page.locator('#fTitle').fill('Search project rooms'); await page.locator('#fDesc').fill('Filter repositories by name. Preserve deletion behavior.');
   await page.getByRole('button',{name:'Create task',exact:true}).click();
-  await page.getByText('Search project rooms',{exact:true}).first().click(); await page.getByRole('button',{name:'Actions',exact:true}).click(); await page.getByRole('button',{name:'Plan task',exact:true}).click();
+  await page.getByText('Search project rooms',{exact:true}).first().click(); await page.getByRole('button',{name:'More actions',exact:true}).click(); await page.getByRole('button',{name:'Plan task',exact:true}).click();
   assert.match(await page.locator('#goal').inputValue(),/Filter repositories by name/);
   await page.getByRole('button',{name:'Generate with model',exact:true}).click();
   assert.match(await page.locator('#goal').inputValue(),/Filter repositories by name/, 'objective survives rerender');
@@ -38,9 +38,9 @@ try {
   await page.getByText('Model plan ready', {exact:false}).waitFor();
   assert.equal(calls,1); assert.match(requested.intent,/Preserve deletion behavior/);
   assert.equal(Object.keys(loadState(root).tasks).length,2,'generation does not create tasks');
-  assert.equal(await page.getByText('Accuracy review required', {exact:false}).count(),1);
-  await page.getByRole('button',{name:'Run accuracy review'}).click();
-  await page.getByText('Accuracy review: passed',{exact:false}).waitFor();
+  assert.equal(await page.getByText('Ready for review', {exact:false}).count(),1);
+  await page.getByRole('button',{name:'Run review'}).click();
+  await page.getByText('Review passed',{exact:false}).first().waitFor();
   const approvalRequest = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === '/api/plan/approve');
   await page.getByRole('button',{name:'Approve → Plan Queue'}).click();
   await page.getByText('Plan approved — Plan Queue created').waitFor();
@@ -50,9 +50,10 @@ try {
   assert.notEqual(generated[0].status,'in_progress');
   await page.getByRole('button',{name:'Close',exact:true}).click();
   await page.locator('[data-page="studio"]').first().click();
-  const answers = ["github", "acme/demo"];
-  page.on('dialog', async dialog => { await dialog.accept(answers.shift()); });
   await page.getByRole('button',{name:'Publish to GitHub/Azure'}).click();
+  await page.locator('#publishDestination').selectOption('github');
+  await page.locator('#publishRepository').fill('acme/demo');
+  await page.getByRole('button',{name:'Preview changes',exact:true}).click();
   await page.getByText('Review remote task changes',{exact:true}).waitFor();
   assert.equal(publishWrites,0,'the publish preview performs no writes');
   await page.getByRole('button',{name:'Publish tasks',exact:true}).click();
