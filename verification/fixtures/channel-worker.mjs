@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const [id, role] = process.argv.slice(2);
 if (process.env.ATL_WORKER_CREDENTIAL) throw new Error("Manager mutation credential leaked into worker environment");
-const call = (...args) => run(process.execPath, ["--permission", "--allow-fs-read=*", `--allow-fs-write=${process.cwd()}`, process.env.ATL_BIN, ...args], { env: process.env, windowsHide: true });
+const call = (...args) => run(process.execPath, ["--permission", "--allow-child-process", "--allow-fs-read=*", `--allow-fs-write=${process.cwd()}`, process.env.ATL_BIN, ...args], { env: process.env, windowsHide: true });
 await call("show", id);
 if (role === "rowan") {
   await call("move", id, "in_progress");
