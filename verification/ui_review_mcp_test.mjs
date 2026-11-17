@@ -43,7 +43,7 @@ try {
   });
   const request = (method, params = {}) => new Promise((resolve, reject) => {
     const id = ++seq;
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`MCP timeout: ${method}: ${diagnostic}`)); }, 20000);
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`MCP timeout: ${method}: ${diagnostic}`)); }, 30000);
     pending.set(id, (response) => { clearTimeout(timer); response.error ? reject(new Error(response.error.message)) : resolve(response.result); });
     child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
   });

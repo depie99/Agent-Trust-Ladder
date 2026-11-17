@@ -10,10 +10,17 @@ export class ChangeReviewError extends Error {
 }
 export function safePath(base, relative) {
   if (typeof relative !== "string" || !relative || /[\\\x00-\x1f]/.test(relative) || path.posix.isAbsolute(relative) || /^[A-Za-z]:/.test(relative) || relative.split("/").some((part) => !part || part === "." || part === "..")) throw new ChangeReviewError("unsafe_path", "Unsafe record path");
-  const resolved = path.resolve(base, ...relative.split("/"));
-  // Check the entire ancestor chain, including the store itself (Windows junctions too).
+  // Canonicalize the trust boundary first. Ambient ancestors such as macOS
+  // /tmp or /var may themselves be symlinked; only links inside the project
+  // boundary can redirect this read outside the selected workspace.
+  const boundary = fs.realpathSync(base);
+  const resolved = path.resolve(boundary, ...relative.split("/"));
+  const within = path.relative(boundary, resolved);
+  if (!within || within === ".." || within.startsWith(`..${path.sep}`) || path.isAbsolute(within)) throw new ChangeReviewError("unsafe_path", "Inspection path must be inside the selected workspace");
+  // Check each descendant through the store itself (Windows junctions too).
   for (let cursor = resolved; ; cursor = path.dirname(cursor)) {
     if (fs.lstatSync(cursor, { throwIfNoEntry: false })?.isSymbolicLink()) throw new ChangeReviewError("unsafe_path", "Symlinked inspection path is unavailable");
+    if (cursor === boundary) break;
     if (path.dirname(cursor) === cursor) break;
   }
   return resolved;

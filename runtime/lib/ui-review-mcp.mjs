@@ -93,7 +93,10 @@ export function createBrowserTools(root, workspace) {
       safePath(workspace, ".atl-evidence/ui-review");
       fs.mkdirSync(runtime.evidenceDir, { recursive: true });
       const stem = path.join(runtime.evidenceDir, `capture-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
-      const bytes = await page.screenshot({ path: `${stem}.png`, fullPage: true });
+      // macOS runners can take longer to settle blocked remote font faces even
+      // though the screenshot is local. Keep the capture bounded, with enough
+      // time for the browser's font readiness check to finish.
+      const bytes = await page.screenshot({ path: `${stem}.png`, fullPage: true, timeout: 15000 });
       if (JSON.stringify(assetHashes()) !== JSON.stringify(assets)) throw new Error("Task assets changed during capture; reload and capture fresh evidence.");
       const evidence = { at: new Date().toISOString(), synthetic: true, url: page.url(), viewport: page.viewportSize(), assets,
         locale: await page.locator("html").evaluate((node) => ({ lang: node.lang, dir: node.dir })),
