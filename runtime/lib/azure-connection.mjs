@@ -15,9 +15,25 @@ export function protect(value, decrypt = false) {
     const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     let output = ''; child.stdout.on('data', data => { output += data; }); child.stderr.resume();
     child.once('error', () => reject(new Error('Windows credential encryption is unavailable.')));
-    child.once('close', code => code === 0 ? resolve(output.trim()) : reject(new Error('Windows could not unlock this Azure connection. Reconnect from the UI.')));
+    // Saving and unlocking fail for different reasons and need different
+    // remedies: a host without usable DPAPI (headless/service contexts) can
+    // still hold session credentials, while a remembered record that no
+    // longer decrypts needs a reconnect.
+    child.once('close', code => code === 0 ? resolve(output.trim()) : reject(new Error(decrypt
+      ? 'Windows could not unlock this Azure connection. Reconnect from the UI.'
+      : 'Windows credential protection is unavailable here — save the credential without "Remember securely" to keep it for this session.')));
     child.stdin.on('error', () => {}); child.stdin.end(value);
   });
+}
+// Some Windows contexts cannot use DPAPI at all (headless CI runners, service
+// sessions): powershell.exe runs but the protect call exits non-zero. The
+// offer to remember a credential must follow real capability, not the platform
+// name, so the server asks once per process and caches the verdict.
+let dpapiProbe = null;
+export async function dpapiSupported() {
+  if (process.platform !== 'win32') return false;
+  dpapiProbe ||= protect('atl-dpapi-availability-probe').then(() => true, () => false);
+  return dpapiProbe;
 }
 export async function saveAzureConnection(cfg, token, { dir = defaultDir() } = {}) {
   if (process.platform !== 'win32') throw new Error('Remembering Azure credentials requires Windows DPAPI on this installation. Use a session connection.');

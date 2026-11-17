@@ -68,6 +68,11 @@ export function createBrowserTools(root, workspace) {
   // A fullPage capture races the app's own re-render cycle: the page keeps
   // invalidating stability checks, so one retry after a capture timeout is
   // expected on loaded hosts rather than a failed evidence run.
+  // Decision (2026-11-17, PR #38 conflict resolution): keep PR #37's
+  // fullPage + one-retry strategy over #38's viewport-only capture. Full-page
+  // evidence lets a model review judge layout composition beyond the fold;
+  // the retry absorbs the re-render race, and reviewers needing a fixed
+  // region set browser_viewport before capturing instead.
   async function captureScreenshot(options) {
     try { return await page.screenshot(options); }
     catch (error) {

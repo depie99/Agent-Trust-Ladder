@@ -6287,10 +6287,14 @@ textarea.input {
   }
 }
 .source-v2 .source-connection-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   margin: 0 0 16px;
-  border: 1px solid #a8ddcb;
-  background: #e9f8f1;
-  color: #075e45;
+  border: 1px solid var(--green-edge);
+  background: var(--green-bg);
+  color: var(--green);
   border-radius: 9px;
   padding: 12px 16px;
 }
@@ -6303,16 +6307,16 @@ textarea.input {
 }
 
 .source-v2 .source-connection-card {
-  border: 1px solid var(--line, #dcddec);
+  border: 1px solid var(--border);
   border-radius: 11px;
   padding: 14px;
-  background: var(--surface, #fff);
+  background: var(--surface);
   min-width: 0;
 }
 
 .source-v2 .source-connection-card.is-selected {
-  border-color: #6c4aec;
-  box-shadow: 0 0 0 2px rgba(108, 74, 236, 0.1254901961);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .source-v2 .source-connection-heading {
@@ -6335,7 +6339,7 @@ textarea.input {
   overflow-wrap: anywhere;
   padding-block: 12px;
   margin: 8px 0;
-  border-block: 1px solid var(--line, #e4e4ed);
+  border-block: 1px solid var(--row-line);
   font-size: 12px;
 }
 
@@ -6354,7 +6358,7 @@ textarea.input {
 .source-v2 .source-card-menu summary {
   cursor: pointer;
   list-style: none;
-  border: 1px solid var(--line, #dcddec);
+  border: 1px solid var(--border);
   border-radius: 7px;
   padding: 7px 11px;
   line-height: 1.2;
@@ -6367,27 +6371,20 @@ textarea.input {
 .source-v2 .source-card-menu > div {
   position: absolute;
   z-index: 5;
-  right: 0;
+  inset-inline-end: 0;
   top: calc(100% + 4px);
   min-width: 170px;
   padding: 5px;
-  border: 1px solid var(--line, #dcddec);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface, white);
-  box-shadow: 0 12px 26px rgba(32, 32, 77, 0.1333333333);
+  background: var(--surface);
+  box-shadow: 0 12px 26px var(--dialog-shadow);
   display: grid;
 }
 
 .source-v2 .source-card-menu button {
   text-align: start;
   justify-content: start;
-}
-
-.source-v2 .source-connection-notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
 
 .source-v2 .source-browse-controls {
@@ -6419,7 +6416,7 @@ textarea.input {
 }
 
 .source-form-error {
-  color: #a21d38;
+  color: var(--red);
   min-height: 1.4em;
   margin: 10px 0 0;
 }
