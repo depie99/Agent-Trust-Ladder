@@ -22,9 +22,9 @@ try {
   `);
   fs.writeFileSync(path.join(installedHome, 'source.json'), JSON.stringify({ source_root: source }));
   const cli = fileURLToPath(new URL('../runtime/atl-manager.mjs', import.meta.url));
-  const output = execFileSync(process.execPath, [cli, 'ui'], { cwd: root, env: { ...process.env, ATL_PROJECT: root, ATL_HOME: installedHome, ATL_NO_OPEN: '1' }, encoding: 'utf8', timeout: 15000, windowsHide: true });
+  const output = execFileSync(process.execPath, [cli, 'ui'], { cwd: root, env: { ...process.env, ATL_PROJECT: root, ATL_INSTALL_DIR: installedHome, ATL_NO_OPEN: '1' }, encoding: 'utf8', timeout: 15000, windowsHide: true });
   assert.match(output, /MATCHING_PROJECT_SERVER/);
-  const legacy = spawnSync(process.execPath, [cli, 'ui-refresh'], { cwd: root, env: { ...process.env, ATL_PROJECT: root, ATL_HOME: installedHome, ATL_NO_OPEN: '1' }, encoding: 'utf8', timeout: 15000, windowsHide: true });
+  const legacy = spawnSync(process.execPath, [cli, 'ui-refresh'], { cwd: root, env: { ...process.env, ATL_PROJECT: root, ATL_INSTALL_DIR: installedHome, ATL_NO_OPEN: '1' }, encoding: 'utf8', timeout: 15000, windowsHide: true });
   assert.notEqual(legacy.status, 0);
   assert.match(legacy.stderr, /ui-refresh was removed\. Use `atl ui`/);
   console.log('PASS: ui loads matching project assets and the legacy refresh command directs users to ui');

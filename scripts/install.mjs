@@ -3,7 +3,7 @@
 //
 //   node scripts/install.mjs            install + wire user PATH (Windows auto, POSIX prints export line)
 //   node scripts/install.mjs --no-path  install only, do not touch PATH
-//   ATL_HOME=D:\tools\atl ...           install somewhere else
+//   ATL_INSTALL_DIR=D:\tools\atl ...     install somewhere else
 //
 // After installing: open a NEW terminal in any project and run `atl init`.
 // Uninstall: delete ~/.atl and remove it from your PATH.
@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const home = process.env.ATL_HOME ? path.resolve(process.env.ATL_HOME) : path.join(os.homedir(), ".atl");
+const installDir = process.env.ATL_INSTALL_DIR ? path.resolve(process.env.ATL_INSTALL_DIR) : path.join(os.homedir(), ".atl");
 const noPath = process.argv.includes("--no-path");
 const isWin = process.platform === "win32";
 
@@ -29,38 +29,42 @@ if (Number(process.versions.node.split(".")[0]) < 18) {
 }
 
 // 1. copy the runtime
-fs.rmSync(path.join(home, "runtime"), { recursive: true, force: true });
-fs.cpSync(path.join(repo, "runtime"), path.join(home, "runtime"), { recursive: true });
-fs.writeFileSync(path.join(home, "source.json"), JSON.stringify({ source_root: repo }, null, 2) + "\n");
-fs.rmSync(path.join(home, "skills"), { recursive: true, force: true });
-fs.cpSync(path.join(repo, "skills"), path.join(home, "skills"), { recursive: true });
-fs.mkdirSync(path.join(home, "config"), { recursive: true });
+fs.rmSync(path.join(installDir, "runtime"), { recursive: true, force: true });
+fs.cpSync(path.join(repo, "runtime"), path.join(installDir, "runtime"), { recursive: true });
+const packageManifest = JSON.parse(fs.readFileSync(path.join(repo, "package.json"), "utf8"));
+fs.copyFileSync(path.join(repo, "package.json"), path.join(installDir, "package.json"));
+let sourceCommit = null;
+try { sourceCommit = execFileSync("git", ["-C", repo, "rev-parse", "--short", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { /* source may be an exported archive */ }
+fs.writeFileSync(path.join(installDir, "source.json"), JSON.stringify({ source_root: repo, version: packageManifest.version, commit: sourceCommit }, null, 2) + "\n");
+fs.rmSync(path.join(installDir, "skills"), { recursive: true, force: true });
+fs.cpSync(path.join(repo, "skills"), path.join(installDir, "skills"), { recursive: true });
+fs.mkdirSync(path.join(installDir, "config"), { recursive: true });
 for (const file of ["skill-routing.json", "manager-state-contract.json", "jev.json"]) {
   const source = path.join(repo, "config", file);
-  if (fs.existsSync(source)) fs.copyFileSync(source, path.join(home, "config", file));
+  if (fs.existsSync(source)) fs.copyFileSync(source, path.join(installDir, "config", file));
 }
 
 // 2. write the `atl` shim (absolute path baked in)
-fs.mkdirSync(home, { recursive: true });
-const script = path.join(home, "runtime", "atl-manager.mjs");
+fs.mkdirSync(installDir, { recursive: true });
+const script = path.join(installDir, "runtime", "atl-manager.mjs");
 if (isWin) {
   fs.writeFileSync(
-    path.join(home, "atl.cmd"),
-    `@echo off\r\nset "ATL_HOME=${home}"\r\nnode "${script}" %*\r\n`
+    path.join(installDir, "atl.cmd"),
+    `@echo off\r\nset "ATL_INSTALL_DIR=${installDir}"\r\nnode "${script}" %*\r\n`
   );
   fs.writeFileSync(
-    path.join(home, "atl.ps1"),
-    `$env:ATL_HOME='${home.replace(/'/g, "''")}'; node "${script.replace(/'/g, "''")}" @args\r\n`
+    path.join(installDir, "atl.ps1"),
+    `$env:ATL_INSTALL_DIR='${installDir.replace(/'/g, "''")}'; node "${script.replace(/'/g, "''")}" @args\r\n`
   );
 } else {
-  const shim = path.join(home, "atl");
-  fs.writeFileSync(shim, `#!/bin/sh\nexec node "${script}" "$@"\n`);
+  const shim = path.join(installDir, "atl");
+  fs.writeFileSync(shim, `#!/bin/sh\nexport ATL_INSTALL_DIR='${installDir.replace(/'/g, "'\\''")}'\nexec node "${script}" "$@"\n`);
   fs.chmodSync(shim, 0o755);
 }
 
 // 3. wire the role prompts into agent harnesses that support slash prompts
 //    (auto-detected; nothing is written for harnesses that are not installed)
-const promptSrc = path.join(home, "runtime", "prompts");
+const promptSrc = path.join(installDir, "runtime", "prompts");
 const roles = ["mira", "pip", "rowan", "sage", "beacon"];
 const harnesses = [
   { name: "Codex CLI", root: path.join(os.homedir(), ".codex"), dir: "prompts" },
@@ -78,7 +82,7 @@ for (const h of harnesses) {
 // 4. PATH
 let pathNote;
 if (noPath) {
-  pathNote = `PATH untouched (--no-path). Add ${home} to your PATH to use: atl`;
+  pathNote = `PATH untouched (--no-path). Add ${installDir} to your PATH to use: atl`;
 } else if (isWin) {
   try {
     // The directory travels as an env var: single-quoted PowerShell strings do
@@ -91,21 +95,21 @@ if (noPath) {
         `if($d.Length -gt 0 -and $p -notlike '*'+$d+'*'){` +
         `[Environment]::SetEnvironmentVariable('Path', ($p.TrimEnd(';') + ';' + $d), 'User'); 'ADDED'}` +
         `else{'PRESENT'}`],
-      { stdio: "pipe", env: { ...process.env, ATL_PATH_DIR: home } }
+        { stdio: "pipe", env: { ...process.env, ATL_PATH_DIR: installDir } }
     );
-    pathNote = `Added ${home} to your user PATH. Open a NEW terminal, then: atl`;
+    pathNote = `Added ${installDir} to your user PATH. Open a NEW terminal, then: atl`;
   } catch {
-    pathNote = `Could not update PATH automatically. Add ${home} to your user PATH manually.`;
+    pathNote = `Could not update PATH automatically. Add ${installDir} to your user PATH manually.`;
   }
 } else {
-  pathNote = `Add to your shell rc, then restart the shell:  export PATH="$HOME/.atl:$PATH"`;
+  pathNote = `Add to your shell rc, then restart the shell:  export PATH="${installDir}:$PATH"`;
 }
 
 console.log(`Installed the ATL digital team.
-  CLI:     ${path.join(home, isWin ? "atl.cmd" : "atl")}
-  runtime: ${path.join(home, "runtime")}
-  skills:  ${path.join(home, "skills")}
-  prompts: ${path.join(home, "runtime", "prompts")}  (paste-ready role prompts for any agent CLI)
+  CLI:     ${path.join(installDir, isWin ? "atl.cmd" : "atl")}
+  runtime: ${path.join(installDir, "runtime")}
+  skills:  ${path.join(installDir, "skills")}
+  prompts: ${path.join(installDir, "runtime", "prompts")}  (paste-ready role prompts for any agent CLI)
 ${packs.length ? "\nSlash commands wired:\n  " + packs.join("\n  ") + "\n" : ""}
 ${pathNote}
 
@@ -121,4 +125,4 @@ Grok CLI, Cursor, ...) in the project and paste the matching prompt from
 runtime/prompts (mira, pip, rowan, sage, beacon). Or drive them yourself —
 every command takes --actor and the runner enforces the role contracts.
 
-Docs: ${path.join(home, "runtime", "README.md")}`);
+Docs: ${path.join(installDir, "runtime", "README.md")}`);
