@@ -7,6 +7,16 @@ import { reconcileLeases } from "./leases.mjs";
 const home = () => process.env.ATL_HOME || path.join(process.env.HOME || process.env.USERPROFILE || ".", ".atl");
 const file = () => path.join(home(), "supervisor.json");
 const read = () => { try { return JSON.parse(fs.readFileSync(file(), "utf8")); } catch { return { version: 1, revision: 0, defaults: { maxConcurrent: 2, maxConcurrentCap: 5 }, projects: [], audit: [] }; } };
+// Only remove a lock whose recorded owner is this process: a stolen lock path
+// must never be deleted out from under its new owner. No `return` in a
+// caller's finally — a helper cannot swallow an exception from fn().
+function releaseLock(lock) {
+  try {
+    const owner = JSON.parse(fs.readFileSync(lock, "utf8"));
+    if (owner.pid !== process.pid) return;
+  } catch { return; }
+  fs.rmSync(lock, { force: true });
+}
 function withLock(fn) {
   fs.mkdirSync(home(), { recursive: true });
   const lock = `${file()}.lock`;
@@ -24,12 +34,7 @@ function withLock(fn) {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
     }
   }
-  try { return fn(); }
-  finally {
-    fs.closeSync(fd);
-    try { const owner = JSON.parse(fs.readFileSync(lock, "utf8")); if (owner.pid !== process.pid) return; } catch { return; }
-    fs.rmSync(lock, { force: true });
-  }
+  try { return fn(); } finally { fs.closeSync(fd); releaseLock(lock); }
 }
 const write = (data) => { fs.mkdirSync(path.dirname(file()), { recursive: true }); data.revision++; const tmp = `${file()}.${process.pid}.${crypto.randomUUID()}.tmp`; try { fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n", { mode: 0o600, flag: "wx" }); for (let attempt = 0; ; attempt++) { try { fs.renameSync(tmp, file()); break; } catch (error) { if (error.code !== "EPERM" || attempt >= 6) throw error; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15 * (attempt + 1)); } } } finally { fs.rmSync(tmp, { force: true }); } return data; };
 export function registerProject(root, { id = null, name = null, maxConcurrent = 1, allowExisting = false } = {}) {
