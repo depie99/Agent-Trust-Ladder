@@ -1,0 +1,9 @@
+{
+  "frames": ["minimal", "contracts", "failure", "developer", "inversion"],
+  "ideas": 3,
+  "top": 2,
+  "concurrency": 3,
+  "timeout": 180,
+  "model": null,
+  "critic_model": null
+}
