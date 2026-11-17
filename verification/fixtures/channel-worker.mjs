@@ -12,9 +12,13 @@ const [id, role] = process.argv.slice(2);
 const cwdReal = fs.realpathSync(process.cwd());
 const projectReal = fs.realpathSync(process.env.ATL_PROJECT || path.join(cwdReal, ".."));
 let step = 0;
+// Allow both the raw and the canonical forms: Node's permission check compares
+// the path as opened, and the channel client writes through the unresolved
+// /var/... paths it was handed while macOS stores them under /private/var.
+const writeAllows = [...new Set([process.cwd(), cwdReal, process.env.ATL_PROJECT, projectReal].filter(Boolean))];
 const call = async (...args) => {
   step++;
-  try { return await run(process.execPath, ["--permission", "--allow-fs-read=*", `--allow-fs-write=${cwdReal}`, `--allow-fs-write=${projectReal}`, process.env.ATL_BIN, ...args], { env: process.env, windowsHide: true }); }
+  try { return await run(process.execPath, ["--permission", "--allow-fs-read=*", ...writeAllows.map((dir) => `--allow-fs-write=${dir}`), process.env.ATL_BIN, ...args], { env: process.env, windowsHide: true }); }
   catch (error) {
     // The parent fixture is not permission-sandboxed: persist the child's
     // streams so a platform-specific denial is diagnosable from CI logs.
