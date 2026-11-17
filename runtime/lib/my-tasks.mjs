@@ -167,6 +167,7 @@ export function saveMyTasksSettings(root, patch, { writeRaw = null } = {}) {
   }
   if (patch?.projects !== undefined && !Array.isArray(patch.projects)) throw new Error("Selected projects must be a list of project names.");
   if (patch?.startup_mode !== undefined && !["runtime", "windows"].includes(patch.startup_mode)) throw new Error("Startup mode must be runtime or windows.");
+  if (patch?.startup_mode === "windows" && process.platform !== "win32") throw new Error("Starting My Tasks at login is currently supported on Windows only.");
   const write = writeRaw || ((target, value) => {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(`${target}.tmp`, JSON.stringify(value, null, 2) + "\n");

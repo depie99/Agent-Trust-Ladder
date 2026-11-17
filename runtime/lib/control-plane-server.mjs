@@ -74,16 +74,10 @@ function startBuiltinOperation(id, action, config) {
     args = id === "claude" ? ["auth", "login", "--claudeai"] : ["login"];
   } else if (action === "install") {
     if (id === "gapgpt") {
-      if (process.platform === "win32") {
-        command = "powershell.exe";
-        args = ["-NoProfile", "-NonInteractive", "-Command", "& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://gapgpt.app/install.ps1').Content))"];
-      } else {
-        command = "sh";
-        args = ["-c", "curl -fsSL https://gapgpt.app/install.sh | sh"];
-      }
+      throw new Error("GapGPT installation is unavailable until the provider publishes a versioned installer with a verifiable checksum. Install it using the provider's documented release process.");
     } else {
       command = process.platform === "win32" ? "npm.cmd" : "npm";
-      args = ["install", "--global", id === "codex" ? "@openai/codex" : "@anthropic-ai/claude-code"];
+      args = ["install", "--global", `${id === "codex" ? "@openai/codex" : "@anthropic-ai/claude-code"}@${id === "codex" ? "0.169.0" : "2.1.326"}`];
     }
   } else throw new Error("Unknown provider operation");
   const operation = { action, status: "running", message: action === "login" ? "Opening sign-in. Complete the provider's sign-in in your browser." : "Installing provider…", url: null };
@@ -179,7 +173,14 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE), embed
   // them here; the standalone file keeps its mock banner.
   bodyText = bodyText
     .replace("<span>● Interactive mock · No provider calls, skill execution or real ATL actions</span>", `<span>● Live · connected to ${escapeText(path.basename(root))}</span>`)
-    .replace('<span class="pill hotkey">INTERACTIVE DEMO</span>', '<span class="pill hotkey">LIVE</span>');
+    .replace('<span class="pill hotkey">INTERACTIVE DEMO</span>', '<span class="pill hotkey">LIVE</span>')
+    // The sidebar workspace card describes the served project, not the demo
+    // checkout (#32): every surface that reads it (plugin chip included) must
+    // show the real workspace.
+    .replace('<div class="workspace"><div class="row between"><strong>agent-trust-ladder</strong><span class="green">●</span></div><div class="muted tiny">main · control-plane / demo</div></div>', `<div class="workspace"><div class="row between"><strong>${escapeText(path.basename(root))}</strong><span class="green">●</span></div><div class="muted tiny">${escapeText(root)}</div></div>`);
+  // A browser surface opened by the plugin (valid panel capability) presents
+  // the compact plugin layout, exactly like the in-panel app does (#33).
+  if (embedded) bodyText = bodyText.replace('<html lang="en">', '<html lang="en" data-atl-context="plugin">');
   const session = ensureOwnerSession(root);
   bodyText = bodyText.replace("</head>", `<meta name="atl-csrf" content="${escapeText(session.csrf)}"></head>`);
   const body = Buffer.from(bodyText, "utf8");
@@ -904,6 +905,10 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
     }
     if (req.method === "POST" && path === "/api/my-tasks/settings") {
       const payload = JSON.parse(await readBody(req) || "{}");
+      if (payload.startup_mode === "windows" && process.platform !== "win32") {
+        json(res, 400, { ok: false, error: "Starting My Tasks at login is currently supported on Windows only. Choose runtime startup instead." });
+        return;
+      }
       const previousSettings = myTasks.settings();
       const wasPaused = Boolean(myTasks.status().paused);
       const saved = myTasks.saveSettings({
