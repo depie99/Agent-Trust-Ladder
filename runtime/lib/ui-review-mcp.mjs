@@ -66,12 +66,19 @@ export function createBrowserTools(root, workspace) {
     }
   }
   async function inspect(selector) {
-    return withRenderRaceRetry(() => page.locator(selector).evaluateAll((nodes) => nodes.slice(0, 100).map((node) => {
+    const evaluate = () => withRenderRaceRetry(() => page.locator(selector).evaluateAll((nodes) => nodes.slice(0, 100).map((node) => {
       const style = getComputedStyle(node); const rect = node.getBoundingClientRect();
       return { text: node.textContent, html: node.outerHTML, direction: style.direction, unicodeBidi: style.unicodeBidi, fontFamily: style.fontFamily,
         bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         fragments: [...node.querySelectorAll("bdi,[dir]")].map((fragment) => ({ text: fragment.textContent, direction: getComputedStyle(fragment).direction, unicodeBidi: getComputedStyle(fragment).unicodeBidi })) };
     })));
+    // A just-clicked control (locale switch, queue filter) re-renders the list
+    // asynchronously; one settle retry keeps an empty mid-render match from
+    // being reported as the page's actual state.
+    const nodes = await evaluate();
+    if (nodes.length) return nodes;
+    await page.waitForTimeout(350);
+    return evaluate();
   }
   async function call(name, args = {}) {
     const tool = browserTools.find((item) => item.name === name);
