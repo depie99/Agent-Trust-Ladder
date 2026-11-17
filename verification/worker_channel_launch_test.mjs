@@ -17,8 +17,9 @@ for (const mode of ["direct", "queue"]) {
     fs.mkdirSync(path.join(root, "config")); fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ providers: { default: "fixture", catalog: { fixture: provider } } }));
     if (mode === "direct") {
       const budget = { sessions: 0, maxSessions: 4, deadline: Date.now() + 60000 };
-      const result = await driveTaskUntilGate(root, task.id, budget, { overnight: true, worker: "fixture", resolveWorker: () => ({ worker: "fixture", provider, auth: "subscription" }), onProgress: () => {} });
-      assert.equal(result.status, "done", result.reason); assert.equal(budget.sessions, 3);
+      let workerLog = "";
+      const result = await driveTaskUntilGate(root, task.id, budget, { overnight: true, worker: "fixture", resolveWorker: () => ({ worker: "fixture", provider, auth: "subscription" }), onProgress: () => {}, onSession: (summary) => { workerLog = fs.readFileSync(summary.logPath, "utf8"); } });
+      assert.equal(result.status, "done", `${result.reason}\n${workerLog}`); assert.equal(budget.sessions, 3);
     } else {
       const result = await executeLaunchQueue(root, { taskIds: [task.id], confirm: true, maxSessions: 4, maxMinutes: 1, onProgress: () => {} });
       assert.equal(result.results[0].status, "done", JSON.stringify(result.results)); assert.equal(result.budget.sessions, 3);
