@@ -11,22 +11,30 @@ const fixture = fileURLToPath(new URL("./fixtures/channel-worker.mjs", import.me
 // Surface the session transcript when a stage fails: the runner records the
 // provider output under overnight/, and CI otherwise reports only "code 1".
 function sessionTail(root) {
+  const parts = [];
   try {
     const dir = path.join(root, ".trust", "manager", "overnight");
-    const transcripts = fs.existsSync(dir)
-      ? fs.readdirSync(dir).flatMap((task) => fs.readdirSync(path.join(dir, task)).map((f) => path.join(dir, task, f))).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)
-      : [];
-    const captures = (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const taskDir = path.join(dir, entry.name);
+      for (const file of fs.readdirSync(taskDir)) {
+        if (file.endsWith(".log")) parts.push(`--- ${file}\n` + fs.readFileSync(path.join(taskDir, file), "utf8").slice(-1400));
+      }
+    }
+  } catch { /* transcripts unavailable */ }
+  try {
+    const walk = (dir) => {
       const out = [];
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const file = path.join(dir, entry.name);
         if (entry.isDirectory() && entry.name !== "node_modules" && entry.name !== ".git") out.push(...walk(file));
-        else if (entry.name.startsWith("worker-error-") || entry.name.startsWith("worker-fatal-")) out.push(file);
+        else if (entry.name.startsWith("worker-error-") || entry.name.startsWith("worker-fatal-")) out.push(`--- ${entry.name}\n` + fs.readFileSync(file, "utf8").slice(0, 2000));
       }
       return out;
-    })(root);
-    return [...transcripts.map((f) => fs.readFileSync(f, "utf8").slice(-1200)), ...captures.map((f) => fs.readFileSync(f, "utf8").slice(0, 2000))].join("\n=====\n") || "(no session log)";
-  } catch { return "(no session log)"; }
+    };
+    parts.push(...walk(root));
+  } catch { /* captures unavailable */ }
+  return parts.join("\n=====\n") || "(no session log)";
 }
 for (const mode of ["direct", "queue"]) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `atl-channel-${mode}-`));
