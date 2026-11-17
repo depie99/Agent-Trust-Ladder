@@ -1463,8 +1463,20 @@ export async function runPlanProvider(root, intent, { role = "pip", provider, co
   envelope.resource_decision = response.resource_decision || null;
   envelope.generated_via = response.provider ? "provider" : "custom-invoke";
   if (jsonRepair) envelope.json_repair = { ...jsonRepair, at: new Date().toISOString() };
+  // The conversation opens with an honest generation summary so the workspace
+  // transcript reflects how this draft came to be (derived from the artifact,
+  // never invented).
+  envelope.conversation = [{
+    at: new Date().toISOString(),
+    role: "assistant",
+    text: `Drafted ${artifact.task_proposals.length} task card${artifact.task_proposals.length === 1 ? "" : "s"} from your request.`,
+    assumptions_added: (artifact.assumptions || []).slice(0, 4),
+    provider: envelope.provider,
+    model: envelope.model,
+    unresolved_questions: artifact.open_questions.filter((question) => !question.resolved).length,
+  }];
   fs.writeFileSync(draft.artifactPath, JSON.stringify(envelope, null, 2) + "\n");
-  return { ...draft, provider: envelope.provider, model: envelope.model, resource_decision:envelope.resource_decision, role };
+  return { ...draft, conversation: envelope.conversation, provider: envelope.provider, model: envelope.model, resource_decision:envelope.resource_decision, role };
 }
 
 // ---------- conversational refinement ----------
@@ -1596,6 +1608,7 @@ export async function refinePlanDraft(root, draft, message, { invoke, confirm = 
     }
   } catch (error) { throw refused(error.message); }
   const changes = candidateChanges(artifact, candidate);
+  const assumptionsAdded = (candidate.assumptions || []).filter((item) => !(artifact.assumptions || []).includes(item));
   return withEnvelopeUpdate(root, loaded, (envelope) => {
     pushConversation(envelope, { role: "manager", text: prompt, attachments: (Array.isArray(attachments) ? attachments : []).map((item) => String(item.name || item)).filter(Boolean).slice(0, 10) });
     pushConversation(envelope, {
@@ -1605,6 +1618,7 @@ export async function refinePlanDraft(root, draft, message, { invoke, confirm = 
       model: response.model || model || null,
       elapsed_ms: Date.now() - startedAt,
       changes,
+      assumptions_added: assumptionsAdded,
       unresolved_questions: candidate.open_questions.filter((question) => !question.resolved).length,
     });
     envelope.pending_candidate = {
@@ -1612,6 +1626,7 @@ export async function refinePlanDraft(root, draft, message, { invoke, confirm = 
       artifact: candidate,
       summary,
       changes,
+      assumptions_added: assumptionsAdded,
       provider: response.provider || provider || null,
       model: response.model || model || null,
       created_at: new Date().toISOString(),
