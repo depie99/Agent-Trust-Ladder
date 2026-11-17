@@ -21,7 +21,7 @@ function sessionTail(root) {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const file = path.join(dir, entry.name);
         if (entry.isDirectory() && entry.name !== "node_modules" && entry.name !== ".git") out.push(...walk(file));
-        else if (entry.name.startsWith("worker-error-")) out.push(file);
+        else if (entry.name.startsWith("worker-error-") || entry.name.startsWith("worker-fatal-")) out.push(file);
       }
       return out;
     })(root);
