@@ -118,7 +118,7 @@ async function renderBoard(ctx, host) {
   const body = await response.json();
   const tasks = Object.values(body?.snapshot?.tasks || body?.tasks || {});
   const active = tasks.filter((task) => !['done', 'archived', 'rejected'].includes(task.status));
-  const rows = active.map((task) => `<li><b>${task.id}</b> [${task.status}] ${escapeHtml(task.title || '')} — ${task.assigned_worker || 'unassigned'}</li>`).join('');
+  const rows = active.map((task) => `<li><b>${escapeHtml(task.id)}</b> [${escapeHtml(task.status)}] ${escapeHtml(task.title || '')} — ${escapeHtml(task.assigned_worker || 'unassigned')}</li>`).join('');
   const done = tasks.length - active.length;
   return [
     `<div class="atl-board">`,

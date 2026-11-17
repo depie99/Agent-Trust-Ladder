@@ -330,7 +330,10 @@ export async function ensureDaemon(root, { port = null, host = "127.0.0.1", wait
     const child = spawn(process.execPath, [path.join(RUNTIME_DIR, "atl-manager.mjs"), "ui", "--no-open", "--host", host, "--port", String(childPort)], {
       cwd: canonical,
       env: { ...process.env, ATL_PROJECT: canonical, ATL_NO_OPEN: "1", ATL_DAEMON_CHILD: "1" },
-      detached: process.platform !== "win32",
+      // Detached on every platform: the owner must outlive the host process
+      // that started it (a plugin session, a connect assistant, a CLI one-shot
+      // all exit; issue #34). windowsHide keeps the Windows console invisible.
+      detached: true,
       windowsHide: true,
       stdio: "ignore",
     });

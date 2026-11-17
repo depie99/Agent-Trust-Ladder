@@ -30,9 +30,13 @@ export function resolveTaskRef(root, reference, { projectRoot = root } = {}) {
     return { project: null, taskId: raw, task: state.tasks[raw] || null };
   }
   const projects = supervisorSnapshot().projects || [];
-  const target = projects.find((project) => project.id === qualified.qualifier)
-    || projects.filter((project) => project.name === qualified.qualifier).at(0)
-    || null;
+  const byId = projects.find((project) => project.id === qualified.qualifier);
+  let target = byId || null;
+  if (!target) {
+    const byName = projects.filter((project) => project.name === qualified.qualifier);
+    if (byName.length > 1) throw new Error(`project name "${qualified.qualifier}" is ambiguous — use the project id: ${byName.map((project) => project.id).join(", ")}`);
+    target = byName[0] || null;
+  }
   if (!target) {
     throw new Error(`unknown project qualifier "${qualified.qualifier}" — use <project-id>:T-001 from the Projects registry`);
   }

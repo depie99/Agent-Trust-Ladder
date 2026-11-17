@@ -8,6 +8,13 @@ import { spawn, execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { buildPlugins } from '../scripts/build-plugins.mjs';
 
+// Issue #34: daemons stop explicitly through the bundle's own runtime, never
+// by unloading the host session that started them.
+const stopBundleDaemon = async (bundlePath, project) => {
+  const { stopDaemon } = await import(pathToFileURL(path.join(bundlePath, 'runtime', 'lib', 'daemon.mjs')));
+  return stopDaemon(project);
+};
+
 const root = path.resolve(import.meta.dirname, '..');
 const scratchRoot = path.join(root, '.trust', 'plugin-test');
 fs.mkdirSync(scratchRoot, { recursive: true });
@@ -162,10 +169,11 @@ try {
     const ui = await api.tool('atl_control_plane', { project });
     const same = await api.tool('atl_control_plane', { project });
     assert.equal(ui.url, same.url);
+    let otherProject = null, otherUi = null;
     if (bundle.target === 'codex') {
-      const otherProject = path.join(scratch, 'second application'); fs.mkdirSync(otherProject);
+      otherProject = path.join(scratch, 'second application'); fs.mkdirSync(otherProject);
       await finish(api, await api.tool('atl_command', { project: otherProject, args: ['init'] }));
-      const otherUi = await api.tool('atl_control_plane', { project: otherProject });
+      otherUi = await api.tool('atl_control_plane', { project: otherProject });
       assert.notEqual(otherUi.url, ui.url, 'projects have separate Control Plane listeners');
       const otherState = await fetch(`${otherUi.url}api/snapshot`).then(r => r.json());
       assert.equal(Object.keys(otherState.state.tasks).length, 0, 'the other project does not inherit tasks');
@@ -203,7 +211,9 @@ try {
     assert.equal(fs.readFileSync(marker, 'utf8'), 'observed');
     assert.notEqual(JSON.parse(fs.readFileSync(stateFile)).tasks[task.id].status, 'done', 'worker exit alone does not complete a task');
     await api.close();
-    await assert.rejects(fetch(ui.url), 'unloading closes the owned UI server');
+    // Issue #34: the Control Plane is the project's daemon — it outlives the
+    // host session (stable URL, single state owner) and stops explicitly.
+    assert.equal((await fetch(ui.url)).status, 200, 'the project daemon keeps serving after the host session closes');
     if (bundle.target === 'codex') {
       const persisted = fs.readFileSync(stateFile, 'utf8');
       const compatibility = client(bundle.path, '', true);
@@ -213,6 +223,13 @@ try {
       assert.equal(fs.readFileSync(stateFile, 'utf8'), persisted, 'restart preserves project data');
       assert.equal((await fetch(`${resumed.url}api/snapshot`).then(r => r.json())).state.tasks[task.id].title, title);
       await compatibility.close();
+    }
+    // Issue #34: daemons stop explicitly, never by unloading the host session.
+    assert.equal((await stopBundleDaemon(bundle.path, project)).stopped, true, 'an explicit stop ends the owner');
+    await assert.rejects(fetch(ui.url), 'an explicit daemon stop closes the UI server');
+    if (otherUi) {
+      assert.equal((await stopBundleDaemon(bundle.path, otherProject)).stopped, true, 'the second project stops independently');
+      await assert.rejects(fetch(otherUi.url));
     }
     console.log(`PASS: ${bundle.target} distribution initializes, composes, gates, serves and executes a bounded fixture worker`);
   }
@@ -266,8 +283,11 @@ try {
   await assert.rejects(cancelled);
   const nativeValue = await native('atl_info', {});
   assert.equal(JSON.parse(definitions.get('atl_info').output.render({}, nativeValue)[0].text).version, pkg.version);
-  for (const close of cleanup.splice(0).reverse()) await close();
+  // Issue #34: the DSH project daemon outlives the adapter cleanup; stop it
+  // explicitly via the built bundle before the extracted package is removed.
+  assert.equal((await stopBundleDaemon(dsh.path, dshProject)).stopped, true, 'an explicit stop ends the DSH project daemon');
   await assert.rejects(fetch(nativeUi.url));
+  for (const close of cleanup.splice(0).reverse()) await close();
   console.log('PASS: DeepSeek native registration, skills, initialization, UI and cancellation contract (host contract fixture)');
 
   console.log('PASS: installable DeepSeek tarball contains runtime, skills and production dependencies, with no install scripts or local state');
@@ -277,5 +297,12 @@ try {
     child.once('exit', resolve); child.stdin.end(); child.kill();
   })));
   // Scratch is an exact mkdtemp child of this project's .trust/plugin-test.
-  fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  // Windows holds a stopped daemon's directory handles briefly after
+  // termination, so a deferred cleanup beats failing the whole suite.
+  try {
+    fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 8, retryDelay: 300 });
+  } catch (error) {
+    if (error.code !== 'EBUSY') throw error;
+    console.log('note: temp dir cleanup deferred (EBUSY); the OS clears it');
+  }
 }

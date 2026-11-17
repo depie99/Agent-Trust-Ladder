@@ -20,6 +20,15 @@ Setup
   backup list                  list project snapshots
   backup restore &lt;id&gt;          restore a snapshot (requires no active run)
 
+State owner (one daemon per project owns state.json)
+  daemon status                 live owner record: pid, port, URL, writer lease (token masked)
+  daemon start                  start or reuse the per-project daemon (stable URL per project)
+  daemon stop                   stop the owner; direct writes resume until the next session starts it
+  ui [--port n] [--fresh]       open the control plane — reuses the project daemon when one is
+                                alive (the URL stays stable); --fresh restarts the owner first.
+                                Mutating CLI commands take a writer lease from the owner
+                                automatically; with no daemon the direct-write path applies.
+
 Intake (pulls new work in)
   intake [--source file|github|azure|all]
   intake status                 per-source enabled state + auth readiness
