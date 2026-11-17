@@ -27,7 +27,7 @@ import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
 import { batchMorningSummary, batchSummary, listBatches, readBatch, reconcileBatch, resumeStoppedBatch, runBatch, startBatch, stopBatchRun, validateBatch } from "./batch-runner.mjs";
 import { latestFailureSignatures, preventionStatus, recoverMemory, selectContext } from "./operational-memory.mjs";
-import { ensureOwnerSession, ownerSessionCookie, validateOwnerSession } from "./session-auth.mjs";
+import { clearOwnerSession, ensureOwnerSession, ownerSessionCookie, rotateOwnerSession, validateOwnerSession } from "./session-auth.mjs";
 import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDeliveryReceiptFromRecord } from "./delivery.mjs";
 import { inspectHandoffChain } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
@@ -141,6 +141,23 @@ function readBody(req) {
 
 function escapeText(value) {
   return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+function isLoopbackHost(hostname) {
+  const value = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+  return value === "localhost" || value === "127.0.0.1" || value === "::1";
+}
+
+function isSameLoopbackOrigin(req, server) {
+  try {
+    const origin = new URL(String(req.headers.origin));
+    const request = new URL(`http://${req.headers.host}`);
+    const address = server.address();
+    return origin.protocol === "http:" && request.protocol === "http:" &&
+      isLoopbackHost(origin.hostname) && isLoopbackHost(request.hostname) &&
+      Number(origin.port || 80) === address.port && Number(request.port || 80) === address.port &&
+      origin.origin === request.origin;
+  } catch { return false; }
 }
 
 function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE), embedded = false) {
@@ -1051,6 +1068,7 @@ const stableSnapshotFingerprint = value => {
 
 export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {}, egmRunner = null, myTasksFetch = null, myTasksReviewInvoke = null, taskTriageInvoke = null, jiraTransportCall = null, azureFetch = globalThis.fetch } = {}) {
   if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) throw new Error("control plane only supports loopback hosts");
+  const ownerSession = rotateOwnerSession(root);
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters, egmRunner, azureFetch };
   const intakePreviews = new Map();
   // UI-entered Azure PATs live only in this server instance's memory. They
@@ -1167,15 +1185,14 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     for (const stream of streams) { try { stream.res.write(`event: snapshot\ndata: ${cachedFrame.json}\n\n`); } catch { streams.delete(stream); } }
   }, 2000);
   streamTimer.unref?.();
-  return http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url || "/", `http://${host}`);
       if (readOnlyPreview && !["GET", "HEAD", "OPTIONS"].includes(req.method || "GET")) { json(res, 403, { ok: false, error: "Synthetic UI preview is read-only; live task actions are unavailable." }); return; }
       // A browser may only mutate this loopback service from its own origin.
       // Command-line clients have no Origin header and remain supported.
       if (!["GET", "HEAD", "OPTIONS"].includes(req.method || "GET") && req.headers.origin) {
-        const expected = `http://${req.headers.host}`;
-        if (req.headers.origin !== expected) { json(res, 403, { ok: false, error: "cross-origin control-plane mutation refused" }); return; }
+        if (!isSameLoopbackOrigin(req, server)) { json(res, 403, { ok: false, error: "cross-origin control-plane mutation refused" }); return; }
         const token = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length);
         if (!validateOwnerSession(root, decodeURIComponent(token || ""), String(req.headers["x-atl-csrf"] || ""))) { json(res, 403, { ok: false, error: "owner session or CSRF token is invalid" }); return; }
       }
@@ -1392,7 +1409,11 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       }
       if (req.method === "POST" && url.pathname === "/api/supervisor") {
         const payload = JSON.parse(await readBody(req) || "{}"); let result;
-        if (payload.action === "register-project" || payload.action === "register") result = registerProject(String(payload.root || root), payload.project || { name: payload.name, maxConcurrent: payload.maxConcurrent });
+        if (payload.action === "register-project" || payload.action === "register") {
+          if (typeof payload.root !== "string" || !payload.root.trim()) { json(res, 400, { ok: false, error: "project root is required" }); return; }
+          try { result = registerProject(payload.root, payload.project || { name: payload.name, maxConcurrent: payload.maxConcurrent }); }
+          catch (error) { json(res, error.statusCode || 400, { ok: false, error: error.message }); return; }
+        }
         else if (["remove", "remove-project", "delete", "delete-project"].includes(payload.action)) result = removeProject(String(payload.id || payload.project_id || ""), { force: false });
         else if (payload.action === "defaults") result = setSupervisorDefaults(payload.defaults || {});
         else { json(res, 400, { ok: false, error: "unknown supervisor action" }); return; }
@@ -1992,7 +2013,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       else console.error("[control-plane] post-response error:", error && error.stack || error);
     }
   });
-  server.once("close", () => { myTasks.stop(); reviews.stop(); triage.stop(); void jira.stop(); }); // schedulers die with the service
+  server.once("close", () => { myTasks.stop(); reviews.stop(); triage.stop(); void jira.stop(); clearOwnerSession(root, ownerSession.token); }); // schedulers and owner session die with the service
   return server;
 }
 

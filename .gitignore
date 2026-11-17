@@ -1,3 +1,20 @@
+# Local runtime and evidence must never be committed.
+/.trust/manager/
+/.trust/manager.json.*
+/.trust/live-*
+/.trust/*-result.json
+/.trust/specs/*/evidence/
+/.trust/browser-*/
+/.atl/
+/.atl-evidence/
+/.humanlayer/
+/.tmp-*/
+providers.json
+owner-session.json
+.env
+.env.*
+!.env.template
+
 # Task workspaces are disposable clones/worktrees created per task by atl-manager.
 .trust/manager/workspaces/
 .trust/manager/state.json

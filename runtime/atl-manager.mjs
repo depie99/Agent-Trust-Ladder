@@ -56,9 +56,28 @@ import { createBackup, listBackups, restoreBackup } from "./lib/backup.mjs";
 import { repairContract } from "./lib/queue-recovery.mjs";
 import { snapshot as contentSnapshot } from "./lib/handoffs.mjs";
 
-// The project is where you run the CLI from (like git): state, config, and
-// workspaces live in <cwd>/.trust/manager and <cwd>/config. Override with ATL_PROJECT.
-const ROOT = process.env.ATL_PROJECT ? path.resolve(process.env.ATL_PROJECT) : process.cwd();
+// Resolve the owning ATL project from nested folders and managed workspaces.
+// ATL_PROJECT remains an explicit override for workers and integrations.
+function findProjectRoot(start) {
+  let current = path.resolve(start);
+  while (true) {
+    const workspaceMarker = path.join(current, ".atl-workspace.json");
+    if (fs.existsSync(workspaceMarker)) {
+      try {
+        const marker = JSON.parse(fs.readFileSync(workspaceMarker, "utf8"));
+        if (typeof marker.project_root === "string" && marker.project_root.trim())
+          return path.resolve(current, marker.project_root);
+      } catch { /* ignore malformed markers and continue discovery */ }
+    }
+    if (fs.existsSync(path.join(current, ".atl", "project.json"))
+      || fs.existsSync(path.join(current, ".trust", "manager", "state.json"))) return current;
+    if (fs.existsSync(path.join(current, ".git"))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return path.resolve(start);
+    current = parent;
+  }
+}
+const ROOT = process.env.ATL_PROJECT ? path.resolve(process.env.ATL_PROJECT) : findProjectRoot(process.cwd());
 const P = paths(ROOT);
 
 function completeControlPlaneRuntime(candidate) {
@@ -859,6 +878,17 @@ async function intakeConfigCommand(sub) {
 async function main() {
   switch (cmd) {
     case "init": {
+      const ignoreFile = path.join(ROOT, ".gitignore");
+      const runtimeIgnore = [
+        "# ATL local runtime data; do not commit.",
+        "/.trust/manager/", "/.trust/live-*", "/.trust/*-result.json", "/.trust/specs/*/evidence/",
+        "/.trust/browser-*/", "/.atl/", "/.atl-evidence/", "/.humanlayer/", "/.tmp-*/",
+        "providers.json", "owner-session.json", ".env", ".env.*", "!.env.template",
+      ].join("\n");
+      const currentIgnore = fs.existsSync(ignoreFile) ? fs.readFileSync(ignoreFile, "utf8") : "";
+      if (!currentIgnore.includes("# ATL local runtime data; do not commit.")) {
+        fs.appendFileSync(ignoreFile, `${currentIgnore && !currentIgnore.endsWith("\n") ? "\n" : ""}\n${runtimeIgnore}\n`);
+      }
       for (const d of [P.inbox, P.briefs, P.workspaces]) fs.mkdirSync(d, { recursive: true });
       if (!fs.existsSync(P.config)) {
         fs.mkdirSync(path.dirname(P.config), { recursive: true });
@@ -1871,7 +1901,8 @@ async function main() {
     case "projects": {
       const sub = pos[0] || "list";
       if (sub === "register") {
-        const project = registerProject(ROOT, { name: flags.title || path.basename(ROOT), maxConcurrent: Number(flags.set.maxConcurrent || 1) });
+        const target = pos[1] || ROOT;
+        const project = registerProject(target, { name: flags.title || path.basename(target), maxConcurrent: Number(flags.set.maxConcurrent || 1) });
         console.log(`Registered ${project.name} as ${project.id}`);
       } else if (sub === "list") {
         console.log(JSON.stringify(supervisorSnapshot(), null, 2));

@@ -5,7 +5,8 @@ import path from "node:path";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { ensureOwnerSession } from "../runtime/lib/session-auth.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-owner-session-")); fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true }); saveState(root, emptyState()); const session = ensureOwnerSession(root); const server = await startControlPlaneServer(root); try {
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-owner-session-")); fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true }); saveState(root, emptyState()); const previousSession = ensureOwnerSession(root); const server = await startControlPlaneServer(root); const session = ensureOwnerSession(root); try {
+  assert.notEqual(session.token, previousSession.token, "server startup rotates the previous owner session");
   const shell = await fetch(server.url); assert.equal(shell.status, 200); assert.match(await shell.text(), /atl-csrf/);
   const headers = { origin: new URL(server.url).origin, cookie: `atl_owner=${session.token}`, "content-type": "application/json" };
   const refused = await fetch(`${server.url}api/approvals`, { method: "POST", headers, body: JSON.stringify({ action: "propose", proposal: { project: root, operation: "test" } }) }); assert.equal(refused.status, 403);

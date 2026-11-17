@@ -1,0 +1,18 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "windows-user-profile-path"
+description = "Windows user profile path"
+regex = '''(?i)[A-Z]:[\\/]+Users[\\/]+[^\\/\s"']+[\\/]+(?:AppData|Desktop|Documents|Downloads|\.atl|\.codex|\.claude|\.npmrc)(?:[\\/]|\b)'''
+keywords = ["Users", "AppData", "Downloads"]
+
+[[rules]]
+id = "mega-file-sharing-link"
+description = "MEGA file-sharing URL"
+regex = '''(?i)https?://(?:www\.)?mega\.(?:nz|io)/(?:file|folder)/[^\s"'<>]+'''
+keywords = ["mega.nz", "mega.io"]
+
+[allowlist]
+description = "Known placeholders"
+regexes = ['''(?i)[A-Z]:[\\/]+Users[\\/]+you(?:[\\/]|$)''']
