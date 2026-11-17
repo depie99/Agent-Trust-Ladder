@@ -8,8 +8,8 @@
 <p>Run commands from the managed application and inspect any <code>ATL_PROJECT</code> override. Replace example task IDs and paths. Preview execution before confirming. Commands that publish, restore, install, or change credentials have material effects; read their guide first.</p>
 <h2 id="current-help">Current help</h2>
 <div class="code-block"><button class="copy-code" type="button" aria-label="Copy code">Copy</button><pre><code class="language-text">atl-manager — persistent coordinator runtime for the ATL digital team
-Run it inside the project it manages (state lives in &lt;project&gt;/.trust/manager).
-Install once with scripts\install-atl.cmd (or install-atl.sh) and use: atl &lt;command&gt;
+  Run it inside the project it manages (state lives in &lt;project&gt;/.trust/manager).
+Install once with scripts/install-atl.cmd (or scripts/install-atl.sh) and use: atl &lt;command&gt;
 
 Setup
   init                          create .trust/manager/ scaffold + config
@@ -133,6 +133,11 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
+  session start --actor &lt;role&gt; --task &lt;id&gt; [--ttl 2h]
+                                issue a scoped, expiring credential for an
+                                interactive agent session (ATL_WORKER_CREDENTIAL)
+  session stop                  release that session's lease
+  --version                     show the runtime version and source commit
   memory recall &quot;query&quot;         retrieve advisory project memory
   memory remember &quot;fact&quot;        store an explicitly supplied advisory memory
   memory learn &lt;kind&gt; &quot;text&quot;    store a preference, style, prompt, lesson, or outcome
@@ -165,7 +170,7 @@ const knownActor = (taskId = null) =&gt; {
   const a = actorOf();
   const known = [&quot;mira&quot;, &quot;pip&quot;, &quot;rowan&quot;, &quot;sage&quot;, &quot;beacon&quot;, &quot;manager&quot;];
   if (!known.includes(a)) throw new StateError(`--actor must be one of ${known.join(&quot;, &quot;)}`);
-  if (a !== &quot;manager&quot; &amp;&amp; !process.env.ATL_WORKER_CREDENTIAL) throw new StateError(&quot;role actor mutations require a scoped ATL_WORKER_CREDENTIAL; --actor alone is not authorization&quot;);
+  if (a !== &quot;manager&quot; &amp;&amp; !process.env.ATL_WORKER_CREDENTIAL) throw new StateError(&quot;role actor mutations require a scoped ATL_WORKER_CREDENTIAL; --actor alone is not authorization. Supported path: atl session start --actor &lt;role&gt; --task &lt;id&gt;&quot;);
   if (process.env.ATL_WORKER_CREDENTIAL) {
     let credential;
     try { credential = JSON.parse(process.env.ATL_WORKER_CREDENTIAL); } catch { throw new StateError(&quot;invalid scoped worker credential&quot;); }
@@ -178,7 +183,7 @@ const knownActor = (taskId = null) =&gt; {
 
 function loadConfig() {
   if (!fs.existsSync(P.config)) {
-    throw new StateError(`Missing ${P.config}. Run: node runtime\atl-manager.mjs init`);
+    throw new StateError(`Missing ${P.config}. Run: atl init`);
   }
   return JSON.parse(fs.readFileSync(P.config, &quot;utf8&quot;));
 }
