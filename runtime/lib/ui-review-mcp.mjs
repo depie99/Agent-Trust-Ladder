@@ -48,7 +48,7 @@ export function createBrowserTools(root, workspace) {
         return new URL(request.url()).origin === origin && ["GET", "HEAD"].includes(request.method()) ? route.continue() : route.abort("blockedbyclient");
       });
       page = await context.newPage();
-      page.setDefaultTimeout(8000);
+      page.setDefaultTimeout(15000);
       loadedAssets = assetHashes();
       await page.goto(running.url);
       await page.locator(".event").first().waitFor();
@@ -63,6 +63,16 @@ export function createBrowserTools(root, workspace) {
     catch (error) {
       if (/Execution context was destroyed|Element is not attached/i.test(String(error?.message))) return action();
       throw error;
+    }
+  }
+  // A fullPage capture races the app's own re-render cycle: the page keeps
+  // invalidating stability checks, so one retry after a capture timeout is
+  // expected on loaded hosts rather than a failed evidence run.
+  async function captureScreenshot(options) {
+    try { return await page.screenshot(options); }
+    catch (error) {
+      if (!/timeout/i.test(String(error?.message))) throw error;
+      return await page.screenshot(options);
     }
   }
   async function inspect(selector) {
@@ -111,7 +121,7 @@ export function createBrowserTools(root, workspace) {
       safePath(workspace, ".atl-evidence/ui-review");
       fs.mkdirSync(runtime.evidenceDir, { recursive: true });
       const stem = path.join(runtime.evidenceDir, `capture-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
-      const bytes = await page.screenshot({ path: `${stem}.png`, fullPage: true });
+      const bytes = await captureScreenshot({ path: `${stem}.png`, fullPage: true });
       if (JSON.stringify(assetHashes()) !== JSON.stringify(assets)) throw new Error("Task assets changed during capture; reload and capture fresh evidence.");
       const evidence = { at: new Date().toISOString(), synthetic: true, url: page.url(), viewport: page.viewportSize(), assets,
         locale: await withRenderRaceRetry(() => page.locator("html").evaluate((node) => ({ lang: node.lang, dir: node.dir }))),
