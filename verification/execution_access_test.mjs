@@ -13,8 +13,12 @@ import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-access-"));
 try {
   const state = emptyState();
-  const workspace = path.join(root, ".trust/manager/workspaces/T-001");
-  fs.mkdirSync(workspace, { recursive: true });
+  const workspaceDir = path.join(root, ".trust/manager/workspaces/T-001");
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  // assistantWorkspace compares against the canonical path (fs.realpathSync):
+  // on macOS os.tmpdir() sits behind /var -> /private/var, so the approved
+  // workspace must be the resolved path or the changed-workspace guard fires.
+  const workspace = fs.realpathSync(workspaceDir);
   state.tasks["T-001"] = { id: "T-001", title: "Access regression", status: "blocked", workspace, completion_checks: [], execution_budget: { used: 2, max_sessions: 4 } };
   saveState(root, state);
   fs.mkdirSync(path.join(root, "config"));
