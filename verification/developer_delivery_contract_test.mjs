@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { emptyState, createTask, saveState, addEvidence } from "../runtime/lib/state.mjs";
+import { emptyState, createTask, saveState, addEvidence, loadState } from "../runtime/lib/state.mjs";
 import { snapshot } from "../runtime/lib/handoffs.mjs";
 import { taskDeliveryReceipt, createDeliveryPacket, approveDraftPr } from "../runtime/lib/delivery.mjs";
 import {
@@ -105,7 +105,9 @@ try {
   assert.throws(() => approveDraftPr(root, "DP-forged", { title: "forged" }), /verified-local/);
   assert.ok(fs.existsSync(packetFile));
 
-  const missingState = emptyState();
+  // The store already holds earlier sections' writes; adopt the current
+  // revision so this seeding save is a current writer, not a clobber (#31).
+  const missingState = (() => { try { return loadState(root); } catch { return emptyState(); } })();
   const missingTask = createTask(missingState, { title: "Missing evidence" });
   missingTask.workspace = workspace;
   missingTask.completion_checks = ["missing check"];
