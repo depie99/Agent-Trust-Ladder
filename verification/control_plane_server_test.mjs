@@ -43,9 +43,9 @@ try {
   assert.match(client, /Save connection/, "sidebar provider modal exposes one save path for current connection settings");
   assert.match(client, /data-pm-current-thinking/, "sidebar provider modal exposes current-provider thinking/effort");
   assert.match(client, /data-pm-current-key/, "sidebar provider modal exposes safe API-key replacement");
-  assert.match(client, /Keep the source objective and references visible/, "Plan Studio preserves the prompt after generation");
-  assert.match(client, /plan-question-suggest:/, "Plan Studio renders model-suggested answers as selectable Q&A choices");
-  assert.match(client, /plan-question-submit:/, "Plan Studio keeps a freeform answer path beside suggested answers");
+  assert.match(client, /The objective now lives on the draft/, "Plan Studio keeps the objective auditable on the draft after generation");
+  assert.match(client, /unresolvedQuestionCount/, "Plan Studio tracks unresolved draft questions and surfaces the answer debt");
+  assert.match(client, /open_questions/, "Plan Studio keeps the draft's open questions auditable beside the plan");
   assert.match(client, /value === "studio-clear"/, "Plan Studio retains an explicit user-controlled clear action");
   assert.match(client, /class="task-controls"/, "task rows group status, ownership, and actions in one control region");
   assert.match(client, /class="task-prop-key">Assigned to/, "task ownership is explicitly labelled in task properties");

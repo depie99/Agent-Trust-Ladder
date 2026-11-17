@@ -42,6 +42,9 @@ try {
     // Exercise the model planner's automatic option without spending a session.
     await page.evaluate(()=>sessionStorage.setItem('atl-cp-page','studio'));
     await page.locator('[data-page="studio"]:visible').first().click();
+    // The planning mode lives in the composer's settings popover in the
+    // conversational split workspace; open it before choosing a mode.
+    await page.locator('.studio-settings > summary').click();
     await page.locator('[data-action="mode:model"]').click();
     assert.equal(await page.locator('#providerSelect').inputValue(),'auto');
     await page.close();assert.deepEqual(errors,[]);

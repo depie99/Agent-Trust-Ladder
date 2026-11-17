@@ -713,6 +713,8 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_studio_api_test.mjs](../verification/plan_studio_api_test.mjs) | Executable regression check for plan studio api. |
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
 | [verification/plan_studio_journey_test.mjs](../verification/plan_studio_journey_test.mjs) | Executable regression check for plan studio journey. |
+| [verification/plan_studio_refine_api_test.mjs](../verification/plan_studio_refine_api_test.mjs) | Executable regression check for plan studio refine api. |
+| [verification/plan_studio_refine_test.mjs](../verification/plan_studio_refine_test.mjs) | Executable regression check for plan studio refine. |
 | [verification/plan_studio_test.mjs](../verification/plan_studio_test.mjs) | Executable regression check for plan studio. |
 | [verification/planning_model_selection_test.mjs](../verification/planning_model_selection_test.mjs) | Executable regression check for planning model selection. |
 | [verification/plugin_bundle_test.mjs](../verification/plugin_bundle_test.mjs) | Executable regression check for plugin bundle. |
