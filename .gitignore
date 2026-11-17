@@ -4,6 +4,8 @@
 /.atl-evidence/
 /.humanlayer/
 /.tmp-*/
+/.tmp/
+*.bak-*
 providers.json
 owner-session.json
 .env
