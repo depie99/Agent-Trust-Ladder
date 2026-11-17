@@ -264,6 +264,16 @@ let queueFilterTouched = false;
   let studioStartedAt = null;
   let studioElapsedTimer = null;
   let studioAttachments = [];
+  // Conversational workspace state: mobile pane switch, plan-pane tab, the
+  // resizable conversation share, the refinement target task, and whether the
+  // transcript should keep following the latest entry.
+  let studioMobilePane = "conversation";
+  let studioPlanTab = "overview";
+  let studioSplit = (() => { try { const value = Number(localStorage.getItem("atl-cp-studio-split")); return value >= 24 && value <= 72 ? value : 40; } catch { return 40; } })();
+  let studioSplitDragging = false;
+  let studioComposerTarget = null;
+  let studioTranscriptStick = true;
+  let studioSettingsOpen = false;
   let locale = (() => { try { return localStorage.getItem("atl-cp-lang") || localStorage.getItem("atl-locale") || "en-US"; } catch { return "en-US"; } })();
   const selectedQueues = new Set();
   const selectedTasks = new Set();
@@ -431,14 +441,15 @@ let queueFilterTouched = false;
     studioElapsedTimer = null;
     studioStartedAt = null;
   }
+  function studioIdleAlerts() {
+    const sourceTask = studioSourceTaskId ? snapshot.state?.tasks?.[studioSourceTaskId] : null;
+    const oldDraft = sourceTask?.source_refreshed_at && currentDraft?.source_task_id === studioSourceTaskId && String(currentDraft.source_revision_at_creation || "") !== String(sourceTask.source?.revision || "");
+    if (oldDraft) return `<div class="notice" role="alert" data-stale-source><b class="amber">This draft predates the refreshed Azure request</b><p class="sub">The imported request is now at revision ${escapeHtml(sourceTask.source.revision)}. This older draft cannot pass review. Keep it for reference, or load the updated request and generate a new model plan.</p>${btn("Use updated request", "plan-source-use-updated", "sm primary")}</div>`;
+    return /changed since intake/i.test(studioNotice) && sourceTask?.source?.type === "azure"
+      ? `<div class="notice" role="alert" data-stale-source><b class="amber">Azure request changed after import</b><p class="sub">The saved plan uses an older request revision. Refresh the imported request, inspect its updated goal, then generate and review a new plan. This draft remains saved.</p>${btn("Refresh Azure request", `plan-source-refresh-confirm:${studioSourceTaskId}`, "sm primary")}</div>` : "";
+  }
   function studioProgressPanel() {
-    if (!studioBusy) {
-      const sourceTask = studioSourceTaskId ? snapshot.state?.tasks?.[studioSourceTaskId] : null;
-      const oldDraft = sourceTask?.source_refreshed_at && currentDraft?.source_task_id === studioSourceTaskId && String(currentDraft.source_revision_at_creation || "") !== String(sourceTask.source?.revision || "");
-      if (oldDraft) return `<div class="notice" role="alert" data-stale-source><b class="amber">This draft predates the refreshed Azure request</b><p class="sub">The imported request is now at revision ${escapeHtml(sourceTask.source.revision)}. This older draft cannot pass review. Keep it for reference, or load the updated request and generate a new model plan.</p>${btn("Use updated request", "plan-source-use-updated", "sm primary")}</div>`;
-      return /changed since intake/i.test(studioNotice) && sourceTask?.source?.type === "azure"
-        ? `<div class="notice" role="alert" data-stale-source><b class="amber">Azure request changed after import</b><p class="sub">The saved plan uses an older request revision. Refresh the imported request, inspect its updated goal, then generate and review a new plan. This draft remains saved.</p>${btn("Refresh Azure request", `plan-source-refresh-confirm:${studioSourceTaskId}`, "sm primary")}</div>` : "";
-    }
+    if (!studioBusy) return studioIdleAlerts();
     return `<div class="notice" role="status" aria-live="polite" aria-atomic="true" data-studio-status style="margin-bottom:14px;border-color:var(--accent)"><div class="row between"><b class="green">⟳ Model plan request in progress</b><span class="pill green" data-studio-elapsed>${escapeHtml(studioElapsedLabel())}</span></div><p class="sub" style="margin-top:8px">Request sent to ${escapeHtml((studioProviders || []).find((provider) => provider.id === studioProvider)?.label || "the selected provider")}. Waiting for its response; this page will update with editable task cards when the schema validates.</p><p class="muted tiny" style="margin-top:7px">Bounded to one planning session and 15 minutes. Your existing draft remains unchanged while this runs.</p></div>`;
   }
   function studioContext() {
@@ -670,35 +681,99 @@ let queueFilterTouched = false;
       (proposal.feedback || []).length ? `feedback on file: ${escapeHtml(proposal.feedback.map((item) => item.text).join(" | "))}` : "",
     ].filter(Boolean).join("  ·  ");
     return `<div class="planout" style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;padding:12px" data-proposal="${escapeHtml(proposal.id)}">
-<div class="row between"><div class="bar"><b>◇ ${escapeHtml(proposal.id)}</b><span class="pill ${sourceToken}">rev ${Number(proposal.revision) || 1} · ${escapeHtml(proposal.source || "local")}</span></div><div class="bar">${btn("Edit", `card-edit:${escapeHtml(proposal.id)}`, "sm")}${index > 0 ? btn("↑", `card-up:${escapeHtml(proposal.id)}`, "sm") : ""}${index < total - 1 ? btn("↓", `card-down:${escapeHtml(proposal.id)}`, "sm") : ""}${btn("Remove", `card-remove:${escapeHtml(proposal.id)}`, "sm danger")}</div></div>
+<div class="row between"><div class="bar"><b>◇ ${escapeHtml(proposal.id)}</b><span class="pill ${sourceToken}">rev ${Number(proposal.revision) || 1} · ${escapeHtml(proposal.source || "local")}</span></div><div class="bar">${btn("Edit", `card-edit:${escapeHtml(proposal.id)}`, "sm")}${index > 0 ? btn("↑", `card-up:${escapeHtml(proposal.id)}`, "sm") : ""}${index < total - 1 ? btn("↓", `card-down:${escapeHtml(proposal.id)}`, "sm") : ""}${btn("Ask about this task", `ask-task:${escapeHtml(proposal.id)}`, "sm ghost")}${btn("Remove", `card-remove:${escapeHtml(proposal.id)}`, "sm danger")}</div></div>
 <b style="display:block;margin-top:6px">${escapeHtml(proposal.title)}</b><p class="sub"><b>Outcome:</b> ${escapeHtml(proposal.objective || "Not stated")}</p><p class="muted tiny"><b>Instructions:</b> ${escapeHtml(proposal.instructions || "Not stated")}</p><p class="muted tiny"><b>Requirement links:</b> ${escapeHtml((proposal.requirement_ids || []).join(", ") || "None")}</p><p class="muted tiny"><b>Deliverables:</b> ${escapeHtml((proposal.deliverables || []).join("; ") || "Not stated")}</p><p class="muted tiny"><b>Skill reasons:</b> ${escapeHtml(Object.entries(proposal.skill_reasons || {}).map(([skill, reason]) => `${skill}: ${reason}`).join("; ") || "Not stated")}</p>
 ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny" style="margin-top:6px;line-height:1.7">${meta}</div>
 </div>`;
   }
-  function planPreview(draft) {
-    if (draft?.stage === "repair") return `<div class="planout" data-plan-recovery><h2>Model response saved — repair needed</h2><p>The full response is saved. Correct the JSON below and validate it to restore editable task cards. Review and approval remain blocked until validation passes.</p><p class="amber">${escapeHtml(draft.recovery?.reason || "Validation failed")}</p><label for="planRepairResponse">Saved model response (JSON)</label><textarea id="planRepairResponse" rows="20" style="width:100%;font-family:monospace">${escapeHtml(studioRepairText)}</textarea><div class="actionrow">${btn("Validate repaired plan", "plan-repair-save", "primary")}</div><p class="muted tiny">Saved draft: ${escapeHtml(draft.id)}. No additional model call is needed to save a repair.</p></div>`;
+  // ---------- conversational workspace (Plan tab panes) ----------
+  // The old three-step form became a split workspace: conversation on the
+  // left, the plan on the right in Overview / Tasks / Review tabs. Every
+  // disabled control states its reason beside itself instead of hiding it.
+  function unresolvedQuestionCount(draft) {
+    const current = (draft?.artifact?.open_questions || []).filter((item) => !item.resolved).length;
+    const candidate = (draft?.pending_candidate?.artifact?.open_questions || []).filter((item) => !item.resolved).length;
+    return current + candidate;
+  }
+  function studioStageBadge(draft) {
+    const unresolved = unresolvedQuestionCount(draft);
+    if (unresolved) return `<span class="pill amber">Stage: needs ${unresolved} answer${unresolved === 1 ? "" : "s"}</span>`;
+    if (draft?.pending_candidate) return `<span class="pill violet">Stage: changes proposed</span>`;
+    const review = draft?.review || draft?.artifact?.review;
+    if (review?.verdict === "passed") return `<span class="pill green">Stage: review passed</span>`;
+    if (!draft) return "";
+    return `<span class="pill">Stage: ${escapeHtml(draft.stage === "plan" ? "planned" : draft.stage)}</span>`;
+  }
+  function studioNextStep(draft) {
+    const unresolved = unresolvedQuestionCount(draft);
+    if (unresolved) return { label: `Answer ${unresolved} question${unresolved === 1 ? "" : "s"}`, action: "studio-focus-questions", enabled: true, explanation: "Review is locked until the open question is answered." };
+    if (draft?.pending_candidate) return { label: "Review proposed changes", action: "studio-plantab:tasks", enabled: true, explanation: "Compare the proposed task changes, then apply or discard them." };
+    if (!draft?.artifact || draft.artifact.plan_skeleton) return draft
+      ? { label: "Complete with a model plan", action: "plan-complete-model", enabled: true, explanation: "The local skeleton is not reviewable or approvable — complete it with one bounded model call." }
+      : { label: "", action: "", enabled: false, explanation: "Describe the change on the left, then generate the first draft." };
+    const review = draft.review || draft.artifact?.review;
+    const policyNeedsEgm = Boolean(draft.policy?.required) && !(review?.kind === "egm" && review?.verdict === "passed");
+    if (review?.verdict === "passed" && !policyNeedsEgm) return { label: "Approve → Plan Queue", action: `plan-queue:${escapeHtml(draft.id)}`, enabled: !studioBusy, explanation: "Approval creates the plan queue; nothing executes until you confirm a run." };
+    if (review && review.verdict !== "passed") return { label: "Resolve findings", action: "studio-plantab:review", enabled: true, explanation: "Resolve the review findings, then run the review again." };
+    if (policyNeedsEgm) return { label: "Run deep review", action: "studio-run-egm", enabled: !studioBusy, explanation: `Deep review required by policy: ${(draft.policy.reasons || []).join("; ") || "project policy"}.` };
+    const providerReady = studioProvider === "auto" || Boolean(planningChoices().find((provider) => provider.id === studioProvider)?.ready);
+    return { label: "Request review", action: "studio-plantab:review", enabled: providerReady, explanation: providerReady ? "Choose a review depth and run it before approval." : "Select a ready provider in the composer settings to run the review." };
+  }
+  function conversationEntryView(entry) {
+    if (entry.role === "assistant") {
+      const changes = Array.isArray(entry.changes) ? entry.changes : [];
+      const assumptions = Array.isArray(entry.assumptions_added) ? entry.assumptions_added : [];
+      const meta = [entry.provider ? `${entry.provider}${entry.model ? ` / ${entry.model}` : ""}` : "", Number.isFinite(entry.elapsed_ms) ? `${Math.round(entry.elapsed_ms / 100) / 10} s` : ""].filter(Boolean).join(" · ");
+      return `<div class="studio-msg studio-msg-assistant" dir="auto"><p>${escapeHtml(entry.text)}</p>${assumptions.length ? `<div class="bar" style="flex-wrap:wrap;gap:6px">${assumptions.slice(0, 4).map((item) => `<span class="pill amber" title="${escapeHtml(item)}">Assumption: ${escapeHtml(String(item).slice(0, 64))}${String(item).length > 64 ? "…" : ""}</span>`).join("")}</div>` : ""}${changes.length ? `<ul class="studio-msg-changes">${changes.map((change) => `<li><span class="pill ${change.kind === "added" ? "green" : change.kind === "removed" ? "red" : "amber"}">${change.kind === "added" ? "+ Added" : change.kind === "removed" ? "− Removed" : "~ Changed"}</span> ${escapeHtml(change.id)} · ${escapeHtml(change.title || "")}</li>`).join("")}</ul>` : ""}${meta ? `<p class="muted tiny">Planned in ${escapeHtml(meta)}</p>` : ""}</div>`;
+    }
+    const attachments = Array.isArray(entry.attachments) ? entry.attachments : [];
+    return `<div class="studio-msg studio-msg-manager" dir="auto"><p>${escapeHtml(entry.text)}</p>${attachments.length ? `<div class="bar" style="flex-wrap:wrap;gap:6px">${attachments.map((name) => `<span class="pill">📎 ${escapeHtml(name)}</span>`).join("")}</div>` : ""}</div>`;
+  }
+  function questionCard(item, index, total, source) {
+    const id = String(item.id || `q${index + 1}`);
+    const question = item.question || item.text || String(item);
+    const suggestions = (Array.isArray(item.suggested_answers) ? item.suggested_answers : []).filter((answer) => typeof answer === "string" && answer.trim());
+    const name = `studio-q-${source}-${id}`;
+    return `<article class="studio-question" data-studio-question="${escapeHtml(id)}"><div class="row between"><b>Question ${index + 1} of ${total}${item.blocks_approval ? ' <span class="pill amber">Blocks readiness</span>' : ""}</b>${source === "candidate" ? '<span class="pill violet">in proposed changes</span>' : ""}</div><p class="sub" dir="auto">${escapeHtml(question)}</p><div class="studio-question-options" role="radiogroup" aria-label="Suggested answers">${suggestions.map((answer) => `<label class="studio-question-option"><input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(answer)}"><span dir="auto">${escapeHtml(answer)}</span></label>`).join("")}</div><textarea id="studio-q-custom-${escapeHtml(source)}-${escapeHtml(id)}" class="input studio-question-custom" rows="2" placeholder="Or write a custom answer…" aria-label="Custom answer to: ${escapeHtml(question)}"></textarea><div class="bar" style="justify-content:flex-end">${btn("Send answer", `question-answer:${escapeHtml(source)}:${escapeHtml(id)}`, "primary sm")}</div></article>`;
+  }
+  function questionCards(draft) {
+    const current = (draft?.artifact?.open_questions || []).filter((item) => !item.resolved);
+    const candidate = (draft?.pending_candidate?.artifact?.open_questions || []).filter((item) => !item.resolved);
+    return current.map((item, index) => questionCard(item, index, current.length, "artifact")).join("")
+      + candidate.map((item, index) => questionCard(item, index, candidate.length, "candidate")).join("");
+  }
+  function candidateBanner(draft) {
+    const candidate = draft?.pending_candidate;
+    if (!candidate) return "";
+    const stale = (Number(candidate.based_on_revision) || 1) !== (Number(draft.revision) || 1);
+    const tones = { added: "green", changed: "amber", removed: "red" };
+    const labels = { added: "+ Added", changed: "~ Changed", removed: "− Removed" };
+    return `<div class="candidate-banner" data-candidate-banner role="region" aria-label="Proposed changes"><div class="row between"><b>Proposed changes · based on rev ${escapeHtml(String(candidate.based_on_revision))}</b><span class="bar">${btn("Apply changes", "candidate-apply", `primary sm ${studioBusy ? "disabled" : ""}`)}${btn("Discard", "candidate-discard", `sm ${studioBusy ? "disabled" : ""}`)}</span></div><ul class="candidate-changes">${(candidate.changes || []).map((change) => `<li><span class="pill ${tones[change.kind] || ""}">${escapeHtml(labels[change.kind] || change.kind)}</span> ${escapeHtml(change.id)} · ${escapeHtml(change.title || "")}</li>`).join("") || '<li class="muted tiny">No task-level changes — the proposal updates plan-level fields only.</li>'}</ul><p class="muted tiny">${stale ? escapeHtml(`This proposal is based on rev ${candidate.based_on_revision}, but the plan is now at rev ${draft.revision} — applying it will be refused until you discard it or ask again.`) : "Your manual edits are kept. Applying clears review readiness."}</p></div>`;
+  }
+  function repairPreview(draft) {
+    return `<div class="planout" data-plan-recovery><h2>Model response saved — repair needed</h2><p>The full response is saved. Correct the JSON below and validate it to restore editable task cards. Review and approval remain blocked until validation passes.</p><p class="amber">${escapeHtml(draft.recovery?.reason || "Validation failed")}</p><label for="planRepairResponse">Saved model response (JSON)</label><textarea id="planRepairResponse" rows="20" style="width:100%;font-family:monospace">${escapeHtml(studioRepairText)}</textarea><div class="actionrow">${btn("Validate repaired plan", "plan-repair-save", "primary")}</div><p class="muted tiny">Saved draft: ${escapeHtml(draft.id)}. No additional model call is needed to save a repair.</p></div>`;
+  }
+  function studioOverviewBody(draft) {
     const plan = draft?.artifact;
-    if (!plan) return '<div class="planout muted">Generate a local skeleton or a model plan to review editable task cards here before creating or queueing anything.</div>';
-    if (plan.plan_skeleton) return `<div class="planout"><div class="bar">${badge(draft.stage)}<span class="pill blue">Local skeleton · structure only</span>${draft.id ? `<span class="muted tiny">${escapeHtml(draft.id)}</span>` : ""}</div><h2>${escapeHtml(plan.title)}</h2><p>${escapeHtml(plan.objective)}</p><div class="notice"><b>Not reviewable, not approvable</b><p class="sub">${escapeHtml((plan.planning_limitations || []).join(" "))}</p></div><h3>Suggested completion checks</h3><ul>${(plan.completion_checks || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None</li>"}</ul><h3>Constraints</h3><ul>${(plan.constraints || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Risks</h3><ul>${(plan.risks || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Original request</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(draft.intent || "Unavailable in this preview")}</pre><div class="actionrow">${btn("Complete with model", "plan-complete-model", "primary")}<span class="muted tiny" style="align-self:center">one confirmed planning session · reviews and approval unlock after the model plan lands</span></div></div>`;
-    const label = draft.label || { mode: draft.provider ? "model" : "local", label: draft.provider ? "Model plan" : "Local structural draft" };
-    // Spec document strip (Kiro-style): breadcrumb + the three spec sections.
-    // The segments scroll to the real sections — nothing is invented.
+    if (!draft) return '<div class="planout muted">Generate a local skeleton or a model plan to review the plan here. The conversation on the left drives generation and revisions.</div>';
+    if (plan?.plan_skeleton) return `<div class="planout"><div class="bar">${badge(draft.stage)}<span class="pill blue">Local skeleton · structure only</span><span class="muted tiny">${escapeHtml(draft.id)}</span></div><h2>${escapeHtml(plan.title)}</h2><p>${escapeHtml(plan.objective)}</p><div class="notice"><b>Not reviewable, not approvable</b><p class="sub">${escapeHtml((plan.planning_limitations || []).join(" "))}</p></div><h3>Suggested completion checks</h3><ul>${(plan.completion_checks || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None</li>"}</ul><h3>Constraints</h3><ul>${(plan.constraints || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Risks</h3><ul>${(plan.risks || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><div class="actionrow">${btn("Complete with model", "plan-complete-model", "primary")}<span class="muted tiny" style="align-self:center">one confirmed planning session · reviews and approval unlock after the model plan lands</span></div></div>`;
     const requirementsCount = (plan.requirements || []).length;
     const taskCount = (Array.isArray(plan.task_proposals) && plan.task_proposals.length) || (plan.implementation_steps || []).length || 0;
     const specStrip = `<div class="spec-strip" role="list" aria-label="Spec document"><span class="spec-crumb" dir="ltr" title="Saved draft location">specs › ${escapeHtml(draft.id || "draft")} › tasks.md</span><span class="spec-segs"><button type="button" class="spec-seg" data-spec-jump="spec-requirements">1 Requirements${requirementsCount ? ` <span class="spec-count">${requirementsCount}</span>` : ""}</button><button type="button" class="spec-seg" data-spec-jump="spec-design">2 Design</button><button type="button" class="spec-seg" data-spec-jump="spec-tasks">3 Task list${taskCount ? ` <span class="spec-count">${taskCount}</span>` : ""}</button></span></div>`;
     const examples = (plan.acceptance_examples || []).map((item) => `<li><b>Given</b> ${escapeHtml(item.given)} <b>when</b> ${escapeHtml(item.when)} <b>then</b> ${escapeHtml(item.then)}</li>`).join("");
-    const proposals = Array.isArray(plan.task_proposals) && plan.task_proposals.length ? plan.task_proposals : null;
-    const cards = proposals
-      ? `<h3${proposals ? ' id="spec-tasks"' : ""}>Task cards <span class="muted tiny">(${proposals.length} canonical tasks on approval)</span></h3>${proposals.map((proposal, index) => taskCard(proposal, index, proposals.length)).join("")}<div class="actionrow">${btn("+ Add task card", "card-add", "sm")}</div>`
-      : `<div class="notice"><b class="amber">Legacy draft without editable cards</b><p class="sub">Regenerate this plan (model mode) to get typed, editable task cards. Approval currently maps its ${plan.implementation_steps?.length || 0} implementation step(s) 1:1 to canonical tasks.</p></div>`;
-    const steps = (plan.implementation_steps || []).map((item, index) => `<div class="event"><span class="pill">${index + 1}</span><div><b>${escapeHtml(item.step)}</b><div class="muted tiny">Files: ${escapeHtml((item.files || []).join(", "))}</div><div class="green tiny">Verify: ${escapeHtml(item.verify)}</div></div></div>`).join("");
-    const referenceHeading = `<h3${proposals ? "" : ' id="spec-tasks"'}>Reference · implementation steps</h3>`;
-    const openQuestions = (plan.open_questions || []).map((item, index) => {
-      const question = item.question || item.text || item;
-      if (item.resolved) return `<article class="plan-question answered"><div class="plan-question-prompt">${escapeHtml(question)} <span class="pill green">Answered</span></div><div class="plan-question-answer">${escapeHtml(item.answer || "")}</div></article>`;
-      const suggestions = (Array.isArray(item.suggested_answers) ? item.suggested_answers : []).filter((answer) => typeof answer === "string" && answer.trim());
-      return `<article class="plan-question"><div class="plan-question-prompt">${escapeHtml(question)}</div>${suggestions.length ? `<div class="plan-question-label">Suggested answers</div><div class="plan-question-suggestions">${suggestions.map((answer, answerIndex) => `<button type="button" class="plan-suggestion" data-action="plan-question-suggest:${index}:${answerIndex}">${escapeHtml(answer)}</button>`).join("")}</div>` : ""}<div class="plan-question-compose"><input id="plan-answer-${index}" class="input" placeholder="Write your answer…" aria-label="Answer to: ${escapeHtml(question)}"><button type="button" class="btn sm primary" data-action="plan-question-submit:${index}">Send</button></div></article>`;
-    }).join("") || '<p class="muted">None recorded</p>';
+    return `<div class="planout">${specStrip}<div class="bar">${badge(draft.stage)}<span class="pill ${draft.label?.mode === "model" ? "violet" : "blue"}">${escapeHtml(draft.label?.label || "Plan")}</span>${draft.label?.generated_at ? `<span class="muted tiny">generated ${escapeHtml(new Date(draft.label.generated_at).toLocaleTimeString())}</span>` : ""}<span class="muted tiny">${escapeHtml(draft.id)}</span></div><h2>${escapeHtml(plan.title)}</h2><p>${escapeHtml(plan.objective)}</p><h3 id="spec-requirements">Requirements</h3><ul>${(plan.requirements || []).map((item) => `<li><b>${escapeHtml(item.id || "")}</b> ${escapeHtml(item.text || item)}</li>`).join("") || "<li>Not recorded</li>"}</ul><h3>Constraints</h3><ul>${(plan.constraints || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Observed evidence and assumptions</h3><ul>${[...(plan.observed_evidence || []).map((item) => `Evidence: ${item.description || item}`), ...(plan.assumptions || []).map((item) => `Assumption: ${item}`)].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Risks</h3><ul>${[...(plan.risks || []), ...(plan.planning_limitations || [])].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded — assess before approval</li>"}</ul><h3>Completion checks</h3><ul>${(plan.completion_checks || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul><h3>Acceptance examples</h3><ol>${examples}</ol><h3>Verifier commands</h3><pre>${escapeHtml((plan.verifier_commands || []).join("\n"))}</pre><details class="task-detail-disclosure"><summary>Original request</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(draft.intent || "Unavailable in this preview")}</pre></details></div>`;
+  }
+  function studioTasksBody(draft) {
+    if (!draft) return '<div class="planout muted">No draft yet — the task cards appear here after generation.</div>';
+    if (draft.artifact?.plan_skeleton) return '<div class="planout muted">The local skeleton has no editable task cards. Complete it with a model plan from the Overview tab.</div>';
+    const proposals = Array.isArray(draft.artifact?.task_proposals) && draft.artifact.task_proposals.length ? draft.artifact.task_proposals : null;
+    return `${candidateBanner(draft)}${rejectedPlanPreview(studioRejectedResponse, studioRejectedReason)}${proposals
+      ? `<h3>Task cards <span class="muted tiny">(${proposals.length} canonical tasks on approval)</span></h3>${proposals.map((proposal, index) => taskCard(proposal, index, proposals.length)).join("")}<div class="actionrow">${btn("+ Add task card", "card-add", "sm")}</div>`
+      : '<div class="notice"><b class="amber">Legacy draft without editable cards</b><p class="sub">Ask for a refresh in the conversation (or regenerate the plan) to get typed, editable task cards.</p></div>'}`;
+  }
+  function studioReviewSection(draft) {
+    const plan = draft?.artifact;
+    if (!draft || plan?.plan_skeleton) return `<div class="planout">${draft ? '<p class="sub">Complete this local template with a model plan before review.</p>' + btn("Complete with model", "plan-complete-model", "primary") : '<p class="sub">Generate a plan first — review unlocks after a model plan lands.</p>'}</div>`;
     const review = draft.review || plan.review;
     const reviewKind = draft.policy && draft.policy.required ? "egm" : studioReviewKind;
     const policyBlock = draft.policy && draft.policy.required && !(review && review.kind === "egm" && review.verdict === "passed") ? `<div class="notice"><b class="amber">Deep review required by policy</b><p class="sub">${escapeHtml(draft.policy.reasons.join("; "))} — run the EGM deep review before approving.</p></div>` : "";
@@ -706,8 +781,59 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const reviewTitle = review?.verdict === "passed" ? "Review passed" : review ? "Changes needed before approval" : "Review this plan";
     const reviewIntro = review?.verdict === "passed" ? "The current review found no blocking issues." : review ? "Work through these findings, then review the revised draft." : "Check this draft before creating tasks in the Plan Queue.";
     const findingCards = findings.map((item, index) => `<article class="review-finding"><div class="review-finding-top"><span class="review-severity ${escapeHtml(item.severity || "note")}">${escapeHtml(item.severity || "Note")}</span><span class="muted tiny">${escapeHtml(item.requirement_id || item.task_id || "Whole plan")}</span></div><h4>Issue ${index + 1}</h4><p>${escapeHtml(item.message || "No explanation supplied")}</p>${item.correction ? `<div class="review-correction"><b>What to change</b><p>${escapeHtml(item.correction)}</p></div>` : ""}</article>`).join("");
-    const reviewBlock = `<section class="plan-review" aria-label="Plan review"><div class="plan-review-head"><div><span class="eyebrow">Review & approval</span><h3>${reviewTitle}</h3><p>${reviewIntro}</p></div>${review ? `<span class="review-verdict ${escapeHtml(review.verdict)}">${escapeHtml(review.verdict)}</span>` : ""}</div>${policyBlock}${review && findings.length ? `<div class="review-findings" aria-label="Review findings">${findingCards}</div>` : review?.verdict === "passed" ? `<p class="review-clear">No findings recorded.</p>` : ""}<div class="plan-review-controls">${plan.plan_contract_version === 2 ? `<label class="label" for="reviewKindSelect">Review depth</label><select id="reviewKindSelect" class="input"${studioBusy ? " disabled" : ""}><option value="atl" ${reviewKind === "atl" ? "selected" : ""}>Accuracy review</option><option value="egm" ${reviewKind === "egm" ? "selected" : ""}>Deep review (multiple reviewers)</option></select><div class="actionrow">${btn(studioBusy ? "Reviewing..." : review ? "Run review again" : "Run review", `plan-review:${draft.id}`, `primary ${studioBusy ? "disabled" : ""}`)}${studioEgmStage ? `<button type="button" class="btn" data-action="egm-cancel:${draft.id}">Cancel deep review: ${escapeHtml(studioEgmStage)}</button>` : ""}${btn("Approve → Plan Queue", `plan-queue:${draft.id}`, `primary ${studioBusy || !(review && review.verdict === "passed") ? "disabled" : ""}`)}</div>${approvalStateLine(draft, review)}` : `<p class="sub">Complete this local template with a model plan before review.</p>${btn("Complete with model", "plan-complete-model", "primary")}`}</div><p class="muted tiny">Approval creates ${proposals ? proposals.length : plan.implementation_steps?.length || 0} queued tasks. You can preview them before starting a run.</p></section>`;
-    return `<div class="planout">${specStrip}<div class="bar">${badge(draft.stage)}<span class="pill ${label.mode === "model" ? "violet" : "blue"}">${escapeHtml(label.label)}</span>${label.generated_at ? `<span class="muted tiny">generated ${escapeHtml(new Date(label.generated_at).toLocaleTimeString())}</span>` : ""}<span class="muted tiny">${escapeHtml(draft.id)}</span><span style="flex:1"></span>${btn("Publish to GitHub/Azure", `plan-publish:${draft.id}`, "sm ghost")}</div><h2>${escapeHtml(plan.title)}</h2><p>${escapeHtml(plan.objective)}</p>${reviewBlock}<h3 id="spec-requirements">Requirements</h3><ul>${(plan.requirements || []).map((item) => `<li><b>${escapeHtml(item.id || "")}</b> ${escapeHtml(item.text || item)}</li>`).join("") || "<li>Not recorded</li>"}</ul><h3>Open questions</h3><section class="plan-questions" aria-label="Open questions">${openQuestions}</section><h3 id="spec-design">Observed evidence and assumptions</h3><ul>${[...(plan.observed_evidence || []).map((item) => `Evidence: ${item.description || item}`), ...(plan.assumptions || []).map((item) => `Assumption: ${item}`)].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Original request</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(draft.intent || "Unavailable in this preview")}</pre><h3>Constraints</h3><ul>${(plan.constraints || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded</li>"}</ul><h3>Risks</h3><ul>${[...(plan.risks || []), ...(plan.planning_limitations || [])].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded — assess before approval</li>"}</ul><h3>Completion checks</h3><ul>${(plan.completion_checks || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul><h3>Acceptance examples</h3><ol>${examples}</ol>${cards}${referenceHeading}${steps}<h3>Verifier commands</h3><pre>${escapeHtml((plan.verifier_commands || []).join("\n"))}</pre>${studioNotice && !studioBusy && /review|approv/i.test(studioNotice) ? `<p class="sub ${/^Error|failed|blocked/i.test(studioNotice) ? "red" : "green"}" role="status" style="margin:8px 0 0">${escapeHtml(studioNotice)}</p>` : ""}<p class="muted tiny" style="margin:8px 0 0">Publish to GitHub/Azure is separate from the queue — use Publish in the draft header above.</p></div>`;
+    const proposals = Array.isArray(plan.task_proposals) && plan.task_proposals.length ? plan.task_proposals : null;
+    return `<div class="planout"><div class="bar">${btn("Publish to GitHub/Azure", `plan-publish:${escapeHtml(draft.id)}`, "sm ghost")}<span class="muted tiny">Publish is separate from the queue — it writes remote tasks.</span></div><section class="plan-review" aria-label="Plan review"><div class="plan-review-head"><div><span class="eyebrow">Review &amp; approval</span><h3>${reviewTitle}</h3><p>${reviewIntro}</p></div>${review ? `<span class="review-verdict ${escapeHtml(review.verdict)}">${escapeHtml(review.verdict)}</span>` : ""}</div>${policyBlock}${review && findings.length ? `<div class="review-findings" aria-label="Review findings">${findingCards}</div>` : review?.verdict === "passed" ? '<p class="review-clear">No findings recorded.</p>' : ""}<div class="plan-review-controls">${plan.plan_contract_version === 2 ? `<label class="label" for="reviewKindSelect">Review depth</label><select id="reviewKindSelect" class="input"${studioBusy ? " disabled" : ""}><option value="atl" ${reviewKind === "atl" ? "selected" : ""}>Accuracy review</option><option value="egm" ${reviewKind === "egm" ? "selected" : ""}>Deep review (multiple reviewers)</option></select><div class="actionrow">${btn(studioBusy ? "Reviewing..." : review ? "Run review again" : "Run review", `plan-review:${escapeHtml(draft.id)}`, `primary ${studioBusy ? "disabled" : ""}`)}${studioEgmStage ? `<button type="button" class="btn" data-action="egm-cancel:${escapeHtml(draft.id)}">Cancel deep review: ${escapeHtml(studioEgmStage)}</button>` : ""}${btn("Approve → Plan Queue", `plan-queue:${escapeHtml(draft.id)}`, `primary ${studioBusy || !(review && review.verdict === "passed") ? "disabled" : ""}`)}</div>${approvalStateLine(draft, review)}` : `<p class="sub">Complete this local template with a model plan before review.</p>${btn("Complete with model", "plan-complete-model", "primary")}`}</div><p class="muted tiny">Approval creates ${proposals ? proposals.length : plan.implementation_steps?.length || 0} queued tasks. You can preview them before starting a run.</p>${studioNotice && !studioBusy && /review|approv/i.test(studioNotice) ? `<p class="sub ${/^Error|failed|blocked/i.test(studioNotice) ? "red" : "green"}" role="status" style="margin:8px 0 0">${escapeHtml(studioNotice)}</p>` : ""}</section></div>`;
+  }
+  function studioConversationPane(draft) {
+    const entries = draft?.conversation || [];
+    const questions = questionCards(draft);
+    const transcript = `<div class="studio-transcript" id="studioTranscript" role="log" aria-live="polite" aria-label="Planning conversation">${!entries.length && !questions.length ? `<div class="studio-empty">${draft ? '<p class="sub">The plan is loaded. Describe a change or ask a question below — each send is one bounded refinement call, and the proposed changes appear in the Tasks tab for comparison.</p>' : '<p class="sub">Describe the bounded change you want planned. The plan appears in the pane beside this conversation.</p>'}</div>` : entries.map((entry) => conversationEntryView(entry)).join("")}${questions}${studioBusy ? studioProgressPanel() : ""}</div>`;
+    const contextBlocks = `${studioRevisionFindings.length ? '<section class="studio-revision" aria-label="Review corrections"><h3>Changes requested by review</h3><p>These findings will be sent with your next message.</p>' + studioRevisionFindings.map((item, index) => '<article><b>' + (index + 1) + '. ' + escapeHtml(item.severity) + '</b><p>' + escapeHtml(item.message) + '</p>' + (item.correction ? '<p><strong>Change:</strong> ' + escapeHtml(item.correction) + '</p>' : '') + '</article>').join('') + '</section>' : ""}${!studioBusy ? studioIdleAlerts() : ""}${studioSourceContextNotice()}`;
+    const refining = draft && draft.stage !== "repair";
+    const submitLabel = studioBusy ? (refining ? "Updating plan…" : "Generating plan…") : refining ? "Update plan" : studioMode === "model" ? "Generate plan" : "Generate local skeleton";
+    const submitAction = refining ? "refine-submit" : "generate";
+    const allowance = refining
+      ? '<p class="muted tiny studio-allowance">Uses 1 of 1 confirmed session · 15 min cap · the saved plan stays untouched if the call fails</p>'
+      : studioMode === "model"
+        ? '<p class="muted tiny studio-allowance">Uses 1 of 1 confirmed session · 15 min cap · refused while an overnight run holds the gate</p>'
+        : '<p class="muted tiny studio-allowance">Local skeleton · 0 tokens · deterministic, clearly not model output, never approvable</p>';
+    const composer = `<div class="studio-composer"><div class="bar attachment-list studio-attachments" style="align-items:stretch;flex-wrap:wrap">${studioComposerTarget ? `<span class="pill violet">Revising: ${escapeHtml(studioComposerTarget)} <button type="button" class="btn sm ghost" data-action="ask-task-clear" aria-label="Stop targeting ${escapeHtml(studioComposerTarget)}">✕</button></span>` : ""}${studioAttachments.length ? attachmentMarkup() : '<span class="muted tiny">No references attached — add them in Settings.</span>'}</div><textarea id="goal" class="input studio-composer-input" rows="3" placeholder="${refining ? "Describe a change or ask a question. Enter adds a line; Ctrl/Cmd+Enter sends." : "Describe the bounded change you want ATL to plan and verify."}" aria-label="${refining ? "Refinement message" : "Goal and constraints"}">${escapeHtml(studioGoal)}</textarea><div class="row between studio-composer-foot"><div class="bar" style="flex-wrap:wrap"><select id="providerSelect" class="input studio-provider-select" aria-label="Provider">${studioProviderOptions()}</select><details class="studio-settings" data-studio-settings ${studioSettingsOpen ? "open" : ""}><summary class="btn sm" role="button">⚙ Settings</summary><div class="studio-settings-body">${refining ? "" : `<div class="tasks-segmented studio-mode-switch" role="group" aria-label="Planning mode"><button type="button" class="tasks-seg-btn ${studioMode === "local" ? "active" : ""}" data-action="mode:local" aria-label="Local skeleton" aria-pressed="${studioMode === "local"}"><span>Local skeleton</span><span class="pill green">Free</span></button><button type="button" class="tasks-seg-btn ${studioMode === "model" ? "active" : ""}" data-action="mode:model" aria-label="Generate with model" aria-pressed="${studioMode === "model"}"><span>Generate with model</span><span class="pill violet">1 session</span></button></div>`}${refining || studioMode === "model" ? `<div class="field"><label class="label" for="providerModel">Model</label>${studioModelControl()}</div><div class="field"><label class="label" for="providerThinking">Thinking / effort</label><select id="providerThinking" class="input">${studioThinkingOptions()}</select></div>` : ""}<div class="field"><label class="label" for="studioFiles" style="display:flex;justify-content:space-between"><span>Reference files and images</span><span class="muted tiny">${studioAttachments.length} attached</span></label><input id="studioFiles" class="input" type="file" multiple accept="image/*,.txt,.md,.json,.yaml,.yml,.csv,.log,.pdf"><p class="muted tiny" style="margin-top:6px">Text files are included in the planning context. Images are previewed and recorded as references; current providers are text-only.</p></div><p class="muted tiny">Planning budget: 1 session per submission · 15 minute cap · refused while an overnight run holds the gate.</p></div></details>${btn("Clear form", "studio-clear", `sm ghost ${studioBusy ? "disabled" : ""}`)}</div><div class="bar" style="flex-wrap:wrap">${allowance}${btn(submitLabel, submitAction, `primary ${studioBusy ? "disabled" : ""}`)}</div></div>${studioNotice ? `<p class="sub ${studioNotice.startsWith("Error") ? "red" : "green"}" style="margin:8px 0 0" data-studio-notice>${escapeHtml(studioNotice)}</p>${studioErrorLog && studioNotice.startsWith("Error") ? `<div class="bar" style="margin-top:6px" data-studio-log-row>${btn("Show raw response", "show-provider-log", "sm")}</div>` : ""}` : ""}</div>`;
+    return `<div class="studio-pane-head"><h2>Conversation</h2>${draft ? `<span class="pill ${studioBusy ? "amber" : "green"}">rev ${escapeHtml(String(draft.revision || 1))}</span>` : ""}</div>${transcript}${contextBlocks}${composer}`;
+  }
+  function studioProviderOptions() {
+    const providers = planningChoices();
+    const autoRouting = snapshot.resource_policy?.enabled && snapshot.resource_policy?.auto_models;
+    return (autoRouting ? `<option value="auto" ${studioProvider === "auto" ? "selected" : ""}>ATL automatic · approved model pool</option>` : "") + (providers.length
+      ? [["subscription", "Subscriptions · built-in, no key"], ["key", "API key providers"]].map(([kind, groupLabel]) => { const group = providers.filter((provider) => provider.kind === kind); return group.length ? `<optgroup label="${groupLabel}">${group.map((provider) => `<option value="${escapeHtml(provider.id)}" ${provider.id === studioProvider ? "selected" : ""} ${provider.ready ? "" : "disabled"}>${escapeHtml(kind === "subscription" ? `${provider.label}${provider.method === "chatgpt" ? " · ChatGPT" : ""} · ${provider.modelOptions.length} models${provider.ready ? "" : ` (${provider.problems.join(", ")})`}` : `${provider.id} · ${provider.protocol || "custom"} key · ${provider.model || "no model"}${provider.ready ? "" : " (not ready)"}`)}</option>`).join("")}</optgroup>` : ""; }).join("")
+      : autoRouting ? "" : '<option value="">No providers configured yet</option>');
+  }
+  function studioModelControl() {
+    const selected = planningChoices().find((provider) => provider.id === studioProvider) || null;
+    const modelSuggestions = selected?.modelOptions || [];
+    const current = studioModel || selected?.model || modelSuggestions[0]?.id || "";
+    if (!modelSuggestions.length) return `<input id="providerModel" class="input" value="${escapeHtml(current)}" placeholder="exact model id">`;
+    const options = modelSuggestions.some((model) => model.id === current) || !current ? modelSuggestions : [{ id: current, label: `${current} (current)` }, ...modelSuggestions];
+    return `<select id="providerModel" class="input">${options.map((model) => `<option value="${escapeHtml(model.id)}" ${model.id === current ? "selected" : ""}>${escapeHtml(model.label !== model.id ? `${model.label} · ${model.id}` : model.id)}</option>`).join("")}</select>`;
+  }
+  function studioThinkingOptions() {
+    const selected = planningChoices().find((provider) => provider.id === studioProvider) || null;
+    const levels = selected?.kind === "subscription" ? ["default"] : selected?.thinking_levels?.length ? selected.thinking_levels : ["default", "none", "minimal", "low", "medium", "high", "xhigh", "max"];
+    return levels.map((level) => `<option value="${escapeHtml(level === "default" ? "" : level)}" ${((studioThinking || selected?.thinking_level || "") === (level === "default" ? "" : level)) ? "selected" : ""}>${escapeHtml(level === "default" ? "Provider default" : level)}</option>`).join("");
+  }
+  function studioPlanPane(draft) {
+    const planCards = (Array.isArray(draft?.artifact?.task_proposals) && draft.artifact.task_proposals.length) || 0;
+    const candidateChangesCount = (draft?.pending_candidate?.changes || []).length;
+    const unresolved = unresolvedQuestionCount(draft);
+    const review = draft?.review || draft?.artifact?.review;
+    const reviewLocked = unresolved > 0;
+    const next = studioNextStep(draft);
+    const tabs = `<div class="planpane-tabs" role="tablist" aria-label="Plan sections"><button type="button" class="planpane-tab ${studioPlanTab === "overview" ? "active" : ""}" role="tab" aria-selected="${studioPlanTab === "overview"}" data-action="studio-plantab:overview">Overview</button><button type="button" class="planpane-tab ${studioPlanTab === "tasks" ? "active" : ""}" role="tab" aria-selected="${studioPlanTab === "tasks"}" data-action="studio-plantab:tasks">Tasks${planCards ? ` <span class="planpane-count">${planCards}</span>` : ""}${candidateChangesCount ? ` <span class="planpane-count violet">${candidateChangesCount} changes</span>` : ""}</button><button type="button" class="planpane-tab ${studioPlanTab === "review" ? "active" : ""}" role="tab" aria-selected="${studioPlanTab === "review"}" data-action="studio-plantab:review">Review${reviewLocked ? " · locked" : review?.verdict === "passed" ? " · passed" : ""}</button></div>`;
+    const body = draft?.stage === "repair"
+      ? repairPreview(draft)
+      : studioPlanTab === "overview" ? studioOverviewBody(draft)
+      : studioPlanTab === "tasks" ? studioTasksBody(draft)
+      : studioReviewSection(draft);
+    return `<div class="studio-pane-head"><h2>Plan</h2>${draft ? `<span class="muted tiny">${escapeHtml(draft.id)}</span>` : ""}</div>${tabs}<div class="studio-plan-body" id="planOutput" ${studioBusy ? 'aria-busy="true"' : ""}>${studioBusy && draft?.stage !== "repair" ? studioProgressPanel() : ""}${body}${studioPlanTab === "overview" ? savedPlansPreview() : ""}</div><div class="studio-nextstep" data-studio-nextstep><p class="sub" style="margin:0">${escapeHtml(next.explanation || "")}</p>${next.label ? btn(next.label, next.action, `${next.enabled ? "primary" : ""} ${next.enabled ? "" : "disabled"} sm`) : ""}</div>`;
   }
   function rejectedPlanPreview(response, reason = "") {
     if (response == null) return "";
@@ -1498,44 +1624,18 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
         + (shipped.length ? `<div class="panel">${bulkToolbar}</div><div class="space">${queueSections}${unqueuedPanel}</div>` : '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>Nothing shipped yet.</b><p class="sub" style="margin-top:6px">When every task in a queue reaches a terminal state, the finished ones move here automatically. Deleted records stay restorable from the CLI (<b>task restore</b>).</p></div>');
     },
 studio: () => {
-      const providers = planningChoices();
-      const selected = providers.find((provider) => provider.id === studioProvider) || null;
-      const autoRouting=snapshot.resource_policy?.enabled&&snapshot.resource_policy?.auto_models;
-      const modelReady = studioMode !== "model" || (studioProvider==='auto'&&autoRouting) || (selected && selected.ready);
-      const generateLabel = studioBusy ? "Generating model plan…" : (studioMode === "model" ? "Generate with model · 1 confirmed planning session" : "Generate local skeleton · deterministic");
-      const providerOptions = (autoRouting?`<option value="auto" ${studioProvider==='auto'?'selected':''}>ATL automatic · approved model pool</option>`:'') + (providers.length
-        ? [["subscription", "Subscriptions · built-in, no key"], ["key", "API key providers"]].map(([kind, groupLabel]) => { const group = providers.filter((provider) => provider.kind === kind); return group.length ? `<optgroup label="${groupLabel}">${group.map((provider) => `<option value="${escapeHtml(provider.id)}" ${provider.id === studioProvider ? "selected" : ""} ${provider.ready ? "" : "disabled"}>${escapeHtml(kind === "subscription" ? `${provider.label}${provider.method === "chatgpt" ? " · ChatGPT" : ""} · ${provider.modelOptions.length} models${provider.ready ? "" : ` (${provider.problems.join(", ")})`}` : `${provider.id} · ${provider.protocol || "custom"} key · ${provider.model || "no model"}${provider.ready ? "" : " (not ready)"}`)}</option>`).join("")}</optgroup>` : ""; }).join("")
-        : autoRouting?'':'<option value="">No providers configured yet</option>');
-      const modelSuggestions = selected?.modelOptions || [];
-      const thinkingLevels = selected?.kind === "subscription" ? ["default"] : selected?.thinking_levels?.length ? selected.thinking_levels : ["default", "none", "minimal", "low", "medium", "high", "xhigh", "max"];
-      const noProviderNotice = (() => {
-        if (providers.length || autoRouting) return "";
-        const codexBuiltin = (builtinWorkers || []).find((worker) => worker.id === "codex") || null;
-        const runHint = !codexBuiltin ? ""
-          : !codexBuiltin.installed ? `Queue runs need the codex CLI installed: ${codexBuiltin.installHint}.`
-          : codexBuiltin.signedIn && codexBuiltin.method !== "api-key" ? "Queue and task runs already work through the built-in codex CLI (ChatGPT subscription) — only model planning needs a key provider."
-          : `Queue runs need the built-in codex CLI signed in: run ${codexBuiltin.loginCommand} and choose Sign in with ChatGPT.`;
-        return `<div class="notice"><b class="amber">No key providers yet — model mode stays disabled</b><p class="sub">Open <button class="btn sm" data-action="go:settings">Settings → Providers</button> and add one (template zai, then paste your GLM key). ${escapeHtml(runHint)} Terminal equivalent: <b>atl provider add zai --template zai --model glm-4.6</b>.</p></div>`;
-      })();
-      const modeBody = studioMode === "local"
-        ? `<div class="studio-mode-box"><div class="row between"><b>Local SDD / TDD planner</b><span class="pill blue">Deterministic · Offline</span></div><p class="sub" style="margin:8px 0 12px">Deterministic structural skeleton from internal SDD/TDD heuristics — free, instant, offline, clearly labelled as <b>not model output</b>, and <b>never approvable</b>: reviews and approval need a model plan.</p><div class="task-sec-card" style="background:var(--field-bg)"><div class="row between tiny"><span class="muted">Generation cost</span><b class="green">0 tokens · 0 sessions</b></div><div class="row between tiny" style="margin-top:4px"><span class="muted">Output</span><span>Structure skeleton · not approvable</span></div><div class="row between tiny" style="margin-top:4px"><span class="muted">Next step</span><span>Complete with a model plan</span></div></div></div>`
-        : `<div class="studio-mode-box"><div class="row between"><b>Model planning engine</b><span class="pill violet">1 confirmed session</span></div><p class="sub" style="margin:8px 0 10px">One schema-validated planning call through the configured provider; failures and malformed answers leave the current draft untouched.</p><div class="field" style="margin-bottom:0"><label class="label" for="providerSelect">Target provider</label><select id="providerSelect" class="input">${providerOptions}</select></div>`
-          + (selected ? `<div class="grid two" style="margin-top:10px"><div class="field"><label class="label" for="providerModel">Model</label>${(() => { const current = studioModel || selected.model || modelSuggestions[0]?.id || ""; if (!modelSuggestions.length) return `<input id="providerModel" class="input" value="${escapeHtml(current)}" placeholder="exact model id">`; const options = modelSuggestions.some((model) => model.id === current) || !current ? modelSuggestions : [{ id: current, label: `${current} (current)` }, ...modelSuggestions]; return `<select id="providerModel" class="input">${options.map((model) => `<option value="${escapeHtml(model.id)}" ${model.id === current ? "selected" : ""}>${escapeHtml(model.label !== model.id ? `${model.label} · ${model.id}` : model.id)}</option>`).join("")}</select>`; })()}</div><div class="field"><label class="label" for="providerThinking">Thinking / effort</label><select id="providerThinking" class="input">${thinkingLevels.map((level) => `<option value="${escapeHtml(level === "default" ? "" : level)}" ${((studioThinking || selected.thinking_level || "") === (level === "default" ? "" : level)) ? "selected" : ""}>${escapeHtml(level === "default" ? "Provider default" : level)}</option>`).join("")}</select></div></div>` : "")
-          + (selected && !selected.ready ? `<div class="notice" style="margin-top:10px"><b class="amber">${escapeHtml(selected.id)} is not ready</b><p class="sub">${escapeHtml((selected.problems || []).join(" · "))} — manage providers in <button class="btn sm" data-action="go:settings">Settings</button>.</p></div>` : "")
-          + noProviderNotice
-          + '<p class="sub" style="margin:10px 0 0">Planning budget: 1 session · 15 minute cap · refused while an overnight run holds the gate.</p></div>';
-      const noticeLine = studioNotice && (!currentDraft || !/review|approv/i.test(studioNotice)) ? `<p class="sub ${studioNotice.startsWith("Error") ? "red" : "green"}" style="margin-top:8px" data-studio-notice>${escapeHtml(studioNotice)}</p>${studioErrorLog && studioNotice.startsWith("Error") ? `<div class="bar" style="margin-top:6px" data-studio-log-row>${btn("Show raw response", "show-provider-log", "sm")}</div>` : ""}` : "";
-      const draftCards = currentDraft?.artifact?.task_proposals?.length || 0;
-      const emptyPreviewGuide = '<div class="studio-empty-guide"><b>No draft generated yet</b><p class="sub">Enter an objective on the left and generate a local skeleton or a model plan. Editable task cards from a model plan appear here for review before any queue is created.</p><div class="bar" style="justify-content:center;flex-wrap:wrap"><span class="muted tiny">Quick starters:</span>' + [["UI Component & CSS Tests", "Implement a responsive split-pane task inspector with keyboard shortcuts, RTL-safe text, and Playwright coverage of layout and focus."], ["Backend Router Security", "Harden task workspace handoff validation: resolve symlink escape checks, tighten path policy, and add regression tests for blocked traversals."], ["Regression Bugfix Suite", "Triage the failing control-plane suites, fix the root causes, and add a regression suite that fails before and passes after the fix."]].map(([label, text], index) => btn(label, `studio-template:${index}`, "sm")).join("") + "</div></div>";
-      // The button stays clickable with an empty objective or an unready
-      // provider: a dead disabled click teaches nothing, while the generate
-      // guard turns the same click into an actionable notice.
-      return head("WORKSPACE / PLANNING", "Plan Studio", "Local skeleton or one bounded model plan → edit task cards → review → approve a Plan Queue → confirm a run.", btn(generateLabel, "generate", `primary ${studioBusy ? "disabled" : ""}`))
-        + '<div class="grid twocol studio-layout" style="align-items:start;gap:14px"><section class="panel pad studio-step-card"><div class="row between"><h2 style="margin:0">01 / Your objective &amp; constraints</h2><span class="muted tiny">Step 1 of 3</span></div><p class="sub" style="margin:8px 0 12px">Describe the outcome, constraints, and acceptance behavior. Generation never queues or executes work.</p><div class="field" style="margin-bottom:0"><label class="label" for="goal">Goal and constraints</label><textarea id="goal" class="input" rows="10" placeholder="Describe the bounded change you want ATL to plan and verify.">' + escapeHtml(studioGoal) + '</textarea></div>' + (studioRevisionFindings.length ? '<section class="studio-revision" aria-label="Review corrections"><h3>Changes requested by review</h3><p>These findings will be sent with your goal when you generate a revised plan.</p>' + studioRevisionFindings.map((item, index) => '<article><b>' + (index + 1) + '. ' + escapeHtml(item.severity) + '</b><p>' + escapeHtml(item.message) + '</p>' + (item.correction ? '<p><strong>Change:</strong> ' + escapeHtml(item.correction) + '</p>' : '') + '</article>').join('') + '</section>' : '') + studioSourceContextNotice() + '<div class="field" style="margin-top:12px;margin-bottom:0"><label class="label" for="studioFiles" style="display:flex;justify-content:space-between"><span>Reference files and images</span><span class="muted tiny">' + studioAttachments.length + ' attached</span></label><input id="studioFiles" class="input" type="file" multiple accept="image/*,.txt,.md,.json,.yaml,.yml,.csv,.log,.pdf"><p class="muted tiny" style="margin-top:6px">Text files are included in the planning context. Images are previewed and recorded as references; current providers are text-only.</p><div class="bar attachment-list" style="margin-top:8px;align-items:stretch">' + attachmentMarkup() + '</div></div><div class="row between" style="margin-top:12px"><div class="field" style="margin:0"><label class="label">ATL skill route</label><div class="bar">' + ["atl-frame", "atl-specify", "atl-plan", "atl-implement", "atl-verify"].map((skill) => `<span class="pill violet">◇ ${skill}</span>`).join("") + '</div></div>' + btn("Clear form", "studio-clear", `sm ${studioBusy ? "disabled" : ""}`) + '</div><p class="muted tiny" style="margin:8px 0 0">Clear form resets the objective, attachments, generation mode, and plan preview. Queued or approved work stays.</p></section>'
-        + '<section class="panel pad studio-step-card" style="display:flex;flex-direction:column"><div class="row between"><h2 style="margin:0">02 / Generation mode &amp; engine</h2><span class="muted tiny">Step 2 of 3</span></div><div class="tasks-segmented studio-mode-switch" role="group" aria-label="Planning mode"><button type="button" class="tasks-seg-btn ' + (studioMode === "local" ? "active" : "") + '" data-action="mode:local" aria-label="Local skeleton" aria-pressed="' + (studioMode === "local") + '"><span>Local skeleton</span><span class="pill green">Free</span></button><button type="button" class="tasks-seg-btn ' + (studioMode === "model" ? "active" : "") + '" data-action="mode:model" aria-label="Generate with model" aria-pressed="' + (studioMode === "model") + '"><span>Generate with model</span><span class="pill violet">1 session</span></button></div>'
-        + modeBody
-        + '<div class="studio-action-dock"><button type="button" class="btn primary" data-action="generate" aria-label="Generate plan preview" style="width:100%;min-height:38px;font-weight:800"' + (studioBusy ? ' disabled aria-disabled="true"' : "") + '>' + escapeHtml(generateLabel) + '</button>' + noticeLine + "</div></section></div>"
-        + '<div class="space">' + card('<span class="row" style="gap:10px;flex-wrap:wrap"><span>03 / Full plan preview — editable task cards</span>' + (currentDraft ? `<span class="pill green">${draftCards} card${draftCards === 1 ? "" : "s"} · rev ${escapeHtml(currentDraft.id || "")}</span>` : "") + "</span>", `<div class="pad" id="planOutput" ${studioBusy ? 'aria-busy="true"' : ""}>${studioBusy ? studioProgressPanel() : ""}${rejectedPlanPreview(studioRejectedResponse, studioRejectedReason)}${currentDraft ? planPreview(currentDraft) : emptyPreviewGuide}${studioBusy ? "" : studioProgressPanel()}${savedPlansPreview()}</div>`) + "</div>";
+      const draft = currentDraft;
+      const next = studioNextStep(draft);
+      const draftTitle = draft ? (draft.artifact?.title || String(draft.intent || "").split("\n")[0]?.slice(0, 120) || "Plan Studio") : "Plan Studio";
+      const savedTime = draft?.saved_at ? new Date(draft.saved_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+      const headerBar = `<div class="bar studio-headbar" style="flex-wrap:wrap;align-items:center">${draft?.repository?.name ? `<span class="pill blue" title="${escapeHtml(draft.repository.root || "")}" dir="ltr">⌂ ${escapeHtml(draft.repository.name)}</span>` : ""}${draft ? `<span class="pill ${studioBusy ? "amber" : "green"}" data-studio-saved>${studioBusy ? "⟳ working…" : `✓ saved ${escapeHtml(savedTime)}`}</span>` : ""}${studioStageBadge(draft)}${next.label ? btn(next.label, next.action, `primary sm ${next.enabled ? "" : "disabled"}`) : ""}</div>`;
+      const subtitle = draft ? "Describe a change, answer questions, and refine the saved plan in place — review and approval stay explicit gates." : "Describe the change, answer focused questions, and inspect the plan as it forms — nothing queues or executes from this page.";
+      const unresolved = unresolvedQuestionCount(draft);
+      const mobileTabs = `<div class="studio-mobile-tabs" role="tablist" aria-label="Studio panes"><button type="button" class="tasks-seg-btn ${studioMobilePane === "conversation" ? "active" : ""}" data-action="studio-pane:conversation" aria-selected="${studioMobilePane === "conversation"}">Conversation${unresolved ? ` <span class="tasks-seg-count amber">${unresolved}</span>` : ""}</button><button type="button" class="tasks-seg-btn ${studioMobilePane === "plan" ? "active" : ""}" data-action="studio-pane:plan" aria-selected="${studioMobilePane === "plan"}">Plan${draft?.pending_candidate ? ` <span class="tasks-seg-count violet">${draft.pending_candidate.changes.length} changes</span>` : ""}</button></div>`;
+      return head("WORKSPACE / PLAN STUDIO", escapeHtml(draftTitle), subtitle, headerBar)
+        + (draft?.repository?.bindingError ? `<div class="notice" role="alert" style="margin:10px 0"><b class="amber">Repository binding problem</b><p class="sub">${escapeHtml(draft.repository.bindingError)} Planning and execution stay blocked until the binding is fixed; the draft itself is kept.</p></div>` : "")
+        + mobileTabs
+        + `<div class="studio-workspace" data-mobile-pane="${escapeHtml(studioMobilePane)}" style="--studio-split:${Number(studioSplit) || 40}"><section class="studio-pane studio-conversation" aria-label="Conversation">${studioConversationPane(draft)}</section><div class="studio-splitter" role="separator" aria-orientation="vertical" aria-label="Resize conversation and plan panes" title="Drag to resize · double-click resets"></div><section class="studio-pane studio-plan" aria-label="Plan">${studioPlanPane(draft)}</section></div>`;
     },
         queues: () => {
       const { tasks, queues } = derived();
@@ -1998,7 +2098,7 @@ operations: () => {
     };
     rememberScroll(content, "content");
     try { sessionStorage.setItem("atl-cp-page", page); } catch { /* storage may be unavailable */ }
-    syncRunSnapshot(); if (PLUGIN) ensurePluginTopbar(); nav(); renderProviderStatus();
+    syncRunSnapshot(); if (PLUGIN) ensurePluginTopbar(); nav(); renderProviderStatus(); renderConnectionIndicator();
     if (!(page === "studio" && document.activeElement?.id === "planRepairResponse")) {
       content.innerHTML = panels[page]?.() || panels.overview();
       const freshWorkspace = !PLUGIN && page === "tasks" ? document.querySelector("#taskWorkspace") : null;
@@ -2038,6 +2138,61 @@ operations: () => {
     if (pendingPat && $('#sourceAzurePat')) $('#sourceAzurePat').value = pendingPat;
     if (pendingGithubToken && $('#sourceGithubToken')) $('#sourceGithubToken').value = pendingGithubToken;
     ensureLocaleControl(); applyLocale();
+    // The studio transcript follows the latest entry unless the manager
+    // deliberately scrolled up (tracked by the capture scroll listener).
+    if (page === "studio") { const transcript = $("#studioTranscript"); if (transcript && studioTranscriptStick) transcript.scrollTop = transcript.scrollHeight; }
+    syncOfflineActions();
+  }
+  function renderConnectionIndicator() {
+    if (PLUGIN) return;
+    const liveBadge = document.querySelector(".topbar .pill.hotkey");
+    if (liveBadge) {
+      liveBadge.textContent = connected ? "LIVE" : "OFFLINE";
+      liveBadge.classList.toggle("red", !connected);
+      liveBadge.classList.toggle("green", connected);
+    }
+    const crumb = $("#crumb");
+    if (!crumb) return;
+    let status = $("#cp-connection-status");
+    if (!status) {
+      status = document.createElement("span");
+      status.id = "cp-connection-status";
+      status.className = "pill";
+      crumb.insertAdjacentElement("afterend", status);
+    }
+    status.classList.toggle("red", !connected);
+    status.classList.toggle("green", connected);
+    status.textContent = connected ? "Live" : "Offline · actions paused";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+  }
+  function syncOfflineActions() {
+    const allowedOffline = /^(?:go:|filter:|queue:|plugin-back$|plugin-retry$|close$|refresh$|palette$|plugin-overflow$|theme-toggle$|toggle-locale$)/;
+    document.querySelectorAll("#content button[data-action], #modal button[data-action]").forEach((button) => {
+      if (connected || allowedOffline.test(button.dataset.action || "")) {
+        if (button.dataset.disabledOffline === "true") {
+          button.disabled = false;
+          button.removeAttribute("data-disabled-offline");
+        }
+      } else if (!button.disabled) {
+        button.disabled = true;
+        button.dataset.disabledOffline = "true";
+      }
+    });
+  }
+  let snapshotDeferred = false;
+  function announceSnapshotUpdate() {
+    snapshotDeferred = true;
+    let region = $("#atl-live-announcement");
+    if (!region) {
+      region = document.createElement("div");
+      region.id = "atl-live-announcement";
+      region.className = "sr-only";
+      region.setAttribute("role", "status");
+      region.setAttribute("aria-live", "polite");
+      document.body.append(region);
+    }
+    region.textContent = "Project data changed. Your current text is preserved; updates will be visible when you finish editing.";
   }
   let modalReturnFocus = null;
   function close() {
@@ -3541,7 +3696,9 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         studioSourceContext = null;
         studioSourceContextConfirmed = Boolean(studioSourceRepository?.id);
         studioRejectedResponse = null;
-        studioNotice = currentDraft.stage === "repair" ? "Saved response opened. Repair and validate it below." : "Saved plan opened. Review the task cards before approval.";
+        studioNotice = currentDraft.stage === "repair" ? "Saved response opened. Repair and validate it below." : "Saved plan opened. The conversation, task cards, and review state are restored.";
+        studioPlanTab = "tasks";
+        studioTranscriptStick = true;
         closeCardEditor();
       } catch (error) { studioNotice = `Error: ${error.message}`; }
       render(); return;
@@ -3574,6 +3731,9 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       studioErrorLog = null;
       studioRejectedResponse = null;
       currentDraft = null;
+      studioComposerTarget = null;
+      studioPlanTab = "overview";
+      studioMobilePane = "conversation";
       closeCardEditor();
       render();
       return;
@@ -3791,12 +3951,13 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       try {
         const result = await planApi("/api/plan/generate", { intent: studioContext(), provider: selected.id, model: selected.id==='auto'?null:studioModel || null, thinking_level: selected.id==='auto'?null:studioThinking || null, sourceTaskId: studioSourceTaskId, repositoryId: studioSourceRepository?.id || null, confirm: true });
         currentDraft = result.draft; studioBusy = false; stopStudioProgress();
-        // Keep the source objective and references visible so the generated
-        // plan remains auditable against the user's original intent. The
-        // explicit Clear form action is still the only reset path.
-        studioErrorLog = null; studioRejectedResponse = null; studioRejectedReason = "";
+        // The objective now lives on the draft (auditable in Overview) and the
+        // composer becomes the conversation input for refinements; task cards
+        // open in the plan pane.
+        studioGoal = ""; studioComposerTarget = null;
+        studioPlanTab = "tasks"; studioErrorLog = null; studioRejectedResponse = null; studioRejectedReason = "";
         closeCardEditor();
-        studioNotice = `Model plan ready — ${result.draft.label?.label || "provider plan"}. Edit the task cards below before approving.`;
+        studioNotice = `Model plan ready — ${result.draft.label?.label || "provider plan"}. Answer any questions, then request review from the Review tab.`;
       } catch (error) {
         studioBusy = false; stopStudioProgress();
         studioNotice = `Error: ${error.message} — the previous draft stays untouched.`;
@@ -3819,6 +3980,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const result = await planApi("/api/plan/local", { intent: studioContext(), sourceTaskId: studioSourceTaskId, repositoryId: studioSourceRepository?.id || null });
       currentDraft = result.draft; studioBusy = false;
       closeCardEditor();
+      studioPlanTab = "overview";
       studioNotice = "Local skeleton generated (deterministic — not model output, not approvable). Use Complete with model to turn it into a reviewable plan.";
     } catch (error) { studioBusy = false; studioNotice = `Error: ${error.message}`; }
     render();
@@ -4011,22 +4173,81 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       studioEgmStage = "cancelling…"; render();
       return;
     }
-    if (value.startsWith("plan-question-suggest:") || value.startsWith("plan-question-submit:")) {
-      const [kind, indexText, suggestionText] = value.startsWith("plan-question-suggest:")
-        ? ["suggest", ...value.slice("plan-question-suggest:".length).split(":")]
-        : ["submit", value.slice("plan-question-submit:".length)];
-      const index = Number(indexText);
-      const question = currentDraft?.artifact?.open_questions?.[index];
-      if (!question) return;
-      const answer = kind === "suggest"
-        ? question.suggested_answers?.[Number(suggestionText)]
-        : $(`#plan-answer-${index}`)?.value;
-      if (typeof answer !== "string" || !answer.trim()) { studioNotice = "Choose a suggested answer or write one before sending."; render(); return; }
-      try { const result = await planApi("/api/plan/clarify", { draftId: currentDraft.id, questionId: question.id || `q${index + 1}`, answer }); currentDraft = result.draft; studioNotice = "Clarification saved. The previous review was cleared; run accuracy review again."; }
-      catch (error) { studioNotice = `Could not save clarification: ${error.message}`; }
+    if (value === "refine-submit") {
+      // One bounded refinement per submission: the busy guard keeps a second
+      // click (or a stale synthetic event) from spending another session.
+      if (studioBusy) return;
+      if (!currentDraft || currentDraft.stage === "repair") return action("generate");
+      const message = ($("#goal")?.value || "").trim();
+      if (!message) { studioNotice = "Error: describe the change or ask a question before updating the plan."; render(); return; }
+      const selected = studioProvider === 'auto' && snapshot.resource_policy?.auto_models ? { id: 'auto', label: 'ATL automatic routing', ready: true } : planningChoices().find((provider) => provider.id === studioProvider);
+      if (!selected || !selected.ready) { studioNotice = "Error: select a ready provider before updating the plan."; render(); return; }
+      studioBusy = true; startStudioProgress(); studioTranscriptStick = true; render();
+      try {
+        const result = await planApi("/api/plan/refine", { draftId: currentDraft.id, revision: currentDraft.revision, message, taskTarget: studioComposerTarget, provider: selected.id, model: selected.id === 'auto' ? null : studioModel || null, thinking_level: selected.id === 'auto' ? null : studioThinking || null, confirm: true, attachments: studioAttachments.map((file) => ({ name: file.name })) });
+        currentDraft = result.draft; studioBusy = false; stopStudioProgress();
+        studioGoal = ""; studioComposerTarget = null;
+        studioErrorLog = null;
+        studioPlanTab = "tasks";
+        studioNotice = "Proposed changes are ready — compare them with the current task cards, then apply or discard.";
+      } catch (error) {
+        // A failed refinement preserves the saved plan and the composer text.
+        studioBusy = false; stopStudioProgress();
+        studioNotice = `Error: ${error.message} — the saved plan and your message are unchanged.`;
+        studioErrorLog = error.providerLogLines || null;
+      }
+      await loadSavedPlans();
       render();
       return;
     }
+    if (value.startsWith("question-answer:")) {
+      const [, source, questionId] = value.split(":");
+      const radio = document.querySelector(`input[name="studio-q-${source}-${questionId}"]:checked`);
+      const custom = $(`#studio-q-custom-${source}-${questionId}`)?.value.trim();
+      const answer = custom || radio?.value || "";
+      if (!answer) { studioNotice = "Choose a suggested answer or write a custom one before sending."; render(); return; }
+      try {
+        const result = await planApi("/api/plan/clarify", { draftId: currentDraft.id, questionId, answer, target: source === "candidate" ? "candidate" : undefined });
+        currentDraft = result.draft;
+        studioNotice = source === "candidate" ? "Answer saved on the proposed changes." : "Answer saved. The previous review was cleared; run accuracy review again.";
+        studioTranscriptStick = true;
+      } catch (error) { studioNotice = `Error: ${error.message}`; }
+      render();
+      return;
+    }
+    if (value === "candidate-apply") {
+      if (studioBusy || !currentDraft?.pending_candidate) return;
+      studioBusy = true; render();
+      try {
+        const result = await planApi("/api/plan/candidate", { draftId: currentDraft.id, action: "apply", revision: currentDraft.revision });
+        currentDraft = result.draft;
+        closeCardEditor();
+        studioNotice = "Changes applied. Review readiness was cleared — run the review again before approval.";
+        await loadSavedPlans();
+      } catch (error) {
+        studioNotice = `Error: ${error.message}`;
+        if (/stale|based on rev|reload/i.test(error.message)) {
+          // The proposal no longer matches the plan; reload what is actually
+          // saved so the manager compares against reality, not a stale view.
+          try { currentDraft = (await planApi("/api/plan/drafts", { draftId: currentDraft.id })).draft; } catch { /* keep the local view */ }
+        }
+      }
+      studioBusy = false; render();
+      return;
+    }
+    if (value === "candidate-discard") {
+      if (!currentDraft?.pending_candidate) return;
+      try { const result = await planApi("/api/plan/candidate", { draftId: currentDraft.id, action: "discard" }); currentDraft = result.draft; studioNotice = "Proposed changes discarded — the saved plan is unchanged."; }
+      catch (error) { studioNotice = `Error: ${error.message}`; }
+      render();
+      return;
+    }
+    if (value.startsWith("ask-task:")) { studioComposerTarget = value.slice(9); studioMobilePane = "conversation"; render(); $("#goal")?.focus(); return; }
+    if (value === "ask-task-clear") { studioComposerTarget = null; render(); return; }
+    if (value.startsWith("studio-pane:")) { studioMobilePane = value.slice(12); render(); return; }
+    if (value.startsWith("studio-plantab:")) { studioPlanTab = value.slice(15); render(); return; }
+    if (value === "studio-focus-questions") { studioMobilePane = "conversation"; render(); const first = document.querySelector("[data-studio-question]"); if (first) { first.scrollIntoView({ block: "center", behavior: "smooth" }); first.querySelector("input, textarea")?.focus({ preventScroll: true }); } return; }
+    if (value === "studio-run-egm") { studioReviewKind = "egm"; if (currentDraft) return action(`plan-review:${currentDraft.id}`); render(); return; }
     if (value.startsWith("plan-approve:") || value.startsWith("plan-queue:")) {
       const queueAfter = value.startsWith("plan-queue:");
       const id = value.slice(value.indexOf(":") + 1);
@@ -4307,6 +4528,9 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   document.addEventListener("keydown", (event) => {
     if (PLUGIN && pluginOverflowOpen && event.key === "Escape" && !dialogOpen) { event.preventDefault(); closePluginOverflow(); document.querySelector('[data-action="plugin-overflow"]')?.focus(); return; }
     if (event.target.id === "assistantMessage" && event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); void action("assistant-send"); return; }
+    // Studio composer: Enter inserts a newline; Ctrl/Cmd+Enter sends — the
+    // initial generation or, once a draft exists, one bounded refinement call.
+    if (event.target.id === "goal" && event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); void action(currentDraft && currentDraft.stage !== "repair" ? "refine-submit" : "generate"); return; }
     if (dialogOpen) {
       if (event.key === "Escape") { event.preventDefault(); close(); return; }
       if (event.key === "Tab") {
@@ -4373,7 +4597,43 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   $("#noticesBtn").onclick = () => popup("Notifications", (snapshot.notifications?.items || []).map((item) => `<div class="event">${badge(item.severity || "INFO")} ${escapeHtml(item.title || item.detail || item.id)}</div>`).join("") || '<p class="muted">No notifications are due.</p>', btn("Close", "close"));
 
   document.addEventListener("input", (event) => { if (event.target.id === "planRepairResponse") studioRepairText = event.target.value; });
-  document.addEventListener("toggle", (event) => { if (event.target.matches?.("[data-saved-plans]") && event.target.isConnected) studioSavedPlansOpen = event.target.open; if (event.target.matches?.("[data-workmap-section]") && event.target.isConnected) { const key = event.target.dataset.workmapSection; if (event.target.open) workmapOpen.add(key); else workmapOpen.delete(key); } if (event.target.matches?.("[data-mt-toggle]") && event.target.isConnected) myTasksOpen.set(event.target.dataset.mtToggle, event.target.open); if (event.target.matches?.("[data-plugin-disclosure]") && event.target.isConnected) pluginDetailOpen.set(event.target.dataset.pluginDisclosure, event.target.open); if (event.target.matches?.("[data-workspace-disclosure]") && event.target.isConnected) { workspaceOpen.set(event.target.dataset.workspaceDisclosure, event.target.open); workspacePersist(); } }, true);
+  document.addEventListener("toggle", (event) => { if (event.target.matches?.("[data-saved-plans]") && event.target.isConnected) studioSavedPlansOpen = event.target.open; if (event.target.matches?.("[data-studio-settings]") && event.target.isConnected) studioSettingsOpen = event.target.open; if (event.target.matches?.("[data-workmap-section]") && event.target.isConnected) { const key = event.target.dataset.workmapSection; if (event.target.open) workmapOpen.add(key); else workmapOpen.delete(key); } if (event.target.matches?.("[data-mt-toggle]") && event.target.isConnected) myTasksOpen.set(event.target.dataset.mtToggle, event.target.open); if (event.target.matches?.("[data-plugin-disclosure]") && event.target.isConnected) pluginDetailOpen.set(event.target.dataset.pluginDisclosure, event.target.open); if (event.target.matches?.("[data-workspace-disclosure]") && event.target.isConnected) { workspaceOpen.set(event.target.dataset.workspaceDisclosure, event.target.open); workspacePersist(); } }, true);
+  // Studio workspace: splitter drag (persisted), double-click reset, and the
+  // transcript follow-latest rule (stick to the bottom until the user scrolls up).
+  document.addEventListener("pointerdown", (event) => { if (event.target.closest?.(".studio-splitter")) { studioSplitDragging = true; event.preventDefault(); } });
+  document.addEventListener("pointermove", (event) => {
+    if (!studioSplitDragging) return;
+    const workspace = document.querySelector(".studio-workspace");
+    if (!workspace) return;
+    const rect = workspace.getBoundingClientRect();
+    let share = ((event.clientX - rect.left) / rect.width) * 100;
+    if (document.body.classList.contains("atl-rtl")) share = 100 - share;
+    studioSplit = Math.max(24, Math.min(72, share));
+    workspace.style.setProperty("--studio-split", studioSplit.toFixed(1));
+  });
+  document.addEventListener("pointerup", () => {
+    if (!studioSplitDragging) return;
+    studioSplitDragging = false;
+    try { localStorage.setItem("atl-cp-studio-split", String(Math.round(studioSplit))); } catch { /* private browsing */ }
+  });
+  document.addEventListener("dblclick", (event) => {
+    if (!event.target.closest?.(".studio-splitter")) return;
+    studioSplit = 40;
+    document.querySelector(".studio-workspace")?.style.setProperty("--studio-split", "40");
+    try { localStorage.setItem("atl-cp-studio-split", "40"); } catch { /* private browsing */ }
+  });
+  document.addEventListener("scroll", (event) => {
+    if (event.target?.id === "studioTranscript") { const transcript = event.target; studioTranscriptStick = transcript.scrollTop + transcript.clientHeight >= transcript.scrollHeight - 48; }
+  }, true);
+  // Light-dismiss the composer settings popover: any click outside it closes
+  // it, so it never keeps floating over the conversation and blocking
+  // clicks on notices beneath it.
+  document.addEventListener("click", (event) => {
+    if (!studioSettingsOpen || event.target.closest?.(".studio-settings")) return;
+    studioSettingsOpen = false;
+    const details = document.querySelector(".studio-settings");
+    if (details) details.open = false;
+  }, true);
   void Promise.all([refresh(false), refreshRun(false), loadProviders(true), loadSavedPlans(), ...(page === "sources" ? [loadIssueSources()] : []), ...(page === "projects" ? [loadProjectMap()] : []), ...(page === "mytasks" ? [loadMyTasks()] : []), ...(page === "settings" ? [loadNavigation(), loadAccess(), loadResources()] : [])]).then(() => {
     render();
     connectStream();

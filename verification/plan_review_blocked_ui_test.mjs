@@ -4,12 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
+import { emptyState, saveState } from "../runtime/lib/state.mjs";
 
 // A blocked accuracy review must be legible: the approve button is visibly
 // disabled WITH its reason, findings carry a tally, and one action prepares
 // the revision instead of the owner staring at a stale failure notice.
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-review-blocked-"));
+saveState(root, emptyState()); // a connected snapshot keeps controls enabled (offline mode disables them)
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-review-home-"));
 const savedHome = { USERPROFILE: process.env.USERPROFILE, HOME: process.env.HOME };
 process.env.USERPROFILE = home;
@@ -62,12 +64,18 @@ try {
   await page.goto(started.url);
   await page.locator('[data-page="studio"]').first().click();
   await page.locator("#goal").fill("Fix the cart merge without duplicates");
+  await page.locator(".studio-settings > summary").click();
   await page.getByRole("button", { name: "Generate with model", exact: true }).click();
-  await page.getByRole("button", { name: /Generate with model · 1 confirmed/ }).click();
+  await page.locator('[data-action="generate"]').click();
   await page.getByText("Model plan ready", { exact: false }).waitFor();
 
+  // The plan lands on the Tasks tab; review controls live in the Review tab.
+  const reviewTab = page.locator('.planpane-tabs [data-action="studio-plantab:review"]');
+  await reviewTab.click();
   // The disabled approve states its reason before any review exists.
-  const approve = page.getByRole("button", { name: "Approve → Plan Queue" });
+  // The header CTA and next-step bar mirror the review-section control, so
+  // scope approval assertions to the Plan review region.
+  const approve = page.getByRole("region", { name: "Plan review" }).getByRole("button", { name: "Approve → Plan Queue" });
   assert.equal(await approve.isDisabled(), true, "Approve is disabled before any review");
   assert.ok(Number(await approve.evaluate((node) => getComputedStyle(node).opacity)) < 0.6, "a disabled Approve looks disabled, not clickable");
   await page.locator("[data-approval-state]").waitFor();
@@ -88,11 +96,12 @@ try {
   assert.match(await page.locator(".studio-revision").innerText(), /cart-merge contract/);
 
   // A passing review flips the state: Approve unlocks and the notice disappears.
-  await page.getByRole("button", { name: /Generate with model · 1 confirmed/ }).click();
+  await page.locator('[data-action="generate"]').click();
   await page.getByText("Model plan ready", { exact: false }).waitFor();
+  await reviewTab.click();
   await page.getByRole("button", { name: "Run review" }).click();
   await page.getByRole("heading", { name: "Review passed" }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Approve → Plan Queue" }).isDisabled(), false);
+  assert.equal(await page.getByRole("region", { name: "Plan review" }).getByRole("button", { name: "Approve → Plan Queue" }).isDisabled(), false);
   assert.equal(await page.locator("[data-approval-state]").count(), 0, "no approval-state notice once approval is unlocked");
 
   console.log("PASS: blocked review UX — disabled Approve states its reason, findings tallied, revise action, passing review unlocks");

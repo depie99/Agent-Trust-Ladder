@@ -6,8 +6,10 @@ import { chromium } from 'playwright';
 import { startControlPlaneServer } from '../runtime/lib/control-plane-server.mjs';
 import { savePlanDraft, loadPlanDraft, archivePlanDraft } from '../runtime/lib/plan-studio.mjs';
 import { loadQueueBook, saveQueueBook } from '../runtime/lib/queue.mjs';
+import { emptyState, saveState } from '../runtime/lib/state.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-plan-archive-'));
+saveState(root, emptyState()); // a connected snapshot keeps controls enabled (offline mode disables them)
 let browser, server;
 try {
   const first = savePlanDraft(root, { id: 'draft-one', intent: 'First cart plan', stage: 'repair' });
