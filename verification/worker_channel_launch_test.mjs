@@ -9,7 +9,9 @@ import { readHandoff } from "../runtime/lib/handoffs.mjs";
 
 const fixture = fileURLToPath(new URL("./fixtures/channel-worker.mjs", import.meta.url));
 for (const mode of ["direct", "queue"]) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), `atl-channel-${mode}-`));
+  // macOS exposes temp paths through /var -> /private. Use one canonical path
+  // for both ATL_PROJECT and Node's permission boundary in the worker fixture.
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), `atl-channel-${mode}-`)));
   try {
     const state = emptyState(); const task = createTask(state, { title: "Contained task", source: { type: "test" } });
     Object.assign(task, { status: "assigned", assigned_worker: "rowan", objective: "Observe contained worker output", completion_checks: ["worker result verified"], review_required: true }); saveState(root, state);
