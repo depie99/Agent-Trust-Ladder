@@ -53,7 +53,11 @@ try {
   assert.equal(loadState(root).tasks[task.id].recovery.attempts.length, 0, "input readiness is not a verification repair");
   assert.equal(loadState(root).tasks[task.id].execution_budget.used, 12);
   recordBlocker(task, { cause: "execution", reason: "worker did not advance" });
-  saveState(root, state);
+  // recoverPreparedTasks saved while this object was held; a stale writer must
+  // reload instead of overwriting (issue #31 revision discipline).
+  const resumed = loadState(root);
+  Object.assign(resumed.tasks[task.id], task);
+  saveState(root, resumed);
   await recoverPreparedTasks(root, [task.id]);
   assert.equal(loadState(root).tasks[task.id].recovery.attempts.length, 0, "unknown execution stalls need diagnosis, not generic preparation");
   task.pip_repair_request = { objective: "Repair metadata" };
@@ -71,6 +75,10 @@ try {
   assert.match(tails[0].tail, /actual failure/);
   assert.doesNotMatch(tails[0].tail, /private-value/);
   assert.deepEqual(taskLogTails(root, "../escape"), []);
+  // Re-base the held state on the current revision before mutating again:
+  // external saves advanced the disk while this object was held (#31).
+  const rebased = loadState(root);
+  state.tasks = rebased.tasks; state.seq = rebased.seq; state.revision = rebased.revision; state.log = rebased.log;
   const stalled = createTask(state, { title: "Actual worker records failure without advancing" });
   stalled.status = "assigned"; stalled.assigned_worker = "rowan"; stalled.workspace = root;
   stalled.completion_checks = ["Required observation"];

@@ -5,6 +5,13 @@ import path from 'node:path';
 import {emptyState,saveState} from '../runtime/lib/state.mjs';
 import {startControlPlaneServer} from '../runtime/lib/control-plane-server.mjs';
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'atl-resource-planning-'));
+// Hermetic: automatic routing gates on the machine's CLI sign-in markers
+// (~/.gapcode/auth.json for gapgpt). A fresh runner has none, so the fixture
+// profile home carries the minimal signed-in marker instead of the developer's.
+const fixtureHome=fs.mkdtempSync(path.join(os.tmpdir(),'atl-planning-home-'));
+fs.mkdirSync(path.join(fixtureHome,'.gapcode'),{recursive:true});
+fs.writeFileSync(path.join(fixtureHome,'.gapcode','auth.json'),JSON.stringify({tokens:{fixture:true}}));
+process.env.USERPROFILE=fixtureHome;process.env.HOME=fixtureHome;
 let server,calls=0;
 const plan={plan_contract_version:2,title:'Fix README typo',objective:'Correct one typo',requirements:[{id:'r1',text:'Correct spelling',source:'original request'}],constraints:[],observed_evidence:[{description:'README exists',path:'README.md'}],assumptions:[],open_questions:[],risks:[],completion_checks:['Correct spelling'],acceptance_examples:[{given:'A typo',when:'It is corrected',then:'Spelling is correct'}],implementation_steps:[{step:'Correct typo',files:['README.md'],verify:'Review spelling'}],verifier_commands:['Review spelling'],task_proposals:[{id:'p1',title:'Fix README typo',objective:'Correct one typo',instructions:'Correct the typo in README',requirement_ids:['r1'],deliverables:['Correct README'],completion_checks:['Correct spelling'],selected_skills:[],skill_reasons:{},proposed_worker:'rowan',depends_on:[],files:['README.md'],verify:'Review spelling',resource_estimate:{complexity:'simple',reason:'One spelling correction in one file'}}]};
 const policy={enabled:true,default_sessions:8,max_sessions:16,auto_extend:true,auto_models:true,max_model_tier:'standard',models:[{provider:'gapgpt',model:'small',tier:'economy',cost_order:1,enabled:true},{provider:'gapgpt',model:'general',tier:'standard',cost_order:2,enabled:true}]};
@@ -24,5 +31,5 @@ try {
   result=await post('api/plan/review',{draftId:id,provider:'auto'});assert.equal(result.status,200,result.error);assert.equal(result.review.model,'small');assert.equal(calls,3);
   result=await post('api/plan/generate',{intent:'Redesign a production migration',provider:'auto',confirm:true});assert.equal(result.status,400);assert.match(result.error,/ceiling/);assert.equal(calls,3,'inadequate model ceiling rejects before invoking any model');
   result=await post('api/plan/generate',{intent:'Fix a typo',provider:'gapgpt',model:'not-approved',confirm:true});assert.equal(result.status,400);assert.match(result.error,/override/);assert.equal(calls,3);
-}finally{if(server)await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}
+}finally{if(server)await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});fs.rmSync(fixtureHome,{recursive:true,force:true});}
 console.log('PASS: automatic model routing for planning, regeneration and accuracy review; ceiling refusals before invoke');

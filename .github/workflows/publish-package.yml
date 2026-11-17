@@ -35,7 +35,26 @@ jobs:
           node verification/package_smoke_test.mjs
           npm pack --dry-run
 
+      - name: Build plugin bundles
+        run: npm run plugins:build
+
+      - name: Package plugin bundles
+        shell: sh
+        run: |
+          for dir in dist/plugins/*/; do
+            tar -czf "dist/atl-plugin-$(basename "$dir").tgz" -C "$dir" .
+          done
+
       - name: Publish to GitHub Packages
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Issue #30: the built harness packages (DeepSeek included) travel with
+      # the tagged release instead of staying out of the tree.
+      - name: Attach plugin bundles to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/atl-plugin-*.tgz
+          fail_on_unmatched_files: true

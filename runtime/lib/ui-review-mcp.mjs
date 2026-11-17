@@ -48,19 +48,47 @@ export function createBrowserTools(root, workspace) {
         return new URL(request.url()).origin === origin && ["GET", "HEAD"].includes(request.method()) ? route.continue() : route.abort("blockedbyclient");
       });
       page = await context.newPage();
-      page.setDefaultTimeout(8000);
+      page.setDefaultTimeout(15000);
       loadedAssets = assetHashes();
       await page.goto(running.url);
       await page.locator(".event").first().waitFor();
     } catch (error) { await close(); throw error; }
   }
+  // The inspected app re-renders itself on a short cycle; playwright can lose
+  // the execution context between locating and evaluating. A transient
+  // context destruction is retried against the fresh DOM instead of failing
+  // the inspection — model sessions hit the same race.
+  async function withRenderRaceRetry(action) {
+    try { return await action(); }
+    catch (error) {
+      if (/Execution context was destroyed|Element is not attached/i.test(String(error?.message))) return action();
+      throw error;
+    }
+  }
+  // A fullPage capture races the app's own re-render cycle: the page keeps
+  // invalidating stability checks, so one retry after a capture timeout is
+  // expected on loaded hosts rather than a failed evidence run.
+  async function captureScreenshot(options) {
+    try { return await page.screenshot(options); }
+    catch (error) {
+      if (!/timeout/i.test(String(error?.message))) throw error;
+      return await page.screenshot(options);
+    }
+  }
   async function inspect(selector) {
-    return page.locator(selector).evaluateAll((nodes) => nodes.slice(0, 100).map((node) => {
+    const evaluate = () => withRenderRaceRetry(() => page.locator(selector).evaluateAll((nodes) => nodes.slice(0, 100).map((node) => {
       const style = getComputedStyle(node); const rect = node.getBoundingClientRect();
       return { text: node.textContent, html: node.outerHTML, direction: style.direction, unicodeBidi: style.unicodeBidi, fontFamily: style.fontFamily,
         bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         fragments: [...node.querySelectorAll("bdi,[dir]")].map((fragment) => ({ text: fragment.textContent, direction: getComputedStyle(fragment).direction, unicodeBidi: getComputedStyle(fragment).unicodeBidi })) };
-    }));
+    })));
+    // A just-clicked control (locale switch, queue filter) re-renders the list
+    // asynchronously; one settle retry keeps an empty mid-render match from
+    // being reported as the page's actual state.
+    const nodes = await evaluate();
+    if (nodes.length) return nodes;
+    await page.waitForTimeout(350);
+    return evaluate();
   }
   async function call(name, args = {}) {
     const tool = browserTools.find((item) => item.name === name);
@@ -76,28 +104,28 @@ export function createBrowserTools(root, workspace) {
       else if (args.action === "select") await locator.selectOption(args.value);
       else if (args.action === "press") await locator.press(args.value);
       else throw new Error("Unsupported action");
-      result = { snapshot: await page.locator("body").ariaSnapshot() };
+      result = { snapshot: await withRenderRaceRetry(() => page.locator("body").ariaSnapshot()) };
     } else if (name === "browser_inspect") {
       result = { selector: args.selector, nodes: await inspect(args.selector) };
     } else if (name === "browser_viewport") {
       if (![args.width, args.height].every(Number.isInteger) || args.width < 320 || args.width > 2560 || args.height < 320 || args.height > 1600) throw new Error("Invalid viewport");
       await page.setViewportSize({ width: args.width, height: args.height });
-      result = { viewport: page.viewportSize(), snapshot: await page.locator("body").ariaSnapshot() };
+      result = { viewport: page.viewportSize(), snapshot: await withRenderRaceRetry(() => page.locator("body").ariaSnapshot()) };
     } else if (name === "browser_reload") {
       loadedAssets = assetHashes();
       await page.reload();
-      result = { snapshot: await page.locator("body").ariaSnapshot() };
+      result = { snapshot: await withRenderRaceRetry(() => page.locator("body").ariaSnapshot()) };
     } else if (name === "browser_screenshot") {
       const assets = assetHashes();
       if (JSON.stringify(assets) !== JSON.stringify(loadedAssets)) throw new Error("Task assets changed since this page loaded. Use browser_reload before capturing evidence.");
       safePath(workspace, ".atl-evidence/ui-review");
       fs.mkdirSync(runtime.evidenceDir, { recursive: true });
       const stem = path.join(runtime.evidenceDir, `capture-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
-      const bytes = await page.screenshot({ path: `${stem}.png`, fullPage: true });
+      const bytes = await captureScreenshot({ path: `${stem}.png`, fullPage: true });
       if (JSON.stringify(assetHashes()) !== JSON.stringify(assets)) throw new Error("Task assets changed during capture; reload and capture fresh evidence.");
       const evidence = { at: new Date().toISOString(), synthetic: true, url: page.url(), viewport: page.viewportSize(), assets,
-        locale: await page.locator("html").evaluate((node) => ({ lang: node.lang, dir: node.dir })),
-        snapshot: await page.locator("body").ariaSnapshot(), observations: [...observations],
+        locale: await withRenderRaceRetry(() => page.locator("html").evaluate((node) => ({ lang: node.lang, dir: node.dir }))),
+        snapshot: await withRenderRaceRetry(() => page.locator("body").ariaSnapshot()), observations: [...observations],
         log: await inspect(".event"), screenshot: `${stem}.png`, screenshot_hash: crypto.createHash("sha256").update(bytes).digest("hex"), result: "NOT OBSERVED", note: "Capture only. The model must inspect this image and record its verdict through ATL observe." };
       fs.writeFileSync(`${stem}.json`, JSON.stringify(evidence, null, 2) + "\n", "utf8");
       return { content: [text({ ...evidence, evidence_file: `${stem}.json` }), { type: "image", data: bytes.toString("base64"), mimeType: "image/png" }] };

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildSync } from 'esbuild';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 import { sharedTrees, shipFile, shipDependencyFile, sharedContent, dependencyContent, verifyPluginRelease } from '../runtime/lib/plugin-release.mjs';
 
@@ -33,7 +34,9 @@ export function buildPlugins({ out = path.join(root, 'dist', 'plugins'), targets
   const panelScript = buildSync({ entryPoints: [path.join(root, 'plugins', 'panel-entry.mjs')], bundle: true, write: false, platform: 'browser', format: 'iife', target: 'chrome120', minify: true }).outputFiles[0].text;
   const panelHash = createHash('sha256').update(panelScript).digest('hex');
   const deepseekClient = buildSync({ entryPoints: [path.join(root, 'plugins', 'deepseek-client.mjs')], bundle: true, write: false, platform: 'browser', format: 'cjs', external: ['react'], target: 'chrome120', banner: { js: 'window.__ModuleLoader__.load({id:"@depie99/atl-plugin",factory:(require)=>{var module={exports:{}};var exports=module.exports;' }, footer: { js: 'return module.exports;}});' } }).outputFiles[0].text;
-  const release = { format: 3, version: metadata.version, runtimeVersion: sourcePackage.version, content: sharedContent(root), dependencies: dependencyContent(root, packages), ui: { path: 'plugin-ui/panel.js', sha256: panelHash } };
+  let commit = null;
+  try { commit = execFileSync('git', ['-C', root, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* source archive has no Git metadata */ }
+  const release = { format: 3, version: metadata.version, runtimeVersion: sourcePackage.version, commit, content: sharedContent(root), dependencies: dependencyContent(root, packages), ui: { path: 'plugin-ui/panel.js', sha256: panelHash } };
   for (const target of targets) {
     const dest = path.join(out, target);
     // Refuse to overwrite anything: callers can choose another output directory.

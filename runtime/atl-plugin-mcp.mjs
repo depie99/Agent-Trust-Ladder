@@ -46,7 +46,11 @@ async function respond(line) {
       return reply({ contents: [{ uri: panelUri, mimeType: 'text/html;profile=mcp-app', text: html, _meta: { ui: { csp: { resourceDomains: [panel.origin], baseUriDomains: [panel.origin] } } } }] });
     } catch (error) { write({ jsonrpc: '2.0', id: request.id, error: { code: -32603, message: error.message } }); return; }
   }
-  if (request.method === 'tools/list') return reply({ tools: [...pluginTools.map(({ readOnly, ...tool }) => ({ ...tool, annotations: { readOnlyHint: readOnly === true, destructiveHint: !readOnly, openWorldHint: !readOnly } })), panelTool] });
+  if (request.method === 'tools/list') return reply({ tools: [...pluginTools.map(({ readOnly, ...tool }) => ({ ...tool, annotations: {
+    readOnlyHint: readOnly === true || ['atl_connect', 'atl_control_plane'].includes(tool.name),
+    destructiveHint: ['atl_start', 'atl_command', 'atl_jira_preview'].includes(tool.name),
+    openWorldHint: tool.name.startsWith('atl_jira_') || tool.name === 'atl_command',
+  } })), panelTool] });
   if (request.method === 'tools/call') {
     const controller = new AbortController();
     calls.set(request.id, controller);

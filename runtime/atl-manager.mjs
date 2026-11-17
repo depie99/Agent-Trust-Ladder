@@ -16,7 +16,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  StateError, STATUSES, paths, emptyState, loadState, saveState,
+  StateError, STATUSES, paths, emptyState, loadState, saveState, mutateState,
   createTask, logEvent, transition, addEvidence, reviseTaskPacket,
 } from "./lib/state.mjs";
 import { contractFor, renderRole, ROLE_SLOT } from "./lib/roles.mjs";
@@ -50,8 +50,8 @@ import { assembleContext, buildMap, mapStatus, neighbors, queryMap } from "./lib
 import { addClaim, archiveSource, buildContextPack, listClaims, saveContextPack, sourceStatus } from "./lib/brain.mjs";
 import { approveClaim, listRoutines, listSkills, promoteSkill, registerRoutine, staleClaims, validateSkill } from "./lib/governance.mjs";
 import { registerProject, setSupervisorDefaults, supervisorSnapshot } from "./lib/supervisor.mjs";
-import { validateWorkerCredential } from "./lib/session-auth.mjs";
-import { leaseAllows } from "./lib/leases.mjs";
+import { createWorkerCredential, validateWorkerCredential } from "./lib/session-auth.mjs";
+import { acquireLease, leaseAllows, releaseLease, reconcileLeases } from "./lib/leases.mjs";
 import { createBackup, listBackups, restoreBackup } from "./lib/backup.mjs";
 import { repairContract } from "./lib/queue-recovery.mjs";
 import { snapshot as contentSnapshot } from "./lib/handoffs.mjs";
@@ -97,12 +97,14 @@ function preferredControlPlaneRuntime(projectRoot) {
 
   // The installer records its checkout so a globally installed `atl` keeps
   // serving the newest local ATL source while managing another project.
-  const installHome = process.env.ATL_HOME ? path.resolve(process.env.ATL_HOME) : path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+  const installHome = process.env.ATL_INSTALL_DIR ? path.resolve(process.env.ATL_INSTALL_DIR) : path.dirname(path.dirname(fileURLToPath(import.meta.url)));
   try {
     const marker = JSON.parse(fs.readFileSync(path.join(installHome, "source.json"), "utf8"));
-    return completeControlPlaneRuntime(path.join(String(marker.source_root || ""), "runtime"));
+    const sourceRuntime = completeControlPlaneRuntime(path.join(String(marker.source_root || ""), "runtime"));
+    if (sourceRuntime) return sourceRuntime;
+    return completeControlPlaneRuntime(path.join(installHome, "runtime"));
   } catch {
-    return null;
+    return completeControlPlaneRuntime(path.join(installHome, "runtime"));
   }
 }
 
@@ -166,8 +168,8 @@ for (let i = 1; i < argv.length; i++) {
 function usage() {
   return `
 atl-manager — persistent coordinator runtime for the ATL digital team
-Run it inside the project it manages (state lives in <project>/.trust/manager).
-Install once with scripts\\install-atl.cmd (or install-atl.sh) and use: atl <command>
+  Run it inside the project it manages (state lives in <project>/.trust/manager).
+Install once with scripts/install-atl.cmd (or scripts/install-atl.sh) and use: atl <command>
 
 Setup
   init                          create .trust/manager/ scaffold + config
@@ -291,6 +293,11 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
+  session start --actor <role> --task <id> [--ttl 2h]
+                                issue a scoped, expiring credential for an
+                                interactive agent session (ATL_WORKER_CREDENTIAL)
+  session stop                  release that session's lease
+  --version                     show the runtime version and source commit
   memory recall "query"         retrieve advisory project memory
   memory remember "fact"        store an explicitly supplied advisory memory
   memory learn <kind> "text"    store a preference, style, prompt, lesson, or outcome
@@ -323,7 +330,7 @@ const knownActor = (taskId = null) => {
   const a = actorOf();
   const known = ["mira", "pip", "rowan", "sage", "beacon", "manager"];
   if (!known.includes(a)) throw new StateError(`--actor must be one of ${known.join(", ")}`);
-  if (a !== "manager" && !process.env.ATL_WORKER_CREDENTIAL) throw new StateError("role actor mutations require a scoped ATL_WORKER_CREDENTIAL; --actor alone is not authorization");
+  if (a !== "manager" && !process.env.ATL_WORKER_CREDENTIAL) throw new StateError("role actor mutations require a scoped ATL_WORKER_CREDENTIAL; --actor alone is not authorization. Supported path: atl session start --actor <role> --task <id>");
   if (process.env.ATL_WORKER_CREDENTIAL) {
     let credential;
     try { credential = JSON.parse(process.env.ATL_WORKER_CREDENTIAL); } catch { throw new StateError("invalid scoped worker credential"); }
@@ -336,7 +343,7 @@ const knownActor = (taskId = null) => {
 
 function loadConfig() {
   if (!fs.existsSync(P.config)) {
-    throw new StateError(`Missing ${P.config}. Run: node runtime\\atl-manager.mjs init`);
+    throw new StateError(`Missing ${P.config}. Run: atl init`);
   }
   return JSON.parse(fs.readFileSync(P.config, "utf8"));
 }
@@ -877,7 +884,22 @@ async function intakeConfigCommand(sub) {
 
 async function main() {
   switch (cmd) {
+    case "--version":
+    case "-v":
+    case "version": {
+      const installDir = process.env.ATL_INSTALL_DIR || path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+      let pkg = { version: "unknown" }, source = {};
+      try { pkg = JSON.parse(fs.readFileSync(path.join(installDir, "package.json"), "utf8")); } catch { /* checkout */ }
+      try { source = JSON.parse(fs.readFileSync(path.join(installDir, "source.json"), "utf8")); } catch { /* checkout/archive */ }
+      console.log(`ATL runtime ${pkg.version}${source.commit ? ` (${source.commit})` : ""}`);
+      return;
+    }
     case "init": {
+      const workspaceRoot = path.join(ROOT, ".trust", "manager", "workspaces");
+      const relativeToWorkspace = path.relative(workspaceRoot, ROOT);
+      if (relativeToWorkspace === "" || (!relativeToWorkspace.startsWith(`..${path.sep}`) && relativeToWorkspace !== ".." && !path.isAbsolute(relativeToWorkspace))) {
+        throw new StateError("Refusing to initialize a nested task workspace. Run atl commands from the owning project.");
+      }
       const ignoreFile = path.join(ROOT, ".gitignore");
       const runtimeIgnore = [
         "# The whole .trust/ folder is local runtime state — never commit or push it.",
@@ -885,7 +907,7 @@ async function main() {
         "providers.json", "owner-session.json", ".env", ".env.*", "!.env.template",
       ].join("\n");
       const currentIgnore = fs.existsSync(ignoreFile) ? fs.readFileSync(ignoreFile, "utf8") : "";
-      if (!currentIgnore.includes("# ATL local runtime data; do not commit.")) {
+      if (["/.trust/", "/.atl/", "/.atl-evidence/", "/.humanlayer/"].some((rule) => !currentIgnore.includes(rule))) {
         fs.appendFileSync(ignoreFile, `${currentIgnore && !currentIgnore.endsWith("\n") ? "\n" : ""}\n${runtimeIgnore}\n`);
       }
       for (const d of [P.inbox, P.briefs, P.workspaces]) fs.mkdirSync(d, { recursive: true });
@@ -954,9 +976,9 @@ async function main() {
       let text = [title, body].filter(Boolean).join("\n");
       if (flags.check.length) text += `\nChecks:\n${flags.check.map((c) => `- ${c}`).join("\n")}`;
       const cfg = loadConfig();
-      const state = loadState(ROOT);
-      const { task, created, draftPath } = composeTask(ROOT, state, text, { source: "manual", cfg });
-      saveState(ROOT, state);
+      // mutateState retries on revision conflict so parallel composes (CLI,
+      // plugin, Control Plane) cannot silently drop a task (issue #31).
+      const { result: { task, created, draftPath } } = mutateState(ROOT, (state) => composeTask(ROOT, state, text, { source: "manual", cfg }));
       if (created) {
         console.log(`  + ${task.id} [new] (composer) ${task.title}`);
         console.log(`  draft: ${draftPath}  (immutable raw wording)`);
@@ -1341,6 +1363,48 @@ async function main() {
       return;
     }
 
+    case "session": {
+      // Supported authorization path for interactive agent sessions (#33):
+      // one operator action issues a scoped, expiring credential bound to one
+      // task, one role and a fenced lease; the role contract still gates
+      // which transitions the role may perform.
+      const sub = pos[0] || "start";
+      if (sub === "start") {
+        const taskId = flags.task || pos[1];
+        if (!taskId) throw new StateError("session start needs --task <id> and --actor <role>");
+        const role = actorOf();
+        if (role === "manager") throw new StateError("the manager acts as the owner and needs no session credential");
+        const { state, task } = need(taskId);
+        const ttlText = typeof flags.ttl === "string" && flags.ttl.trim() ? flags.ttl.trim() : "2h";
+        const ttlMatch = ttlText.match(/^(\d+)(s|m|h|d)?$/i);
+        if (!ttlMatch) throw new StateError(`--ttl must look like 30m, 2h or 3600 (got "${ttlText}")`);
+        const unitSeconds = { s: 1, m: 60, h: 3600, d: 86400 }[(ttlMatch[2] || "s").toLowerCase()];
+        const ttlSeconds = Number(ttlMatch[1]) * unitSeconds;
+        if (ttlSeconds < 60 || ttlSeconds > 24 * 3600) throw new StateError("--ttl must be between 1 minute and 24 hours");
+        reconcileLeases(ROOT);
+        const project = path.resolve(ROOT);
+        const lease = acquireLease(ROOT, { project, task: task.id, role, run: `session:${new Date().toISOString()}`, ttlMs: ttlSeconds * 1000 });
+        const credential = createWorkerCredential({ project, task: task.id, role, run: lease.run, generation: lease.generation, leaseId: lease.id, leaseKey: lease.key, expiresInSeconds: ttlSeconds });
+        logEvent(state, { task: task.id, actor: "manager", event: "session-start", detail: `role ${role} session credential issued (ttl ${ttlText}, lease ${lease.id})` });
+        saveState(ROOT, state);
+        const exported = `ATL_WORKER_CREDENTIAL='${JSON.stringify(credential).replace(/'/g, "'\\''")}'`;
+        console.log(`Interactive ${role} session scoped to ${task.id} ("${task.title}") until ${credential.expires_at}.`);
+        console.log(`  POSIX:  export ${exported}`);
+        console.log(`  Windows: set ATL_WORKER_CREDENTIAL=${JSON.stringify(credential)}`);
+        console.log(`Then run role commands with --actor ${role}. End the session with: atl session stop (credential in ATL_WORKER_CREDENTIAL).`);
+        return;
+      }
+      if (sub === "stop") {
+        if (!process.env.ATL_WORKER_CREDENTIAL) throw new StateError("session stop needs the session's ATL_WORKER_CREDENTIAL in the environment");
+        let credential;
+        try { credential = JSON.parse(process.env.ATL_WORKER_CREDENTIAL); } catch { throw new StateError("invalid scoped worker credential"); }
+        const released = releaseLease(ROOT, { key: credential.lease_key, id: credential.lease_id, generation: credential.generation });
+        console.log(released ? `Session lease ${credential.lease_id} released; the credential no longer authorizes anything.` : "Session lease was already released or expired.");
+        return;
+      }
+      throw new StateError("session: start | stop");
+    }
+
     case "block": {
       const { state, task } = need(pos[0]);
       if (!flags.reason) throw new StateError(`block needs --reason "..."`);
@@ -1505,6 +1569,11 @@ async function main() {
 
     case "show": {
       const state = loadState(ROOT);
+      if (flags.json) {
+        const tasks = pos[0] ? [state.tasks[pos[0]]].filter(Boolean) : activeTasks(state);
+        console.log(JSON.stringify({ revision: state.revision || 0, active_count: activeTasks(state).length, done_count: Object.values(state.tasks).filter((task) => task.status === "done").length, tasks }, null, 2));
+        return;
+      }
       if (pos[0]) {
         console.log(renderTask(state.tasks[pos[0]]));
       } else {
@@ -1900,11 +1969,18 @@ async function main() {
     case "projects": {
       const sub = pos[0] || "list";
       if (sub === "register") {
+        if (pos.length > 1 && !String(pos[1]).trim()) throw new StateError("projects register path cannot be empty");
         const target = pos[1] || ROOT;
-        const project = registerProject(target, { name: flags.title || path.basename(target), maxConcurrent: Number(flags.set.maxConcurrent || 1) });
-        console.log(`Registered ${project.name} as ${project.id}`);
+        const project = registerProject(target, { name: flags.title || path.basename(target), maxConcurrent: Number(flags.set.maxConcurrent || 1), allowExisting: true });
+        console.log(`Registered ${project.root} as ${project.id}`);
       } else if (sub === "list") {
-        console.log(JSON.stringify(supervisorSnapshot(), null, 2));
+        const snapshot = supervisorSnapshot();
+        if (flags.json) console.log(JSON.stringify(snapshot, null, 2));
+        else {
+          console.log("Registered repositories (local run targets):");
+          for (const item of snapshot.projects) console.log(`  ${item.id}  ${item.name}  ${item.root}  (max concurrent: ${item.maxConcurrent})`);
+          if (!snapshot.projects.length) console.log("  None yet. Register one with: atl projects register <absolute-path>");
+        }
       } else if (sub === "concurrency") {
         console.log(JSON.stringify(setSupervisorDefaults({ maxConcurrent: Number(pos[1]) }), null, 2));
       } else throw new StateError("projects: register | list | concurrency <1..5>");
@@ -1972,7 +2048,7 @@ async function main() {
 
     default:
       console.log(usage());
-      process.exitCode = cmd ? 1 : 0;
+      process.exitCode = cmd && !["--help", "-h", "help"].includes(cmd) ? 1 : 0;
   }
 }
 

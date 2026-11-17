@@ -395,6 +395,11 @@ textarea.input{resize:vertical;min-height:110px}
 .nav-pill{font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--chip);border:1px solid var(--border);color:var(--muted);line-height:1.35}
 .nav-pill.running{color:var(--green);border-color:var(--green-edge);background:var(--green-bg)}
 .nav-pill.blocked{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,var(--border));background:color-mix(in srgb,var(--red) 14%,transparent)}
+.nav-key{flex:none;margin-inline-start:auto;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;border:1px solid var(--key-edge,var(--border));background:var(--chip);color:var(--muted);line-height:1.35}
+.nav:has(.nav-badges) .nav-key{margin-inline-start:0}
+.nav-badges .nav-key{margin-inline-start:auto}
+.pending-updates{position:fixed;inset-block-end:18px;inset-inline-end:18px;z-index:120;border:1px solid var(--accent-edge);background:var(--accent-bg);color:var(--text);border-radius:999px;padding:8px 14px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 8px 26px var(--dialog-shadow)}
+.pending-updates:hover{border-color:var(--accent)}
 
 .tasks-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px;margin-bottom:16px}
 .task-kpi-card{background:var(--pane);border:1px solid var(--border);border-radius:10px;padding:13px 15px;text-align:start;display:flex;flex-direction:column;gap:4px;transition:border-color .14s ease,background .14s ease;cursor:pointer;color:var(--text);font:inherit}

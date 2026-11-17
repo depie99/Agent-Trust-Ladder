@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createTask, emptyState, saveState } from "../runtime/lib/state.mjs";
+import { createTask, emptyState, loadState, saveState } from "../runtime/lib/state.mjs";
 import { consumeSgrMousePackets, createDashboardSnapshot, dashboardPanelOrigin, dashboardTaskIndexAtPoint, renderControlPlaneShell, renderDashboard, renderPlanStudioScreen, renderQueuesScreen, renderSettingsScreen, renderTasksScreen, sidebarRouteAtPanelRow, TUI_NAV_ITEMS, panelFromColumn } from "../runtime/lib/dashboard.mjs";
 import { frameIntent, savePlanDraft } from "../runtime/lib/plan-studio.mjs";
 import { dispatchTuiCommand } from "../runtime/lib/command-console.mjs";
@@ -24,7 +24,8 @@ assert.equal(sidebarRouteAtPanelRow(10, 22), "team", "full sidebar row maps to A
 assert.equal(sidebarRouteAtPanelRow(1, 16), "tasks", "compact sidebar row maps to Tasks");
 assert.equal(sidebarRouteAtPanelRow(2, 16), "plan", "compact sidebar row maps to Plan Studio");
 
-const seeded = emptyState();
+// Adopt the seeded store so this write is a current revision, not a clobber (#31).
+const seeded = loadState(root);
 for (const [title, status] of [["First task", "blocked"], ["Second task", "blocked"], ["Third task", "done"]]) {
   const task = createTask(seeded, { title, status, priority: "normal", objective: title });
   task.status = status;

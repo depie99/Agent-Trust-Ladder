@@ -67,7 +67,7 @@ try {
   await page.locator('#fDesc').fill("Filter repositories by name. Preserve deletion behavior.");
   await page.getByRole("button", { name: "Create task", exact: true }).click();
   await page.getByText("Search project rooms", { exact: true }).first().click();
-  await page.getByRole("button", { name: "Actions", exact: true }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
   await page.getByRole("button", { name: "Plan task", exact: true }).click();
   await page.locator("#goal").waitFor();
   await page.locator("#goal").fill("Filter repositories by name. Preserve deletion behavior.");
@@ -75,17 +75,17 @@ try {
   await page.locator('button[data-action="generate"]').last().click();
   await page.getByText("Model plan ready", { exact: false }).waitFor();  await page.getByText("Model plan ready", { exact: false }).waitFor();
 
-  // Pick the deep review depth; the run button relabels accordingly.
+  // Pick the deep review depth; the run button stays generic.
   await page.locator("#reviewKindSelect").selectOption("egm");
   let reviewResponse = page.waitForResponse((r) => r.url().includes("/api/plan/review"));
-  await page.getByRole("button", { name: "Run EGM deep review" }).click();
+  await page.getByRole("button", { name: "Run review" }).click();
   const blockedResponse = await reviewResponse;
   const blockedBody = await blockedResponse.json();
   assert.equal(blockedResponse.status(), 200, `blocked deep review HTTP: ${JSON.stringify(blockedBody).slice(0, 300)}`);
 
   // Scenario A: blocked deep review keeps the approval gate shut.
-  await page.getByText(`EGM deep review ${blockedBody.review.verdict}`, { exact: false }).waitFor();
-  await page.getByText("EGM deep review (glm-goldfish · 5ba5afa", { exact: false }).waitFor();
+  await page.getByText("Changes needed before approval", { exact: false }).waitFor();
+  await page.locator(".review-verdict").filter({ hasText: blockedBody.review.verdict }).waitFor();
   await page.getByText("A1 — Strengthen the verifier", { exact: false }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Approve → Plan Queue" }).isDisabled(), true, "a blocked deep review keeps the approve button disabled");
   const blockedApprove = await page.evaluate(async (draftId) => { const r = await fetch("/api/plan/approve", { method: "POST", headers: { "content-type": "application/json", "x-atl-csrf": document.querySelector('meta[name="atl-csrf"]')?.content || "" }, credentials: "same-origin", body: JSON.stringify({ draftId }) }); return r.status; }, blockedBody.draft.id);
@@ -95,17 +95,17 @@ try {
   // Scenario B: after a passing deep review the same draft approves.
   mode = "passed";
   reviewResponse = page.waitForResponse((r) => r.url().includes("/api/plan/review"));
-  await page.getByRole("button", { name: "Run EGM deep review" }).click();
+  await page.getByRole("button", { name: "Run review again" }).click();
   const passedResponse = await reviewResponse;
   assert.equal(passedResponse.status(), 200, JSON.stringify(await passedResponse.json()).slice(0, 300));
-  await page.getByText("EGM deep review passed", { exact: false }).waitFor();
+  await page.getByText("Review passed", { exact: false }).first().waitFor();
   await page.getByRole("button", { name: "Approve → Plan Queue" }).click();
   await page.getByText("Plan approved — Plan Queue created").waitFor();
   const tasks = Object.values(loadState(root).tasks).filter((task) => task.plan_draft_id);
   assert.equal(tasks.length, 1, "the passing deep review approves into exactly one queued task");
   assert.equal(tasks[0].status, "new", "approval creates membership only — the queue is not executed");
 
-  console.log("PASS: EGM deep-review journey — depth picker, backend badge, blocked gate, passing approval");
+  console.log("PASS: EGM deep-review journey — depth picker, blocked gate, passing approval");
 } catch (error) {
   failed = error;
   try { await browser.screenshot({ path: path.join(root, "journey-failure.png"), fullPage: true }); } catch { /* diagnostics */ }

@@ -87,7 +87,7 @@ export function addResourceToTask(root, task, ref, { label = "", caption = "", s
     }
   }
   task.resources = Array.isArray(task.resources) ? task.resources : [];
-  if (task.resources.some((item) => item.ref === resource.ref || item.original_ref === resource.original_ref)) {
+  if (task.resources.some((item) => item.ref === resource.ref || (item.original_ref && resource.original_ref && item.original_ref === resource.original_ref))) {
     return { resource, added: false };
   }
   task.resources.push(resource);

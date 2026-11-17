@@ -10,8 +10,8 @@ Run commands from the managed application and inspect any `ATL_PROJECT` override
 
 ```text
 atl-manager — persistent coordinator runtime for the ATL digital team
-Run it inside the project it manages (state lives in <project>/.trust/manager).
-Install once with scripts\install-atl.cmd (or install-atl.sh) and use: atl <command>
+  Run it inside the project it manages (state lives in <project>/.trust/manager).
+Install once with scripts/install-atl.cmd (or scripts/install-atl.sh) and use: atl <command>
 
 Setup
   init                          create .trust/manager/ scaffold + config
@@ -135,6 +135,11 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
+  session start --actor <role> --task <id> [--ttl 2h]
+                                issue a scoped, expiring credential for an
+                                interactive agent session (ATL_WORKER_CREDENTIAL)
+  session stop                  release that session's lease
+  --version                     show the runtime version and source commit
   memory recall "query"         retrieve advisory project memory
   memory remember "fact"        store an explicitly supplied advisory memory
   memory learn <kind> "text"    store a preference, style, prompt, lesson, or outcome
@@ -167,7 +172,7 @@ const knownActor = (taskId = null) => {
   const a = actorOf();
   const known = ["mira", "pip", "rowan", "sage", "beacon", "manager"];
   if (!known.includes(a)) throw new StateError(`--actor must be one of ${known.join(", ")}`);
-  if (a !== "manager" && !process.env.ATL_WORKER_CREDENTIAL) throw new StateError("role actor mutations require a scoped ATL_WORKER_CREDENTIAL; --actor alone is not authorization");
+  if (a !== "manager" && !process.env.ATL_WORKER_CREDENTIAL) throw new StateError("role actor mutations require a scoped ATL_WORKER_CREDENTIAL; --actor alone is not authorization. Supported path: atl session start --actor <role> --task <id>");
   if (process.env.ATL_WORKER_CREDENTIAL) {
     let credential;
     try { credential = JSON.parse(process.env.ATL_WORKER_CREDENTIAL); } catch { throw new StateError("invalid scoped worker credential"); }
@@ -180,7 +185,7 @@ const knownActor = (taskId = null) => {
 
 function loadConfig() {
   if (!fs.existsSync(P.config)) {
-    throw new StateError(`Missing ${P.config}. Run: node runtime\atl-manager.mjs init`);
+    throw new StateError(`Missing ${P.config}. Run: atl init`);
   }
   return JSON.parse(fs.readFileSync(P.config, "utf8"));
 }

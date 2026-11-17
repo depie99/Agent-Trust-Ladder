@@ -8,7 +8,7 @@ jobs:
   runtime:
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -21,8 +21,13 @@ jobs:
       - run: npm ci
       - run: npx playwright install chromium
       - run: node --check runtime/atl-manager.mjs
+      - run: node scripts/check-relative-imports.mjs
+      - run: node scripts/check-endpoints.mjs
+      - run: node runtime/atl-manager.mjs --help
       - run: npm run ui:css:check
       - run: npm run plugins:test
+      - run: node verification/state_concurrency_test.mjs
+      - run: node verification/ui_axe_test.mjs
       - run: python scripts/build_mode_skills.py --check
       - run: node verification/sync_skills_test.mjs
       - run: node verification/approval_test.mjs

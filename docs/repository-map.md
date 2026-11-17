@@ -284,6 +284,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/queue-recovery.mjs](../runtime/lib/queue-recovery.mjs) | Durable budgets belong to blocker identities, never to runner lifetimes. |
 | [runtime/lib/queue.mjs](../runtime/lib/queue.mjs) | The human-controlled execution queue. |
 | [runtime/lib/recovery.mjs](../runtime/lib/recovery.mjs) | Safe recovery actions for tasks that stopped at an explicit blocked gate. |
+| [runtime/lib/redact.mjs](../runtime/lib/redact.mjs) | Redaction applied when records are written to disk, not only when they are |
 | [runtime/lib/render.mjs](../runtime/lib/render.mjs) | Renderers: manager brief (Mira), task views, and the wake-loop action list. |
 | [runtime/lib/research.mjs](../runtime/lib/research.mjs) | The research library: ATL's cumulative engineering-intelligence store. |
 | [runtime/lib/resource-policy.mjs](../runtime/lib/resource-policy.mjs) | resource policy: runtime implementation; inspect exports and matching verification. |
@@ -347,6 +348,8 @@ Build, installation, validation, and maintenance programs.
 | [scripts/check_docs.mjs](../scripts/check_docs.mjs) | check docs: source/configuration for its containing feature. |
 | [scripts/check_staged_token_budget.py](../scripts/check_staged_token_budget.py) | check staged token budget: source/configuration for its containing feature. |
 | [scripts/check-docs-css.mjs](../scripts/check-docs-css.mjs) | Fails when docs/site.css is stale relative to docs/scss/styles.scss. |
+| [scripts/check-endpoints.mjs](../scripts/check-endpoints.mjs) | Issue #30: the client called 18 endpoints the server never handled and the |
+| [scripts/check-relative-imports.mjs](../scripts/check-relative-imports.mjs) | check relative imports: source/configuration for its containing feature. |
 | [scripts/check-tracked-paths.mjs](../scripts/check-tracked-paths.mjs) | check tracked paths: source/configuration for its containing feature. |
 | [scripts/docs-preview.mjs](../scripts/docs-preview.mjs) | Read-only synthetic UI for documentation captures. No real issue adapters. |
 | [scripts/docs-reference.mjs](../scripts/docs-reference.mjs) | Regenerate source-derived references before building the public website. |
@@ -737,6 +740,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/shell_responsive_test.mjs](../verification/shell_responsive_test.mjs) | Executable regression check for shell responsive. |
 | [verification/skill_install_test.mjs](../verification/skill_install_test.mjs) | Executable regression check for skill install. |
 | [verification/snapshot_delta_test.mjs](../verification/snapshot_delta_test.mjs) | Executable regression check for snapshot delta. |
+| [verification/state_concurrency_test.mjs](../verification/state_concurrency_test.mjs) | Executable regression check for state concurrency. |
 | [verification/supervisor_runner_test.mjs](../verification/supervisor_runner_test.mjs) | Executable regression check for supervisor runner. |
 | [verification/supervisor_test.mjs](../verification/supervisor_test.mjs) | Executable regression check for supervisor. |
 | [verification/sync_skills_test.mjs](../verification/sync_skills_test.mjs) | Executable regression check for sync skills. |
@@ -756,6 +760,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/tui_command_console_test.mjs](../verification/tui_command_console_test.mjs) | Executable regression check for tui command console. |
 | [verification/tui_layout_test.mjs](../verification/tui_layout_test.mjs) | Executable regression check for tui layout. |
 | [verification/tui_navigation_plan_test.mjs](../verification/tui_navigation_plan_test.mjs) | Executable regression check for tui navigation plan. |
+| [verification/ui_axe_test.mjs](../verification/ui_axe_test.mjs) | Executable regression check for ui axe. |
 | [verification/ui_refresh_runtime_test.mjs](../verification/ui_refresh_runtime_test.mjs) | Executable regression check for ui refresh runtime. |
 | [verification/ui_review_mcp_test.mjs](../verification/ui_review_mcp_test.mjs) | Executable regression check for ui review mcp. |
 | [verification/ui_review_preview_test.mjs](../verification/ui_review_preview_test.mjs) | Executable regression check for ui review preview. |

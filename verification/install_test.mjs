@@ -10,7 +10,7 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-install-test-"));
 try {
   execFileSync(process.execPath, [path.join(repo, "scripts", "install.mjs"), "--no-path"], {
     cwd: repo,
-    env: { ...process.env, ATL_HOME: home },
+    env: { ...process.env, ATL_INSTALL_DIR: home },
     stdio: "pipe",
   });
   assert.ok(fs.existsSync(path.join(home, "config", "manager-state-contract.json")));

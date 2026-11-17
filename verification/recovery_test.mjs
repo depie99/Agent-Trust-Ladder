@@ -12,6 +12,15 @@ import { prepareInputs } from "../runtime/lib/handoffs.mjs";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-recovery-"));
 fs.mkdirSync(path.dirname(paths(root).state), { recursive: true });
 
+// Sections reseed the one shared store. Adopting the current disk revision
+// keeps each seeding save a current writer, which is exactly what the
+// stale-writer guard (#31) requires — a fresh store would clobber it.
+const adoptDiskState = (state) => {
+  let disk; try { disk = loadState(root); } catch { disk = emptyState(); }
+  Object.assign(state, { tasks: { ...disk.tasks, ...state.tasks }, seq: Math.max(disk.seq, state.seq), revision: disk.revision, log: disk.log });
+  return state;
+};
+
 const state = emptyState();
 const task = createTask(state, { title: "Recover a worker task" });
 task.objective = "The task can resume after its external dependency is ready.";
@@ -43,7 +52,7 @@ legacyConsumer.status = "blocked";
 legacyConsumer.assigned_worker = "rowan";
 legacyConsumer.plan_depends_on = [legacyPredecessor.id];
 legacyConsumer.blocker = { cause: "handoff", reason: "missing handoff" };
-saveState(root, legacyState);
+saveState(root, adoptDiskState(legacyState));
 const legacyPreflight = prepareInputs(root, legacyConsumer, legacyState.tasks);
 assert.equal(legacyPreflight.recovery_owner, "owner");
 assert.match(legacyPreflight.reason, /revalidate.*Increasing the session budget/i);
@@ -58,7 +67,7 @@ for (const separator of ["/", "\\"]) {
     legacyConsumer.blocker = { cause: "execution", reason: "runner stopped" };
     legacyConsumer.recovery = { cause: "execution", reason: "runner stopped", status: "exhausted", attempts: [] };
     legacyConsumer[source].reason = reason;
-    saveState(root, legacyState);
+    saveState(root, adoptDiskState(legacyState));
     assert.throws(() => unblockTask(root, legacyConsumer.id), /no valid verified handoff/);
     const persisted = loadState(root).tasks[legacyConsumer.id];
     assert.equal(persisted.status, "blocked");
@@ -77,9 +86,9 @@ transition(transientState, transientTask.id, "triaged", { actor: "manager", note
 transition(transientState, transientTask.id, "assigned", { actor: "manager", note: "rowan owns it" });
 transientTask.blocker = { reason: "temporary dependency", since: new Date().toISOString(), actor: "rowan" };
 transition(transientState, transientTask.id, "blocked", { actor: "rowan", note: "temporary dependency" });
-saveState(root, transientState);
+saveState(root, adoptDiskState(transientState));
 assert.equal(autoRecoverBlockedTask(root, transientTask.id, { maxRecoveries: 1 }).kind, "repair-required", "an unchanged failure cannot retry without a successful repair preflight");
-recordBlocker(transientTask, { cause: "dependency", reason: "temporary dependency" }); saveState(root, transientState);
+recordBlocker(transientTask, { cause: "dependency", reason: "temporary dependency" }); saveState(root, adoptDiskState(transientState));
 await repairBlocker(root, transientTask.id, {
   action: "prepare-local-dependency",
   remedy: () => { fs.writeFileSync(path.join(root, "dependency.ready"), "ready"); return { artifact: "dependency.ready" }; },
@@ -137,7 +146,7 @@ transition(gateState, gateTask.id, "triaged", { actor: "manager", note: "packet 
 transition(gateState, gateTask.id, "assigned", { actor: "manager", note: "rowan owns it" });
 gateTask.blocker = { reason: "Owner approval for the real capped run is missing.", since: new Date().toISOString(), actor: "rowan" };
 transition(gateState, gateTask.id, "blocked", { actor: "rowan", note: "owner gate" });
-saveState(root, gateState);
+saveState(root, adoptDiskState(gateState));
 
 assert.equal(explainTasks(root, gateTask.id)[0].kind, "owner-approval", "an approval-gate blocker is recognized");
 assert.match(explainTasks(root, gateTask.id)[0].fix, /atl approve/, "the fix names the approve command");
@@ -164,7 +173,7 @@ transition(plainState, plainTask.id, "triaged", { actor: "manager", note: "packe
 transition(plainState, plainTask.id, "assigned", { actor: "manager", note: "rowan owns it" });
 plainTask.blocker = { reason: "the managed sandbox identity has only ReadAndExecute access to the install dir", since: new Date().toISOString(), actor: "rowan" };
 transition(plainState, plainTask.id, "blocked", { actor: "rowan", note: "environment wall" });
-saveState(root, plainState);
+saveState(root, adoptDiskState(plainState));
 
 const plainRow = explainTasks(root, plainTask.id)[0];
 assert.equal(plainRow.kind, "human-action", "an access blocker is classified as human action");
@@ -188,7 +197,7 @@ console.log("PASS: owner approve records durable evidence, clears the gate, and 
 const interruptedState = emptyState();
 const interruptedTask = createTask(interruptedState, { title: "Interrupted worker" });
 interruptedTask.status = "in_progress";
-saveState(root, interruptedState);
+saveState(root, adoptDiskState(interruptedState));
 const runDir = path.join(root, ".trust", "manager", "overnight");
 fs.mkdirSync(runDir, { recursive: true });
 fs.writeFileSync(path.join(runDir, "run.json"), JSON.stringify({ status: "interrupted", interruptedTaskId: interruptedTask.id }));

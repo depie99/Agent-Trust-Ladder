@@ -8,6 +8,34 @@ import { driveTaskUntilGate, executeLaunchQueue } from "../runtime/lib/launch.mj
 import { readHandoff } from "../runtime/lib/handoffs.mjs";
 
 const fixture = fileURLToPath(new URL("./fixtures/channel-worker.mjs", import.meta.url));
+// Surface the session transcript when a stage fails: the runner records the
+// provider output under overnight/, and CI otherwise reports only "code 1".
+function sessionTail(root) {
+  const parts = [];
+  try {
+    const dir = path.join(root, ".trust", "manager", "overnight");
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const taskDir = path.join(dir, entry.name);
+      for (const file of fs.readdirSync(taskDir)) {
+        if (file.endsWith(".log")) parts.push(`--- ${file}\n` + fs.readFileSync(path.join(taskDir, file), "utf8").slice(-1400));
+      }
+    }
+  } catch { /* transcripts unavailable */ }
+  try {
+    const walk = (dir) => {
+      const out = [];
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const file = path.join(dir, entry.name);
+        if (entry.isDirectory() && entry.name !== "node_modules" && entry.name !== ".git") out.push(...walk(file));
+        else if (entry.name.startsWith("worker-error-") || entry.name.startsWith("worker-fatal-")) out.push(`--- ${entry.name}\n` + fs.readFileSync(file, "utf8").slice(0, 2000));
+      }
+      return out;
+    };
+    parts.push(...walk(root));
+  } catch { /* captures unavailable */ }
+  return parts.join("\n=====\n") || "(no session log)";
+}
 for (const mode of ["direct", "queue"]) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `atl-channel-${mode}-`));
   try {
@@ -18,7 +46,7 @@ for (const mode of ["direct", "queue"]) {
     if (mode === "direct") {
       const budget = { sessions: 0, maxSessions: 4, deadline: Date.now() + 60000 };
       const result = await driveTaskUntilGate(root, task.id, budget, { overnight: true, worker: "fixture", resolveWorker: () => ({ worker: "fixture", provider, auth: "subscription" }), onProgress: () => {} });
-      assert.equal(result.status, "done", result.reason); assert.equal(budget.sessions, 3);
+      assert.equal(result.status, "done", `${result.reason}\n${sessionTail(root)}`); assert.equal(budget.sessions, 3);
     } else {
       const result = await executeLaunchQueue(root, { taskIds: [task.id], confirm: true, maxSessions: 4, maxMinutes: 1, onProgress: () => {} });
       assert.equal(result.results[0].status, "done", JSON.stringify(result.results)); assert.equal(result.budget.sessions, 3);

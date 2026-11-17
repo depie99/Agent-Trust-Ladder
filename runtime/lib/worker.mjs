@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { executionAccess, executionPermissionArgs } from "./execution-access.mjs";
 import { uiReviewProviderArgs } from "./ui-review-runtime.mjs";
+import { redactLocal } from "./redact.mjs";
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROMPT_DIR = path.join(RUNTIME_DIR, "..", "prompts");
@@ -335,7 +336,9 @@ export function runInvocation(invocation, { env, unsetEnv = [], logPath, timeout
 
     const write = (chunk, isError = false) => {
       tokenCollector.push(chunk,isError?'stderr':'stdout');
-      log.write(chunk);
+      // Redact before the transcript reaches disk (issue #35): provider output
+      // otherwise keeps the user's home path and pasted credentials.
+      log.write(Buffer.from(redactLocal(chunk.toString("utf8"), { root: invocation.cwd })));
       diagnosticTail = (diagnosticTail + chunk.toString("utf8")).slice(-2048);
       if (/^ERROR:\s*You[’']ve hit your usage limit for GapCode\./m.test(diagnosticTail)) {
         providerFailure = { kind: "provider-quota", reason: "GapCode provider usage limit reached. Select an available model/provider or wait for the quota to reset before retrying." };

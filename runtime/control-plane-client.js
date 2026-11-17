@@ -556,7 +556,7 @@ let queueFilterTouched = false;
     const tiers=['economy','standard','advanced'];
     const tierOptions=value=>tiers.map(t=>`<option value="${t}" ${value===t?'selected':''}>${t}</option>`).join('');
     const inventory=resourceSettings?.models||[];
-    return card('Autonomous resources',`<div class="pad" data-resource-form><p class="sub">ATL estimates effort per task and selects models per role. Your limits apply before every session.</p><label class="row"><input type="checkbox" id="resourceAuto" ${p.enabled?'checked':''}> Adapt task session budgets</label><div class="grid two space"><div class="field"><label class="label" for="resourceDefault">Default task sessions</label><input id="resourceDefault" class="input" type="number" min="3" max="50" value="${p.default_sessions}"></div><div class="field"><label class="label" for="resourceMax">Automatic session ceiling per task</label><input id="resourceMax" class="input" type="number" min="3" max="50" value="${p.max_sessions}"></div></div><label class="row"><input id="resourceExtend" type="checkbox" ${p.auto_extend?'checked':''}> Extend automatic budgets within the ceiling when more work is required</label><label class="row space"><input type="checkbox" id="resourceFailover" ${p.quota_failover!==false?'checked':''}> Continue with another approved model/provider when quota is exhausted</label><label class="row space"><input id="resourceModels" type="checkbox" ${p.auto_models?'checked':''}> Select provider and model automatically</label><div class="field space"><label class="label" for="resourceCeiling">Strongest model tier ATL may use</label><select id="resourceCeiling" class="input">${tierOptions(p.max_model_tier)}</select></div><p class="muted tiny">Enable only models ATL may use. Assign capability and relative cost order yourself: lower cost order is preferred among capable models. These are your rankings, not provider prices. A missing suitable model stops before spending. Explicit task limits stay owner-controlled.</p><div style="overflow-x:auto"><table><thead><tr><th>Allowed</th><th>Provider / model</th><th>Capability</th><th>Cost order</th><th></th></tr></thead><tbody>${p.models.map((m,index)=>`<tr data-resource-row="${index}"><td><input aria-label="Allow ${escapeHtml(m.model)}" data-route-enabled type="checkbox" ${m.enabled?'checked':''}></td><td><b>${escapeHtml(m.provider)}</b><br><span dir="ltr">${escapeHtml(m.model)}</span></td><td><select aria-label="Capability for ${escapeHtml(m.model)}" class="input" data-route-tier>${tierOptions(m.tier)}</select></td><td><input aria-label="Cost order for ${escapeHtml(m.model)}" class="input" data-route-cost type="number" min="0" max="100" value="${m.cost_order}"></td><td>${btn('Remove',`resource-remove:${index}`,'sm')}</td></tr>`).join('')||'<tr><td colspan="5">No automatic model routes configured.</td></tr>'}</tbody></table></div><div class="grid two space"><div class="field"><label class="label" for="resourceProvider">Provider</label><input class="input" id="resourceProvider" list="resourceProviderList" placeholder="gapgpt / codex / provider id"><datalist id="resourceProviderList">${[...new Set(['gapgpt','codex','claude',...inventory.map(m=>m.provider)])].map(id=>`<option value="${escapeHtml(id)}">`).join('')}</datalist></div><div class="field"><label class="label" for="resourceModel">Exact model id</label><input id="resourceModel" class="input" list="resourceModelList"><datalist id="resourceModelList">${[...new Set(inventory.map(m=>m.model))].map(id=>`<option value="${escapeHtml(id)}">`).join('')}</datalist></div></div><div class="bar">${btn('Add model route','resource-add')}${btn('Save resource policy','resource-save','primary')}</div>${resourceNotice?`<p class="sub" role="status">${escapeHtml(resourceNotice)}</p>`:''}</div>`, '', 'resource-policy-card');
+    return card('Autonomous resources',`<div class="pad" data-resource-form><p class="sub">ATL estimates effort per task and selects models per role. Your limits apply before every session.</p><label class="row"><input type="checkbox" id="resourceAuto" ${p.enabled?'checked':''}> Adapt task session budgets</label><div class="grid two space"><div class="field"><label class="label" for="resourceDefault">Default task sessions</label><input id="resourceDefault" class="input" type="number" min="3" max="50" value="${p.default_sessions}"></div><div class="field"><label class="label" for="resourceMax">Automatic session ceiling per task</label><input id="resourceMax" class="input" type="number" min="3" max="50" value="${p.max_sessions}"></div></div><label class="row"><input id="resourceExtend" type="checkbox" ${p.auto_extend?'checked':''}> Extend automatic budgets within the ceiling when more work is required</label><label class="row space"><input type="checkbox" id="resourceFailover" ${p.quota_failover!==false?'checked':''}> Continue with another approved model/provider when quota is exhausted</label><label class="row space"><input id="resourceModels" type="checkbox" ${p.auto_models?'checked':''}> Select provider and model automatically</label><div class="field space"><label class="label" for="resourceCeiling">Strongest model tier ATL may use</label><select id="resourceCeiling" class="input">${tierOptions(p.max_model_tier)}</select></div><p class="muted tiny">Enable only models ATL may use. Assign capability and relative cost order yourself: lower cost order is preferred among capable models. These are your rankings, not provider prices. A missing suitable model stops before spending. Explicit task limits stay owner-controlled.</p><div style="overflow-x:auto"><table><thead><tr><th>Allowed</th><th>Provider / model</th><th>Capability</th><th>Cost order</th><th><span class="muted tiny">Row action</span></th></tr></thead><tbody>${p.models.map((m,index)=>`<tr data-resource-row="${index}"><td><input aria-label="Allow ${escapeHtml(m.model)}" data-route-enabled type="checkbox" ${m.enabled?'checked':''}></td><td><b>${escapeHtml(m.provider)}</b><br><span dir="ltr">${escapeHtml(m.model)}</span></td><td><select aria-label="Capability for ${escapeHtml(m.model)}" class="input" data-route-tier>${tierOptions(m.tier)}</select></td><td><input aria-label="Cost order for ${escapeHtml(m.model)}" class="input" data-route-cost type="number" min="0" max="100" value="${m.cost_order}"></td><td>${btn('Remove',`resource-remove:${index}`,'sm')}</td></tr>`).join('')||'<tr><td colspan="5">No automatic model routes configured.</td></tr>'}</tbody></table></div><div class="grid two space"><div class="field"><label class="label" for="resourceProvider">Provider</label><input class="input" id="resourceProvider" list="resourceProviderList" placeholder="gapgpt / codex / provider id"><datalist id="resourceProviderList">${[...new Set(['gapgpt','codex','claude',...inventory.map(m=>m.provider)])].map(id=>`<option value="${escapeHtml(id)}">`).join('')}</datalist></div><div class="field"><label class="label" for="resourceModel">Exact model id</label><input id="resourceModel" class="input" list="resourceModelList"><datalist id="resourceModelList">${[...new Set(inventory.map(m=>m.model))].map(id=>`<option value="${escapeHtml(id)}">`).join('')}</datalist></div></div><div class="bar">${btn('Add model route','resource-add')}${btn('Save resource policy','resource-save','primary')}</div>${resourceNotice?`<p class="sub" role="status">${escapeHtml(resourceNotice)}</p>`:''}</div>`, '', 'resource-policy-card');
   }
   function resourceSummary(resources) {
     if(!resources)return '';
@@ -1047,7 +1047,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const interval = current?.interval_minutes || 15;
     const preset = [5, 15, 30, 60].includes(Number(interval)) ? String(interval) : "custom";
     const startupMode = current?.startup_mode === "windows" ? "windows" : "runtime";
-    const startupChoice = `<fieldset class="field" style="margin-top:12px"><legend class="label">Start checking</legend><label class="mt-projectrow"><input type="radio" name="mtStartupMode" value="runtime" ${startupMode === "runtime" ? "checked" : ""}> When ATL runtime starts</label>${myTasksSettingsData?.connection?.remember_supported ? `<label class="mt-projectrow"><input type="radio" name="mtStartupMode" value="windows" ${startupMode === "windows" ? "checked" : ""}> When I sign in to Windows (starts ATL runtime)</label>` : ""}<p class="muted tiny">Your choice is saved. Windows starts ATL for this workspace when you sign in; checks run while its runtime is open.</p></fieldset>`;
+    const startupChoice = `<fieldset class="field" style="margin-top:12px"><legend class="label">Start checking</legend><label class="mt-projectrow"><input type="radio" name="mtStartupMode" value="runtime" ${startupMode === "runtime" ? "checked" : ""}> When ATL runtime starts</label>${myTasksSettingsData?.connection?.remember_supported ? `<label class="mt-projectrow"><input type="radio" name="mtStartupMode" value="windows" ${startupMode === "windows" ? "checked" : ""}> When I sign in to Windows (starts ATL runtime)</label><p class="muted tiny">Windows can start ATL for this workspace when you sign in; checks run while its runtime is open.</p>` : `<p class="muted tiny">Login startup is currently supported on Windows only. Checks run while the ATL runtime is open.</p>`}</fieldset>`;
     return `<div class="grid two" style="margin-top:12px"><div class="field"><label class="label" for="mtInterval">Check interval</label><select class="input" id="mtInterval"><option value="5" ${preset === "5" ? "selected" : ""}>Every 5 minutes</option><option value="15" ${preset === "15" ? "selected" : ""}>Every 15 minutes</option><option value="30" ${preset === "30" ? "selected" : ""}>Every 30 minutes</option><option value="60" ${preset === "60" ? "selected" : ""}>Every 60 minutes</option><option value="custom" ${preset === "custom" ? "selected" : ""}>Custom…</option></select></div><div class="field"><label class="label" for="mtIntervalCustom">Custom minutes (1–1440)</label><input class="input" id="mtIntervalCustom" type="number" min="1" max="1440" step="1" value="${preset === "custom" ? escapeHtml(String(interval)) : ""}" ${preset === "custom" ? "" : "hidden"}></div></div>${startupChoice}`;
   }
   // Settings live in a dialog opened from the ⚙ header button — the page body
@@ -1434,13 +1434,13 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
         : (blockedTotal > 0 ? btn(`◈ Blocked (${blockedTotal})`, "blockers", "sm") : "") + btn("+ Create task", "new", "primary") + (shippedCount ? btn(`✔ Shipped (${shippedCount})`, "go:shipped", "sm") : "") + (selectedQueue?.id === "default" ? btn("Clear Default queue", "queue-clear:default", "danger") : "");
       const bulkToolbar = `<div class="tasks-bulk-bar"><div class="bar"><span class="pill green">${selectedTasks.size} selected</span><span class="muted tiny">Bulk task actions</span></div><div class="bar">${btn("Select visible", "tasks-select-visible", "sm")}${selectedTasks.size ? btn("Clear selection", "tasks-clear-selection", "sm") + btn(`Archive ${selectedTasks.size}`, "tasks-archive-selected", "sm danger") : ""}</div></div>`;
       const filterSet = PLUGIN ? ["All", "Running", "Blocked", "Done"] : ["All", "Running", "Needs attention", "Completed"];
-      const filterTabs = filterSet.map((status) => `<button type="button" class="tasks-seg-btn ${filter === status ? "active" : ""}" data-action="filter:${status}"><span>${escapeHtml(status)}</span><span class="tasks-seg-count">${countBadgeLabel(status)}</span></button>`).join("");
+      const filterTabs = filterSet.map((status) => `<button type="button" class="tasks-seg-btn ${filter === status ? "active" : ""}" data-action="filter:${status}" aria-pressed="${filter === status}"><span>${escapeHtml(status)}</span><span class="tasks-seg-count">${countBadgeLabel(status)}</span></button>`).join("");
       const tasksHead = head("WORKSPACE / TASKS", "Task management", "Author, prioritize, assign and inspect work without leaving the UI.", taskPageActions)
         + (tasks.some(task => !task.archived && task.intake_only && task.plan_review_required) ? `<section class="notice"><b>Imported requests await planning</b><p>${tasks.filter(task => !task.archived && task.intake_only && task.plan_review_required).length} source request(s) need a reviewed plan before execution.</p><button class="btn primary" data-page="sources">Open imported requests</button></section>` : '');
       // Plugin board: active runs first, then everything else in id order.
       const pluginRunScore = (task) => Number(liveRunState(task) === "running" || task.rawStatus === "in_progress");
       const ordered = PLUGIN ? [...visible].sort((a, b) => pluginRunScore(b) - pluginRunScore(a)) : visible;
-      const shell = `<div class="panel tasks-shell"><div class="tasks-command-bar"><div class="tasks-search-row"><div class="tasks-search-box"><span class="search-glyph" aria-hidden="true">⌕</span><input class="input" id="taskSearch" placeholder="Search tasks..." value="${escapeHtml(query)}"></div><select id="queueSelect" class="input" style="width:185px" aria-label="Filter by queue"><option value="All">All</option>${queueOptions.map((queue) => `<option ${queue === queueFilter ? "selected" : ""}>${escapeHtml(queue)}</option>`).join("")}</select>${btn("Select visible", "tasks-select-visible", "sm")}</div><div class="tasks-filter-row"><div class="tasks-segmented" role="tablist" aria-label="Filter tasks by status">${filterTabs}</div><span class="muted tiny">Showing <b>${visible.length}</b> of <b>${allTasks.length}</b> active task${allTasks.length === 1 ? "" : "s"}</span></div>${scoped ? `<div class="notice" style="padding:9px 12px"><div class="row between"><span>Showing queue <b>${escapeHtml(queueFilter)}</b>. Counts are <b>this queue / all queues</b>.</span>${btn("Show all queues", "queue:All", "sm")}</div></div>` : ""}</div>${bulkToolbar}${ordered.map((task) => taskRow(task, !PLUGIN && task.id === workspaceTaskId ? workspaceTaskId : null)).join("") || (PLUGIN && !connected && !allTasks.length ? '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>Connecting to the control plane…</b><p class="sub" style="margin-top:6px">Live data has not arrived yet. If this persists, use Retry in the header.</p></div>' : '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>No matching tasks in this scope.</b><p class="sub" style="margin-top:6px">Try clearing your search filter or switching back to All queues.</p></div>')}</div>`;
+      const shell = `<div class="panel tasks-shell"><div class="tasks-command-bar"><div class="tasks-search-row"><div class="tasks-search-box"><span class="search-glyph" aria-hidden="true">⌕</span><input class="input" id="taskSearch" placeholder="Search tasks..." aria-label="Search tasks" value="${escapeHtml(query)}"></div><select id="queueSelect" class="input" style="width:185px" aria-label="Filter by queue"><option value="All">All</option>${queueOptions.map((queue) => `<option ${queue === queueFilter ? "selected" : ""}>${escapeHtml(queue)}</option>`).join("")}</select></div><div class="tasks-filter-row"><div class="tasks-segmented" role="group" aria-label="Filter tasks by status">${filterTabs}</div><span class="muted tiny">Showing <b>${visible.length}</b> of <b>${allTasks.length}</b> active task${allTasks.length === 1 ? "" : "s"}</span></div>${scoped ? `<div class="notice" style="padding:9px 12px"><div class="row between"><span>Showing queue <b>${escapeHtml(queueFilter)}</b>. Counts are <b>this queue / all queues</b>.</span>${btn("Show all queues", "queue:All", "sm")}</div></div>` : ""}</div>${bulkToolbar}${ordered.map((task) => taskRow(task, !PLUGIN && task.id === workspaceTaskId ? workspaceTaskId : null)).join("") || (PLUGIN && !connected && !allTasks.length ? '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>Connecting to the control plane…</b><p class="sub" style="margin-top:6px">Live data has not arrived yet. If this persists, use Retry in the header.</p></div>' : '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>No matching tasks in this scope.</b><p class="sub" style="margin-top:6px">Try clearing your search filter or switching back to All queues.</p></div>')}</div>`;
       // Wide plugin layout: the selected task renders beside the list instead of taking over the page.
       const pluginPaneTask = PLUGIN && window.matchMedia("(min-width: 960px)").matches && pluginTaskId ? derived().tasks.find((task) => task.id === pluginTaskId) : null;
       // Browser layout: the selected task opens the focused workspace beside
@@ -1682,7 +1682,7 @@ operations: () => {
         + browserSettingsCard()
         + card("Codebase Navigation & Map", (() => { const nav = navigationSettings || { mode: "off", max_tokens: 800, build_on_launch: true }; const state = nav.mode === "on" ? '<span class="pill green">enabled</span>' : '<span class="pill amber">off</span>'; const note = navigationNotice ? `<p class="sub ${navigationNotice.startsWith("Error") ? "red" : "green"}" style="margin-top:10px" role="status">${escapeHtml(navigationNotice)}</p>` : ""; return `<div class="pad"><div class="row between"><div><b>Token-efficient code map</b><p class="sub" style="margin:5px 0 0">Local navigation hints reduce repeated repository orientation. Source reads and verification still apply.</p></div>${state}</div><div class="grid two" style="margin-top:14px"><div class="field"><label class="label" for="navigationMode">Navigation mode</label><select id="navigationMode" class="input"><option value="off" ${nav.mode === "off" ? "selected" : ""}>Off - existing prompts</option><option value="on" ${nav.mode === "on" ? "selected" : ""}>On - bounded map hints</option></select></div><div class="field"><label class="label" for="navigationTokens">Prompt budget (tokens)</label><input id="navigationTokens" class="input" type="number" min="100" max="4000" step="50" value="${escapeHtml(nav.max_tokens)}"></div></div><label class="row muted" style="gap:8px;margin-top:4px"><input id="navigationBuild" type="checkbox" ${nav.build_on_launch ? "checked" : ""}> Refresh map before each enabled worker launch</label><div class="bar" style="margin-top:14px">${btn("Save navigation settings", "navigation-save", "primary")}</div><p class="muted tiny" style="margin-top:10px">Project-local only; no provider request or spend. Dynamic and unsupported code stays visibly partial.</p>${note}</div>`; })())
         + '</div>'
-        + card("Keyboard Shortcuts Reference", '<div class="pad settings-keys">' + [["Ctrl / Cmd K", "Command palette"], ["N", "New task"], ["1–8", "Navigate pages"], ["Enter", "Run ATL command"], ["Esc", "Dismiss dialog"], ["Ctrl + Enter", "Send in Ask ATL"]].map((row) => `<div class="event between" style="justify-content:space-between"><span class="key">${row[0]}</span><span class="muted">${row[1]}</span></div>`).join("") + '</div>', "", "space");
+        + card("Keyboard Shortcuts Reference", '<div class="pad settings-keys">' + [["Ctrl / Cmd K", "Command palette"], ["N", "New task"], ["1–9", "Open the nth item in the sidebar order (a number is shown on each sidebar item)"], ["Enter", "Run ATL command"], ["Esc", "Dismiss dialog"], ["Ctrl + Enter", "Send in Ask ATL"]].map((row) => `<div class="event between" style="justify-content:space-between"><span class="key">${row[0]}</span><span class="muted">${row[1]}</span></div>`).join("") + '</div>', "", "space");
     },
   };
 
@@ -1830,7 +1830,7 @@ operations: () => {
       return;
     }
     // Grouped navigation: presentation order only — the canonical `routes`
-    // array (digit shortcuts, palette, session restore) stays untouched.
+    // array (palette, session restore) stays untouched.
     const groups = [
       ["Workspace", ["overview", "tasks", "queues", "runs", "approvals"]],
       ["Build", ["studio", "shipped", "batches", "sources"]],
@@ -1838,7 +1838,11 @@ operations: () => {
       ["Operations", ["mytasks", "projects", "operations", "activity", "usage", "settings"]],
     ];
     const byRoute = Object.fromEntries(routes.map((route) => [route[0], route]));
-    const groupHtml = (names) => names.map((name) => `<div class="section">${name}</div>` + groups.find((group) => group[0] === name)[1].map((id) => byRoute[id]).filter(Boolean).map((route) => `<button class="nav ${page === route[0] ? "on" : ""}" data-page="${route[0]}"${page === route[0] ? ' aria-current="page"' : ""}><span class="ico">${iconFor(route[0], route[1])}</span><span class="lbl">${route[2]}</span>${navBadges(route[0])}</button>`).join("")).join("");
+    // Digit shortcuts follow this rendered order (#32); the nth visible nav
+    // item is what key `n` opens.
+    shortcutOrder = groups.flatMap((group) => group[1].map((id) => byRoute[id]).filter(Boolean));
+    const shortcutFor = (route) => { const index = shortcutOrder.indexOf(route); return index >= 0 && index < 9 ? String(index + 1) : null; };
+    const groupHtml = (names) => names.map((name) => `<div class="section">${name}</div>` + groups.find((group) => group[0] === name)[1].map((id) => byRoute[id]).filter(Boolean).map((route) => { const key = shortcutFor(route); return `<button class="nav ${page === route[0] ? "on" : ""}" data-page="${route[0]}"${page === route[0] ? ' aria-current="page"' : ""}${key ? ` title="${route[2]} — press ${key}"` : ""}><span class="ico">${iconFor(route[0], route[1])}</span><span class="lbl">${route[2]}</span>${key ? `<span class="nav-key">${key}</span>` : ""}${navBadges(route[0])}</button>`; }).join("")).join("");
     $("#navA").innerHTML = groupHtml(["Workspace", "Build"]);
     $("#navB").innerHTML = groupHtml(["Intelligence", "Operations"]);
     $("#mobile").innerHTML = routes.map((route) => `<button class="btn sm ${page === route[0] ? "primary" : ""}" data-page="${route[0]}">${route[2]}${navBadges(route[0])}</button>`).join("");
@@ -1883,7 +1887,7 @@ operations: () => {
             : builtin
               ? (builtinCodex.installed ? `run ${builtinCodex.loginCommand} and sign in with ChatGPT to connect` : `install first: ${builtinCodex.installHint}`)
               : "Add a provider to enable model planning.";
-    mount.innerHTML = `<button class="provider-summary" type="button" data-action="provider-manager" aria-label="Manage providers" title="${escapeHtml(name + " · " + detail)}"><span class="row between tiny"><span class="muted">PROVIDER STATUS</span><span class="pill ${status.tone}">${escapeHtml(status.label)}</span></span><strong>${escapeHtml(name)}</strong><span class="muted tiny status-detail">${escapeHtml(detail)}</span></button><button class="provider-manager lined row" type="button" data-page="settings" title="Workspace Manager — Settings"><span class="avatar">M</span><span><b>Workspace Manager</b><span class="tiny muted" style="display:block">Owner / approvals · Settings</span></span></button>`;
+    mount.innerHTML = `<button class="provider-summary" type="button" data-action="provider-manager" aria-label="Manage providers: ${escapeHtml(name)} — ${escapeHtml(status.label + " · " + detail)}" title="${escapeHtml(name + " · " + detail)}"><span class="row between tiny"><span class="muted">PROVIDER STATUS</span><span class="pill ${status.tone}">${escapeHtml(status.label)}</span></span><strong>${escapeHtml(name)}</strong><span class="muted tiny status-detail">${escapeHtml(detail)}</span></button><button class="provider-manager lined row" type="button" data-page="settings" title="Workspace Manager — Settings"><span class="avatar">M</span><span><b>Workspace Manager</b><span class="tiny muted" style="display:block">Owner / approvals · Settings</span></span></button>`;
   }
   function applyLocale() {
     const fa = locale === "fa-IR";
@@ -1996,6 +2000,7 @@ operations: () => {
   let modalReturnFocus = null;
   function close() {
     detailExecution = null; dialogOpen = false; $("#modal").innerHTML = "";
+    discardPendingRender();
     if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
     modalReturnFocus = null;
   }
@@ -2139,7 +2144,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const imported = ["azure", "github", "jira"].includes(task?.source?.type);
     const assignedRepo = task?.repository_id || "";
     const assignmentField = imported ? `<div class="field"><span class="label">Repository assignment</span><p class="sub">Imported requests can affect several repositories. Use Repositories in Sources to link all affected repos.</p></div>` : `<div class="field"><label class="label" for="fRepository">Assign to repository <span class="muted">(optional)</span></label><select class="input" id="fRepository" ${task?.plan_draft_id ? "disabled" : ""}><option value="">This workspace / no repository</option>${(snapshot.supervisor?.projects || []).map((project) => `<option value="${escapeHtml(project.id)}" ${project.id === assignedRepo ? "selected" : ""}>${escapeHtml(project.name)} — ${escapeHtml(project.root)}</option>`).join("")}</select>${task?.plan_draft_id ? '<small class="muted">Plan-created tasks stay bound to their approved repository.</small>' : '<small class="muted">The task will run in a worktree from this repository. This does not start execution.</small>'}</div>`;
-    popup(task ? `Edit ${escapeHtml(task.id)}` : "New ATL task", `<div class="field"><label class="label">Task title</label><input class="input" id="fTitle" value="${escapeHtml(task?.title || "")}" placeholder="Describe the task"></div><div class="field"><label class="label">Objective and acceptance criteria</label><textarea class="input" id="fDesc">${escapeHtml(task?.desc || "")}</textarea></div>${assignmentField}<div class="grid two"><div class="field"><label class="label">Queue</label><select class="input" id="fQueue"><option value="">Unqueued</option>${queues.map((queue) => `<option ${queue.id === defaultQueue ? "selected" : ""} value="${escapeHtml(queue.id)}">${escapeHtml(queue.label)}</option>`).join("")}</select></div><div class="field"><label class="label">Priority</label><select class="input" id="fPriority">${[["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]].map((row) => `<option value="${row[0]}" ${row[1] === task?.priority ? "selected" : ""}>${row[1]}</option>`).join("")}</select></div></div><p class="sub">New tasks are added to the active queue by default. Queue membership does not start execution.</p>`, btn("Cancel", "close") + btn(task ? "Save task" : "Create task", `save:${task?.id || ""}`, "primary"));
+    popup(task ? `Edit ${escapeHtml(task.id)}` : "New ATL task", `<div class="field"><label class="label" for="fTitle">Task title</label><input class="input" id="fTitle" value="${escapeHtml(task?.title || "")}" placeholder="Describe the task"></div><div class="field"><label class="label" for="fDesc">Objective and acceptance criteria</label><textarea class="input" id="fDesc">${escapeHtml(task?.desc || "")}</textarea></div>${assignmentField}<div class="grid two"><div class="field"><label class="label" for="fQueue">Queue</label><select class="input" id="fQueue"><option value="">Unqueued</option>${queues.map((queue) => `<option ${queue.id === defaultQueue ? "selected" : ""} value="${escapeHtml(queue.id)}">${escapeHtml(queue.label)}</option>`).join("")}</select></div><div class="field"><label class="label" for="fPriority">Priority</label><select class="input" id="fPriority">${[["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]].map((row) => `<option value="${row[0]}" ${row[1] === task?.priority ? "selected" : ""}>${row[1]}</option>`).join("")}</select></div></div><p class="sub">New tasks are added to the active queue by default. Queue membership does not start execution.</p>`, btn("Cancel", "close") + btn(task ? "Save task" : "Create task", `save:${task?.id || ""}`, "primary"));
     if (!task) {
       // An unsubmitted draft survives panel reloads and harness tab switches via
       // session storage; it is restored whenever the blank form opens again.
@@ -2565,6 +2570,35 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
   let frameCursor = 0;
   let lastRefreshOk = 0;
+  let shortcutOrder = [];   // presented sidebar order; digits follow it (#32)
+  // While the user types or a dialog holds focus, full re-renders are
+  // suppressed so the focused element keeps its text (#32). Updates are not
+  // lost: a count badge announces them and a click or focus-out applies them.
+  let pendingRenders = 0;
+  let pendingBadge = null;
+  function queueSuppressedRender() {
+    pendingRenders++;
+    if (!pendingBadge) {
+      pendingBadge = document.createElement("button");
+      pendingBadge.type = "button";
+      pendingBadge.className = "pending-updates";
+      pendingBadge.setAttribute("aria-live", "polite");
+      pendingBadge.onclick = () => applyPendingRender();
+      document.body.appendChild(pendingBadge);
+    }
+    pendingBadge.textContent = `${pendingRenders} new update${pendingRenders === 1 ? "" : "s"} — show now`;
+  }
+  function applyPendingRender() {
+    pendingRenders = 0;
+    pendingBadge?.remove();
+    pendingBadge = null;
+    render();
+  }
+  function discardPendingRender() {
+    pendingRenders = 0;
+    pendingBadge?.remove();
+    pendingBadge = null;
+  }
   async function refresh(renderAfter = true, forceFull = false) {
     // The poll echoes the frame version it holds: an unchanged workspace costs a
     // tiny response instead of a full snapshot re-download every cycle. Mutations
@@ -2574,7 +2608,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     catch { connected = false; }
     refreshTaskDetail();
     const editing = dialogOpen || cardDraft || page === "sources" || document.activeElement?.matches("input, textarea, select");
-    if (renderAfter && !editing) render();
+    if (renderAfter && !editing) { discardPendingRender(); render(); }
+    else if (renderAfter) queueSuppressedRender();
   }
   function connectStream() { if (stream) stream.close(); stream = new EventSource(`/api/events?cursor=${streamCursor}`); stream.addEventListener("snapshot", (event) => { try { const payload = JSON.parse(event.data); streamCursor = payload.cursor || streamCursor; snapshot = payload.snapshot || snapshot; connected = true; streamRetry = 1000; if (page !== "sources" && !dialogOpen && !cardDraft && !document.activeElement?.matches("input,textarea,select")) render(); } catch {} }); stream.addEventListener("unchanged", () => { const wasStale = !connected; connected = true; streamRetry = 1000; if (wasStale && page !== "sources" && !dialogOpen && !cardDraft && !document.activeElement?.matches("input,textarea,select")) render(); }); stream.onerror = () => { connected = false; stream.close(); setTimeout(connectStream, streamRetry); streamRetry = Math.min(streamRetry * 2, 15000); if (page !== "sources") render(); }; }
   setInterval(() => { if (connected && lastRefreshOk && Date.now() - lastRefreshOk > 10000) { connected = false; if (page !== "sources") render(); } }, 1000);
@@ -2597,7 +2632,12 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       await apiCommand(command);
       await refresh(false); page = after; render();
     } catch (error) {
-      popup("Action failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close"));
+      // A dropped server must read as a stopped runtime, not as a bare
+      // browser fetch error (#32).
+      const message = /failed to fetch|networkerror|load failed/i.test(String(error?.message))
+        ? "ATL server is unreachable — it may have stopped. Restart it with: atl ui (or Retry in the header)."
+        : error.message;
+      popup("Action failed", `<p class="red">${escapeHtml(message)}</p>`, btn("Close", "close"));
     }
   }
   async function assistantRead(scope) {
@@ -4129,8 +4169,19 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.matches("input,textarea,select") || event.altKey || event.ctrlKey || event.metaKey) return;
     if (cardDraft) return;
     if (event.key.toLowerCase() === "n") { taskForm(); return; }
-    const number = Number(event.key); const navRoutes = PLUGIN ? PLUGIN_NAV : routes; if (number >= 1 && number <= navRoutes.length) { openPage(navRoutes[number - 1][0]); }
+    // Digits follow the presented sidebar order (#32): groups render routes in
+    // a different order than the canonical list, so the shortcut table is
+    // rebuilt from the rendered navigation each time it changes.
+    const number = Number(event.key);
+    const navRoutes = PLUGIN ? PLUGIN_NAV : (shortcutOrder.length ? shortcutOrder : routes);
+    if (number >= 1 && number <= navRoutes.length) { openPage(navRoutes[number - 1][0]); }
   }, true);
+  // Leaving a form field applies the updates that were held while typing (#32).
+  document.addEventListener("focusout", (event) => {
+    if (pendingRenders && event.target?.matches?.("input, textarea, select")) {
+      setTimeout(() => { if (pendingRenders && !dialogOpen && !cardDraft && !document.activeElement?.matches("input, textarea, select")) applyPendingRender(); }, 0);
+    }
+  });
   $("#searchBtn").onclick = () => palette();
   $("#newBtn").onclick = () => taskForm();
   // Sidebar collapse: the 60px icon rail is persistent (html.side-collapsed is

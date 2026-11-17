@@ -18,6 +18,7 @@ import { loadQueue, QueueError } from "./queue.mjs";
 import { pendingFeedback, markFeedback } from "./feedback.mjs";
 import { autoRecoverBlockedTask, requiresHumanAction } from "./recovery.mjs";
 import { recordUsage, checkUsageThresholds } from "./usage.mjs";
+import { redactLocal } from "./redact.mjs";
 import { assembleContext, buildMap, renderNavigationContext } from "./navigation.mjs";
 import { buildContextPack } from "./brain.mjs";
 import { needsUiReview, probeUiReviewRuntime, uiReviewPrompt } from "./ui-review-runtime.mjs";
@@ -495,7 +496,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       detail: "local session observed; remote provider quota is not exposed by this adapter",
     });
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    fs.writeFileSync(logPath.replace(/\.log$/i, ".json"), JSON.stringify(summary, null, 2) + "\n");
+    fs.writeFileSync(logPath.replace(/\.log$/i, ".json"), JSON.stringify(JSON.parse(redactLocal(JSON.stringify(summary), { root })), null, 2) + "\n");
     report(`[${taskId}] ${role} session finished · exit ${result.code}${result.timedOut ? " · timed out" : ""}`);
     if (typeof onSession === "function") await onSession(summary);
     if (contractRepair) return { status: nextTask?.status, contractRepaired: Boolean(nextTask?.pip_repair), reason: nextTask?.pip_repair ? "Pip repaired the contract" : "Pip did not produce a permitted contract repair" };
