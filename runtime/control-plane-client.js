@@ -1210,7 +1210,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const candidates = sourcePreview?.candidates || [];
     const providerName = { github: 'GitHub', jira: 'Jira', azure: 'Azure Boards' };
     const location = c => c.provider === 'github' ? c.settings.repo : c.provider === 'jira' ? `${c.settings.base_url} · ${c.settings.projects.join(', ')}` : `${c.settings.org_url} · ${c.settings.project}`;
-    const cards = sourceConnections.map(c => `<article class="source-connection-card ${c.id === sourceSelectedId ? 'is-selected' : ''}"><div class="source-connection-heading"><span class="source-icon source-${c.provider}">${{ github: 'GH', jira: 'JR', azure: 'AZ' }[c.provider]}</span><div><h3>${escapeHtml(c.name)}</h3><span class="muted tiny">${providerName[c.provider]}</span></div><span class="source-status ${c.status === 'verified' ? 'is-enabled' : ''}">${escapeHtml(c.status === 'needs-auth' ? 'Needs authentication' : c.status === 'verified' ? 'Access verified' : c.status === 'unavailable' ? 'Unavailable' : 'Access not checked')}</span></div><p class="source-connection-location" dir="auto">${escapeHtml(location(c))}</p><p class="muted tiny">${c.enabled ? 'Enabled' : 'Paused'}${c.checked_at ? ` · Checked ${escapeHtml(new Date(c.checked_at).toLocaleString())}` : ''}${c.error ? ` · ${escapeHtml(c.error)}` : ''}</p><div class="source-actions">${btn('Browse issues', `sources-browse:${c.id}`, 'primary sm')}${btn('Check access', `sources-check:${c.id}`, 'sm')}${c.provider === 'azure' ? btn(c.token_present ? 'Replace PAT' : 'Connect PAT', `sources-credential:${c.id}`, 'sm') : ''}<details class="source-card-menu"><summary aria-label="More actions for ${escapeHtml(c.name)}">⋮</summary><div>${btn('Edit connection', `sources-edit:${c.id}`, 'sm ghost')}${btn(c.enabled ? 'Pause connection' : 'Enable connection', `sources-toggle:${c.id}`, 'sm ghost')}${btn('Remove connection', `sources-delete:${c.id}`, 'sm ghost')}</div></details></div></article>`).join('');
+    const cards = sourceConnections.map(c => `<article class="source-connection-card ${c.id === sourceSelectedId ? 'is-selected' : ''}"><div class="source-connection-heading"><span class="source-icon source-${c.provider}">${{ github: 'GH', jira: 'JR', azure: 'AZ' }[c.provider]}</span><div><h3>${escapeHtml(c.name)}</h3><span class="muted tiny">${providerName[c.provider]}</span></div><span class="source-status ${c.status === 'verified' ? 'is-enabled' : ''}">${escapeHtml(c.status === 'needs-auth' ? 'Needs authentication' : c.status === 'verified' ? 'Access verified' : c.status === 'unavailable' ? 'Unavailable' : 'Access not checked')}</span></div><p class="source-connection-location" dir="auto">${escapeHtml(location(c))}</p><p class="muted tiny">${c.enabled ? 'Enabled' : 'Paused'}${c.checked_at ? ` · Checked ${escapeHtml(new Date(c.checked_at).toLocaleString())}` : ''}${c.error ? ` · ${escapeHtml(c.error)}` : ''}</p><div class="source-actions">${btn('Browse issues', `sources-browse:${c.id}`, 'primary sm')}${btn('Check access', `sources-check:${c.id}`, 'sm')}${c.provider === 'azure' ? btn(c.token_present ? 'Replace PAT' : 'Connect PAT', `sources-credential:${c.id}`, 'sm') : c.provider === 'github' ? btn(c.token_present ? 'Replace token' : 'Connect token', `sources-credential:${c.id}`, 'sm') : ''}<details class="source-card-menu"><summary aria-label="More actions for ${escapeHtml(c.name)}">⋮</summary><div>${btn('Edit connection', `sources-edit:${c.id}`, 'sm ghost')}${btn(c.enabled ? 'Pause connection' : 'Enable connection', `sources-toggle:${c.id}`, 'sm ghost')}${btn('Remove connection', `sources-delete:${c.id}`, 'sm ghost')}</div></details></div></article>`).join('');
     const rows = candidates.map(item => { const source = item.source?.type || sourcePreview?.source || selected?.provider; const key = item.source?.remote_id == null ? 'Issue' : String(item.source.remote_id); return `<tr data-preview-source="${escapeHtml(source)}" data-preview-search="${escapeHtml([item.title,key,item.objective_hint].filter(Boolean).join(' ').toLowerCase())}"><td><input type="checkbox" data-source-index="${item.index}" aria-label="Select ${escapeHtml(item.title)}" checked></td><td>${escapeHtml(key)}</td><td class="source-issue-copy"><b dir="auto">${escapeHtml(item.title)}</b><span dir="auto">${escapeHtml(item.source?.repo || item.objective_hint || '')}</span></td><td>${escapeHtml(item.priority || 'Issue')}</td><td>${btn('Import', 'sources-import-one:' + item.index, 'sm')}</td></tr>`; }).join('');
     return `<div class="issue-sources source-v2">${head('WORKSPACE / ISSUE SOURCES', 'Issue sources', 'Connect saved sources, verify access, browse issues, and import selected requests for planning.', btn('Check all access', 'sources-check-all') + btn('+ Add source', 'sources-add', 'primary'))}
       ${sourceConnectionNotice ? `<div class="source-notice source-connection-notice" role="status"><span>${escapeHtml(sourceConnectionNotice)}</span>${btn('Dismiss', 'sources-dismiss-notice', 'sm ghost')}</div>` : ''}
@@ -1222,6 +1222,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     if (sourceLoading) return '<section class="panel pad" role="status"><span class="running-mark" aria-hidden="true"></span><span class="muted">Loading issue source settings…</span></section>';
     const github = { ...sourceSettings?.github, enabled: sourceDraft.sourceGithubEnabled ?? sourceSettings?.github?.enabled }, jira = { ...sourceSettings?.jira, enabled: sourceDraft.sourceJiraEnabled ?? sourceSettings?.jira?.enabled }, azure = { ...sourceSettings?.azure, enabled: sourceDraft.sourceAzureEnabled ?? sourceSettings?.azure?.enabled };
     const azurePatEditing = sourceDraft.sourceAzurePatEditing === true;
+    const githubTokenEditing = sourceDraft.sourceGithubTokenEditing === true;
     const candidates = sourcePreview?.candidates || [];
     const field = (id, label, value, placeholder = "") => `<div class="source-field"><label class="label" for="${id}">${label}</label><input class="input" id="${id}" value="${escapeHtml(sourceDraft[id] ?? value)}" placeholder="${escapeHtml(placeholder)}"></div>`;
     const sourceCard = (source, short, title, settings, fields, readiness, ready, hint) => `<section class="panel source-card ${settings.enabled ? "is-enabled" : ""}" data-source="${source}"><div class="paneltitle"><div class="row"><span class="source-icon source-${source}">${short}</span><h2>${title}</h2></div><span class="source-status ${settings.enabled ? "is-enabled" : ""}">${settings.enabled ? "Enabled" : "Disabled"}</span></div><div class="source-body"><p class="source-readiness ${ready ? "is-ready" : ""}">${escapeHtml(readiness)}</p><label class="source-enable"><input type="checkbox" id="source${source === "github" ? "Github" : source === "jira" ? "Jira" : "Azure"}Enabled" ${settings.enabled ? "checked" : ""}> Enable ${source === "github" ? "GitHub" : source === "jira" ? "Jira" : "Azure Boards"} intake</label>${fields}${hint ? `<p class="source-hint">${hint}</p>` : ""}<div class="source-actions">${btn(source === "github" ? "Save GitHub" : source === "jira" ? "Save Jira" : "Save Azure settings", "sources-save:" + source, "primary")}${source === "azure" ? "" : btn(source === "github" ? "Find GitHub issues" : source === "jira" ? "Find Jira issues" : "Find Azure work items", "sources-preview:" + source)}</div></div></section>`;
@@ -1233,15 +1234,15 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
       return `<tr data-preview-source="${escapeHtml(source)}" data-preview-search="${escapeHtml([item.title, key, item.objective_hint, item.source?.repo].filter(Boolean).join(" ").toLowerCase())}"><td><input type="checkbox" data-source-index="${item.index}" aria-label="Select ${escapeHtml(item.title)}" checked></td><td><span class="source-key source-${escapeHtml(source)}">${escapeHtml(short)} · ${escapeHtml(key)}</span></td><td class="source-issue-copy"><b dir="auto">${escapeHtml(item.title)}</b><span dir="auto">${escapeHtml(item.source?.repo || item.objective_hint || "No description")}</span></td><td><span class="pill">${escapeHtml(source === "azure" ? item.source?.iteration || azure.iteration_path || "Work item" : item.priority || "Issue")}</span></td><td><span class="source-status is-enabled">Ready</span></td><td>${btn("Import", "sources-import-one:" + item.index, "sm")}</td></tr>`;
     }).join("");
     return `<div class="issue-sources">${head("WORKSPACE / ISSUE SOURCES", "Issue sources", "Connect read-only sources, verify server token readiness, inspect issues, then import requests for planning.", btn("Check token readiness", "sources-readiness") + btn("Refresh sources", "sources-load"))}
+      ${sourceNotice ? `<p class="source-notice" role="status" style="white-space:pre-line;margin:12px 0 0">${escapeHtml(sourceNotice)}</p>` : ""}
       <section class="panel source-workbench source-quickfind" aria-label="Find Azure work"><div class="source-quickfind-eyebrow">AZURE BOARDS · SAVED CONNECTION</div><div class="source-quickfind-grid"><label class="source-quickfind-field"><span class="source-quickfind-label">Sprint</span><input class="input" id="sourceAzureSearchIteration" list="sourceAzureSprintList" placeholder="${azureIterations.length ? "Pick a sprint, or leave empty for all sprints" : "Load sprints, or type 74 / Project\\Sprint 74"}" autocomplete="off"><datalist id="sourceAzureSprintList">${azureIterations.map((it) => `<option value="${escapeHtml(it.path)}">${escapeHtml(it.name)}${it.finish ? ` · until ${escapeHtml(String(it.finish).slice(0, 10))}` : ""}</option>`).join("")}</datalist></label><label class="source-quickfind-field"><span class="source-quickfind-label">Work item</span><input class="input" id="sourceAzureWorkItem" list="sourceAzureWorkItemList" placeholder="#6376 or https://…/_workitems/edit/6376" autocomplete="off" aria-label="Work item number or link"><datalist id="sourceAzureWorkItemList">${(sourcePreview?.candidates || []).filter((item) => (item.source?.type || sourcePreview?.source) === "azure" && item.source?.remote_id != null).map((item) => `<option value="${escapeHtml(String(item.source.remote_id))}">${escapeHtml(item.title)}</option>`).join("")}</datalist></label><div class="source-quickfind-actions">${btn("⟳ Sprints", "sources-azure-sprints", azure.token_present ? "sm" : "sm ghost")}${btn("⌕ Preview Azure work", "sources-preview:azure", "primary")}${btn(`⚙ Connectors (3)`, "sources-connectors", sourcesConnectorsOpen ? "" : "ghost")}</div></div><p class="source-hint">${azureSprintsNotice ? `${escapeHtml(azureSprintsNotice)} · ` : ""}A work item number or link takes precedence over the sprint filter. Searches never change your saved connection.</p></section>
       ${sourcesConnectorsOpen ? `<div class="source-grid">
-        ${sourceCard("github", "GH", "GitHub issues", github, field("sourceGithubRepos", "Repositories (owner/name, comma-separated)", (github.repos || []).join(", "), "owner/repository"), "Read-only fetch · authentication checked when searching", false, "GitHub CLI with REST fallback. Save repositories, then find issues." + (github.repos?.length ? `<span class="pill blue">${github.repos.length} configured repo${github.repos.length === 1 ? "" : "s"}</span>` : ""))}
+        ${sourceCard("github", "GH", "GitHub issues", github, field("sourceGithubRepos", "Repositories (owner/name, comma-separated)", (github.repos || []).join(", "), "owner/repository") + `<div class="source-field source-pat-field"><div class="source-pat-label-row"><label class="label" for="sourceGithubToken">GitHub token · read access (private repos)</label><button class="btn ghost sm source-pat-edit" type="button" data-action="${githubTokenEditing ? "sources-github-token-cancel" : "sources-github-token-edit"}" aria-label="${githubTokenEditing ? "Cancel GitHub token edit" : "Edit GitHub token"}" title="${githubTokenEditing ? "Cancel edit" : "Edit token"}">${githubTokenEditing ? "Cancel" : "✎"}</button></div><input class="input" id="sourceGithubToken" type="password" autocomplete="new-password" ${!githubTokenEditing ? "disabled aria-disabled=\"true\"" : ""} placeholder="${github.token_present ? (githubTokenEditing ? "Enter replacement token" : "Saved for this session — select edit to replace") : (githubTokenEditing ? "Paste a token with read access" : "Select edit to enter a token")}"><div class="bar">${btn("Save & connect GitHub", "sources-github-token-save", "sm primary")}${github.credential_source === "ui-memory" ? btn("Disconnect", "sources-github-token-disconnect", "sm") : ""}</div></div>`, github.token_present ? (github.credential_source === "ui-memory" ? "✓ Token connected for this session — private repositories work" : "✓ GITHUB_TOKEN available in server shell") : "Anonymous fetch · public repositories only — connect a token below for private ones", Boolean(github.token_present), "GitHub CLI with REST fallback. Save repositories, then find issues. A token stays in server memory for this session only; \"gh auth login\" or GITHUB_TOKEN persists it." + (github.repos?.length ? `<span class="pill blue">${github.repos.length} configured repo${github.repos.length === 1 ? "" : "s"}</span>` : ""))}
         ${sourceCard("jira", "JR", "Jira issues", jira, field("sourceJiraUrl", "Jira base URL (HTTPS)", jira.base_url || "", "https://jira.example.com") + `<div class="source-field-pair">${field("sourceJiraProjects", "Project keys", (jira.projects || []).join(", "), "IT, IS")}${field("sourceJiraToken", "Token env variable", jira.token_env || "JIRA_TOKEN")}</div>`, jira.token_present ? "✓ " + (jira.token_env || "JIRA_TOKEN") + " available in server environment" : "◇ Env var " + (jira.token_env || "JIRA_TOKEN") + " not set in server shell", jira.token_present)}
         ${sourceCard("azure", "AZ", "Azure Boards", azure, field("sourceAzureUrl", "Collection URL (HTTPS)", azure.org_url || "", "https://devops.example.com/Collection") + field("sourceAzureProject", "Project", azure.project || "") + field("sourceAzureIteration", "Default sprint iteration (optional)", azure.iteration_path || "", "Project\\Sprint 74") + `<div class="source-field source-pat-field"><div class="source-pat-label-row"><label class="label" for="sourceAzurePat">Azure PAT · Work Items: Read</label><button class="btn ghost sm source-pat-edit" type="button" data-action="${azurePatEditing ? "sources-azure-pat-cancel" : "sources-azure-pat-edit"}" aria-label="${azurePatEditing ? "Cancel Azure PAT edit" : "Edit Azure PAT"}" title="${azurePatEditing ? "Cancel edit" : "Edit PAT"}">${azurePatEditing ? "Cancel" : "✎"}</button></div><input class="input" id="sourceAzurePat" type="password" autocomplete="new-password" ${!azurePatEditing ? "disabled aria-disabled=\"true\"" : ""} placeholder="${azure.token_present ? (azurePatEditing ? 'Enter replacement PAT' : 'Saved credential is kept') : (azurePatEditing ? 'Paste PAT here' : 'Select edit to enter PAT')}">${!azurePatEditing ? `<p class="source-hint">${azure.token_present ? 'Saved credential stays protected. Select the edit icon to replace it.' : 'Select the edit icon to enter your Azure PAT.'}</p>` : ""}${azure.remember_supported ? `<label class="source-enable"><input type="checkbox" id="sourceAzureRemember" ${sourceDraft.sourceAzureRemember === false ? "" : "checked"}> Remember securely on this Windows account</label>` : '<p class="source-hint">Session connection: reconnect after restarting the server.</p>'}<div class="bar">${btn("Save & connect Azure", "sources-azure-connect", "sm primary")}${['ui-memory', 'os-protected'].includes(azure.credential_source) ? btn("Disconnect & forget", "sources-azure-disconnect", "sm") : ""}</div></div>`, azure.token_present ? (azure.credential_source === "os-protected" ? "Saved connection · credential protected by your Windows account" : "Credential available · search below to verify access") : "Not connected · enter the collection, project and PAT once", azure.token_present)}
       </div>
       </div>` : ""}
       <section class="panel source-workbench"><div class="paneltitle"><div class="bar"><h2>Issue preview & planning inbox</h2><span class="pill blue">${candidates.length} items loaded</span></div><span class="muted tiny">Select repos affected by the issue, then import · credentials stay local · read-only</span></div>
-      ${sourceNotice ? `<p class="source-notice" role="status">${escapeHtml(sourceNotice)}</p>` : ""}
       <div class="source-toolbar"><div class="source-tabs" role="group" aria-label="Filter by source">${[["all", "All"], ["github", "GitHub"], ["jira", "Jira"], ["azure", "Azure"]].map(([source, title]) => `<button class="source-tab" data-action="sources-filter:${source}" aria-pressed="${source === "all"}">${title} (${source === "all" ? candidates.length : candidates.filter(item => (item.source?.type || sourcePreview?.source) === source).length})</button>`).join("")}</div><input id="sourceSearch" class="input" type="search" aria-label="Filter previewed issues" placeholder="Filter by title, key, or summary…"><div class="source-import-controls"><div class="source-repo-pills" role="group" aria-label="Affected repositories"><span class="source-repo-pills-label">AFFECTED REPOS:</span>${(snapshot.supervisor?.projects || []).map((project) => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(project.id)}"><span>✓ ${escapeHtml(project.name)}</span></label>`).join("") || '<span class="muted tiny">Register a repository on Projects first.</span>'}</div><button class="btn primary" data-action="sources-import" ${candidates.length ? "" : "disabled"}>+ Import${sourceImportRepos.size ? ` to ${sourceImportRepos.size} repo${sourceImportRepos.size === 1 ? "" : "s"}` : ""} (${candidates.length})</button></div></div>
       <div class="source-table-scroll"><table class="source-table"><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? "checked" : "disabled"}></th><th>Source / key</th><th>Issue title & summary</th><th>Priority / iteration</th><th>State</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="source-empty" ${candidates.length ? "hidden" : ""}>${candidates.length ? "No issues match this filter." : "Save a source, then find issues to preview them here."}</p>
@@ -1963,6 +1964,17 @@ operations: () => {
   }
   function render() {
     const pendingPat = page === 'sources' ? $('#sourceAzurePat')?.value : '';
+    const pendingGithubToken = page === 'sources' ? $('#sourceGithubToken')?.value : '';
+    // A background repaint must not eject a typing user: capture the focused
+    // editable so it can be restored after the wipe. Focus falling to <body>
+    // lets the global shortcuts fire ("n" opens a task modal, digits switch
+    // pages) — keystrokes land on shortcuts instead of the field.
+    const focusedEditable = document.activeElement?.matches?.("input, textarea, select") ? document.activeElement : null;
+    let focusState = null;
+    if (focusedEditable) {
+      try { focusState = { id: focusedEditable.id, value: focusedEditable.value, checked: Boolean(focusedEditable.checked), start: focusedEditable.selectionStart, end: focusedEditable.selectionEnd }; }
+      catch { focusState = { id: focusedEditable.id, value: focusedEditable.value, checked: Boolean(focusedEditable.checked), start: null, end: null }; }
+    }
     // Plugin repaints keep the focused control reachable (mirrors refreshTaskDetail's modal behavior).
     const pluginFocus = PLUGIN ? (document.activeElement?.dataset?.action || document.activeElement?.dataset?.page || document.activeElement?.closest?.("[data-task]")?.dataset?.task || null) : null;
     // Adopt the live task workspace across repaints: when the selected task,
@@ -2002,6 +2014,17 @@ operations: () => {
       }
       restoreScroll(content, "content");
       window.scrollTo(scrollX, scrollY);
+      // Put the caret back where the user left it (same id must exist in the
+      // fresh markup; a changed panel leaves focus alone).
+      if (focusState?.id) {
+        const restored = $("#" + CSS.escape(focusState.id));
+        if (restored) {
+          if (restored.value !== focusState.value) restored.value = focusState.value;
+          if (restored.type === "checkbox") restored.checked = focusState.checked;
+          if (focusState.start != null) { try { restored.setSelectionRange(focusState.start, focusState.end); } catch { /* selects and number fields take no caret */ } }
+          restored.focus({ preventScroll: true });
+        }
+      }
       if (PLUGIN) {
         pluginMarkSelection();
         if (pluginFocus) {
@@ -2013,6 +2036,7 @@ operations: () => {
       }
     }
     if (pendingPat && $('#sourceAzurePat')) $('#sourceAzurePat').value = pendingPat;
+    if (pendingGithubToken && $('#sourceGithubToken')) $('#sourceGithubToken').value = pendingGithubToken;
     ensureLocaleControl(); applyLocale();
   }
   let modalReturnFocus = null;
@@ -3148,6 +3172,14 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value.startsWith('sources-edit:')) { const c = sourceConnections.find(item => item.id === value.slice(13)); if (c) sourceConnectionForm(c, c.provider); return; }
     if (value.startsWith('sources-credential:')) {
       const c = sourceConnections.find(item => item.id === value.slice(19)); if (!c) return;
+      if (c.provider === 'github') {
+        // Session-scoped GitHub token entry for private repositories: the
+        // token is held in server memory for this session only — nothing is
+        // written to disk. The persistent paths stay "gh auth login" and the
+        // GITHUB_TOKEN variable.
+        popup(`GitHub access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a token with read access to the repository. It is held by this local server for this session only — nothing is written to disk; "gh auth login" or GITHUB_TOKEN persists access.</p><label class="source-field"><span class="label">GitHub token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste token"></label><p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
+        return;
+      }
       popup(`Azure access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a PAT with Work Items: Read access. The token is sent only to this local server.</p><label class="source-field"><span class="label">Personal access token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste PAT"></label>${navigator.platform?.startsWith('Win') ? '<label class="source-enable"><input id="sourceConnectionRemember" type="checkbox" checked> Remember securely on this Windows account</label>' : '<p class="source-hint">Session credential; reconnect after restarting the server.</p>'}<p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
       return;
     }
@@ -3157,6 +3189,19 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const button = document.querySelector(`.dialogfoot [data-action="${CSS.escape(value)}"]`);
       if (button?.disabled) return;
       if (button) button.disabled = true;
+      const credentialConnection = sourceConnections.find(item => item.id === id);
+      if (credentialConnection?.provider === 'github') {
+        try {
+          const response = await fetch('/api/intake/credentials/github', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: disconnect ? 'disconnect' : 'save', token: disconnect ? '' : $('#sourceConnectionPat')?.value }) });
+          const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Credential could not be saved');
+          close(); await loadIssueSources();
+          sourceConnectionNotice = disconnect
+            ? (result.token_present ? 'Session token disconnected. GITHUB_TOKEN from the server environment is still available.' : 'GitHub token disconnected; anonymous public-repository access only.')
+            : result.credential_source === 'ui-memory' ? 'GitHub token connected for this session only. Check access to verify it.' : 'GitHub connection kept on GITHUB_TOKEN. Check access to verify it.';
+          render();
+        } catch (error) { const node = $('#sourceCredentialError'); if (node) node.textContent = error.message; if (button) button.disabled = false; }
+        return;
+      }
       try {
         const response = await fetch(`/api/intake/connections/${encodeURIComponent(id)}/credential`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ revision: sourceConnectionRevision, action: disconnect ? 'disconnect' : 'connect', token: disconnect ? '' : $('#sourceConnectionPat')?.value, remember: Boolean($('#sourceConnectionRemember')?.checked) }) });
         const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Credential could not be saved');
@@ -3254,6 +3299,33 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const source = value.slice(16);
       try { const response = await fetch("/api/intake/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ source, ...(source === 'azure' ? { work_item: $('#sourceAzureWorkItem')?.value.trim(), iteration_path: $('#sourceAzureSearchIteration')?.value.trim() } : {}) }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Issue search failed"); sourcePreview = { ...result, source }; sourceNotice = `${result.candidates.length} issue(s) found. No task was created.`; }
       catch (error) { sourcePreview = null; sourceNotice = error.message; } render(); return;
+    }
+    if (value === "sources-github-token-edit") { sourceDraft.sourceGithubTokenEditing = true; try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {} render(); $("#sourceGithubToken")?.focus(); return; }
+    if (value === "sources-github-token-cancel") { sourceDraft.sourceGithubTokenEditing = false; try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {} render(); return; }
+    if (value === "sources-github-token-save") {
+      const tokenInput = $("#sourceGithubToken"), token = tokenInput?.value || "";
+      if (!token.trim() && !sourceSettings?.github?.token_present) { sourceNotice = "Select the edit icon, enter a GitHub token, then connect."; render(); return; }
+      try {
+        const response = await fetch("/api/intake/credentials/github", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "save", token }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Could not save the GitHub token");
+        if (tokenInput) tokenInput.value = "";
+        sourceDraft.sourceGithubTokenEditing = false;
+        try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}
+        await loadIssueSources();
+        sourceNotice = result.credential_source === "ui-memory" ? "GitHub token held for this session only — search to verify access; nothing was imported. Use \"gh auth login\" or GITHUB_TOKEN to persist it." : "GitHub connection kept on GITHUB_TOKEN. Search to verify access; nothing was imported.";
+      } catch (error) { sourceNotice = error.message; }
+      render(); return;
+    }
+    if (value === "sources-github-token-disconnect") {
+      try {
+        const response = await fetch("/api/intake/credentials/github", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "disconnect" }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Could not disconnect the GitHub token");
+        await loadIssueSources();
+        sourceNotice = result.token_present ? "Session token disconnected. GITHUB_TOKEN from the server environment is still available." : "GitHub token disconnected; anonymous public-repository access only.";
+      } catch (error) { sourceNotice = error.message; }
+      render(); return;
     }
     if (value === "sources-import" || value.startsWith("sources-import-one:")) {
       if (!sourcePreview) return;
@@ -3372,7 +3444,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const response = await fetch("/api/intake/repository", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId, repositoryIds }) });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "linking failed");
-        close(); await refresh(false); await loadIssueSources(); void loadProjectMap().catch(() => {});
+        close(); await refresh(false, true); await loadIssueSources(); void loadProjectMap().catch(() => {});
         sourceNotice = result.repositoryIds?.length ? `Linked to ${result.repositories.map((entry) => entry.name).join(", ")}. Create a plan per repository below or on its Projects card.` : "Request unlinked; planning inspects this workspace.";
       } catch (error) { popup("Could not save links", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); return; }
       render(); return;
@@ -3389,7 +3461,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const response = await fetch("/api/projects/assign-task", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repositoryId: repoId, title, worker }) });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "assignment failed");
-        await refresh(false); void loadProjectMap().catch(() => {});
+        await refresh(false, true); void loadProjectMap().catch(() => {});
         popup(`Task ${result.created ? "created" : "assigned"}`, `<p><b>${escapeHtml(result.taskId)}</b> now belongs to <b>${escapeHtml(result.repository.name)}</b>.</p><p class="sub">It appears in the repository's subtask list. Nothing runs until the task is in a queue and you confirm a run.</p>`, btn("Close", "close"));
       } catch (error) { popup("Could not assign", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
@@ -3410,7 +3482,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const response = await fetch("/api/projects/assign-task", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repositoryId: repoId, title, worker: $("#directTaskWorker")?.value || "" }) });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "assignment failed");
-        close(); await refresh(false); void loadProjectMap().catch(() => {});
+        close(); await refresh(false, true); void loadProjectMap().catch(() => {});
         if (page === "sources") { await loadIssueSources().catch(() => {}); sourceNotice = `${result.taskId} assigned to ${result.repository.name}. Open its Projects card to plan or queue it.`; }
         render();
         popup(`Task ${result.created ? "created" : "assigned"}`, `<p><b>${escapeHtml(result.taskId)}</b> now belongs to <b>${escapeHtml(result.repository.name)}</b>.</p><p class="sub">It appears in the repository's subtask list. Nothing runs until the task is in a queue and you confirm a run.</p>`, btn("Close", "close"));
@@ -3439,7 +3511,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         studioGoal = sourceObjectiveText(refreshed.objective);
         currentDraft = null;
         studioNotice = `Azure request refreshed from revision ${refreshed.previousRevision} to ${refreshed.revision}. Inspect the updated goal, then generate a new model plan and run review.`;
-        await refresh(false); close(); render();
+        await refresh(false, true); close(); render();
       } catch (error) { popup("Could not refresh request", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
@@ -4101,6 +4173,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.matches?.("[data-repo-select]") && event.target.isConnected) { const taskId = event.target.dataset.repoSelect; if (taskId) currentAssign.set(taskId, event.target.value); }
     if (event.target.matches?.("[data-import-repository]")) { if (event.target.checked) sourceImportRepos.add(event.target.value); else sourceImportRepos.delete(event.target.value); }
     if (!event.target.closest('#modal') && event.target.id?.startsWith('source') && event.target.id !== 'sourceAzurePat'
+      && event.target.id !== 'sourceGithubToken'
       && event.target.id !== 'sourceAzureWorkItem' && event.target.id !== 'sourceAzureSearchIteration') {
       sourceDraft[event.target.id] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
       try { sessionStorage.setItem(sourceDraftKey, JSON.stringify(sourceDraft)); } catch {}

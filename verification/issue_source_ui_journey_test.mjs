@@ -10,11 +10,13 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-saved-sources-'));
 fs.mkdirSync(path.join(root, 'config'), { recursive: true });
 fs.writeFileSync(path.join(root, 'config', 'manager.json'), JSON.stringify({ version: 1 }));
 saveState(root, emptyState());
+const ghToken = process.env.GITHUB_TOKEN;delete process.env.GITHUB_TOKEN; // deterministic GitHub credential readiness
 let server, browser;
 let azureTokenSeen = null;
+let githubUiCredential = null;
 try {
   const running = await startControlPlaneServer(root, { intakeAdapters: {
-    github: async cfg => [{ title: `Issue in ${cfg.repos[0]}`, objective_hint: 'Fix the issue', completion_checks: [], priority: 'normal', risk: 'normal', labels: [], source: { type: 'github', repo: cfg.repos[0], remote_id: 17, revision: 'g1' }, intake_key: `github:${cfg.repos[0]}:17` }],
+    github: async (cfg, options = {}) => { githubUiCredential = options?.token ?? null; return [{ title: `Issue in ${cfg.repos[0]}`, objective_hint: 'Fix the issue', completion_checks: [], priority: 'normal', risk: 'normal', labels: [], source: { type: 'github', repo: cfg.repos[0], remote_id: 17, revision: 'g1' }, intake_key: `github:${cfg.repos[0]}:17` }]; },
     azure: async (_cfg, options = {}) => { azureTokenSeen = options.token || null; return []; },
   } });
   server = running.server;
@@ -54,7 +56,8 @@ try {
   await page.locator('#sourceFormProject').fill('Example');
   await page.locator('[data-action^="sources-form-save:"]').click();
   await page.getByText(/Sprint 74.*saved successfully/).waitFor();
-  await page.locator('[data-action^="sources-credential:"]').click();
+  const azureCard = page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' });
+  await azureCard.locator('[data-action^="sources-credential:"]').click();
   await page.locator('#sourceConnectionPat').fill('synthetic-azure-pat');
   await page.locator('[data-action^="sources-credential-save:"]').click();
   await page.getByText('Azure credential saved. Check access to verify it.').waitFor();
@@ -71,9 +74,55 @@ try {
   await page.getByText(/1 request\(s\) imported for planning/).waitFor();
   const task = Object.values(loadState(root).tasks).find(item => item.title === 'Issue in example/demo');
   assert.ok(task?.source?.connection_id, 'import retains connection provenance');
+  // GitHub session token (bug: the UI had no token entry, so private-repo 404s
+  // were a dead end): connect on the card → session-memory only → check and
+  // browse use it → disconnect returns to anonymous.
   await page.reload();
   await page.locator('.source-connection-card').first().waitFor();
   assert.equal(await page.locator('.source-connection-card').count(), 3, 'connections survive reload');
+  const githubCard = page.locator('.source-connection-card').filter({ hasText: 'Main repository' });
+  assert.equal(await githubCard.locator('[data-action^="sources-credential:"]').innerText(), 'Connect token', 'a github connection without credentials offers token entry');
+  await githubCard.locator('[data-action^="sources-credential:"]').click();
+  await page.locator('#sourceConnectionPat').fill('gh-session-token');
+  await page.locator('[data-action^="sources-credential-save:"]').click();
+  await page.getByText('GitHub token connected for this session only').waitFor();
+  assert.equal(await page.evaluate(() => JSON.stringify(sessionStorage).includes('gh-session-token')), false, 'browser storage contains no GitHub token');
+  await githubCard.locator('[data-action^="sources-check:"]').click();
+  await page.getByText('Access check complete.').waitFor();
+  assert.equal(githubUiCredential, 'gh-session-token', 'the session GitHub token authenticates the connection access check');
+  await githubCard.getByText('Access verified').waitFor();
+  await githubCard.locator('[data-action^="sources-credential:"]').click();
+  assert.equal(await githubCard.locator('[data-action^="sources-credential:"]').innerText(), 'Replace token', 'a session-connected github connection offers replacement');
+  await page.locator('[data-action="close"]').last().click();
+  await githubCard.locator('[data-action^="sources-browse:"]').click();
+  await page.locator('[data-action="sources-preview-selected"]').click();
+  await page.getByText('1 issue(s) found. No task was created.').waitFor();
+  assert.equal(githubUiCredential, 'gh-session-token', 'the session GitHub token reaches the github browse preview');
+  await githubCard.locator('[data-action^="sources-credential:"]').click();
+  await page.locator('[data-action^="sources-credential-disconnect:"]').click();
+  await page.getByText('GitHub token disconnected; anonymous public-repository access only.').waitFor();
+  await githubCard.getByText('Connect token').waitFor();
+  await page.locator('[data-action="sources-preview-selected"]').click();
+  await page.getByText('1 issue(s) found. No task was created.').waitFor();
+  assert.equal(githubUiCredential, null, 'browse runs anonymously after the session token is disconnected');
+  // Background repaint mid-typing must keep focus, value and caret (bug: focus
+  // fell to <body> and keystrokes fired global shortcuts — "n" opened a modal).
+  await page.locator('[data-page="queues"]:visible').first().click();
+  let releaseMap; const mapGate = new Promise((resolve) => { releaseMap = resolve; });
+  await page.route('**/api/projects/map', async (route) => { await mapGate; await route.continue(); });
+  await page.locator('[data-page="sources"]:visible').first().click();
+  const search = page.locator('#sourceSearch');
+  await search.click();
+  await page.keyboard.type('Issue');
+  await search.evaluate((node) => { node.dataset.preRepaint = 'yes'; });
+  releaseMap();
+  await page.waitForFunction(() => !document.querySelector('#sourceSearch')?.dataset.preRepaint, undefined, { timeout: 9000 });
+  await page.unroute('**/api/projects/map');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'sourceSearch', 'loadProjectMap repaint keeps the caret in the search field');
+  assert.equal(await search.inputValue(), 'Issue', 'loadProjectMap repaint keeps in-progress typing');
+  await page.keyboard.type(' in example');
+  assert.equal(await search.inputValue(), 'Issue in example', 'typing continues after the project map repaint');
+  assert.equal(await page.locator('#modal .dialog').count(), 0, 'no global-shortcut dialog opened after the project map repaint');
   await page.locator('[data-action="sources-add"]').click();
   assert.equal(await page.locator('#sourceFormRepo').inputValue(), '');
   await page.locator('[data-action="close"]').last().click();
@@ -83,9 +132,10 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.locator('body').evaluate(node => node.scrollWidth <= node.clientWidth + 2), 'sources fit mobile viewport');
   await page.screenshot({ path: path.join(evidenceDir, 'saved-connections-mobile.png'), fullPage: true });
-  console.log('PASS: saved source cards, blank add form, multiple GitHub connections, preview/import provenance, reload and mobile');
+  console.log('PASS: saved source cards, blank add form, multiple GitHub connections, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, preview/import provenance, reload and mobile');
 } finally {
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));
   fs.rmSync(root, { recursive: true, force: true });
+  if (ghToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = ghToken;
 }
