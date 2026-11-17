@@ -12,7 +12,17 @@ if (process.env.ATL_WORKER_CREDENTIAL) throw new Error("Manager mutation credent
 // under the project root while the worker's cwd is the task workspace.
 const cwdReal = fs.realpathSync(process.cwd());
 const projectReal = fs.realpathSync(process.env.ATL_PROJECT || path.join(cwdReal, ".."));
-const call = (...args) => run(process.execPath, ["--permission", "--allow-fs-read=*", `--allow-fs-write=${cwdReal}`, `--allow-fs-write=${projectReal}`, process.env.ATL_BIN, ...args], { env: process.env, windowsHide: true });
+let step = 0;
+const call = async (...args) => {
+  step++;
+  try { return await run(process.execPath, ["--permission", "--allow-fs-read=*", `--allow-fs-write=${cwdReal}`, `--allow-fs-write=${projectReal}`, process.env.ATL_BIN, ...args], { env: process.env, windowsHide: true }); }
+  catch (error) {
+    // The parent fixture is not permission-sandboxed: persist the child's
+    // streams so a platform-specific denial is diagnosable from CI logs.
+    try { fs.writeFileSync(path.join(cwdReal, `worker-error-${step}.txt`), `args: ${JSON.stringify(args)}\nmessage: ${error?.message}\nstderr: ${error?.stderr || ""}\nstdout: ${error?.stdout || ""}`); } catch { /* best effort */ }
+    throw error;
+  }
+};
 await call("show", id);
 if (role === "rowan") {
   await call("move", id, "in_progress");

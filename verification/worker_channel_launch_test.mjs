@@ -13,8 +13,19 @@ const fixture = fileURLToPath(new URL("./fixtures/channel-worker.mjs", import.me
 function sessionTail(root) {
   try {
     const dir = path.join(root, ".trust", "manager", "overnight");
-    const newest = fs.readdirSync(dir).flatMap((task) => fs.readdirSync(path.join(dir, task)).map((f) => path.join(dir, task, f))).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
-    return newest ? fs.readFileSync(newest, "utf8").slice(-1500) : "(no session log)";
+    const transcripts = fs.existsSync(dir)
+      ? fs.readdirSync(dir).flatMap((task) => fs.readdirSync(path.join(dir, task)).map((f) => path.join(dir, task, f))).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)
+      : [];
+    const captures = (function walk(dir) {
+      const out = [];
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const file = path.join(dir, entry.name);
+        if (entry.isDirectory() && entry.name !== "node_modules" && entry.name !== ".git") out.push(...walk(file));
+        else if (entry.name.startsWith("worker-error-")) out.push(file);
+      }
+      return out;
+    })(root);
+    return [...transcripts.map((f) => fs.readFileSync(f, "utf8").slice(-1200)), ...captures.map((f) => fs.readFileSync(f, "utf8").slice(0, 2000))].join("\n=====\n") || "(no session log)";
   } catch { return "(no session log)"; }
 }
 for (const mode of ["direct", "queue"]) {
