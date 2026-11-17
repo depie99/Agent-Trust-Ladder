@@ -347,6 +347,7 @@ Build, installation, validation, and maintenance programs.
 | [scripts/check_docs.mjs](../scripts/check_docs.mjs) | check docs: source/configuration for its containing feature. |
 | [scripts/check_staged_token_budget.py](../scripts/check_staged_token_budget.py) | check staged token budget: source/configuration for its containing feature. |
 | [scripts/check-docs-css.mjs](../scripts/check-docs-css.mjs) | Fails when docs/site.css is stale relative to docs/scss/styles.scss. |
+| [scripts/check-tracked-paths.mjs](../scripts/check-tracked-paths.mjs) | check tracked paths: source/configuration for its containing feature. |
 | [scripts/docs-preview.mjs](../scripts/docs-preview.mjs) | Read-only synthetic UI for documentation captures. No real issue adapters. |
 | [scripts/docs-reference.mjs](../scripts/docs-reference.mjs) | Regenerate source-derived references before building the public website. |
 | [scripts/install-atl.cmd](../scripts/install-atl.cmd) | install atl: source/configuration for its containing feature. |
@@ -455,6 +456,11 @@ Agent instruction contracts, references, assets, and executable helpers.
 | [skills/atl-implement/scripts/outcome-economics.mjs](../skills/atl-implement/scripts/outcome-economics.mjs) | Portable outcome economics for the skills-only surface. The Control Plane |
 | [skills/atl-implement/scripts/project-verifier.mjs](../skills/atl-implement/scripts/project-verifier.mjs) | project verifier: source/configuration for its containing feature. |
 | [skills/atl-implement/SKILL.md](../skills/atl-implement/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
+| [skills/atl-lazy/agents/openai.yaml](../skills/atl-lazy/agents/openai.yaml) | openai: source/configuration for its containing feature. |
+| [skills/atl-lazy/references/config.example.json](../skills/atl-lazy/references/config.example.json) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-lazy/references/method.md](../skills/atl-lazy/references/method.md) | Supporting reference for its parent skill; read when that contract requires it. |
+| [skills/atl-lazy/scripts/lazy.py](../skills/atl-lazy/scripts/lazy.py) | lazy: source/configuration for its containing feature. |
+| [skills/atl-lazy/SKILL.md](../skills/atl-lazy/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-maintain-verification/SKILL.md](../skills/atl-maintain-verification/SKILL.md) | Authoritative agent skill contract: invocation, workflow, gates, and evidence. |
 | [skills/atl-plan/agents/openai.yaml](../skills/atl-plan/agents/openai.yaml) | openai: source/configuration for its containing feature. |
 | [skills/atl-plan/references/azure-intake.md](../skills/atl-plan/references/azure-intake.md) | Supporting reference for its parent skill; read when that contract requires it. |
@@ -565,6 +571,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | File | Purpose |
 |---|---|
 | [verification/approval_test.mjs](../verification/approval_test.mjs) | Executable regression check for approval. |
+| [verification/atl_lazy_pipeline_test.py](../verification/atl_lazy_pipeline_test.py) | atl lazy pipeline test: source/configuration for its containing feature. |
 | [verification/atl_lifecycle_model.py](../verification/atl_lifecycle_model.py) | atl lifecycle model: source/configuration for its containing feature. |
 | [verification/atl_manager_lifecycle_model.py](../verification/atl_manager_lifecycle_model.py) | atl manager lifecycle model: source/configuration for its containing feature. |
 | [verification/atl_poc_grader_test.mjs](../verification/atl_poc_grader_test.mjs) | Executable regression check for atl poc grader. |
@@ -676,6 +683,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/overnight_issue_e2e_test.mjs](../verification/overnight_issue_e2e_test.mjs) | Executable regression check for overnight issue e2e. |
 | [verification/overnight_recovery_test.mjs](../verification/overnight_recovery_test.mjs) | Executable regression check for overnight recovery. |
 | [verification/owner_session_approval_test.mjs](../verification/owner_session_approval_test.mjs) | Executable regression check for owner session approval. |
+| [verification/owner_session_storage_test.mjs](../verification/owner_session_storage_test.mjs) | Executable regression check for owner session storage. |
 | [verification/package_smoke_test.mjs](../verification/package_smoke_test.mjs) | Executable regression check for package smoke. |
 | [verification/plan_contract_fixture.json](../verification/plan_contract_fixture.json) | plan contract fixture: source/configuration for its containing feature. |
 | [verification/plan_contract_test.mjs](../verification/plan_contract_test.mjs) | Executable regression check for plan contract. |
@@ -695,6 +703,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_review_gate_test.mjs](../verification/plan_review_gate_test.mjs) | Executable regression check for plan review gate. |
 | [verification/plan_review_policy_test.mjs](../verification/plan_review_policy_test.mjs) | Executable regression check for plan review policy. |
 | [verification/plan_review_process_test.mjs](../verification/plan_review_process_test.mjs) | Executable regression check for plan review process. |
+| [verification/plan_review_run_gate_test.mjs](../verification/plan_review_run_gate_test.mjs) | Executable regression check for plan review run gate. |
 | [verification/plan_source_refresh_test.mjs](../verification/plan_source_refresh_test.mjs) | Executable regression check for plan source refresh. |
 | [verification/plan_studio_api_test.mjs](../verification/plan_studio_api_test.mjs) | Executable regression check for plan studio api. |
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
@@ -793,7 +802,6 @@ Reviewed improvement proposals, source material, and catalog.
 | [research/briefs/2026-11-04-atl-first-delivery-issues/validation.json](../research/briefs/2026-11-04-atl-first-delivery-issues/validation.json) | validation: source/configuration for its containing feature. |
 | [research/briefs/2026-11-04-atl-first-delivery-plan.md](../research/briefs/2026-11-04-atl-first-delivery-plan.md) | ATL First Developer Delivery: Implementation Plan. |
 | [research/briefs/2026-11-04-atl-phase-23-deferral.md](../research/briefs/2026-11-04-atl-phase-23-deferral.md) | Phase 23 decision record — no extension is selected yet. |
-| [research/briefs/2026-11-04-sprint-74-intake.md](../research/briefs/2026-11-04-sprint-74-intake.md) | Sprint 74 intake record — example-project. |
 | [research/index.json](../research/index.json) | index: source/configuration for its containing feature. |
 | [research/README.md](../research/README.md) | ATL Research — the engineering-intelligence store. |
 | [research/records/R-0001.md](../research/records/R-0001.md) | Dated research decision; preserve its provenance and status. |
@@ -900,6 +908,7 @@ Continuous verification, Pages deployment, and package publishing.
 
 | File | Purpose |
 |---|---|
+| [.github/workflows/data-guard.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/data-guard.yml) | data guard: source/configuration for its containing feature. |
 | [.github/workflows/deploy-pages.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/deploy-pages.yml) | deploy pages: source/configuration for its containing feature. |
 | [.github/workflows/docs-verify.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/docs-verify.yml) | docs verify: source/configuration for its containing feature. |
 | [.github/workflows/publish-package.yml](https://github.com/depie99/Agent-Trust-Ladder/blob/main/.github/workflows/publish-package.yml) | publish package: source/configuration for its containing feature. |

@@ -3341,33 +3341,6 @@ textarea.input {
 
 /* Plan Studio question-and-answer cards: suggested answers stay optional,
    while a direct answer remains available for every consequential decision. */
-.studio-revision { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; }
-.studio-revision h3 { margin: 0 0 5px; }
-.studio-revision > p { margin: 0 0 12px; color: var(--muted, #555); }
-.studio-revision article { padding: 10px 0; border-top: 1px solid var(--border); }
-.studio-revision article p { margin: 5px 0 0; overflow-wrap: anywhere; }
-.plan-review { border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin: 22px 0 28px; background: var(--surface, #fff); }
-.plan-review-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
-.plan-review-head h3 { margin: 4px 0 6px; font-size: 1.25rem; }
-.plan-review-head p { margin: 0; color: var(--muted, #555); }
-.plan-review .eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
-.review-verdict, .review-severity { display: inline-block; border-radius: 999px; padding: 3px 9px; font-size: .73rem; font-weight: 700; text-transform: capitalize; }
-.review-verdict.blocked, .review-severity.blocker { background: #fee7e7; color: #8f2525; }
-.review-severity.major { background: #fff0d5; color: #805008; }
-.review-verdict.passed { background: #ddf5e8; color: #12633c; }
-.review-findings { display: grid; gap: 10px; margin-top: 18px; }
-.review-finding { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--surface, #fff); }
-.review-finding-top { display: flex; align-items: center; gap: 9px; }
-.review-finding h4 { margin: 10px 0 4px; font-size: .95rem; }
-.review-finding p { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
-.review-correction { margin-top: 12px; padding: 10px 12px; border-left: 3px solid var(--accent); background: rgba(100, 75, 200, .06); }
-.review-correction b { display: block; margin-bottom: 4px; font-size: .8rem; }
-.plan-review-controls { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
-.plan-review-controls select { max-width: 360px; }
-.plan-review-controls .actionrow { flex-wrap: wrap; }
-.plan-review [data-approval-state] { background: transparent; border: 0; padding: 0; }
-.review-clear { margin: 16px 0 0; }
-@media (max-width: 600px) { .plan-review { padding: 16px; } .plan-review-head { flex-direction: column; } .plan-review-controls select { max-width: 100%; } }
 .plan-questions {
   display: grid;
   gap: 10px;
