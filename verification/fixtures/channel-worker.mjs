@@ -6,7 +6,13 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const [id, role] = process.argv.slice(2);
 if (process.env.ATL_WORKER_CREDENTIAL) throw new Error("Manager mutation credential leaked into worker environment");
-const call = (...args) => run(process.execPath, ["--permission", "--allow-fs-read=*", `--allow-fs-write=${process.cwd()}`, process.env.ATL_BIN, ...args], { env: process.env, windowsHide: true });
+// Node's permission model compares canonical paths: on macOS the temp roots
+// sit behind /var -> /private/var, so the allowances must be the resolved
+// directories or every write outside them is denied. ATL writes session state
+// under the project root while the worker's cwd is the task workspace.
+const cwdReal = fs.realpathSync(process.cwd());
+const projectReal = fs.realpathSync(process.env.ATL_PROJECT || path.join(cwdReal, ".."));
+const call = (...args) => run(process.execPath, ["--permission", "--allow-fs-read=*", `--allow-fs-write=${cwdReal}`, `--allow-fs-write=${projectReal}`, process.env.ATL_BIN, ...args], { env: process.env, windowsHide: true });
 await call("show", id);
 if (role === "rowan") {
   await call("move", id, "in_progress");
