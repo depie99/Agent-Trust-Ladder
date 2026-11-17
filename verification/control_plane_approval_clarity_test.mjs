@@ -32,7 +32,7 @@ for (const name of ['statusLabel', 'badge', 'approvalSummary', 'approvalCard', '
 
 let card = scope.approvalCard(pending);
 assert.match(card, /Build Persian catalog/);
-assert.match(card, /${PROJECTS}/);
+assert.match(card, /(\$\{PROJECTS\}|${PROJECTS})/);
 assert.match(card, /does not start a run from this page/);
 assert.doesNotMatch(card.split('<details>')[0], /fingerprint-task|run\.queue/);
 assert.match(card, /<summary>Technical details<\/summary>/);
