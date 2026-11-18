@@ -30,9 +30,12 @@ html[data-atl-context="plugin"] #localeBtn { display: none; }
 .plugin-topbar { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
 .plugin-project { font-weight: 700; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-// Overflow menu (⋯): language, theme and command search.
+// Overflow menu (⋯): language, theme and command search. The ⋯ button sits at
+// the topbar's reading-edge start, so the menu must open toward the content:
+// anchoring its end edge (the old rule) pushed it off the panel's start edge
+// and clipped every label. inset-inline-start flips correctly under RTL.
 .plugin-overflow { position: relative; display: inline-flex; }
-.plugin-overflow-menu { position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 40; min-width: 210px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--pane); }
+.plugin-overflow-menu { position: absolute; top: calc(100% + 6px); inset-inline-start: 0; z-index: 40; min-width: 210px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--pane); }
 .plugin-overflow-menu .nav { border: 0; background: none; text-align: start; min-height: 40px; }
 
 // ---- Primary navigation: the four plugin destinations live in #mobile.
