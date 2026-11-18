@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { verifyPluginRelease } from './plugin-release.mjs';
+import { ensureDaemon, runtimeIdentity } from './daemon.mjs';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -20,7 +21,7 @@ export const pluginTools = [
   { name: 'atl_skill', description: 'Read a bundled ATL skill or one of its supporting files. Start with name=atl; follow its workflow and trust gates.', inputSchema: schema({ name: str, file: { ...str, description: 'Path within the skill, default SKILL.md. References are loaded on demand.' } }, ['name']), readOnly: true },
   { name: 'atl_command', description: 'Execute the full bundled ATL CLI in the selected project, without a global atl installation. Pass argv as separate strings (e.g. ["init"], ["compose","--title","Fix login"], ["run",id,"--dry-run"]). Returns a job; poll atl_job until finished. Mutates state, may run providers or external operations depending on argv. Existing ATL and host approval gates apply; never invent user approval or add --confirm on your own.', inputSchema: schema({ project, args: { type: 'array', items: str, minItems: 1, maxItems: 128 }, wait_ms: { type: 'integer', minimum: 0, maximum: 10000 } }, ['project', 'args']) },
   { name: 'atl_job', description: 'Read output and exit status of a command started in this plugin session. A running job is not completion evidence. Job handles live in memory for this plugin session only; once 32 exist, the oldest finished handles are dropped and their ids become unknown — durable task state stays in the project. Use the Control Plane to stop provider runs safely.', inputSchema: schema({ id: str, wait_ms: { type: 'integer', minimum: 0, maximum: 10000 } }, ['id']), readOnly: true },
-  { name: 'atl_control_plane', description: 'Start or reuse the complete ATL Control Plane for an initialized project. Returns a loopback URL to open in the browser. Does not launch workers. The server lives until the plugin unloads; project state survives.', inputSchema: schema({ project }, ['project']) },
+  { name: 'atl_control_plane', description: 'Start or reuse the complete ATL Control Plane for an initialized project. Returns a loopback URL to open in the browser. Does not launch workers. Runs as the project\'s daemon — the one process that owns project state — and stays up after the plugin unloads (idle exit after ~15 quiet minutes); the URL is stable per project.', inputSchema: schema({ project }, ['project']) },
 ];
 
 function validate(tool, args) {
@@ -49,11 +50,12 @@ export function createPluginHost() {
   const packaged = JSON.parse(fs.readFileSync(path.join(bundleRoot, 'package.json'), 'utf8')).name === '@depie99/atl-plugin';
   const release = packaged || fs.existsSync(path.join(bundleRoot, 'atl-release.json')) ? verifyPluginRelease(bundleRoot) : null;
   const jobs = new Map();
-  const servers = new Map();
   const embedToken = randomUUID();
-  // Bumped every time a per-project control plane is spawned. Panel gateways pin
-  // the generation they were built against, so a gateway pinned to a server that
-  // died is recognizable and replaceable instead of being reused forever.
+  // Bumped every time a per-project control plane is started fresh (issue #34
+  // moved servers to a reusable per-project daemon, so this fires only when a
+  // new owner actually starts). Panel gateways pin the generation they were
+  // built against, so a gateway pinned to a server that died is recognizable
+  // and replaceable instead of being reused forever.
   let serverGeneration = 0;
   let closed = false;
   let connectionAssistant;
@@ -91,7 +93,7 @@ export function createPluginHost() {
       jobs.delete(old[0]);
     }
     const child = spawn(process.execPath, [path.join(bundleRoot, 'runtime', 'atl-manager.mjs'), ...args], {
-      cwd: root, env: { ...process.env, ATL_PROJECT: root, ATL_NO_OPEN: '1', ...(interfaceProcess ? { ATL_PLUGIN_EMBED_TOKEN: embedToken } : {}) },
+      cwd: root, env: { ...process.env, ATL_PROJECT: root, ATL_NO_OPEN: '1', ATL_RUNTIME_BUNDLE: bundleRoot, ...(interfaceProcess ? { ATL_PLUGIN_EMBED_TOKEN: embedToken } : {}) },
       shell: false, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
     });
     const job = { id: randomUUID(), project: root, args: [...args], status: 'running', exitCode: null, signal: null, stdout: '', stderr: '', stdoutHead: '', stderrHead: '', truncated: { stdout: false, stderr: false }, child };
@@ -157,6 +159,9 @@ export function createPluginHost() {
         });
       return {
         release: release && { format: release.format, version: release.version, runtimeVersion: release.runtimeVersion, content: { sha256: release.content.sha256 } },
+        // One runtime (issue #34): the bundle identity matches what `atl
+        // --version` and /api/health report, so mismatches are visible.
+        ...runtimeIdentity(bundleRoot),
         version: JSON.parse(fs.readFileSync(path.join(bundleRoot, 'package.json'), 'utf8')).version,
         commit: (() => { try { return JSON.parse(fs.readFileSync(path.join(bundleRoot, 'atl-release.json'), 'utf8')).commit || null; } catch { try { return JSON.parse(fs.readFileSync(path.join(bundleRoot, 'source.json'), 'utf8')).commit || null; } catch { return null; } } })(),
         runtime: (() => { try { return JSON.parse(fs.readFileSync(path.join(bundleRoot, 'package.json'), 'utf8')).version; } catch { return 'unknown'; } })(),
@@ -222,40 +227,14 @@ export function createPluginHost() {
       catch (error) { if (signal?.aborted) await stopJob(job); throw error; }
     }
     if (!fs.existsSync(path.join(root, '.trust', 'manager', 'state.json'))) throw new Error('Initialize this project with atl_command args=["init"] first.');
-    // Store the promise before awaiting, so concurrent calls cannot open two servers.
-    let createdUi;
-    if (!servers.has(root)) {
-      // The runtime owns process-global run/abort state. One process per UI
-      // prevents a second project's server from sharing those execution controls.
-      const job = command(root, ['ui', '--host', '127.0.0.1', '--port', '0', '--no-open'], { interfaceProcess: true });
-      createdUi = job;
-      serverGeneration += 1;
-      const pending = new Promise((resolve, reject) => {
-        const timer = setTimeout(() => { void stopJob(job); reject(new Error('Control Plane did not start within 15 seconds.')); }, 15000);
-        const observe = () => {
-          const match = job.stdout.match(/ATL browser control plane: (http:\/\/127\.0\.0\.1:\d+\/)/);
-          if (match) { clearTimeout(timer); job.child.stdout.off('data', observe); resolve({ url: match[1] }); }
-        };
-        job.child.stdout.on('data', observe);
-        job.done.then(() => {
-          clearTimeout(timer);
-          reject(new Error(`Control Plane exited: ${job.stderr || job.stdout}`));
-          if (servers.get(root) === pending) servers.delete(root);
-        });
-      });
-      servers.set(root, pending);
-      pending.catch(() => { if (servers.get(root) === pending) servers.delete(root); });
-    }
-    const abort = () => { if (createdUi) void stopJob(createdUi); };
-    signal?.addEventListener('abort', abort, { once: true });
-    try {
-      const running = await servers.get(root);
-      signal?.throwIfAborted();
-      return { project: root, url: running.url, lifetime: 'plugin session' };
-    } catch (error) {
-      if (signal?.aborted && createdUi) await stopJob(createdUi);
-      throw error;
-    } finally { signal?.removeEventListener('abort', abort); }
+    // One state owner (issue #34): reuse or start the per-project daemon and
+    // hand back its stable URL. The daemon outlives this plugin session and
+    // exits by itself after a quiet period. The session's embed token follows
+    // the daemon so panels keep their capability across reuse.
+    const daemon = await ensureDaemon(root, { embedToken });
+    if (!daemon.reused) serverGeneration += 1;
+    signal?.throwIfAborted();
+    return { project: root, url: daemon.url, lifetime: 'project daemon' };
   }
   async function close() {
     if (closed) return;

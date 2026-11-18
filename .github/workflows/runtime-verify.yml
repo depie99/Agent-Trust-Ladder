@@ -27,6 +27,8 @@ jobs:
       - run: npm run ui:css:check
       - run: npm run plugins:test
       - run: node verification/state_concurrency_test.mjs
+      - run: node verification/daemon_test.mjs
+      - run: node verification/deepseek_host_ui_test.mjs
       - run: node verification/ui_axe_test.mjs
       - run: python scripts/build_mode_skills.py --check
       - run: node verification/sync_skills_test.mjs

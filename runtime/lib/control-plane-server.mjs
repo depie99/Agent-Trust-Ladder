@@ -44,6 +44,7 @@ import { browserAccess, saveBrowserAccess, checkBrowserRuntime } from "./browser
 import { resourcePolicy, resourceView, saveResourcePolicy, taskResourcePreview, routeTask, assertModelAllowed } from "./resource-policy.mjs";
 import {recordExecution,publishPlanningExecution} from './execution-report.mjs';
 import {recordQuotaFailure, quotaStatus} from './provider-quota.mjs';
+import { resolveTaskRef, qualifyTaskId } from './task-refs.mjs';
 import { runIntake, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub } from './intake.mjs';
 import { loadConnections, saveConnections, validateConnection, sameConnection, connectionIdentity } from './issue-connections.mjs';
 import { importCandidates } from './composer.mjs';
@@ -52,6 +53,7 @@ import { azureIdentity, saveAzureConnection, readAzureConnection, forgetAzureCon
 import { createMyTasksEngine } from './my-tasks.mjs';
 import { createMyTasksReviews } from './my-tasks-reviews.mjs';
 import { acquireLease, releaseLease } from './leases.mjs';
+import { runtimeIdentity, canonicalRoot, daemonStatus, grantLeaseRecord, renewLeaseRecord, releaseLeaseRecord, readEmbedToken } from './daemon.mjs';
 import { assertPreparationReady, addManualInvestigation, addPreparationQuestion, answerPreparationQuestion, beginDiscoveryRun, buildDiscoveryPrompt, finishDiscoveryRun, handoffPreparation, parseDiscoveryJson, preparationInventory, preparationSeedContext, preparationView, readPreparation, savePreparationBrief } from './task-preparation.mjs';
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -1119,6 +1121,11 @@ const stableSnapshotFingerprint = value => {
 
 export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {}, egmRunner = null, myTasksFetch = null, myTasksReviewInvoke = null, taskTriageInvoke = null, jiraTransportCall = null, azureFetch = globalThis.fetch } = {}) {
   if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) throw new Error("control plane only supports loopback hosts");
+  // Project identity in every health answer lets clients verify they adopted
+  // the right owner before treating it as the project's daemon (issue #34).
+  const projectIdentity = canonicalRoot(root);
+  const runtime = runtimeIdentity();
+  let lastRequestAt = Date.now();
   const ownerSession = rotateOwnerSession(root);
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters, egmRunner, azureFetch };
   const intakePreviews = new Map();
@@ -1272,6 +1279,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   streamTimer.unref?.();
   const server = http.createServer(async (req, res) => {
     try {
+      lastRequestAt = Date.now();
       const url = new URL(req.url || "/", `http://${host}`);
       if (readOnlyPreview && !["GET", "HEAD", "OPTIONS"].includes(req.method || "GET")) { json(res, 403, { ok: false, error: "Synthetic UI preview is read-only; live task actions are unavailable." }); return; }
       // A browser may only mutate this loopback service from its own origin.
@@ -1282,7 +1290,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         if (!validateOwnerSession(root, decodeURIComponent(token || ""), String(req.headers["x-atl-csrf"] || ""))) { json(res, 403, { ok: false, error: "owner session or CSRF token is invalid" }); return; }
       }
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-        const embedToken = process.env.ATL_PLUGIN_EMBED_TOKEN;
+        // Panel capability (issue #34): direct servers keep the env token; a
+        // reused project daemon takes the current session's token from the
+        // owner record instead, because its env predates the session.
+        const embedToken = process.env.ATL_PLUGIN_EMBED_TOKEN || readEmbedToken(root);
         const supplied = url.searchParams.get('atl_embed');
         // A panel receives a process-local capability. Ordinary browser visits
         // retain strict owner cookies; arbitrary query strings cannot relax them.
@@ -1463,7 +1474,8 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       if (req.method === "POST" && url.pathname === "/api/projects/assign-task") {
         // Direct assignment from a Projects/Issue-sources card: bind an
         // existing task to a repository or create a new task there, so it
-        // plans, verifies and runs against that codebase.
+        // plans, verifies and runs against that codebase. Cross-project
+        // references use the qualified <project>:T-001 form (issue #34).
         try {
           const payload = JSON.parse(await readBody(req) || "{}");
           const project = supervisorSnapshot().projects.find((entry) => entry.id === String(payload.repositoryId || ""));
@@ -1471,7 +1483,12 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           try { fs.realpathSync(project.root); } catch { json(res, 409, { ok: false, error: `Repository "${project.name}" is missing on disk (${project.root}). Fix or re-register it before assigning work.` }); return; }
           const state = loadState(root);
           const title = String(payload.title || "").trim();
-          let task = state.tasks[String(payload.taskId || "")] || null;
+          const reference = resolveTaskRef(root, String(payload.taskId || ""), { projectRoot: root });
+          if (reference?.project && reference.project.root !== fs.realpathSync(root)) {
+            json(res, 400, { ok: false, error: "A qualified <project>:T-001 reference must name this project; this card assigns this project's tasks." });
+            return;
+          }
+          let task = reference?.task || null;
           if (!task && title) task = Object.values(state.tasks).find((entry) => !entry.intake_only && !["archived", "rejected"].includes(entry.status) && entry.title.toLowerCase() === title.toLowerCase()) || null;
           let created = false;
           if (!task) {
@@ -2200,7 +2217,47 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/health") {
-        json(res, 200, { ok: true, service: "atl-control-plane" });
+        json(res, 200, { ok: true, service: "atl-control-plane", project: projectIdentity, pid: process.pid, runtime });
+        return;
+      }
+      // One state owner (issue #34): the daemon status and exclusive writer
+      // lease surface. Clients discover and lease through these; the lease
+      // token is what state.mjs's synchronous writer gate verifies.
+      if (req.method === "GET" && url.pathname === "/api/daemon") {
+        try { json(res, 200, { ok: true, ...(await daemonStatus(root)) }); }
+        catch (error) { json(res, 500, { ok: false, error: error.message }); }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/daemon/lease") {
+        try {
+          const payload = JSON.parse(await readBody(req) || "{}");
+          const lease = grantLeaseRecord(root, { pid: payload.pid, argv: payload.argv, ttlMs: payload.ttl_ms });
+          json(res, 200, { ok: true, token: lease.lease.token, expires_at: lease.lease.expires_at, pid: lease.lease.pid });
+        } catch (error) { json(res, error.statusCode || 500, { ok: false, error: error.message }); }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/daemon/lease/renew") {
+        try {
+          const payload = JSON.parse(await readBody(req) || "{}");
+          const record = renewLeaseRecord(root, String(payload.token || ""), { ttlMs: payload.ttl_ms });
+          json(res, 200, { ok: true, expires_at: record.lease.expires_at });
+        } catch (error) { json(res, error.statusCode || 500, { ok: false, error: error.message }); }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/daemon/lease/release") {
+        try {
+          const payload = JSON.parse(await readBody(req) || "{}");
+          releaseLeaseRecord(root, String(payload.token || ""));
+          json(res, 200, { ok: true });
+        } catch (error) { json(res, error.statusCode || 500, { ok: false, error: error.message }); }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/daemon/shutdown") {
+        json(res, 202, { ok: true, stopping: true });
+        setTimeout(() => {
+          try { server.close(() => process.exit(0)); } catch { /* already closed */ }
+          setTimeout(() => process.exit(0), 1500).unref?.();
+        }, 120);
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/providers") {
@@ -2239,6 +2296,12 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     }
   });
   server.once("close", () => { myTasks.stop(); reviews.stop(); triage.stop(); void jira.stop(); clearOwnerSession(root, ownerSession.token); }); // schedulers and owner session die with the service
+  // Owner-lifecycle observability for the `ui` command's daemon loop
+  // (heartbeat + idle exit). Reads live server state without HTTP.
+  server.atlObservability = {
+    lastRequestAt: () => lastRequestAt,
+    streamCount: () => streams.size,
+  };
   return server;
 }
 

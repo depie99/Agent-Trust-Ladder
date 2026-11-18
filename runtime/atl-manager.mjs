@@ -46,6 +46,12 @@ import { historySources, listHistory, readTranscript, renderHistoryList, renderT
 import { listFeedback, submitFeedback } from "./lib/feedback.mjs";
 import { bridgeStatus, startDedicatedBridge, syncTeamContext, updateBridgeConfig } from "./lib/codex-bridge.mjs";
 import { startControlPlaneServer } from "./lib/control-plane-server.mjs";
+import {
+  acquireWriterLease, beatOwnerRecord, claimOwnerRecord, daemonStatus, ensureDaemon,
+  releaseOwnerRecord, releaseWriterLease, renewWriterLease, runtimeIdentity, sameRuntime, stopDaemon,
+  LEASE_WAIT_MS_DEFAULT,
+} from "./lib/daemon.mjs";
+import { hasWrittenState } from "./lib/state.mjs";
 import { assembleContext, buildMap, mapStatus, neighbors, queryMap } from "./lib/navigation.mjs";
 import { addClaim, archiveSource, buildContextPack, listClaims, saveContextPack, sourceStatus } from "./lib/brain.mjs";
 import { approveClaim, listRoutines, listSkills, promoteSkill, registerRoutine, staleClaims, validateSkill } from "./lib/governance.mjs";
@@ -119,6 +125,96 @@ function openControlPlane(url) {
   }
 }
 
+// ---------- one runtime (issue #34): version alignment and the newest-bundle shim
+
+function compareVersions(a, b) {
+  const part = (text) => String(text || "0").split(/[-+]/)[0].split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const left = part(a), right = part(b);
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const diff = (left[i] || 0) - (right[i] || 0);
+    if (diff) return Math.sign(diff);
+  }
+  return 0;
+}
+
+// The plugin bundle is the runtime; the global CLI defers to a strictly newer
+// bundle (by manifest version) by re-execing it, and warns on any mismatch it
+// cannot run instead. plugin-host sets ATL_RUNTIME_BUNDLE for its children.
+function checkRuntimeMismatch() {
+  if (process.env.ATL_RUNTIME_DELEGATED === "1") return null;
+  const bundleDir = process.env.ATL_RUNTIME_BUNDLE ? path.resolve(process.env.ATL_RUNTIME_BUNDLE) : null;
+  if (!bundleDir || bundleDir === path.dirname(path.dirname(fileURLToPath(import.meta.url)))) return null;
+  const own = runtimeIdentity();
+  let bundle;
+  try { bundle = runtimeIdentity(bundleDir); } catch { return null; }
+  if (sameRuntime(own, bundle)) return null;
+  const bundleRuntime = path.join(bundleDir, "runtime", "atl-manager.mjs");
+  // Delegate only to a complete bundle runtime: re-execing a half-shipped
+  // bundle would swap a working CLI for a MODULE_NOT_FOUND.
+  const bundleComplete = fs.existsSync(bundleRuntime)
+    && fs.existsSync(path.join(bundleDir, "runtime", "lib", "state.mjs"))
+    && fs.existsSync(path.join(bundleDir, "runtime", "lib", "control-plane-server.mjs"));
+  if (compareVersions(bundle.manifestVersion || bundle.version, own.manifestVersion || own.version) > 0 && bundleComplete) {
+    try {
+      const child = spawn(process.execPath, [bundleRuntime, ...process.argv.slice(2)], {
+        cwd: process.cwd(),
+        env: { ...process.env, ATL_RUNTIME_DELEGATED: "1" },
+        stdio: "inherit",
+        windowsHide: true,
+      });
+      child.once("error", () => warnMismatch(own, bundle, bundleDir));
+      child.once("close", (code) => process.exit(code ?? 1));
+      return { delegated: true };
+    } catch { warnMismatch(own, bundle, bundleDir); return { delegated: false }; }
+  }
+  warnMismatch(own, bundle, bundleDir);
+  return { delegated: false };
+}
+
+function warnMismatch(own, bundle, bundleDir) {
+  const describe = (identity) => `manifest ${identity.manifestVersion || "unknown"}${identity.version ? ` (runtime ${identity.version})` : ""}${identity.commit ? ` commit ${String(identity.commit).slice(0, 7)}` : ""}`;
+  console.error(
+    `ATL runtime mismatch: CLI ${describe(own)} but plugin bundle ${describe(bundle)} at ${bundleDir}; `
+    + `prefer the plugin tools, or update the global CLI (npm i -g @depie99/atl) to align runtimes.`
+  );
+}
+
+// Attach to an already-running daemon and wait until it goes away. Ctrl+C
+// here detaches: the daemon keeps serving other clients.
+async function waitUntilDaemonEnds(root) {
+  while ((await daemonStatus(root)).alive) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
+  }
+}
+
+// Owner-process lifecycle (issue #34): keep the daemon record fresh so the
+// synchronous writer gate in state.mjs recognizes this owner, and — when
+// spawned as a detached daemon — exit after a quiet period instead of
+// lingering forever.
+function runOwnerLifecycle(root, running) {
+  process.once("exit", () => releaseOwnerRecord(root));
+  const beat = setInterval(() => beatOwnerRecord(root), 30000);
+  beat.unref?.();
+  if (process.env.ATL_DAEMON_CHILD !== "1") return;
+  const idleMs = Math.max(60000, Number(process.env.ATL_DAEMON_IDLE_MS || 15 * 60000));
+  const idleCheck = setInterval(() => {
+    const obs = running.server.atlObservability;
+    if (!obs || obs.streamCount() > 0) return;
+    if (Date.now() - obs.lastRequestAt() < idleMs) return;
+    try {
+      const statePath = paths(root).state;
+      const mtime = fs.statSync(statePath).mtimeMs;
+      if (Date.now() - mtime < idleMs) return;
+    } catch { /* no state yet — nothing in flight */ }
+    const record = (() => { try { return JSON.parse(fs.readFileSync(path.join(root, ".atl", "daemon.json"), "utf8")); } catch { return null; } })();
+    if (record?.lease && Number(record.lease.expires_at || 0) > Date.now()) return; // a writer still holds the lease
+    console.log(`ATL project daemon idle for ${Math.round(idleMs / 60000)} min — exiting. The next atl session restarts it at the same URL.`);
+    running.server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 1500).unref?.();
+  }, 60000);
+  idleCheck.unref?.();
+}
+
 // Narration: every command speaks in the acting bot's voice.
 const say = (from, text, opts = {}) => feedPost(ROOT, { from, text, ...opts });
 
@@ -161,6 +257,7 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--all") { flags.all = true; continue; }
   if (a === "--pause-after-bot") { flags.pauseAfterBot = true; continue; }
   if (a === "--no-open") { flags.noOpen = true; continue; }
+  if (a === "--fresh") { flags.fresh = true; continue; }
   if (a === "--json") { flags.json = true; continue; }
   pos.push(a);
 }
@@ -179,6 +276,15 @@ Setup
   backup create [--label name] create a recoverable project snapshot
   backup list                  list project snapshots
   backup restore <id>          restore a snapshot (requires no active run)
+
+State owner (one daemon per project owns state.json)
+  daemon status                 live owner record: pid, port, URL, writer lease (token masked)
+  daemon start                  start or reuse the per-project daemon (stable URL per project)
+  daemon stop                   stop the owner; direct writes resume until the next session starts it
+  ui [--port n] [--fresh]       open the control plane — reuses the project daemon when one is
+                                alive (the URL stays stable); --fresh restarts the owner first.
+                                Mutating CLI commands take a writer lease from the owner
+                                automatically; with no daemon the direct-write path applies.
 
 Intake (pulls new work in)
   intake [--source file|github|azure|all]
@@ -882,16 +988,19 @@ async function intakeConfigCommand(sub) {
 
 // ---------- commands
 
-async function main() {
+async function dispatch() {
   switch (cmd) {
     case "--version":
     case "-v":
     case "version": {
+      // One runtime (issue #34): report the manifest version and bundle commit
+      // the same way atl_info does, so CLI and plugin always agree.
       const installDir = process.env.ATL_INSTALL_DIR || path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-      let pkg = { version: "unknown" }, source = {};
-      try { pkg = JSON.parse(fs.readFileSync(path.join(installDir, "package.json"), "utf8")); } catch { /* checkout */ }
-      try { source = JSON.parse(fs.readFileSync(path.join(installDir, "source.json"), "utf8")); } catch { /* checkout/archive */ }
-      console.log(`ATL runtime ${pkg.version}${source.commit ? ` (${source.commit})` : ""}`);
+      const identity = runtimeIdentity(installDir);
+      const bits = [`ATL runtime ${identity.version}`];
+      if (identity.commit) bits.push(`(${String(identity.commit).slice(0, 7)})`);
+      if (identity.manifestVersion) bits.push(`manifest ${identity.manifestVersion}`);
+      console.log(bits.join(" "));
       return;
     }
     case "init": {
@@ -1543,6 +1652,7 @@ async function main() {
       const host = String(flags.host || "127.0.0.1");
       const port = Number(flags.port || 0);
       if (!Number.isInteger(port) || port < 0 || port > 65535) throw new StateError("--port must be an integer from 0 to 65535");
+      if (flags.fresh === true) await stopDaemon(ROOT);
       // Keep browser assets and API routes on one runtime version. An installed
       // CLI uses its registered checkout when it manages a different project.
       const assetRoot = preferredControlPlaneRuntime(ROOT);
@@ -1553,10 +1663,42 @@ async function main() {
         if (typeof module.startControlPlaneServer !== "function") throw new StateError("Project Control Plane server does not export startControlPlaneServer.");
         startServer = module.startControlPlaneServer;
       }
-      const running = await startServer(ROOT, { host, port, ...(assetRoot ? { assetRoot } : {}) });
+      // One state owner (issue #34): reuse a live project daemon when one
+      // exists; otherwise start the server and claim the owner record in
+      // <root>/.atl/daemon.json. The daemon is the only direct writer of
+      // state.json — other processes write through a writer lease.
+      const existing = await daemonStatus(ROOT);
+      if (existing.alive) {
+        console.log(`ATL browser control plane: ${existing.url}`);
+        console.log("Reusing the project daemon that owns this project's state. Press Ctrl+C to detach (the daemon keeps serving; `atl daemon stop` stops it).");
+        if (!flags.noOpen) openControlPlane(existing.url);
+        await waitUntilDaemonEnds(ROOT);
+        return;
+      }
+      let running;
+      try {
+        running = await startServer(ROOT, { host, port, ...(assetRoot ? { assetRoot } : {}) });
+      } catch (error) {
+        // A sibling spawner won the deterministic-port race after our health
+        // check: fall back to an ephemeral port instead of failing.
+        if (error?.code !== "EADDRINUSE") throw error;
+        running = await startServer(ROOT, { host, port: 0, ...(assetRoot ? { assetRoot } : {}) });
+      }
+      try {
+        claimOwnerRecord(ROOT, { port: running.port, url: running.url, runtime: runtimeIdentity(path.dirname(path.dirname(assetRoot || fileURLToPath(import.meta.url)))) });
+      } catch (error) {
+        running.server.close();
+        if (error?.statusCode === 409) {
+          console.log(`ATL browser control plane: ${error.message.replace("another project daemon", "reusing the project daemon")}`);
+          await waitUntilDaemonEnds(ROOT);
+          return;
+        }
+        throw error;
+      }
       console.log(`ATL browser control plane: ${running.url}`);
-      console.log("Live state and commands are served from this project. Press Ctrl+C to stop.");
+      console.log("This process now owns the project's state (single writer, issue #34). Press Ctrl+C to stop.");
       if (!flags.noOpen) openControlPlane(running.url);
+      runOwnerLifecycle(ROOT, running);
       await new Promise((resolve) => {
         const stop = () => {
           running.server.close(() => resolve());
@@ -1565,6 +1707,26 @@ async function main() {
         process.once("SIGTERM", stop);
       });
       return;
+    }
+
+    case "daemon": {
+      const sub = pos[0] || "status";
+      if (sub === "status") {
+        const status = await daemonStatus(ROOT);
+        console.log(JSON.stringify({ ...status, record: status.record ? { ...status.record, lease: status.record.lease } : null }, null, 2));
+        return;
+      }
+      if (sub === "start") {
+        const daemon = await ensureDaemon(ROOT);
+        console.log(`${daemon.reused ? "reusing" : "started"} project daemon: ${daemon.url}`);
+        return;
+      }
+      if (sub === "stop") {
+        const result = await stopDaemon(ROOT);
+        console.log(result.stopped ? "project daemon stopped" : result.wasAlive ? "daemon process ended" : "no project daemon is running");
+        return;
+      }
+      throw new StateError(`unknown daemon command "${sub}" (status | start | stop)`);
     }
 
     case "show": {
@@ -2049,6 +2211,53 @@ async function main() {
     default:
       console.log(usage());
       process.exitCode = cmd && !["--help", "-h", "help"].includes(cmd) ? 1 : 0;
+  }
+}
+
+// One state owner (issue #34): when a live project daemon owns the state, a
+// mutating command hits the writer gate in state.mjs. Acquire the exclusive
+// writer lease and retry — but only if this process has not written yet, so
+// a mid-command ownership change never re-executes partial work.
+const LEASE_DENIAL = /state is owned by the project daemon/;
+
+async function main() {
+  if (checkRuntimeMismatch()?.delegated) return;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await dispatch();
+      return;
+    } catch (error) {
+      if (
+        attempt === 2
+        || !(error instanceof StateError)
+        || !LEASE_DENIAL.test(error.message)
+        || process.env.ATL_WRITER_LEASE
+        || hasWrittenState()
+      ) throw error;
+      let lease;
+      try {
+        lease = await acquireWriterLease(ROOT, {
+          argv: process.argv.slice(2).join(" "),
+          waitMs: Math.max(1000, Number(process.env.ATL_LEASE_WAIT_MS) || LEASE_WAIT_MS_DEFAULT),
+        });
+      } catch (leaseError) {
+        // The owner died while leasing: the bootstrap path applies now.
+        const status = await daemonStatus(ROOT).catch(() => ({ alive: false }));
+        if (status.alive) throw leaseError;
+        continue;
+      }
+      process.env.ATL_WRITER_LEASE = lease.token;
+      const renew = setInterval(() => { void renewWriterLease(ROOT, lease.token); }, 45000);
+      renew.unref?.();
+      try {
+        await dispatch();
+        return;
+      } finally {
+        clearInterval(renew);
+        try { await releaseWriterLease(ROOT, lease.token); } catch { /* TTL reclaims it */ }
+        process.env.ATL_WRITER_LEASE = undefined;
+      }
+    }
   }
 }
 

@@ -3,6 +3,7 @@
 // validation is owned by plugin-host, so no host package copy is required.
 import { createPluginHost, pluginTools } from '../runtime/lib/plugin-host.mjs';
 import { registerDeepSeekPanel } from './deepseek-panel.mjs';
+import { applyHostIntegrations } from './deepseek-host.mjs';
 
 export const name = 'agent-trust-ladder';
 export const inject = ['tools'];
@@ -21,6 +22,11 @@ export function apply(ctx) {
   ctx.effect(() => () => host.close());
   // Optional: CLI-only profiles keep their tools without waiting for a web host.
   ctx.inject?.(['connection'], child => registerDeepSeekPanel(child, host));
+  // Host-native surfaces (issue #34): sidebar board tab, slash commands,
+  // folder-picker repository flow. Feature-detected; a host without them
+  // keeps the tool-only behavior, and a failing registration never breaks
+  // tool loading.
+  try { applyHostIntegrations(ctx, host); } catch { /* tools remain available */ }
   for (const tool of pluginTools) {
     ctx.tools.register({
       name: tool.name,
