@@ -78,13 +78,17 @@ html[data-atl-context="plugin"] .task-row .btn { min-height: 34px; }
 .task-detail-screen .task-inspector-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .task-detail-screen .task-inspector-side { min-width: 0; }
 
-// ---- More screen: labeled links to the specialist screens.
-.plugin-more-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+// ---- More screen: links grouped by developer workflow (plan & work, intake,
+// supervision, audit/settings), each group labeled and frequency-ordered.
+.plugin-more-list { display: grid; gap: 2px; }
+.plugin-more-group-label { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 12px 2px 4px; }
+.plugin-more-group:first-child .plugin-more-group-label { margin-top: 0; }
+.plugin-more-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .plugin-more-link { display: grid; gap: 3px; width: 100%; min-height: 56px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .plugin-more-link:hover { background: var(--row-hover); }
 .plugin-more-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .plugin-more-link b { font-size: 13px; }
-@media (min-width: 640px) { .plugin-more-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } .plugin-more-link { border: 1px solid var(--border); background: var(--raised); } }
+@media (min-width: 640px) { .plugin-more-list { gap: 4px; } .plugin-more-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } .plugin-more-link { border: 1px solid var(--border); background: var(--raised); } }
 
 // ---- Attention screen keeps the shared approval/blocker cards; only the
 // section headers are tightened.

@@ -8081,6 +8081,24 @@ html[data-atl-context=plugin] .task-row .btn {
 
 .plugin-more-list {
   display: grid;
+  gap: 2px;
+}
+
+.plugin-more-group-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 12px 2px 4px;
+}
+
+.plugin-more-group:first-child .plugin-more-group-label {
+  margin-top: 0;
+}
+
+.plugin-more-grid {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 2px;
 }
@@ -8115,6 +8133,9 @@ html[data-atl-context=plugin] .task-row .btn {
 
 @media (min-width: 640px) {
   .plugin-more-list {
+    gap: 4px;
+  }
+  .plugin-more-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
