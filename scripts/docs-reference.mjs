@@ -43,7 +43,7 @@ const groups={
 };
 const excluded=new Set(['node_modules','.git','.trust','.atl-evidence','vendor','assets']);
 const extensions=/\.(md|mjs|js|json|ya?ml|py|sh|cmd|ps1|scss|css|html|tla|cfg|svg|png|excalidraw|txt)$/i;
-function walk(dir){return fs.readdirSync(path.join(root,dir),{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name,'en')).flatMap(entry=>{const p=dir?`${dir}/${entry.name}`:entry.name;return entry.isDirectory()?(excluded.has(entry.name)?[]:walk(p)):((extensions.test(entry.name)||dir.startsWith('.githooks'))?[p]:[]);});}
+function walk(dir){return fs.readdirSync(path.join(root,dir),{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name,'en')).flatMap(entry=>{const p=dir?`${dir}/${entry.name}`:entry.name;return entry.isDirectory()?(excluded.has(entry.name)?[]:walk(p)):(((extensions.test(entry.name)&&!p.startsWith('verification/_probe'))||dir.startsWith('.githooks'))?[p]:[]);});}
 function purpose(file){
  const name=path.basename(file);
  if(file==='docs/repository-map.md')return 'Generated inventory of maintained files and ownership boundaries.';

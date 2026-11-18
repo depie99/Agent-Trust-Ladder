@@ -578,7 +578,6 @@ Behavior checks, formal models, and synthetic fixtures.
 
 | File | Purpose |
 |---|---|
-| [verification/_probe_more_page.mjs](../verification/_probe_more_page.mjs) | Probe: verify the plugin More page groups and new top tabs render correctly. |
 | [verification/approval_test.mjs](../verification/approval_test.mjs) | Executable regression check for approval. |
 | [verification/atl_lazy_pipeline_test.py](../verification/atl_lazy_pipeline_test.py) | atl lazy pipeline test: source/configuration for its containing feature. |
 | [verification/atl_lifecycle_model.py](../verification/atl_lifecycle_model.py) | atl lifecycle model: source/configuration for its containing feature. |
