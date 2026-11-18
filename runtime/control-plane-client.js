@@ -1866,6 +1866,21 @@ operations: () => {
         + `<button class="nav" data-action="theme-toggle" role="menuitem">◐ Toggle theme</button>`
         + `<button class="nav" data-action="toggle-locale" role="menuitem">${locale === "fa-IR" ? "English" : "فارسی"}</button>`
         + `</div>` : ""}</div>`;
+    if (pluginOverflowOpen) {
+      // The ⋯ button sits near the topbar's start edge and drifts right as the
+      // project pills wrap, so a fixed anchor clipped the menu off the panel on
+      // both edges. Clamp the open menu inside the viewport instead.
+      const menu = mount.querySelector('.plugin-overflow-menu');
+      const host = mount.querySelector('.plugin-overflow');
+      if (menu && host) {
+        const width = menu.offsetWidth || 216;
+        const viewport = document.documentElement.clientWidth;
+        const hostRect = host.getBoundingClientRect();
+        const target = Math.max(8, Math.min(hostRect.left, viewport - width - 8));
+        menu.style.left = `${Math.round(target - hostRect.left)}px`;
+        menu.style.right = 'auto';
+      }
+    }
   }
   function closePluginOverflow() { if (pluginOverflowOpen) { pluginOverflowOpen = false; nav(); } }
   function pluginOpenTask(id) {
