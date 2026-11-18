@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { ensureDaemon, daemonStatus, stopDaemon, deterministicPort, daemonFile, writerGate } from "../runtime/lib/daemon.mjs";
+import { ensureDaemon, daemonStatus, stopDaemon, deterministicPort, canonicalRoot, daemonFile, writerGate } from "../runtime/lib/daemon.mjs";
 import { loadState, saveState, hasWrittenState } from "../runtime/lib/state.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -37,7 +37,10 @@ try {
   // 1. Start the owner; record + health must identify this project.
   const first = await ensureDaemon(project, { waitMs: 30000 });
   assert.equal(first.reused, false, "expected a fresh daemon for a new project");
-  assert.equal(first.url, `http://127.0.0.1:${deterministicPort(path.resolve(project))}/`, "URL must be the deterministic per-project port");
+  // The port is derived from the canonical root (realpath — on macOS os.tmpdir()
+  // spells /var/folders/… while the daemon sees /private/var/folders/…), so the
+  // expectation must canonicalize the same way the daemon does.
+  assert.equal(first.url, `http://127.0.0.1:${deterministicPort(canonicalRoot(project))}/`, "URL must be the deterministic per-project port");
   const record = JSON.parse(fs.readFileSync(daemonFile(project), "utf8"));
   assert.equal(record.pid, first.record.pid, "record pid must be the owner process");
   if (process.platform !== "win32") {
