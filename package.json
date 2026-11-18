@@ -11,6 +11,8 @@
   "scripts": {
     "plugins:build": "node scripts/build-plugins.mjs",
     "plugins:test": "node verification/plugin_bundle_test.mjs && node verification/plugin_connect_test.mjs",
+    "release:verify": "node verification/release_parity_test.mjs --local",
+    "release:ship": "node scripts/ship-release.mjs",
     "skills:build": "python scripts/build_mode_skills.py",
     "skills:lock": "node scripts/sync-skills.mjs --write-release-lock",
     "skills:check": "python scripts/build_mode_skills.py --check && node scripts/sync-skills.mjs",
