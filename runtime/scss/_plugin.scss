@@ -96,3 +96,12 @@ html[data-atl-context="plugin"] .task-row .btn { min-height: 34px; }
 // ---- Attention screen keeps the shared approval/blocker cards; only the
 // section headers are tightened.
 html[data-atl-context="plugin"] .approval-request { margin-bottom: 10px; }
+
+// ---- Wide host windows (maximized DSH/ZCode panels): the content column
+// centers itself (.body, max-width 1590px, margin auto) but the nav strip and
+// topbar stayed full-bleed — tabs stranded at the window edge while content
+// floated ~130px in, which reads as broken margins. These rules deliberately
+// live LAST so they override the .mobile margin:0 / topbar rules above;
+// below 1590px the max-width never binds and narrow layouts are untouched.
+html[data-atl-context="plugin"] .mobile { max-width: 1590px; margin-inline: auto; }
+html[data-atl-context="plugin"] .topbar { max-width: 1590px; margin-inline: auto; }

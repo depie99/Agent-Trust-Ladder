@@ -366,6 +366,7 @@ Build, installation, validation, and maintenance programs.
 | [scripts/render-tui-images.mjs](../scripts/render-tui-images.mjs) | Regenerate the terminal interface images in docs/diagrams/tui-*.svg. |
 | [scripts/render-ui-frames.mjs](../scripts/render-ui-frames.mjs) | Render plain control-room frames from the real project state so UI changes |
 | [scripts/serve-docs.mjs](../scripts/serve-docs.mjs) | serve docs: source/configuration for its containing feature. |
+| [scripts/ship-release.mjs](../scripts/ship-release.mjs) | Ship one built release to every local surface, then prove it with the parity gate. |
 | [scripts/sync-skills.mjs](../scripts/sync-skills.mjs) | Compare or safely synchronize installed ATL skills with this checkout. |
 | [scripts/validate_model_routing.py](../scripts/validate_model_routing.py) | validate model routing: source/configuration for its containing feature. |
 
@@ -623,6 +624,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/developer_delivery_receipt_test.mjs](../verification/developer_delivery_receipt_test.mjs) | Executable regression check for developer delivery receipt. |
 | [verification/dispatcher_test.mjs](../verification/dispatcher_test.mjs) | Executable regression check for dispatcher. |
 | [verification/docs_site_test.mjs](../verification/docs_site_test.mjs) | Executable regression check for docs site. |
+| [verification/e2e/dsh_zero_to_hero_journey.mjs](../verification/e2e/dsh_zero_to_hero_journey.mjs) | DSH zero-to-hero journey — live end-to-end proof of the ATL plugin inside a |
 | [verification/e2e/fake-provider.mjs](../verification/e2e/fake-provider.mjs) | fake provider: source/configuration for its containing feature. |
 | [verification/e2e/full_operation_test.mjs](../verification/e2e/full_operation_test.mjs) | Executable regression check for full operation. |
 | [verification/e2e/real_provider_smoke_test.mjs](../verification/e2e/real_provider_smoke_test.mjs) | Executable regression check for real provider smoke. |
@@ -735,6 +737,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/README.md](../verification/README.md) | ATL formal verification suite. |
 | [verification/record_mock_regression_lessons.mjs](../verification/record_mock_regression_lessons.mjs) | Explicitly invoked after verification; never run by workers or at module import. |
 | [verification/recovery_test.mjs](../verification/recovery_test.mjs) | Executable regression check for recovery. |
+| [verification/release_parity_test.mjs](../verification/release_parity_test.mjs) | Executable regression check for release parity. |
 | [verification/resource_policy_launch_test.mjs](../verification/resource_policy_launch_test.mjs) | Executable regression check for resource policy launch. |
 | [verification/resource_policy_planning_test.mjs](../verification/resource_policy_planning_test.mjs) | Executable regression check for resource policy planning. |
 | [verification/resource_policy_test.mjs](../verification/resource_policy_test.mjs) | Executable regression check for resource policy. |
