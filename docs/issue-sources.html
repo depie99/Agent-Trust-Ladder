@@ -18,34 +18,35 @@
 <tr>
 <td>GitHub</td>
 <td>One repository URL or <code>owner/repository</code></td>
-<td>Authenticated <code>gh</code> CLI, <code>GITHUB_TOKEN</code>, or public read access</td>
+<td>Paste a session token in the source form or saved card, authenticated <code>gh</code> CLI, <code>GITHUB_TOKEN</code>, or public read access</td>
 </tr>
 <tr>
 <td>Jira</td>
 <td>HTTPS site URL and project keys</td>
-<td>Server environment variable, default <code>JIRA_TOKEN</code></td>
+<td>Paste a session token in the source form or saved card, or use a server environment variable (default <code>JIRA_TOKEN</code>)</td>
 </tr>
 <tr>
 <td>Azure Boards</td>
 <td>HTTPS collection URL and project; optional iteration</td>
-<td>Server environment variable, default <code>AZDO_PAT</code>, or <strong>Connect PAT</strong> on its saved card</td>
+<td>Paste a PAT in the source form, use <strong>Connect PAT</strong> on its saved card, or set a server environment variable (default <code>AZDO_PAT</code>)</td>
 </tr>
 </tbody>
 </table>
 <p>For a work item URL under <code>https://devops.example.invalid:32678/Collection/Project/</code>, enter <code>https://devops.example.invalid:32678/Collection</code> as the collection and <code>Project</code> as the project. Enter the iteration separately, for example <code>Project\Sprint 74</code>.</p>
-<p>Saving closes the dialog and shows a notice above <strong>Connected sources</strong>. A failed save keeps the form and values with an inline error. Use <strong>Check access</strong> to verify a connection. <strong>Pause connection</strong> prevents previews while keeping its settings. An Azure PAT saved with <strong>Remember securely</strong> is protected by Windows DPAPI; a session PAT expires when the server stops. PAT values are never returned by the connection API.</p>
+<p>Saving closes the dialog and shows a notice above <strong>Connected sources</strong>. A failed save keeps the form and values with an inline error. Use <strong>Check access</strong> to verify a connection. <strong>Pause connection</strong> prevents previews while keeping its settings. An Azure PAT saved with <strong>Remember securely</strong> is protected by Windows DPAPI; session tokens for all providers expire when the server stops. Token values are never returned by the connection API.</p>
+<p>Token and API-key inputs are masked by default; <strong>Show</strong> and <strong>Hide</strong> reveal or conceal only the value currently being entered. GitHub, Jira, and Azure accept an optional token in the source form; it is held in server memory for that session and can be replaced from the saved card. Azure also supports <strong>Remember securely</strong> on Windows. <strong>Advanced authentication</strong> contains the environment-variable name: enter <code>AZDO_PAT</code> or <code>JIRA_TOKEN</code> there, not the token itself.</p>
 <p>Existing provider settings in <code>config/manager.json</code> appear as named connections after migration. The registry lives in <code>.trust/manager/issue-connections.json</code>; it stores locations and credential references, never tokens. Legacy CLI and My Tasks settings remain in <code>config/manager.json</code>. Removing a default connection requires pausing it or having a replacement.</p>
 <h2 id="preview-and-import">Preview and import</h2>
 <ol>
-<li>Choose <strong>Browse issues</strong> on a card, or select a connection in <strong>Browse issues</strong>.</li>
-<li>For Azure Boards, optionally choose a sprint or enter a work item number or link.</li>
-<li>Choose <strong>Preview issues</strong>. Preview creates no tasks.</li>
+<li>Choose <strong>Browse issues</strong> on a card, or select a connection in <strong>Browse issues</strong>. The source’s available issues load automatically; a preview creates no tasks.</li>
+<li>For Azure Boards, the saved default sprint is selected when present. Choose another sprint from that connection’s list, choose <strong>All sprints</strong>, or enter a work item number or link and choose <strong>Search issues</strong>. An empty default lists work items across the project’s sprints.</li>
+<li>Filter the results by title, number, state, label, or Jira project where available. The list reflects the provider adapter’s result limit and configured scope.</li>
 <li>Select the intended issues and affected repositories, then import them.</li>
 <li>Open <strong>Imported requests</strong> to inspect source details and create a plan for each affected repository.</li>
 </ol>
 <p>Imports keep the connection ID and name, remote issue identity, and revision. Deduplication uses the original remote issue identity, so finding the same issue through another connection does not create another request.</p>
 <h2 id="troubleshooting">Troubleshooting</h2>
-<p>Check the card's access status, enabled state, URL, project/repository, token availability, and network access. Reconnect a session Azure PAT after server restart. Jira intake does not imply Jira writeback; plan publishing currently targets GitHub and Azure.</p>
+<p>Check the card's access status, enabled state, URL, project/repository, token availability, and network access. Reconnect a session token after server restart. Jira intake does not imply Jira writeback; plan publishing currently targets GitHub and Azure.</p>
 <p>Implementation: <code>runtime/lib/issue-connections.mjs</code>, <code>intake.mjs</code>, <code>composer.mjs</code>, and source routes in <code>control-plane-server.mjs</code>. Run <code>node verification/issue_connections_test.mjs</code> and <code>node verification/issue_source_ui_journey_test.mjs</code> from the clone.</p>
 </article><nav class="adjacent" aria-label="Adjacent pages"><a href="guides.html"><small>Previous</small>Feature and how-to map</a><a href="plan-studio.html"><small>Next</small>Plan Studio</a></nav><footer><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/issue-sources.md">View Markdown source ↗</a><a href="documentation.html">Improve this documentation</a><span>MIT</span></footer></main><aside class="page-toc"><h2>On this page</h2><nav aria-label="On this page"><a class="h2" href="#add-a-connection">Add a connection</a><a class="h2" href="#preview-and-import">Preview and import</a><a class="h2" href="#troubleshooting">Troubleshooting</a></nav></aside></div>
 <dialog id="search-dialog"><div class="search-heading"><label for="search-input">Search documentation</label><button id="search-close" aria-label="Close search">Esc</button></div><input id="search-input" type="search" placeholder="Try Jira, queue, Ask ATL, or models" autocomplete="off"><div id="search-results" aria-live="polite"></div></dialog></body></html>

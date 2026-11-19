@@ -302,12 +302,12 @@ export async function intakeFromAzure(cfg, { requestImpl = requestJson, token: p
 const jiraText = (value) => typeof value === "string" ? value : value && typeof value === "object"
   ? [value.text, ...(value.content || []).map(jiraText)].filter(Boolean).join(" ") : "";
 
-export async function intakeFromJira(cfg, { fetchImpl = globalThis.fetch } = {}) {
+export async function intakeFromJira(cfg, { fetchImpl = globalThis.fetch, token: suppliedToken } = {}) {
   const base = new URL(String(cfg.base_url || ""));
   if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash) throw new IntakeError("Jira base URL must be a plain HTTPS URL");
   const projects = (cfg.projects || []).map((key) => String(key).trim().toUpperCase()).filter((key) => /^[A-Z][A-Z0-9_]{1,19}$/.test(key));
   if (!projects.length) throw new IntakeError("Choose at least one Jira project key");
-  const tokenEnv = cfg.token_env || "JIRA_TOKEN", token = process.env[tokenEnv];
+  const tokenEnv = cfg.token_env || "JIRA_TOKEN", token = suppliedToken || process.env[tokenEnv];
   if (!token) throw new IntakeError(`Jira intake needs ${tokenEnv} in the server environment`);
   const jql = `project in (${projects.join(",")}) AND statusCategory != Done ORDER BY updated DESC`;
   const url = new URL("rest/api/2/search", base.href.endsWith("/") ? base : `${base.href}/`);
@@ -320,7 +320,7 @@ export async function intakeFromJira(cfg, { fetchImpl = globalThis.fetch } = {})
     const fields = issue.fields || {}, description = jiraText(fields.description).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     const issueUrl = new URL(`browse/${encodeURIComponent(issue.key)}`, base.href.endsWith("/") ? base : `${base.href}/`).href;
     return { title: `${issue.key} ${fields.summary || "Untitled issue"}`, objective_hint: description.slice(0, 800), completion_checks: [],
-      priority: normalizePriority(fields.priority?.name || ""), risk: "normal", labels: (fields.labels || []).map(String),
+      priority: normalizePriority(fields.priority?.name || ""), risk: "normal", labels: (fields.labels || []).map(String), state: fields.status?.name || "Open",
       source: { type: "jira", url: issueUrl, thread: issueUrl, base_url: base.href.replace(/\/$/, ""), remote_id: issue.key, revision: fields.updated || null, excerpt: description.slice(0, 300) },
       resources: extractResources(description, { source: "jira", baseUrl: issueUrl }), intake_key: `jira:${base.host}:${issue.key}` };
   });

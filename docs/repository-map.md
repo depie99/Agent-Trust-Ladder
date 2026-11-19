@@ -122,6 +122,10 @@ Developer guides, generated website, visual sources, and historical evidence.
 | [docs/diagrams/codex-history-bridge-mobile.png](../docs/diagrams/codex-history-bridge-mobile.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/codex-history-bridge.light.svg](../docs/diagrams/codex-history-bridge.light.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/codex-history-bridge.svg](../docs/diagrams/codex-history-bridge.svg) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.after.add-source.png](../docs/diagrams/issue-sources-v2.after.add-source.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.after.page.png](../docs/diagrams/issue-sources-v2.after.page.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.before.add-source.png](../docs/diagrams/issue-sources-v2.before.add-source.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.before.page.png](../docs/diagrams/issue-sources-v2.before.page.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-compose.svg](../docs/diagrams/tui-compose.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-dashboard.svg](../docs/diagrams/tui-dashboard.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-launch.svg](../docs/diagrams/tui-launch.svg) | Visual source or retained historical capture; see the diagram library. |
@@ -330,6 +334,8 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/scss/_app.scss](../runtime/scss/_app.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_my-tasks.scss](../runtime/scss/_my-tasks.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_plugin.scss](../runtime/scss/_plugin.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_source-design.scss](../runtime/scss/_source-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_source-fonts.scss](../runtime/scss/_source-fonts.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_sources.scss](../runtime/scss/_sources.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_tokens.scss](../runtime/scss/_tokens.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_workspace.scss](../runtime/scss/_workspace.scss) | Stylesheet source or theme token; rebuild through its package script. |
@@ -669,7 +675,9 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/intake_azure_iterations_test.mjs](../verification/intake_azure_iterations_test.mjs) | Executable regression check for intake azure iterations. |
 | [verification/intake_test.mjs](../verification/intake_test.mjs) | Executable regression check for intake. |
 | [verification/issue_connections_test.mjs](../verification/issue_connections_test.mjs) | Executable regression check for issue connections. |
+| [verification/issue_source_browse_test.mjs](../verification/issue_source_browse_test.mjs) | Executable regression check for issue source browse. |
 | [verification/issue_source_journey_test.mjs](../verification/issue_source_journey_test.mjs) | Executable regression check for issue source journey. |
+| [verification/issue_source_reference_ui_test.mjs](../verification/issue_source_reference_ui_test.mjs) | Executable regression check for issue source reference ui. |
 | [verification/issue_source_ui_journey_test.mjs](../verification/issue_source_ui_journey_test.mjs) | Executable regression check for issue source ui journey. |
 | [verification/jev_router_test.mjs](../verification/jev_router_test.mjs) | Executable regression check for jev router. |
 | [verification/jira_adapter_contract_test.mjs](../verification/jira_adapter_contract_test.mjs) | Executable regression check for jira adapter contract. |
@@ -717,6 +725,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_review_process_test.mjs](../verification/plan_review_process_test.mjs) | Executable regression check for plan review process. |
 | [verification/plan_review_run_gate_test.mjs](../verification/plan_review_run_gate_test.mjs) | Executable regression check for plan review run gate. |
 | [verification/plan_source_refresh_test.mjs](../verification/plan_source_refresh_test.mjs) | Executable regression check for plan source refresh. |
+| [verification/plan_studio_accuracy_test.mjs](../verification/plan_studio_accuracy_test.mjs) | Executable regression check for plan studio accuracy. |
 | [verification/plan_studio_api_test.mjs](../verification/plan_studio_api_test.mjs) | Executable regression check for plan studio api. |
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
 | [verification/plan_studio_journey_test.mjs](../verification/plan_studio_journey_test.mjs) | Executable regression check for plan studio journey. |

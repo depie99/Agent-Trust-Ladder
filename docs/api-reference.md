@@ -76,6 +76,7 @@ Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`,
 | `/api/plan/local` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/publish` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/publish-preview` | `runtime/lib/control-plane-server.mjs` |
+| `/api/plan/question-progress` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/refine` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/regenerate` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/repair` | `runtime/lib/control-plane-server.mjs` |

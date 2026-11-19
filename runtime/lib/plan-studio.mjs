@@ -233,18 +233,19 @@ function writeArtifactEnvelope(file, envelope) {
   }
 }
 
-export function reviewPlanArtifact(root, draft, review, { expectedRevision = null, evidenceSnapshot = null, repoRoot = null } = {}) {
+export function reviewPlanArtifact(root, draft, review, { expectedRevision = null, evidenceSnapshot = null, repoRoot = null, transient = false } = {}) {
   const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
   if (loaded.stage === "repair") throw new Error("Repair and validate this saved response before requesting accuracy review");
   const normalized = normalizePlanContract(loaded.artifact, loaded.intent);
   delete normalized.review;
   const findings = Array.isArray(review?.findings) ? review.findings : [];
   if (!findings.every((item) => item && ["blocker", "major", "minor", "info"].includes(item.severity) && String(item.message || "").trim())) throw new Error("review findings must include a severity and message");
-  const unresolved = normalized.open_questions.filter((item) => !item.resolved);
+  const unresolved = normalized.open_questions.filter((item) => !item.resolved && !(item.blocks_approval === false && String(item.default_answer || '').trim()));
   const passed = review?.verdict === "passed" && !unresolved.length && !findings.some((item) => ["blocker", "major"].includes(item.severity));
   const sourceRevision = review.source_revision || null;
   const reviewedEvidence = evidenceSnapshot || planningEvidence(root, normalized, { repoRoot });
   const result = { schema: PLAN_CONTRACT_VERSION, kind: review.kind === "egm" ? "egm" : "atl", verdict: passed ? "passed" : "blocked", findings, reviewed_at: new Date().toISOString(), fingerprint: planFingerprint(normalized, loaded.intent, { project: reviewedEvidence, source_revision: sourceRevision }), provider: review.provider || null, model: review.model || null, source_revision: sourceRevision, egm: review.egm || null };
+  if (transient) return { ...loaded, review: result, artifact: { ...normalized, review: result } };
   const file = path.join(loaded.dir, "artifact.json");
   return withDraftLock(loaded.dir, () => {
     const envelope = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -409,8 +410,9 @@ export function validatePlanGrounding(root, artifact, { repoRoot = null } = {}) 
   return true;
 }
 
-export function answerPlanQuestion(root, draft, questionId, answer) {
-  const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
+export function answerPlanQuestion(root, draft, questionId, answer, { expectedRevision = null } = {}) {
+  const loaded = loadEditableDraft(root, draft);
+  if (expectedRevision != null && Number(expectedRevision) !== loaded.revision) throw Object.assign(new Error('plan draft changed; reload and retry'), { statusCode: 409 });
   const text = String(answer || "").trim();
   if (!text) throw new Error("a clarification answer is required");
   const artifact = cloneArtifact(loaded);
@@ -419,7 +421,8 @@ export function answerPlanQuestion(root, draft, questionId, answer) {
   const prior = artifact.open_questions[index];
   artifact.clarifications = [...(artifact.clarifications || []), { question_id: questionId, question: prior.question || prior.text || String(prior), answer: text, answered_at: new Date().toISOString() }];
   artifact.open_questions[index] = typeof prior === "string" ? { id: questionId, question: prior, resolved: true, answer: text } : { ...prior, id: questionId, resolved: true, answer: text };
-  return persistArtifact(root, loaded, artifact);
+  const assessments = { ...(loaded.answer_assessments || {}), [questionId]: { status: 'pending', original_answer: text } };
+  return persistArtifact(root, loaded, artifact, { answer_assessments: assessments, conversation: [...(loaded.conversation || []), { at: new Date().toISOString(), role: 'manager', question_id: questionId, text }].slice(-CONVERSATION_LIMIT) });
 }
 
 function slug(value) {
@@ -1131,7 +1134,7 @@ export function loadPlanDraft(root, id) {
   const file = path.join(dir, "artifact.json");
   if (!fs.existsSync(file)) throw new Error(`Unknown plan draft ${id}`);
   const saved = JSON.parse(fs.readFileSync(file, "utf8"));
-  return { ...saved, revision: Number(saved.revision) || 1, id, dir, intent: fs.readFileSync(path.join(dir, "intent.md"), "utf8") };
+  return { answer_assessments: {}, question_progress: {}, ...saved, revision: Number(saved.revision) || 1, id, dir, intent: fs.readFileSync(path.join(dir, "intent.md"), "utf8") };
 }
 
 export function archivePlanDraft(root, id) {
@@ -1550,7 +1553,70 @@ function pushConversation(envelope, entry) {
   envelope.conversation = [...(envelope.conversation || []), { at: new Date().toISOString(), ...entry }].slice(-CONVERSATION_LIMIT);
 }
 
-export async function refinePlanDraft(root, draft, message, { invoke, confirm = false, provider = null, model = null, role = "planning", taskTarget = null, attachments = [] } = {}) {
+function accuracyTarget(loaded, target) {
+  if (target !== 'candidate') return loaded;
+  if (!loaded.pending_candidate?.artifact) throw Object.assign(new Error('No proposed changes remain; reload the draft'), { statusCode: 409 });
+  return { ...loaded, artifact: loaded.pending_candidate.artifact, review: loaded.pending_candidate.review || null };
+}
+
+function assertCandidateCurrent(envelope, expected) {
+  const content = (candidate) => candidate ? { artifact: candidate.artifact, based_on_revision: candidate.based_on_revision, created_at: candidate.created_at } : null;
+  if (JSON.stringify(content(envelope.pending_candidate)) !== JSON.stringify(content(expected))) throw Object.assign(new Error('The proposed changes changed during the answer check; reload and retry'), { statusCode: 409 });
+}
+
+export function saveCandidateAccuracyReview(root, loaded, reviewed) {
+  return withEnvelopeUpdate(root, loaded, (envelope) => {
+    assertCandidateCurrent(envelope, loaded.pending_candidate);
+    envelope.pending_candidate.review = reviewed.review;
+  });
+}
+
+export function saveQuestionProgress(root, draft, progress, { target = 'artifact' } = {}) {
+  const loaded = loadEditableDraft(root, draft);
+  return withEnvelopeUpdate(root, loaded, (envelope) => {
+    const record = target === 'candidate' ? envelope.pending_candidate : envelope;
+    const valid = new Set((accuracyTarget(loaded, target).artifact.open_questions || []).map((question) => question.id));
+    record.question_progress = { ...(record.question_progress || {}) };
+    for (const [id, value] of Object.entries(progress || {})) if (valid.has(id)) record.question_progress[id] = String(value).slice(0, 20000);
+  });
+}
+
+// One repair call, followed by one independent review. This never recursively
+// repairs its own follow-up findings or turns a failed check into a pass.
+export async function continueAccuracyConversation(root, draft, { invoke, review, provider, model, questionId = null, target = 'artifact' } = {}) {
+  let loaded = loadEditableDraft(root, draft);
+  const view = accuracyTarget(loaded, target);
+  const questions = (view.artifact.open_questions || []).filter((question) => !questionId || question.id === questionId);
+  loaded = withEnvelopeUpdate(root, loaded, (envelope) => {
+    const record = target === 'candidate' ? envelope.pending_candidate : envelope;
+    record.accuracy_followup = { status: 'pending', question_id: questionId };
+    for (const finding of view.review?.findings || []) pushConversation(envelope, { role: 'assistant', text: `${finding.message}${finding.correction ? ` Recommended correction: ${finding.correction}` : ''} I will check what I can resolve and keep planning open.` });
+  });
+  try {
+    loaded = await refinePlanDraft(root, accuracyTarget(loaded, target), 'Check the supplied answers and review findings now. Apply evidence-backed corrections and visible reversible assumptions to the affected plan content. Preserve explicit preferences and unaffected tasks. Explain the concern, recommended answer, and actual plan change. Leave consequential unknowns open when no usable default exists.', {
+      invoke, confirm: true, provider, model, accuracyContext: { target, questions, findings: view.review?.findings || [], question_id: questionId },
+    });
+    // Commit pending state before spending the separate review call.
+    loaded = withEnvelopeUpdate(root, loaded, (envelope) => { (target === 'candidate' ? envelope.pending_candidate : envelope).accuracy_followup.status = 'reviewing'; });
+    loaded = await review(loaded);
+    return withEnvelopeUpdate(root, loaded, (envelope) => {
+      const record = target === 'candidate' ? envelope.pending_candidate : envelope;
+      record.accuracy_followup = { status: 'complete', question_id: questionId, completed_revision: loaded.revision };
+      pushConversation(envelope, { role: 'assistant', text: accuracyTarget(loaded, target).review?.verdict === 'passed' ? (target === 'candidate' ? 'The proposed changes passed their answer check. Compare and apply them when ready; the saved plan will need its own review.' : 'The updated plan passed accuracy review and is ready for your approval.') : 'The plan has been updated. Planning stays open; approval needs the remaining consequential concerns resolved.' });
+      for (const finding of accuracyTarget(loaded, target).review?.findings || []) pushConversation(envelope, { role: 'assistant', text: `${finding.message}${finding.correction ? ` Suggested next step: ${finding.correction}` : ''}` });
+    });
+  } catch (error) {
+    if (error.statusCode === 409) throw error;
+    return withEnvelopeUpdate(root, loaded, (envelope) => {
+      if (target === 'candidate') assertCandidateCurrent(envelope, loaded.pending_candidate);
+      const record = target === 'candidate' ? envelope.pending_candidate : envelope;
+      record.accuracy_followup = { status: 'retry', question_id: questionId, error: error.message };
+      pushConversation(envelope, { role: 'assistant', text: `Your answers and saved plan are retained. I could not finish checking: ${error.message}. You can retry or keep planning.` });
+    });
+  }
+}
+
+export async function refinePlanDraft(root, draft, message, { invoke, confirm = false, provider = null, model = null, role = "planning", taskTarget = null, attachments = [], accuracyContext = null } = {}) {
   const prompt = String(message || "").trim();
   if (!prompt) throw new Error("a refinement message is required");
   if (!confirm) throw new Error("Plan Studio provider calls require explicit confirmation");
@@ -1565,6 +1631,7 @@ export async function refinePlanDraft(root, draft, message, { invoke, confirm = 
     message: prompt,
     task_target: taskTarget || null,
     current_artifact: artifact,
+    ...(accuracyContext ? { accuracy_context: accuracyContext } : {}),
     saved_answers: artifact.clarifications || [],
     manual_edits: normalizeProposals(artifact).filter((proposal) => proposal.source === "manager-edit").map((proposal) => ({ id: proposal.id, revision: proposal.revision, title: proposal.title })),
     recent_conversation: (loaded.conversation || []).slice(-20),
@@ -1584,6 +1651,15 @@ export async function refinePlanDraft(root, draft, message, { invoke, confirm = 
     },
     rule: 'Return JSON only: {"summary": "one short paragraph describing what you changed for the manager", "artifact": <the full revised plan>}. The artifact must satisfy Plan Contract v2 in full, exactly like an initial plan. Preserve every unaffected task\'s id, title, and content; change only what the message requires, and when a task_target is supplied restrict changes to that task plus any task it necessarily affects. Carry forward requirements, evidence, assumptions, clarifications, and resolved answers unchanged. Unresolved consequential decisions go in open_questions with 2-4 grounded suggested answers and blocks_approval true. Do not invent commands, paths, project facts, or skills. Do not claim checks passed; do not execute commands or change files.',
   };
+  const evidenceSnapshot = JSON.stringify(request.project_evidence);
+  if (accuracyContext) {
+    const base = path.resolve(repoRoot || root);
+    const files = request.project_evidence.referenced_file_fingerprints.flatMap(item => item.files || [item]).filter(item => item.sha256).slice(0, 20);
+    request.project_evidence = { ...request.project_evidence, excerpts: files.map(item => {
+      const file = path.resolve(base, item.path);
+      return { path: item.path, text: file.startsWith(base + path.sep) ? fs.readFileSync(file, 'utf8').slice(0, 4000) : '' };
+    }) };
+  }
   const logPath = path.join(loaded.dir, "provider.log");
   const startedAt = Date.now();
   const response = await invoke({ root, role, request, logPath });
@@ -1607,10 +1683,45 @@ export async function refinePlanDraft(root, draft, message, { invoke, confirm = 
       for (const skill of proposal.selected_skills || []) if (!isSkillAvailable(root, skill)) throw new Error(`Refined plan task ${proposal.id} selects unavailable skill ${skill}`);
     }
   } catch (error) { throw refused(error.message); }
+  let assessments = [];
+  if (accuracyContext) {
+    if (!returned.artifact || !String(returned.summary || '').trim()) throw refused('Correction must return a full artifact and explain its plan changes');
+    assessments = Array.isArray(returned.assessments) ? returned.assessments : [];
+    const expectedQuestions = new Set((accuracyContext.questions || []).map((question) => question.id));
+    if (assessments.length !== expectedQuestions.size || new Set(assessments.map((item) => item.question_id)).size !== assessments.length || assessments.some((item) => !expectedQuestions.has(item.question_id))) throw refused('Correction assessments must match the supplied questions exactly');
+    const suppliedEvidence = new Set((request.project_evidence.excerpts || []).map((item) => item.path));
+    // The model cannot erase other answers or questions while checking this one.
+    const untouchedQuestions = (artifact.open_questions || []).filter((question) => !expectedQuestions.has(question.id));
+    const untouchedIds = new Set(untouchedQuestions.map((question) => question.id));
+    candidate.open_questions = candidate.open_questions.filter((question) => !untouchedIds.has(question.id)).concat(untouchedQuestions);
+    candidate.clarifications = (candidate.clarifications || []).filter((item) => expectedQuestions.has(item.question_id)).concat((artifact.clarifications || []).filter((item) => !expectedQuestions.has(item.question_id)));
+    for (const question of accuracyContext.questions || []) {
+      const assessment = assessments.find((item) => item.question_id === question.id);
+      if (!assessment || !['accepted', 'corrected', 'assumed', 'unresolved'].includes(assessment.status) || !['factual', 'preference'].includes(assessment.kind) || !String(assessment.explanation || '').trim()) throw refused('Correction must explain the assessment of each answer');
+      const original = [...(artifact.clarifications || []), ...(artifact.clarification_history || [])].filter((item) => item.question_id === question.id && !String(item.source || '').startsWith('atl-')).sort((left, right) => String(left.answered_at || '').localeCompare(String(right.answered_at || ''))).at(-1)?.answer || '';
+      if ((['preference', 'owner_decision'].includes(question.kind) || assessment.kind === 'preference') && original && assessment.answer !== original) throw refused('Correction cannot replace an explicit preference');
+      if (assessment.status !== 'unresolved' && !String(assessment.answer || '').trim()) throw refused('A usable answer is required to resolve a question');
+      if (assessment.status === 'corrected' && (!Array.isArray(assessment.evidence_paths) || !assessment.evidence_paths.length || !assessment.evidence_paths.every((file) => suppliedEvidence.has(file)))) throw refused('Factual corrections must cite supplied repository evidence');
+      if (assessment.status === 'accepted' && (!original || assessment.answer !== original)) throw refused('Accepted answers must preserve the submitted answer');
+      assessment.original_answer = original;
+      candidate.clarifications = (candidate.clarifications || []).filter((item) => item.question_id !== question.id);
+      candidate.clarifications.push(...(artifact.clarifications || []).filter((item) => item.question_id === question.id));
+      if (assessment.status !== 'unresolved') candidate.clarifications.push({ question_id: question.id, question: question.question, answer: assessment.answer, original_answer: original, explanation: assessment.explanation, evidence_paths: assessment.evidence_paths || [], source: assessment.status === 'assumed' ? 'atl-assumption' : 'atl-assessment', answered_at: new Date().toISOString() });
+      else candidate.clarifications = candidate.clarifications.filter((item) => item.question_id !== question.id);
+      const updatedQuestion = { ...question, resolved: assessment.status !== 'unresolved', answer: assessment.answer || '' };
+      candidate.open_questions = candidate.open_questions.filter((item) => item.id !== question.id).concat(updatedQuestion);
+      candidate.assumptions = candidate.assumptions.filter((item) => !String(item).startsWith(`Assumption (${question.id}):`));
+      if (assessment.status === 'assumed') candidate.assumptions.push(`Assumption (${question.id}): ${assessment.answer}. ${assessment.explanation}`);
+    }
+    // Retain the submitted answer history even when assessment cannot resolve it.
+    candidate.clarification_history = [...(artifact.clarification_history || []), ...(artifact.clarifications || [])];
+    delete candidate.review;
+  }
+  if (accuracyContext && JSON.stringify(planningEvidence(root, artifact, { repoRoot })) !== evidenceSnapshot) throw Object.assign(new Error('plan evidence changed during correction; reload and retry'), { statusCode: 409 });
   const changes = candidateChanges(artifact, candidate);
   const assumptionsAdded = (candidate.assumptions || []).filter((item) => !(artifact.assumptions || []).includes(item));
   return withEnvelopeUpdate(root, loaded, (envelope) => {
-    pushConversation(envelope, { role: "manager", text: prompt, attachments: (Array.isArray(attachments) ? attachments : []).map((item) => String(item.name || item)).filter(Boolean).slice(0, 10) });
+    if (!accuracyContext) pushConversation(envelope, { role: "manager", text: prompt, attachments: (Array.isArray(attachments) ? attachments : []).map((item) => String(item.name || item)).filter(Boolean).slice(0, 10) });
     pushConversation(envelope, {
       role: "assistant",
       text: summary,
@@ -1621,6 +1732,26 @@ export async function refinePlanDraft(root, draft, message, { invoke, confirm = 
       assumptions_added: assumptionsAdded,
       unresolved_questions: candidate.open_questions.filter((question) => !question.resolved).length,
     });
+    if (accuracyContext) {
+      if (accuracyContext.target === 'candidate') {
+        assertCandidateCurrent(envelope, loaded.pending_candidate);
+        envelope.pending_candidate.artifact = candidate;
+        envelope.pending_candidate.summary = summary;
+        envelope.pending_candidate.changes = candidateChanges(envelope.artifact, candidate);
+        delete envelope.pending_candidate.review;
+        envelope.pending_candidate.answer_assessments ||= {};
+        for (const item of assessments) envelope.pending_candidate.answer_assessments[item.question_id] = { ...item, at: new Date().toISOString() };
+        return;
+      }
+      envelope.artifact = candidate;
+      envelope.revision = (Number(envelope.revision) || 1) + 1;
+      delete envelope.review;
+      envelope.saved_at = new Date().toISOString();
+      envelope.answer_assessments ||= {};
+      for (const item of assessments) envelope.answer_assessments[item.question_id] = { ...item, at: envelope.saved_at };
+      for (const item of assessments) pushConversation(envelope, { role: 'assistant', question_id: item.question_id, text: `${item.explanation}${item.answer ? ` Using: ${item.answer}` : ' Planning stays open; this decision still needs an answer.'}`, assumptions_added: item.status === 'assumed' ? [item.answer] : [] });
+      return;
+    }
     envelope.pending_candidate = {
       based_on_revision: Number(envelope.revision) || 1,
       artifact: candidate,
@@ -1693,6 +1824,9 @@ export function answerCandidateQuestion(root, draft, questionId, answer) {
     const id = String(prior.id || `q${index + 1}`);
     questions[index] = typeof prior === "string" ? { id, question: prior, resolved: true, answer: text } : { ...prior, id, resolved: true, answer: text };
     pending.artifact.clarifications = [...(pending.artifact.clarifications || []), { question_id: id, question: typeof prior === "string" ? prior : prior.question || prior.text || id, answer: text, answered_at: new Date().toISOString() }];
+    pending.answer_assessments ||= {};
+    pending.answer_assessments[id] = { status: 'pending', original_answer: text };
+    delete pending.review;
     pushConversation(envelope, { role: "manager", text, question_id: id });
   });
 }

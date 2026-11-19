@@ -129,7 +129,7 @@ is [Codex history bridge](docs/codex-history-bridge.html).
 **Run the team on an API provider (e.g. Z.ai GLM) — one minute, no env vars:** store the provider once per machine, then select it per project. The key lives in `~/.atl/providers.json` (outside every repo, masked everywhere, injected into worker sessions only at spawn):
 
 ~~~bash
-atl provider add zai --key <your-glm-api-key> --model glm-5.3 --thinking-level medium   # preset pre-fills the OpenAI-compatible endpoint
+atl provider add zai --model glm-5.3 --thinking-level medium   # enter the key at the hidden prompt; Ctrl+R toggles visibility
 atl provider use zai            # this project's default (or: --role rowan for one role)
 atl launch --dry-run            # shows: codex · glm-5.3 · auth api (user provider "zai")
 ~~~
