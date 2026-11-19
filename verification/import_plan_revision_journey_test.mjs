@@ -49,14 +49,20 @@ try {
   const click = action => page.locator(`[data-action="${action}"]:visible`).first().click();
   await page.goto(running.url);
   await page.locator('[data-page="sources"]:visible').first().click();
-  await click('sources-connectors');
-  await click('sources-preview:azure');
+  // The V2 sources page requires an access check before its Browse action is
+  // available for a newly saved connection.
+  const azureConnection = page.locator('.source-connection-card').first();
+  await azureConnection.locator('[data-action^="sources-check:"]:visible').click();
+  await azureConnection.locator('[data-action^="sources-browse:"]').waitFor();
+  await azureConnection.locator('[data-action^="sources-browse:"]').click();
+  await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('1 issue(s) found. No task was created.').waitFor();
   assert.equal(Object.keys(loadState(root).tasks).length, 0);
+  await page.locator('details.source-import-options').evaluate(node => { node.open = true; });
   await page.locator('label.source-repo-pill').filter({ hasText: 'Cart fixture' }).click();
   assert.equal(await page.locator(`[data-import-repository][value="${repository.id}"]`).isChecked(), true);
   await click('sources-import');
-  await page.getByText(/1 request\(s\) imported for planning/).waitFor();
+  await page.getByRole('region', { name: 'Import result' }).getByText(/1 request created/).waitFor();
   await page.locator('[data-import-request="T-001"] [data-action^="plan:"]').click();
   assert.match(await page.locator('#goal').inputValue(), /Cart items must remain visible/);
   await page.locator('.studio-settings > summary').click();
@@ -88,6 +94,8 @@ try {
   await page.getByRole('region', { name: 'Plan review' }).getByText('Accuracy review passed', { exact: false }).waitFor();
   const sibling = structuredClone(loadPlanDraft(root, draftId).artifact.task_proposals[1]);
   await page.locator('.planpane-tabs [data-action="studio-plantab:tasks"]').click();
+  // Task cards start collapsed in the 2026-11 redesign; expand p1 to edit it.
+  await click('tc-toggle:p1');
   await click('card-edit:p1');
   await page.locator('[data-pfield="title"]').fill('Manual cart correction');
   await click('card-save:p1');
@@ -114,6 +122,7 @@ try {
   await page.locator('[data-page="studio"]:visible').first().click();
   await page.locator('[data-saved-plans] summary').click();
   await click(`plan-load:${draftId}`);
+  await click('tc-toggle:p1');
   await page.getByText('Revised cart merge', { exact: true }).waitFor();
   await page.locator('.planpane-tabs [data-action="studio-plantab:review"]').click();
   await click(`plan-review:${draftId}`);

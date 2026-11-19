@@ -337,6 +337,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/scss/_source-design.scss](../runtime/scss/_source-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_source-fonts.scss](../runtime/scss/_source-fonts.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_sources.scss](../runtime/scss/_sources.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_studio-design.scss](../runtime/scss/_studio-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_tokens.scss](../runtime/scss/_tokens.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_workspace.scss](../runtime/scss/_workspace.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/control-plane.scss](../runtime/scss/control-plane.scss) | Stylesheet source or theme token; rebuild through its package script. |

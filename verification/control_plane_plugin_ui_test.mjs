@@ -54,7 +54,7 @@ try {
   {
     const { context, page } = await openPluginPage({ viewport: { width: 768, height: 900 } });
     await page.locator('#mobile [data-page="tasks"]').waitFor();
-    for (const destination of ["tasks", "attention", "activity", "more"]) await page.locator(`#mobile [data-page="${destination}"]`).waitFor();
+    for (const destination of ["tasks", "attention", "studio", "more"]) await page.locator(`#mobile [data-page="${destination}"]`).waitFor();
     const navIcon = await page.locator('#mobile [data-page="tasks"] svg').evaluate(el => { const s = getComputedStyle(el); return { width: s.width, height: s.height, fill: s.fill, stroke: s.stroke }; });
     assert.deepEqual([navIcon.width, navIcon.height, navIcon.fill], ["17px", "17px", "none"], "plugin navigation uses compact line icons");
     assert.notEqual(navIcon.stroke, "none", "plugin navigation icons inherit a visible stroke");
@@ -108,7 +108,7 @@ try {
     // Bottom navigation is docked below 640px.
     const docked = await page.locator("#mobile").evaluate(el => getComputedStyle(el).position);
     assert.equal(docked, "fixed", "bottom navigation below 640px");
-    for (const label of ["Tasks", "Attention", "Activity", "More"]) assert.equal(await page.locator("#mobile .plugin-nav-label").getByText(label, { exact: true }).isVisible(), true, `${label} is visible in the navigation`);
+    for (const label of ["Tasks", "Attention", "Plan Studio", "More"]) assert.equal(await page.locator("#mobile .plugin-nav-label").getByText(label, { exact: true }).isVisible(), true, `${label} is visible in the navigation`);
     assert.equal(await page.locator('[data-action="tasks-select-visible"]:visible').count(), 1, "selection action is not duplicated");
     await page.locator('[data-task="T-101"] .task-main-copy').click();
     await page.locator(".task-detail-screen").waitFor();
