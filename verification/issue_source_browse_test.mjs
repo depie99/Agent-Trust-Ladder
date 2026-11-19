@@ -39,8 +39,9 @@ try {
  assert.equal(await page.locator('#sourceConnectionSelect').inputValue(),'github','default source is automatically browsed');
  // A long idle period previously let the page mark its live service offline.
  await page.waitForTimeout(12000);
- assert(await page.locator('[data-action="sources-browse:azure-a"]').isEnabled(),'browse stays enabled on the live source page');
- await page.locator('[data-action="sources-browse:azure-a"]').click();
+ assert(await page.locator('#sourceConnectionSelect').isEnabled(),'browse controls stay enabled on the live source page');
+ assert(await page.locator('[data-action="sources-preview-selected"]').isEnabled(),'search stays enabled on the live source page');
+ await page.locator('#sourceConnectionSelect').selectOption('azure-a');
  await page.locator('.issue-title').filter({hasText:'Work item Alpha'}).waitFor();
  await page.locator('#sourceAzureSearchIteration option').filter({hasText:'Sprint 75'}).waitFor({state:'attached'});
  assert.equal(await page.locator('#sourceAzureSearchIteration').inputValue(),'Alpha\\Sprint 74');
