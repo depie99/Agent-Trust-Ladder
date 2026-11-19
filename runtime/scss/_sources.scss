@@ -279,6 +279,13 @@
 // inset-inline-end anchors the menu to the card's reading edge under RTL.
 .source-v2 .source-card-menu > div { position: absolute; z-index: 5; inset-inline-end: 0; top: calc(100% + 4px); min-width: 170px; padding: 5px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 12px 26px var(--dialog-shadow); display: grid; }
 .source-v2 .source-card-menu button { text-align: start; justify-content: start; }
+// The kebab menu on a saved-connection card opens past the panel's bottom
+// edge, and .panel's overflow:hidden (kept for its rounded corners) sliced
+// the menu mid-item — "Remove connection" was unreachable on the last row.
+// Precedent: .tasks-shell{overflow:visible} in _app.scss. The panel title
+// keeps the panel's corner rounding so the raised band stays inside it.
+.source-workbench:has(.source-connection-grid) { overflow: visible; }
+.source-workbench:has(.source-connection-grid) > .paneltitle { border-start-start-radius: 11px; border-start-end-radius: 11px; }
 .source-v2 .source-browse-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px; }
 .source-v2 .source-browse-controls .source-field { flex: 1 1 190px; min-width: 160px; }
 .source-v2 .source-toolbar { padding: 12px 16px; }

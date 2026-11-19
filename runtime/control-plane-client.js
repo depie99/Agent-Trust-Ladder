@@ -140,7 +140,7 @@
   // Plugin presentation (ZCode native panel): plugins/panel-entry.mjs marks the
   // document before this client boots. The default browser page stays unmarked.
   const PLUGIN = document.documentElement.dataset.atlContext === "plugin";
-  const PLUGIN_NAV = [["tasks", "☷", "Tasks"], ["attention", "!", "Attention"], ["activity", "▤", "Activity"], ["more", "⋯", "More"]];
+  const PLUGIN_NAV = [["tasks", "☷", "Tasks"], ["attention", "!", "Attention"], ["studio", "◇", "Plan Studio"], ["more", "⋯", "More"]];
   // Inline SVG line icons (24-grid, stroke 1.6) replacing the unicode nav
   // glyphs. The `routes`/`PLUGIN_NAV` glyph fields stay as fallbacks so the
   // arrays and their keyboard order remain canonical.
@@ -1816,21 +1816,34 @@ operations: () => {
   // ---- Plugin presentation (ZCode native panel) ----
   // Compact task-first composition. The browser shell stays exactly as it is;
   // everything below only renders when PLUGIN is true.
-  const PLUGIN_MORE_LINKS = [
-    ["shipped", "Shipped archive", "Completed tasks from finished queues"],
-    ["sources", "Issue sources", "Imported requests and connectors"],
-    ["mytasks", "My Tasks", "Azure Boards and Jira personal board"],
-    ["assistant", "Ask ATL", "Discuss this project or fix a task workspace"],
-    ["studio", "Plan Studio", "Model-assisted task planning"],
-    ["queues", "Queues", "Queue previews, runs and safe stop"],
-    ["team", "Agent Team", "Pipeline and role status"],
-    ["projects", "Projects", "Work map and registry"],
-    ["approvals", "Approvals", "Full approval center and history"],
-    ["operations", "Operations", "Leases, backups and maintenance"],
-    ["batches", "Batches", "Overnight batch runs"],
-    ["brain", "Knowledge", "Sources, claims, skills and routines"],
-    ["usage", "Usage & Limits", "Provider telemetry"],
-    ["settings", "Settings", "Workspace, providers and access"],
+  // More-page groups follow developer workflow frequency: the daily loop first
+  // (plan → personal board → dispatch → archive), then where work comes from,
+  // then supervision, and reference/config last. Plan Studio lives in the top
+  // tabs, so its slot here keeps the page self-sufficient if the tab is hidden.
+  const PLUGIN_MORE_GROUPS = [
+    ["Plan & work", [
+      ["studio", "Plan Studio", "Model-assisted task planning"],
+      ["mytasks", "My Tasks", "Azure Boards and Jira personal board"],
+      ["queues", "Queues", "Queue previews, runs and safe stop"],
+      ["shipped", "Shipped archive", "Completed tasks from finished queues"],
+    ]],
+    ["Intake & projects", [
+      ["sources", "Issue sources", "Imported requests and connectors"],
+      ["projects", "Projects", "Work map and registry"],
+    ]],
+    ["Assist & supervise", [
+      ["assistant", "Ask ATL", "Discuss this project or fix a task workspace"],
+      ["approvals", "Approvals", "Full approval center and history"],
+      ["team", "Agent Team", "Pipeline and role status"],
+      ["batches", "Batches", "Overnight batch runs"],
+    ]],
+    ["Audit & settings", [
+      ["activity", "Activity & Logs", "Decisions, feedback, blockers and evidence"],
+      ["brain", "Knowledge", "Sources, claims, skills and routines"],
+      ["operations", "Operations", "Leases, backups and maintenance"],
+      ["usage", "Usage & Limits", "Provider telemetry"],
+      ["settings", "Settings", "Workspace, providers and access"],
+    ]],
   ];
   const workspaceName = () => document.querySelector(".sidebar .workspace strong")?.textContent?.trim() || "ATL workspace";
   function ensurePluginTopbar() {
@@ -1853,6 +1866,21 @@ operations: () => {
         + `<button class="nav" data-action="theme-toggle" role="menuitem">◐ Toggle theme</button>`
         + `<button class="nav" data-action="toggle-locale" role="menuitem">${locale === "fa-IR" ? "English" : "فارسی"}</button>`
         + `</div>` : ""}</div>`;
+    if (pluginOverflowOpen) {
+      // The ⋯ button sits near the topbar's start edge and drifts right as the
+      // project pills wrap, so a fixed anchor clipped the menu off the panel on
+      // both edges. Clamp the open menu inside the viewport instead.
+      const menu = mount.querySelector('.plugin-overflow-menu');
+      const host = mount.querySelector('.plugin-overflow');
+      if (menu && host) {
+        const width = menu.offsetWidth || 216;
+        const viewport = document.documentElement.clientWidth;
+        const hostRect = host.getBoundingClientRect();
+        const target = Math.max(8, Math.min(hostRect.left, viewport - width - 8));
+        menu.style.left = `${Math.round(target - hostRect.left)}px`;
+        menu.style.right = 'auto';
+      }
+    }
   }
   function closePluginOverflow() { if (pluginOverflowOpen) { pluginOverflowOpen = false; nav(); } }
   function pluginOpenTask(id) {
@@ -1872,9 +1900,9 @@ operations: () => {
       + card(`Approval requests <span class="pill amber">${proposals.length}</span>`, proposals.map(approvalCard).join("") || '<div class="pad muted">No approval requests are waiting.</div>')
       + card(`Blocked tasks <span class="pill red">${blocked.length}</span>`, blocked.map(taskRow).join("") || '<div class="pad muted">No blocked tasks.</div>');
   };
-  panels.more = () => head("MORE", "More", "Specialist screens, tools and settings.")
-    + `<div class="panel pad plugin-more-list">` + PLUGIN_MORE_LINKS.map(([id, label, description]) => `<button class="lined plugin-more-link" data-page="${id}"><b>${label}</b><span class="muted tiny">${description}</span></button>`).join("")
-    + `<button class="lined plugin-more-link" data-action="cli"><b>CLI console</b><span class="muted tiny">Run ATL commands directly</span></button></div>`;
+  panels.more = () => head("MORE", "More", "Screens grouped by workflow: plan and track daily work, bring work in, supervise runs, then audit and configure.")
+    + `<div class="panel pad plugin-more-list">` + PLUGIN_MORE_GROUPS.map(([label, links]) => `<div class="plugin-more-group"><div class="plugin-more-group-label">${label}</div><div class="plugin-more-grid">${links.map(([id, label2, description]) => `<button class="lined plugin-more-link" data-page="${id}"><b>${label2}</b><span class="muted tiny">${description}</span></button>`).join("")}</div></div>`).join("")
+    + `<div class="plugin-more-grid"><button class="lined plugin-more-link" data-action="cli"><b>CLI console</b><span class="muted tiny">Run ATL commands directly</span></button></div></div>`;
   panels.task = () => {
     const task = pluginTaskId ? derived().tasks.find((item) => item.id === pluginTaskId) : null;
     if (!task) return head("WORKSPACE / TASK", "Task details", "This task is no longer in the snapshot.")

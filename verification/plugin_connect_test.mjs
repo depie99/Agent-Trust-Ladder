@@ -42,9 +42,17 @@ try {
   assert.equal(resumed.url, started.url); assert.equal(resumed.initialized, false);
   assert.equal(fs.readFileSync(state, 'utf8'), before, 'opening an initialized project preserves its state');
   await app.close();
+  // Issue #34: the Control Plane is the project's daemon — it outlives the
+  // assistant that started it (stable URL, single state owner) and stops
+  // explicitly or by idle exit, not when a client session ends.
+  assert.equal((await fetch(started.url)).status, 200, 'the project daemon must keep serving after the assistant closes');
+  const { stopDaemon } = await import(pathToFileURL(path.join(bundle.path, 'runtime', 'lib', 'daemon.mjs')));
+  assert.equal((await stopDaemon(scratch)).stopped, true, 'an explicit stop must end the owner');
   await assert.rejects(fetch(started.url), /fetch failed/);
-  console.log('PASS: connection profiles, guarded onboarding, full Control Plane, resume and shutdown');
+  console.log('PASS: connection profiles, guarded onboarding, full Control Plane, daemon resume and explicit shutdown');
 } finally {
   await app.close();
-  fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+  const cleanup = pathToFileURL(path.join(bundle.path, 'runtime', 'lib', 'daemon.mjs'));
+  try { const { stopDaemon } = await import(cleanup); await stopDaemon(scratch); } catch { /* already stopped or bundle gone */ }
+  fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 8, retryDelay: 300 });
 }

@@ -179,6 +179,18 @@ try {
   await page.evaluate(() => { const button = document.querySelector('[data-action^="sources-form-save:"]'); button.click(); button.click(); });
   await page.getByText(/Race Repo.*saved successfully/).waitFor();
   assert.equal(await page.locator('.source-connection-card').count(), 5, 'double submit creates exactly one connection');
+  // Remove through the kebab menu — and the menu must not be clipped: .panel's
+  // overflow:hidden sliced the dropdown mid-item, leaving the last row's
+  // "Remove connection" unreachable. The override is pinned here so a future
+  // token/cleanup pass cannot silently re-clip it.
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.source-workbench:has(.source-connection-grid)')).overflow), 'visible', 'the connections panel never clips the card kebab menu');
+  const raceCard = page.locator('.source-connection-card').filter({ hasText: 'Race Repo' });
+  page.once('dialog', dialog => dialog.accept());
+  await raceCard.locator('.source-card-menu summary').click();
+  await raceCard.locator('.source-card-menu [data-action^="sources-delete:"]').click();
+  await page.getByText('Connection removed.').waitFor();
+  assert.equal(await page.locator('.source-connection-card').count(), 4, 'remove deletes the connection card');
+  assert.ok(!JSON.parse(fs.readFileSync(path.join(root, '.trust', 'manager', 'issue-connections.json'), 'utf8')).connections.some(c => c.name === 'Race Repo'), 'remove deletes the saved connection record');
   // Theme tokens: cards follow dark and light instead of a fixed light palette.
   // The first card is selected (accent border) after reload, so sample another.
   const themeProbe = () => page.locator('.source-connection-card').filter({ hasText: 'Second repository' }).evaluate(node => { const s = getComputedStyle(node); return { bg: s.backgroundColor, border: s.borderColor }; });
@@ -197,7 +209,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.locator('body').evaluate(node => node.scrollWidth <= node.clientWidth + 2), 'sources fit mobile viewport in RTL');
   await page.screenshot({ path: path.join(evidenceDir, 'saved-connections-rtl-mobile.png'), fullPage: true });
-  console.log('PASS: saved cards, blank add form, GitHub+Jira lifecycles, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, verified/needs-auth states with redaction, pause/resume, double-submit guard, dark/light/RTL rendering, reload and mobile');
+  console.log('PASS: saved cards, blank add form, GitHub+Jira lifecycles, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, verified/needs-auth states with redaction, pause/resume, double-submit guard, kebab-menu remove, dark/light/RTL rendering, reload and mobile');
 } finally {
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));

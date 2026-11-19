@@ -6756,6 +6756,15 @@ textarea.input {
   justify-content: start;
 }
 
+.source-workbench:has(.source-connection-grid) {
+  overflow: visible;
+}
+
+.source-workbench:has(.source-connection-grid) > .paneltitle {
+  border-start-start-radius: 11px;
+  border-start-end-radius: 11px;
+}
+
 .source-v2 .source-browse-controls {
   display: flex;
   flex-wrap: wrap;
@@ -7894,7 +7903,7 @@ html[data-atl-context=plugin] #localeBtn {
 .plugin-overflow-menu {
   position: absolute;
   top: calc(100% + 6px);
-  inset-inline-end: 0;
+  inset-inline-start: 0;
   z-index: 40;
   min-width: 210px;
   display: grid;
@@ -8072,6 +8081,24 @@ html[data-atl-context=plugin] .task-row .btn {
 
 .plugin-more-list {
   display: grid;
+  gap: 2px;
+}
+
+.plugin-more-group-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 12px 2px 4px;
+}
+
+.plugin-more-group:first-child .plugin-more-group-label {
+  margin-top: 0;
+}
+
+.plugin-more-grid {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 2px;
 }
@@ -8106,6 +8133,9 @@ html[data-atl-context=plugin] .task-row .btn {
 
 @media (min-width: 640px) {
   .plugin-more-list {
+    gap: 4px;
+  }
+  .plugin-more-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
@@ -8116,6 +8146,16 @@ html[data-atl-context=plugin] .task-row .btn {
 }
 html[data-atl-context=plugin] .approval-request {
   margin-bottom: 10px;
+}
+
+html[data-atl-context=plugin] .mobile {
+  max-width: 1590px;
+  margin-inline: auto;
+}
+
+html[data-atl-context=plugin] .topbar {
+  max-width: 1590px;
+  margin-inline: auto;
 }
 </style></head><body><div class="app"><aside class="sidebar"><div class="brand"><span class="brandicon"><img src="./assets/atl-logo.svg" width="30" height="30" alt="ATL"></span><span class="brandtext">ATL <span class="subbrand">/ CONTROL</span></span><span class="brandgrow"></span><button id="sideToggle" class="side-toggle" type="button" aria-label="Collapse navigation" aria-expanded="true" title="Collapse navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M9.5 4.5v15"/><path d="m15.7 9.9-2.1 2.1 2.1 2.1"/></svg></button></div><div class="workspace"><div class="row between"><strong>agent-trust-ladder</strong><span class="green">●</span></div><div class="muted tiny">main · control-plane / demo</div></div><div id="navA"></div><div id="navB"></div><div class="sidebottom" id="provider-status"><button class="provider-summary" type="button" data-action="provider-manager" aria-label="Manage providers"><span class="row between tiny"><span class="muted">PROVIDER STATUS</span><span class="pill amber">Unknown</span></span><strong>Configured provider · demo</strong><span class="muted tiny status-detail">No authoritative quota connected</span></button><button class="provider-manager lined row" type="button" data-action="go:settings"><span class="avatar">M</span><span><b>Workspace Manager</b><span class="tiny muted" style="display:block">Owner / approvals · Settings</span></span></button></div></aside><main class="main"><header class="topbar"><div class="row"><b class="muted">ATL /</b><span id="crumb">Overview</span><span class="pill hotkey">INTERACTIVE DEMO</span></div><button id="searchBtn" class="cmdbar" type="button" aria-label="Search or run a command"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.3"/><path d="m15.6 15.6 4.4 4.4"/></svg><span class="cmdbar-label">Search or run a command…</span><span class="grow"></span><span class="key cmdbar-key">Ctrl K</span></button><div class="row"><button id="themeBtn" class="btn ghost" aria-label="Toggle theme" title="Toggle theme" aria-pressed="false"></button><button id="noticesBtn" class="btn ghost">◈ <span class="amber">3</span></button><button id="newBtn" class="btn primary">+ New task</button></div></header><div id="mobile" class="mobile"></div><div class="body" id="content"></div><div class="cliDock"><span class="green">atl ›</span><input id="dockInput" aria-label="ATL command input" placeholder="Type help, tasks, plan, queues, team, usage..." autocomplete="off"><span class="kbdcaption">↵ run</span></div><footer class="footer"><span>● Interactive mock · No provider calls, skill execution or real ATL actions</span><span>Ctrl K commands · N new task · 1–8 pages · Esc close</span></footer></main></div><div id="modal"></div>
 <script type="application/x-atl-legacy-disabled">

@@ -31,6 +31,7 @@ Harness adapters and full-runtime distribution contracts.
 |---|---|
 | [plugins/deepseek-client.mjs](../plugins/deepseek-client.mjs) | dsh unmounts the keyed main slot on every tab switch and remounts it on return, |
 | [plugins/deepseek-frame.mjs](../plugins/deepseek-frame.mjs) | Runs inside the same-origin DSH frame; all ATL traffic uses the authenticated |
+| [plugins/deepseek-host.mjs](../plugins/deepseek-host.mjs) | Host-native UI for DeepSeek Harness (issue #34): reuse the host's own |
 | [plugins/deepseek-panel.mjs](../plugins/deepseek-panel.mjs) | First launch opens without asking for a directory: the last workspace opened |
 | [plugins/deepseek.mjs](../plugins/deepseek.mjs) | Native Cordis contribution: tools use the same bridge as the MCP plugins. |
 | [plugins/panel-entry.mjs](../plugins/panel-entry.mjs) | Marks the plugin presentation for the Control Plane client (default browser stays unmarked). |
@@ -243,6 +244,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/control-assistant.mjs](../runtime/lib/control-assistant.mjs) | control assistant: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | Batch ids with a runner active in this process. The checkpoint lease remains |
 | [runtime/lib/control-plane.mjs](../runtime/lib/control-plane.mjs) | Inventory only: installed skill metadata is not promotion evidence. |
+| [runtime/lib/daemon.mjs](../runtime/lib/daemon.mjs) | One state owner per project (issue #34). |
 | [runtime/lib/dashboard.mjs](../runtime/lib/dashboard.mjs) | Read-only terminal dashboard for the ATL manager. |
 | [runtime/lib/delivery.mjs](../runtime/lib/delivery.mjs) | delivery: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/dependencies.mjs](../runtime/lib/dependencies.mjs) | Dependency-aware readiness for the task graph. |
@@ -302,6 +304,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/task-changes.mjs](../runtime/lib/task-changes.mjs) | Read-only, revision-pinned inspection. Content hashes are not Git commits. |
 | [runtime/lib/task-diagnostics.mjs](../runtime/lib/task-diagnostics.mjs) | Diagnose recorded facts, not a provider's successful exit code. Each finding |
 | [runtime/lib/task-preparation.mjs](../runtime/lib/task-preparation.mjs) | Spec 022 — task preparation: a persistent, task-linked record between the |
+| [runtime/lib/task-refs.mjs](../runtime/lib/task-refs.mjs) | One project model (issue #34): task ids are qualified outside their project |
 | [runtime/lib/task-statechart.mjs](../runtime/lib/task-statechart.mjs) | Project recorded transitions only; never invent steps from the workflow contract. |
 | [runtime/lib/task-triage.mjs](../runtime/lib/task-triage.mjs) | task triage: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/task-workspace.mjs](../runtime/lib/task-workspace.mjs) | task workspace: runtime implementation; inspect exports and matching verification. |
@@ -363,6 +366,7 @@ Build, installation, validation, and maintenance programs.
 | [scripts/render-tui-images.mjs](../scripts/render-tui-images.mjs) | Regenerate the terminal interface images in docs/diagrams/tui-*.svg. |
 | [scripts/render-ui-frames.mjs](../scripts/render-ui-frames.mjs) | Render plain control-room frames from the real project state so UI changes |
 | [scripts/serve-docs.mjs](../scripts/serve-docs.mjs) | serve docs: source/configuration for its containing feature. |
+| [scripts/ship-release.mjs](../scripts/ship-release.mjs) | Ship one built release to every local surface, then prove it with the parity gate. |
 | [scripts/sync-skills.mjs](../scripts/sync-skills.mjs) | Compare or safely synchronize installed ATL skills with this checkout. |
 | [scripts/validate_model_routing.py](../scripts/validate_model_routing.py) | validate model routing: source/configuration for its containing feature. |
 
@@ -610,7 +614,9 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/control_plane_task_run_test.mjs](../verification/control_plane_task_run_test.mjs) | Executable regression check for control plane task run. |
 | [verification/control_room_test.mjs](../verification/control_room_test.mjs) | Executable regression check for control room. |
 | [verification/control_room_ui_test.mjs](../verification/control_room_ui_test.mjs) | Executable regression check for control room ui. |
+| [verification/daemon_test.mjs](../verification/daemon_test.mjs) | Executable regression check for daemon. |
 | [verification/dashboard_test.mjs](../verification/dashboard_test.mjs) | Executable regression check for dashboard. |
+| [verification/deepseek_host_ui_test.mjs](../verification/deepseek_host_ui_test.mjs) | Executable regression check for deepseek host ui. |
 | [verification/deepseek_panel_test.mjs](../verification/deepseek_panel_test.mjs) | Executable regression check for deepseek panel. |
 | [verification/deepseek_recovery_test.mjs](../verification/deepseek_recovery_test.mjs) | Executable regression check for deepseek recovery. |
 | [verification/dependencies_model.py](../verification/dependencies_model.py) | name -> (tasks [(id, priority)], edges {id: [dep ids]}) — "depends on". |
@@ -618,6 +624,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/developer_delivery_receipt_test.mjs](../verification/developer_delivery_receipt_test.mjs) | Executable regression check for developer delivery receipt. |
 | [verification/dispatcher_test.mjs](../verification/dispatcher_test.mjs) | Executable regression check for dispatcher. |
 | [verification/docs_site_test.mjs](../verification/docs_site_test.mjs) | Executable regression check for docs site. |
+| [verification/e2e/dsh_zero_to_hero_journey.mjs](../verification/e2e/dsh_zero_to_hero_journey.mjs) | DSH zero-to-hero journey — live end-to-end proof of the ATL plugin inside a |
 | [verification/e2e/fake-provider.mjs](../verification/e2e/fake-provider.mjs) | fake provider: source/configuration for its containing feature. |
 | [verification/e2e/full_operation_test.mjs](../verification/e2e/full_operation_test.mjs) | Executable regression check for full operation. |
 | [verification/e2e/real_provider_smoke_test.mjs](../verification/e2e/real_provider_smoke_test.mjs) | Executable regression check for real provider smoke. |
@@ -730,6 +737,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/README.md](../verification/README.md) | ATL formal verification suite. |
 | [verification/record_mock_regression_lessons.mjs](../verification/record_mock_regression_lessons.mjs) | Explicitly invoked after verification; never run by workers or at module import. |
 | [verification/recovery_test.mjs](../verification/recovery_test.mjs) | Executable regression check for recovery. |
+| [verification/release_parity_test.mjs](../verification/release_parity_test.mjs) | Executable regression check for release parity. |
 | [verification/resource_policy_launch_test.mjs](../verification/resource_policy_launch_test.mjs) | Executable regression check for resource policy launch. |
 | [verification/resource_policy_planning_test.mjs](../verification/resource_policy_planning_test.mjs) | Executable regression check for resource policy planning. |
 | [verification/resource_policy_test.mjs](../verification/resource_policy_test.mjs) | Executable regression check for resource policy. |

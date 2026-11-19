@@ -30,9 +30,12 @@ html[data-atl-context="plugin"] #localeBtn { display: none; }
 .plugin-topbar { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
 .plugin-project { font-weight: 700; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-// Overflow menu (⋯): language, theme and command search.
+// Overflow menu (⋯): language, theme and command search. The ⋯ button sits at
+// the topbar's reading-edge start, so the menu must open toward the content:
+// anchoring its end edge (the old rule) pushed it off the panel's start edge
+// and clipped every label. inset-inline-start flips correctly under RTL.
 .plugin-overflow { position: relative; display: inline-flex; }
-.plugin-overflow-menu { position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 40; min-width: 210px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--pane); }
+.plugin-overflow-menu { position: absolute; top: calc(100% + 6px); inset-inline-start: 0; z-index: 40; min-width: 210px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--pane); }
 .plugin-overflow-menu .nav { border: 0; background: none; text-align: start; min-height: 40px; }
 
 // ---- Primary navigation: the four plugin destinations live in #mobile.
@@ -78,14 +81,27 @@ html[data-atl-context="plugin"] .task-row .btn { min-height: 34px; }
 .task-detail-screen .task-inspector-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .task-detail-screen .task-inspector-side { min-width: 0; }
 
-// ---- More screen: labeled links to the specialist screens.
-.plugin-more-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+// ---- More screen: links grouped by developer workflow (plan & work, intake,
+// supervision, audit/settings), each group labeled and frequency-ordered.
+.plugin-more-list { display: grid; gap: 2px; }
+.plugin-more-group-label { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 12px 2px 4px; }
+.plugin-more-group:first-child .plugin-more-group-label { margin-top: 0; }
+.plugin-more-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .plugin-more-link { display: grid; gap: 3px; width: 100%; min-height: 56px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .plugin-more-link:hover { background: var(--row-hover); }
 .plugin-more-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .plugin-more-link b { font-size: 13px; }
-@media (min-width: 640px) { .plugin-more-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } .plugin-more-link { border: 1px solid var(--border); background: var(--raised); } }
+@media (min-width: 640px) { .plugin-more-list { gap: 4px; } .plugin-more-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; } .plugin-more-link { border: 1px solid var(--border); background: var(--raised); } }
 
 // ---- Attention screen keeps the shared approval/blocker cards; only the
 // section headers are tightened.
 html[data-atl-context="plugin"] .approval-request { margin-bottom: 10px; }
+
+// ---- Wide host windows (maximized DSH/ZCode panels): the content column
+// centers itself (.body, max-width 1590px, margin auto) but the nav strip and
+// topbar stayed full-bleed — tabs stranded at the window edge while content
+// floated ~130px in, which reads as broken margins. These rules deliberately
+// live LAST so they override the .mobile margin:0 / topbar rules above;
+// below 1590px the max-width never binds and narrow layouts are untouched.
+html[data-atl-context="plugin"] .mobile { max-width: 1590px; margin-inline: auto; }
+html[data-atl-context="plugin"] .topbar { max-width: 1590px; margin-inline: auto; }
