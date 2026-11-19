@@ -14,6 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import readline from "node:readline";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   StateError, STATUSES, paths, emptyState, loadState, saveState, mutateState,
@@ -382,10 +383,10 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   providers                     providers, keys (masked), and per-role mapping
   provider templates            pre-filled endpoint presets (zai, bigmodel, custom)
   provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url]
-                [--key secret | --key-env VAR] [--model model] [--thinking-level level]
+                [--key-env VAR] [--model model] [--thinking-level level]
                                 store an API provider once per machine in ~/.atl/providers.json
-                                (e.g. GLM: provider add zai --key <key> --model glm-4.6)
-  provider key <id> --key secret | --key-env VAR
+                                (key is prompted without echo; Ctrl+R shows/hides)
+  provider key <id> [--key-env VAR]
                                 update the stored API key
   provider use <id> [--role role]
                                 make a stored provider the project default (or one role's provider)
@@ -778,7 +779,7 @@ function printProviders(cfg) {
   const registryIds = Object.keys(registry);
   console.log("Your providers (~/.atl/providers.json — API keys stored outside every repo):");
   if (!registryIds.length) {
-    console.log("  (none yet — add one: atl provider add zai --key <glm-api-key> --model glm-4.6)");
+    console.log("  (none yet — add one: atl provider add zai --model glm-4.6, then enter the key at the hidden prompt)");
     console.log("  or in the control room: atl ui → press p → press a");
   }
   for (const id of registryIds) {
@@ -803,7 +804,7 @@ function printProviders(cfg) {
     const p = providerForRole(profile, role);
     console.log(`  ${role.padEnd(7)} ${p.worker} · ${p.model || "provider default"} · auth ${p.auth}  (${p.source})`);
   }
-  console.log("\nAdd a provider:   atl provider add zai --key <glm-api-key> --model glm-5.3 --thinking-level medium");
+  console.log("\nAdd a provider:   atl provider add zai --model glm-5.3 --thinking-level medium");
   console.log("Use it here:      atl provider use zai   (or per role: atl provider use zai --role rowan)");
   console.log("Other commands:   provider key · provider remove · provider templates · atl ui → p");
 }
@@ -987,6 +988,40 @@ async function intakeConfigCommand(sub) {
 }
 
 // ---------- commands
+
+async function promptSecret(prompt) {
+  const input = process.stdin;
+  if (!input.isTTY || !process.stdout.isTTY || typeof input.setRawMode !== "function") {
+    throw new StateError("No provider key supplied. Use --key-env VAR in non-interactive shells, or run this command in a terminal for a hidden prompt.");
+  }
+  readline.emitKeypressEvents(input);
+  return new Promise((resolve, reject) => {
+    let value = "", revealed = false, finished = false;
+    const draw = () => {
+      const shown = revealed ? value : "•".repeat([...value].length);
+      process.stdout.write(`\r\x1b[2K${prompt}: ${shown}`);
+    };
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      input.removeListener("keypress", onKey);
+      try { input.setRawMode(false); } catch { /* stdin may already be closed */ }
+      input.pause();
+      process.stdout.write("\r\x1b[2K\n");
+    };
+    const onKey = (text, key = {}) => {
+      if (key.ctrl && key.name === "c") { cleanup(); reject(new StateError("Credential entry cancelled.")); return; }
+      if (key.ctrl && key.name === "r") { revealed = !revealed; draw(); return; }
+      if (key.name === "return" || key.name === "enter") { cleanup(); resolve(value); return; }
+      if (key.name === "backspace" || key.name === "delete") { value = [...value].slice(0, -1).join(""); draw(); return; }
+      if (!key.ctrl && !key.meta && typeof text === "string" && text && !/[\r\n\u0000-\u001f\u007f]/.test(text)) { value += text; draw(); }
+    };
+    process.stdout.write(`${prompt} (hidden; Ctrl+R shows/hides): `);
+    input.on("keypress", onKey);
+    input.setRawMode(true);
+    input.resume();
+  });
+}
 
 async function dispatch() {
   switch (cmd) {
@@ -1205,10 +1240,10 @@ async function dispatch() {
           console.log(`             claude → ${t.baseUrl.claude || "(you supply the endpoint)"}`);
           console.log(`             codex  → ${t.baseUrl.codex || "(you supply the endpoint)"}`);
         }
-        console.log("\nUse one: atl provider add zai --key <api-key> --model glm-5.3 --thinking-level medium   (--template is implied by the id)");
+        console.log("\nUse one: atl provider add zai --model glm-5.3 --thinking-level medium   (key is prompted without echo)");
       } else if (sub === "add") {
         const id = pos[1];
-        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url] [--key secret | --key-env VAR] [--model model] [--thinking-level level]");
+        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url] [--key-env VAR] [--model model] [--thinking-level level]");
         const template = templateById(flags.template || (templateById(id) ? id : "custom"));
         const worker = String(flags.worker || template.worker || "claude").toLowerCase();
         if (!["claude", "codex"].includes(worker)) throw new StateError("--worker must be claude or codex");
@@ -1217,7 +1252,7 @@ async function dispatch() {
           ? String(flags.key)
           : flags["key-env"]
             ? (process.env[String(flags["key-env"])] || "").trim()
-            : "";
+            : await promptSecret("Provider API key / token");
         if (flags["key-env"] && !key) throw new StateError(`--key-env ${flags["key-env"]} is not set in this shell`);
         if (worker === "claude" && !base && !flags["base-url"]) {
           throw new StateError("a base URL is required for custom providers: --base-url https://your-endpoint/api/anthropic");
@@ -1243,12 +1278,14 @@ async function dispatch() {
         console.log(`Use it in this project:  atl provider use ${entry.id}`);
       } else if (sub === "key") {
         const id = pos[1];
-        if (!id) throw new StateError("provider key needs a name: provider key <id> --key secret | --key-env VAR");
+        if (!id) throw new StateError("provider key needs a name: provider key <id> [--key-env VAR]");
         const key = flags.key !== undefined
           ? String(flags.key)
-          : (process.env[String(flags["key-env"] || "")] || "").trim();
+          : flags["key-env"]
+            ? (process.env[String(flags["key-env"])] || "").trim()
+            : await promptSecret("Provider API key / token");
         if (flags["key-env"] && !key) throw new StateError(`--key-env ${flags["key-env"]} is not set in this shell`);
-        if (!key) throw new StateError("provider key needs --key <secret> or --key-env <VAR>");
+        if (!key) throw new StateError("No key entered. Use a non-empty key or --key-env VAR.");
         const registry = loadUserProviders();
         const entry = getProvider(registry, id);
         if (!entry) throw new StateError(`no provider named "${id}" — add it first: atl provider add ${id} --key ...`);

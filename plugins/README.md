@@ -8,6 +8,12 @@ full browser Control Plane; the host opens the URL or presents a clickable link.
 No separate ATL package installation is required. Node and provider credentials
 remain prerequisites. Opening the interface never authorizes a worker run.
 
+Every harness panel opens the same bundled Control Plane, including the shared
+masked token fields and Show/Hide controls. Provider keys entered from a CLI
+prompt are hidden by default; Ctrl+R temporarily reveals or masks the current
+input. Keep these credential-entry behaviors aligned across hosts when updating
+the runtime.
+
 ZCode (Z.ai) packages declare a persistent `ATL Control Plane` session panel.
 Opening that panel starts the bundled Control Plane for the selected local
 workspace and displays its complete existing UI in the app. No `@` mention,

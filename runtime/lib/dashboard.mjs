@@ -1509,7 +1509,7 @@ function editorText(editor) {
 function renderEditorScreen(ui, width, height, plain) {
   const e = ui.editor;
   const inner = Math.max(16, width - 4);
-  const display = (line) => (e.mask ? "•".repeat(line.length) : line);
+  const display = (line) => (e.mask && !e.revealed ? "•".repeat([...line].length) : line);
   const lines = [
     paint(e.title, "violet", plain),
     ...wrap(e.hint || "", inner),
@@ -1522,7 +1522,7 @@ function renderEditorScreen(ui, width, height, plain) {
     "",
     paint(e.multiline
       ? "Enter newline · Ctrl+S submit · Esc cancel"
-      : "Enter submit · Esc cancel", "muted", plain),
+      : e.mask ? `Enter submit · Ctrl+R ${e.revealed ? "hide" : "show"} key · Esc cancel` : "Enter submit · Esc cancel", "muted", plain),
   ];
   return panel(`COMPOSE · ${e.kind.toUpperCase()}`, lines, width, height, { accent: "coral", plain }).join("\n");
 }
@@ -3242,6 +3242,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     function handleEditorKey(_input, key = {}) {
       const e = ui.editor;
       const name = key.name || "";
+      if (e.mask && key.ctrl && name === "r") { e.revealed = !e.revealed; return; }
       if (key.ctrl && name === "s" && e.multiline) { submitFromEditor(); return; }
       if (name === "escape") {
         if (e.kind === "compose") {

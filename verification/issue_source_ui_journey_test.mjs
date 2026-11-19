@@ -56,22 +56,61 @@ try {
   await page.locator('#sourceFormName').fill('Sprint 74');
   await page.locator('#sourceFormUrl').fill('https://devops.example.com/Collection');
   await page.locator('#sourceFormProject').fill('Example');
+  const pat = page.locator('#sourceFormPat');
+  await pat.fill('synthetic-initial-pat');
+  assert.equal(await pat.getAttribute('type'), 'password');
+  await page.getByRole('button', { name: 'Show token or API key', exact: true }).click();
+  assert.equal(await pat.getAttribute('type'), 'text');
+  assert.equal(await pat.inputValue(), 'synthetic-initial-pat');
+  await page.getByRole('button', { name: 'Hide token or API key', exact: true }).click();
+  assert.equal(await pat.getAttribute('type'), 'password');
+  const tokenEvidence = path.join(process.cwd(), '.atl-evidence', 'issue-sources');
+  fs.mkdirSync(tokenEvidence, { recursive: true });
+  await page.screenshot({ path: path.join(tokenEvidence, 'azure-token-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.locator('.secret-input').evaluate(node => node.getBoundingClientRect().right <= window.innerWidth), 'token and reveal control fit on mobile');
+  await page.screenshot({ path: path.join(tokenEvidence, 'azure-token-mobile.png'), fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByText('Advanced credential settings', { exact: true }).click();
+  await page.locator('#sourceFormToken').fill('not-an-environment-variable');
+  await page.locator('[data-action^="sources-form-save:"]').click();
+  await page.locator('#sourceFormError').filter({ hasText: 'not the token itself' }).waitFor();
+  assert.doesNotMatch(await page.locator('#sourceFormError').innerText(), /payload is not defined/);
+  assert.equal(await pat.inputValue(), 'synthetic-initial-pat', 'failed validation retains typed credentials in the current form');
+  await page.locator('#sourceFormToken').fill('AZDO_PAT');
+
   await page.locator('[data-action^="sources-form-save:"]').click();
   await page.getByText(/Sprint 74.*saved successfully/).waitFor();
+  const cardAction = async (card, action) => {
+    const target = card.locator(`[data-action^="${action}:"]`).first();
+    if (await target.evaluate(n => !n.closest('.source-card-menu'))) { const menu = card.locator('.source-card-menu'); if (await menu.getAttribute('open') !== null) await menu.locator('summary').click(); }
+    if (!await target.isVisible()) await card.locator('.source-card-menu summary').click();
+    return target;
+  };
   const azureCard = page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' });
-  await azureCard.locator('[data-action^="sources-credential:"]').click();
+  assert.equal(await (await cardAction(azureCard, 'sources-credential')).innerText(), 'Replace PAT', 'initial source form connects its PAT');
+  await (await cardAction(azureCard, 'sources-check')).click();
+  await page.getByText('Access check complete.').waitFor();
+  assert.equal(azureTokenSeen, 'synthetic-initial-pat');
+  assert.ok(!fs.readFileSync(path.join(root, '.trust', 'manager', 'issue-connections.json'), 'utf8').includes('synthetic-initial-pat'), 'PAT is never stored as a connection setting');
+
+  await (await cardAction(azureCard, 'sources-credential')).click();
+  assert.equal(await page.locator('#sourceConnectionPat').getAttribute('type'), 'password');
+  await page.getByRole('button', { name: 'Show token or API key', exact: true }).click();
+  assert.equal(await page.locator('#sourceConnectionPat').getAttribute('type'), 'text');
+  await page.getByRole('button', { name: 'Hide token or API key', exact: true }).click();
   await page.locator('#sourceConnectionPat').fill('synthetic-azure-pat');
   await page.locator('[data-action^="sources-credential-save:"]').click();
   // With "remember" checked, the server encrypts through a PowerShell DPAPI
   // roundtrip; on a cold CI runner that spawn can outlast the 10s default.
   await page.getByText('Azure credential saved. Check access to verify it.').waitFor({ timeout: 30000 });
   assert.equal(await page.locator('.source-connection-card').count(), 3);
-  const azureBrowse = page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }).locator('[data-action^="sources-browse:"]');
+  const azureBrowse = (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }), 'sources-browse'));
   await azureBrowse.click();
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('0 issue(s) found. No task was created.').waitFor();
   assert.equal(azureTokenSeen, 'synthetic-azure-pat', 'connection-specific Azure credential reaches adapter');
-  await page.locator('[data-action^="sources-browse:"]').first().click();
+  await (await cardAction(page.locator('.source-connection-card').first(), 'sources-browse')).click();
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('1 issue(s) found. No task was created.').waitFor();
   await page.locator('[data-action="sources-import"]').click();
@@ -85,27 +124,27 @@ try {
   await page.locator('.source-connection-card').first().waitFor();
   assert.equal(await page.locator('.source-connection-card').count(), 3, 'connections survive reload');
   const githubCard = page.locator('.source-connection-card').filter({ hasText: 'Main repository' });
-  assert.equal(await githubCard.locator('[data-action^="sources-credential:"]').innerText(), 'Connect token', 'a github connection without credentials offers token entry');
-  await githubCard.locator('[data-action^="sources-credential:"]').click();
+  assert.equal(await (await cardAction(githubCard, 'sources-credential')).innerText(), 'Connect token', 'a github connection without credentials offers token entry');
+  await (await cardAction(githubCard, 'sources-credential')).click();
   await page.locator('#sourceConnectionPat').fill('gh-session-token');
   await page.locator('[data-action^="sources-credential-save:"]').click();
   await page.getByText('GitHub token connected for this session only').waitFor();
   assert.equal(await page.evaluate(() => JSON.stringify(sessionStorage).includes('gh-session-token')), false, 'browser storage contains no GitHub token');
-  await githubCard.locator('[data-action^="sources-check:"]').click();
+  await (await cardAction(githubCard, 'sources-check')).click();
   await page.getByText('Access check complete.').waitFor();
   assert.equal(githubUiCredential, 'gh-session-token', 'the session GitHub token authenticates the connection access check');
   await githubCard.getByText('Access verified').waitFor();
-  await githubCard.locator('[data-action^="sources-credential:"]').click();
-  assert.equal(await githubCard.locator('[data-action^="sources-credential:"]').innerText(), 'Replace token', 'a session-connected github connection offers replacement');
+  await (await cardAction(githubCard, 'sources-credential')).click();
+  assert.equal(await (await cardAction(githubCard, 'sources-credential')).innerText(), 'Replace token', 'a session-connected github connection offers replacement');
   await page.locator('[data-action="close"]').last().click();
-  await githubCard.locator('[data-action^="sources-browse:"]').click();
+  await (await cardAction(githubCard, 'sources-browse')).click();
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('1 issue(s) found. No task was created.').waitFor();
   assert.equal(githubUiCredential, 'gh-session-token', 'the session GitHub token reaches the github browse preview');
-  await githubCard.locator('[data-action^="sources-credential:"]').click();
+  await (await cardAction(githubCard, 'sources-credential')).click();
   await page.locator('[data-action^="sources-credential-disconnect:"]').click();
   await page.getByText('GitHub token disconnected; anonymous public-repository access only.').waitFor();
-  await githubCard.getByText('Connect token').waitFor();
+  assert.equal(await (await cardAction(githubCard, 'sources-credential')).innerText(), 'Connect token');
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('1 issue(s) found. No task was created.').waitFor();
   assert.equal(githubUiCredential, null, 'browse runs anonymously after the session token is disconnected');
@@ -145,7 +184,7 @@ try {
   await page.locator('[data-action^="sources-form-save:"]').click();
   await page.getByText(/Ops Jira.*saved successfully/).waitFor();
   assert.equal(await page.locator('.source-connection-card').count(), 4);
-  await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('[data-action^="sources-browse:"]').click();
+  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }), 'sources-browse')).click();
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('1 issue(s) found. No task was created.').waitFor();
   await page.locator('[data-action="sources-import"]').click();
@@ -153,11 +192,11 @@ try {
   assert.ok(Object.values(loadState(root).tasks).find(item => item.title === 'Jira intake bug')?.source?.connection_id, 'jira import retains connection provenance');
   // Access status is observed through the provider, never implied by a saved
   // credential — and adapter errors never echo the token back.
-  await page.locator('.source-connection-card').filter({ hasText: 'Main repository' }).locator('[data-action^="sources-check:"]').click();
+  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Main repository' }), 'sources-check')).click();
   await page.getByText('Access check complete.').waitFor();
   await page.locator('.source-connection-card').filter({ hasText: 'Main repository' }).getByText('Access verified').waitFor();
   azureMode = 'auth';
-  await page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }).locator('[data-action^="sources-check:"]').click();
+  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }), 'sources-check')).click();
   await azureCard.getByText('Needs authentication').waitFor();
   const azureCardText = await azureCard.innerText();
   assert.ok(azureCardText.includes('[redacted]'), 'adapter errors are redacted before display');
@@ -171,7 +210,7 @@ try {
   await page.waitForFunction(() => [...document.querySelectorAll('.source-connection-card')].some(c => c.textContent.includes('Ops Jira') && c.textContent.includes('Paused')));
   await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu summary').click();
   await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu [data-action^="sources-toggle:"]').click();
-  await page.waitForFunction(() => [...document.querySelectorAll('.source-connection-card')].some(c => c.textContent.includes('Ops Jira') && c.textContent.includes('Enabled')));
+  await page.waitForFunction(() => [...document.querySelectorAll('.source-connection-card')].some(c => c.textContent.includes('Ops Jira') && !c.textContent.includes('○ Paused')));
   // Double submission is guarded: two clicks in one tick create one connection.
   await page.locator('[data-action="sources-add"]').click();
   await page.locator('#sourceFormName').fill('Race Repo');
@@ -197,11 +236,11 @@ try {
   await page.evaluate(() => localStorage.setItem('atl-cp-theme', 'dark'));
   await page.reload();
   await page.locator('.source-connection-card').first().waitFor();
-  assert.deepEqual(await themeProbe(), { bg: 'rgb(23, 23, 34)', border: 'rgb(38, 38, 58)' }, 'cards render with dark theme tokens');
+  assert.deepEqual(await themeProbe(), { bg: 'rgb(29, 30, 42)', border: 'rgb(48, 50, 67)' }, 'cards render with dark theme tokens');
   await page.evaluate(() => localStorage.setItem('atl-cp-theme', 'light'));
   await page.reload();
   await page.locator('.source-connection-card').first().waitFor();
-  assert.deepEqual(await themeProbe(), { bg: 'rgb(255, 255, 255)', border: 'rgb(222, 221, 235)' }, 'cards render with light theme tokens');
+  assert.deepEqual(await themeProbe(), { bg: 'rgb(255, 255, 255)', border: 'rgb(231, 232, 240)' }, 'cards render with light theme tokens');
   // RTL: the Persian locale flips direction and the layout still fits.
   await page.locator('#localeBtn').click();
   await page.waitForFunction(() => document.documentElement.dir === 'rtl');

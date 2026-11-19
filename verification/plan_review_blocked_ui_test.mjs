@@ -6,9 +6,8 @@ import { chromium } from "playwright";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 
-// A blocked accuracy review must be legible: the approve button is visibly
-// disabled WITH its reason, findings carry a tally, and one action prepares
-// the revision instead of the owner staring at a stale failure notice.
+// Accuracy findings enter a bounded correction conversation. Remaining concerns
+// affect approval only; the chief can keep chatting and editing the plan.
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-review-blocked-"));
 saveState(root, emptyState()); // a connected snapshot keeps controls enabled (offline mode disables them)
@@ -45,14 +44,20 @@ const blockedFindings = [
 ];
 let browser, server;
 try {
-  let reviewCalls = 0;
+  let reviewCalls = 0, correctionCalls = 0;
   const started = await startControlPlaneServer(root, {
     planningInvoke: async ({ request }) => {
       if (request.review) {
         reviewCalls++;
-        return reviewCalls === 1
+        return reviewCalls <= 2
           ? { code: 0, provider: "test", model: "m", text: JSON.stringify({ verdict: "blocked", findings: blockedFindings }) }
           : { code: 0, provider: "test", model: "m", text: JSON.stringify({ verdict: "passed", findings: [] }) };
+      }
+      if (request.accuracy_context) {
+        correctionCalls++;
+        const artifact = structuredClone(request.current_artifact);
+        artifact.task_proposals[0].instructions += ' Verify duplicate cart lines before completing the task.';
+        return { code: 0, text: JSON.stringify({ summary: 'Updated the duplicate-line task instructions. The merge decision still needs clarification.', artifact, assessments: [] }) };
       }
       return { code: 0, provider: "test", model: "m", text: JSON.stringify(plan(request.intent)) };
     },
@@ -82,29 +87,27 @@ try {
   assert.match(await page.locator("[data-approval-state]").innerText(), /Ready for review/);
 
   await page.getByRole("button", { name: "Run review" }).click();
-  await page.getByText(/Changes needed before approval/, { exact: false }).waitFor();
-  assert.equal(await approve.isDisabled(), true, "a blocked review keeps Approve disabled");
-  assert.equal(await page.getByRole("button", { name: "Run review" }).isDisabled(), false, "the review can run again");
-  const stateText = await page.locator("[data-approval-state]").innerText();
-  assert.match(stateText, /needs changes before approval/);
-  assert.match(stateText, /run the review again/);
-  assert.match(await page.locator(".review-findings").innerText(), /Correction|What to change/i);
-
-  // One click prepares the revision request instead of retyping findings.
-  await page.getByRole("button", { name: /Create revised draft from findings/ }).click();
-  await page.locator("[data-studio-notice]").getByText(/Revision request prepared from 3 review finding/).waitFor();
-  assert.match(await page.locator(".studio-revision").innerText(), /cart-merge contract/);
+  await page.getByRole('heading', { name: 'Continue the review conversation' }).waitFor();
+  await page.locator('.studio-msg-assistant').filter({ hasText: 'The plan has been updated.' }).waitFor();
+  assert.equal(reviewCalls, 2, 'one initial review and one follow-up review');
+  assert.equal(correctionCalls, 1, 'findings automatically trigger exactly one correction');
+  assert.equal(await approve.isDisabled(), true, 'unresolved consequential issues still prevent approval');
+  assert.match(await page.locator('[data-approval-state]').innerText(), /You can keep planning/);
+  assert.equal(await page.getByRole('button', { name: 'Create revised draft from findings' }).count(), 0, 'chief is never sent to manually revise findings');
+  assert.equal(await page.locator('#goal').isEnabled(), true);
+  assert.equal(await page.locator('[data-action="refine-submit"]').isDisabled(), false);
+  assert.match(await page.locator('.studio-transcript').innerText(), /Recommended correction: Decide the merge rule/);
+  await page.getByRole('button', { name: 'Open conversation', exact: true }).click();
+  assert.equal(await page.locator('#goal').evaluate(node => node === document.activeElement), true);
 
   // A passing review flips the state: Approve unlocks and the notice disappears.
-  await page.locator('[data-action="generate"]').click();
-  await page.getByText("Model plan ready", { exact: false }).waitFor();
   await reviewTab.click();
-  await page.getByRole("button", { name: "Run review" }).click();
+  await page.getByRole('button', { name: 'Run review again', exact: true }).click();
   await page.getByRole("heading", { name: "Review passed" }).waitFor();
   assert.equal(await page.getByRole("region", { name: "Plan review" }).getByRole("button", { name: "Approve → Plan Queue" }).isDisabled(), false);
   assert.equal(await page.locator("[data-approval-state]").count(), 0, "no approval-state notice once approval is unlocked");
 
-  console.log("PASS: blocked review UX — disabled Approve states its reason, findings tallied, revise action, passing review unlocks");
+  console.log("PASS: conversational review UX — disabled Approve states its reason, automatic correction, open conversation, passing review unlocks");
 } finally {
   await browser?.close();
   if (server) await new Promise((resolve) => server.close(resolve));

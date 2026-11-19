@@ -301,6 +301,8 @@ let queueFilterTouched = false;
   let sourceSettings = null, sourcePreview = null, sourceNotice = "";
   let sourceConnections = [], sourceConnectionRevision = 0, sourceSelectedId = null;
   let sourcePreviewSequence = 0;
+  let sourceIteration = '', sourceWorkItem = '', sourceSearchTerm = '', sourceBrowseLoading = false;
+  let sourceSelectedIndices = new Set();
   let sourceConnectionNotice = '', sourceConnectionError = '', sourceFormBusy = false;
   let sourceHistory = { history: [], requests: [] };
   // Projects work map: repository → requests/plans/queues/tasks relations
@@ -404,10 +406,10 @@ let queueFilterTouched = false;
     if (!review) reason = "Ready for review. Choose a review depth and run it to check this draft before approval.";
     else if (review.verdict !== "passed") {
       const tally = findingTally(review.findings);
-      reason = `This draft needs changes before approval${tally ? ` (${escapeHtml(tally)})` : ""}. Resolve the issues above, then run the review again.`;
+      reason = `Approval is waiting on consequential concerns${tally ? ` (${escapeHtml(tally)})` : ""}. ATL's corrections and next steps are in the conversation. You can keep planning.`;
     } else reason = `One more review is required before approval: run the deep review. Reason: ${escapeHtml((draft.policy.reasons || []).join("; ") || "project policy")}.`;
-    const revise = review && review.verdict !== "passed" && (review.findings || []).some((item) => ["blocker", "major"].includes(item.severity))
-      ? `<div class="bar" style="margin-top:8px;flex-wrap:wrap">${btn("Create revised draft from findings", `plan-revise:${draft.id}`, `sm primary ${studioBusy ? "disabled" : ""}`)}<span class="muted tiny">Uses one model session. Your current draft stays saved.</span></div>`
+    const revise = review && review.verdict !== "passed"
+      ? `<div class="bar" style="margin-top:8px;flex-wrap:wrap">${btn("Open conversation", "studio-review-chat", "sm primary")}</div>`
       : "";
     return `<div class="notice" role="status" data-approval-state style="margin-top:8px"><p class="sub" style="margin:0">${reason}</p>${revise}</div>`;
   }
@@ -680,13 +682,13 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
   // left, the plan on the right in Overview / Tasks / Review tabs. Every
   // disabled control states its reason beside itself instead of hiding it.
   function unresolvedQuestionCount(draft) {
-    const current = (draft?.artifact?.open_questions || []).filter((item) => !item.resolved).length;
-    const candidate = (draft?.pending_candidate?.artifact?.open_questions || []).filter((item) => !item.resolved).length;
+    const current = (draft?.artifact?.open_questions || []).filter((item) => !item.resolved && !(item.blocks_approval === false && String(item.default_answer || '').trim())).length;
+    const candidate = (draft?.pending_candidate?.artifact?.open_questions || []).filter((item) => !item.resolved && !(item.blocks_approval === false && String(item.default_answer || '').trim())).length;
     return current + candidate;
   }
   function studioStageBadge(draft) {
     const unresolved = unresolvedQuestionCount(draft);
-    if (unresolved) return `<span class="pill amber">Stage: needs ${unresolved} answer${unresolved === 1 ? "" : "s"}</span>`;
+    if (unresolved) return `<span class="pill amber">${unresolved} question${unresolved === 1 ? "" : "s"} - planning open</span>`;
     if (draft?.pending_candidate) return `<span class="pill violet">Stage: changes proposed</span>`;
     const review = draft?.review || draft?.artifact?.review;
     if (review?.verdict === "passed") return `<span class="pill green">Stage: review passed</span>`;
@@ -695,7 +697,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
   }
   function studioNextStep(draft) {
     const unresolved = unresolvedQuestionCount(draft);
-    if (unresolved) return { label: `Answer ${unresolved} question${unresolved === 1 ? "" : "s"}`, action: "studio-focus-questions", enabled: true, explanation: "Review is locked until the open question is answered." };
+    if (unresolved) return { label: `Answer ${unresolved} question${unresolved === 1 ? "" : "s"}`, action: "studio-focus-questions", enabled: true, explanation: "Answer when convenient, or run review so ATL can propose grounded defaults. Planning stays open." };
     if (draft?.pending_candidate) return { label: "Review proposed changes", action: "studio-plantab:tasks", enabled: true, explanation: "Compare the proposed task changes, then apply or discard them." };
     if (!draft?.artifact || draft.artifact.plan_skeleton) return draft
       ? { label: "Complete with a model plan", action: "plan-complete-model", enabled: true, explanation: "The local skeleton is not reviewable or approvable — complete it with one bounded model call." }
@@ -703,7 +705,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const review = draft.review || draft.artifact?.review;
     const policyNeedsEgm = Boolean(draft.policy?.required) && !(review?.kind === "egm" && review?.verdict === "passed");
     if (review?.verdict === "passed" && !policyNeedsEgm) return { label: "Approve → Plan Queue", action: `plan-queue:${escapeHtml(draft.id)}`, enabled: !studioBusy, explanation: "Approval creates the plan queue; nothing executes until you confirm a run." };
-    if (review && review.verdict !== "passed") return { label: "Resolve findings", action: "studio-plantab:review", enabled: true, explanation: "Resolve the review findings, then run the review again." };
+    if (review && review.verdict !== "passed") return { label: "Continue conversation", action: "studio-review-chat", enabled: true, explanation: "ATL's corrections and next steps are in the conversation. Keep planning or revise an answer." };
     if (policyNeedsEgm) return { label: "Run deep review", action: "studio-run-egm", enabled: !studioBusy, explanation: `Deep review required by policy: ${(draft.policy.reasons || []).join("; ") || "project policy"}.` };
     const providerReady = studioProvider === "auto" || Boolean(planningChoices().find((provider) => provider.id === studioProvider)?.ready);
     return { label: "Request review", action: "studio-plantab:review", enabled: providerReady, explanation: providerReady ? "Choose a review depth and run it before approval." : "Select a ready provider in the composer settings to run the review." };
@@ -718,18 +720,32 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const attachments = Array.isArray(entry.attachments) ? entry.attachments : [];
     return `<div class="studio-msg studio-msg-manager" dir="auto"><p>${escapeHtml(entry.text)}</p>${attachments.length ? `<div class="bar" style="flex-wrap:wrap;gap:6px">${attachments.map((name) => `<span class="pill">📎 ${escapeHtml(name)}</span>`).join("")}</div>` : ""}</div>`;
   }
+  const checkingQuestions = new Set();
+  const reviewingDrafts = new Set();
+  const questionStorageKey = (draftId, source, id) => `atl-studio-answer:${draftId}:${source}:${id}`;
+  function questionDraft(source, id) {
+    try { const saved = localStorage.getItem(questionStorageKey(currentDraft.id, source, id)); if (saved !== null) return saved; } catch { /* storage may be unavailable */ }
+    return (source === 'candidate' ? currentDraft?.pending_candidate?.question_progress?.[id] : currentDraft?.question_progress?.[id]) || '';
+  }
   function questionCard(item, index, total, source) {
     const id = String(item.id || `q${index + 1}`);
     const question = item.question || item.text || String(item);
-    const suggestions = (Array.isArray(item.suggested_answers) ? item.suggested_answers : []).filter((answer) => typeof answer === "string" && answer.trim());
+    const suggestions = (Array.isArray(item.suggested_answers) ? item.suggested_answers : []).filter((answer) => typeof answer === 'string' && answer.trim());
     const name = `studio-q-${source}-${id}`;
-    return `<article class="studio-question" data-studio-question="${escapeHtml(id)}"><div class="row between"><b>Question ${index + 1} of ${total}${item.blocks_approval ? ' <span class="pill amber">Blocks readiness</span>' : ""}</b>${source === "candidate" ? '<span class="pill violet">in proposed changes</span>' : ""}</div><p class="sub" dir="auto">${escapeHtml(question)}</p><div class="studio-question-options" role="radiogroup" aria-label="Suggested answers">${suggestions.map((answer) => `<label class="studio-question-option"><input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(answer)}"><span dir="auto">${escapeHtml(answer)}</span></label>`).join("")}</div><textarea id="studio-q-custom-${escapeHtml(source)}-${escapeHtml(id)}" class="input studio-question-custom" rows="2" placeholder="Or write a custom answer…" aria-label="Custom answer to: ${escapeHtml(question)}"></textarea><div class="bar" style="justify-content:flex-end">${btn("Send answer", `question-answer:${escapeHtml(source)}:${escapeHtml(id)}`, "primary sm")}</div></article>`;
+    const saved = questionDraft(source, id);
+    const record = source === 'candidate' ? currentDraft?.pending_candidate : currentDraft;
+    const assessment = record?.answer_assessments?.[id];
+    const checking = checkingQuestions.has(`${currentDraft.id}:${source}:${id}`);
+    return `<article class="studio-question" data-studio-question="${escapeHtml(id)}" data-question-source="${source}"><div class="row between"><b>Question ${index + 1} of ${total}${source === "candidate" ? " (proposed changes)" : ""}</b><span class="pill">${checking ? 'Checking answer...' : assessment?.status || (item.resolved ? 'Answered' : 'Open')}</span></div><p class="sub" dir="auto">${escapeHtml(question)}</p><div class="studio-question-options" role="radiogroup" aria-label="Suggested answers">${suggestions.map((answer) => `<label class="studio-question-option"><input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(answer)}" ${saved === answer ? 'checked' : ''}><span dir="auto">${escapeHtml(answer)}</span></label>`).join('')}</div><textarea id="studio-q-custom-${source}-${escapeHtml(id)}" class="input studio-question-custom" rows="2" placeholder="Or write a custom answer..." aria-label="Custom answer to: ${escapeHtml(question)}">${escapeHtml(suggestions.includes(saved) ? '' : saved)}</textarea>${item.default_answer ? `<p class="sub">Current default: ${escapeHtml(item.default_answer)}</p>` : ""}${assessment ? `<p class="sub" role="status">${escapeHtml(assessment.explanation || 'Answer saved; checking is pending.')}${assessment.answer ? ` Using: ${escapeHtml(assessment.answer)}` : ''}</p>${assessment.original_answer ? `<p class="muted tiny">Your answer: ${escapeHtml(assessment.original_answer)}</p>` : ''}` : ''}<div class="bar" style="justify-content:flex-end">${btn(checking ? 'Checking answer...' : assessment?.status === 'pending' || record?.accuracy_followup?.status === 'retry' ? 'Retry answer check' : item.resolved ? 'Update answer' : 'Send answer', `question-answer:${source}:${escapeHtml(id)}`, `primary sm ${checking ? 'disabled' : ''}`)}</div></article>`;
   }
   function questionCards(draft) {
-    const current = (draft?.artifact?.open_questions || []).filter((item) => !item.resolved);
-    const candidate = (draft?.pending_candidate?.artifact?.open_questions || []).filter((item) => !item.resolved);
-    return current.map((item, index) => questionCard(item, index, current.length, "artifact")).join("")
-      + candidate.map((item, index) => questionCard(item, index, candidate.length, "candidate")).join("");
+    const current = draft?.artifact?.open_questions || [];
+    const candidate = draft?.pending_candidate?.artifact?.open_questions || [];
+    const total = current.length + candidate.length;
+    if (!total) return '';
+    let open = false;
+    try { open = localStorage.getItem(`atl-studio-questions:${draft.id}`) === 'open'; } catch { /* default collapsed */ }
+    return `<details data-studio-questions ${open ? 'open' : ''}><summary>Questions: ${current.filter(q => q.resolved).length + candidate.filter(q => q.resolved).length}/${total} answered</summary><p class="muted tiny">Answer whenever convenient. ATL keeps planning with visible defaults and checks your answers when you send them.</p>${current.map((item, index) => questionCard(item, index, total, 'artifact')).join('')}${candidate.map((item, index) => questionCard(item, index + current.length, total, 'candidate')).join('')}</details>`;
   }
   function candidateBanner(draft) {
     const candidate = draft?.pending_candidate;
@@ -767,11 +783,12 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const reviewKind = draft.policy && draft.policy.required ? "egm" : studioReviewKind;
     const policyBlock = draft.policy && draft.policy.required && !(review && review.kind === "egm" && review.verdict === "passed") ? `<div class="notice"><b class="amber">Deep review required by policy</b><p class="sub">${escapeHtml(draft.policy.reasons.join("; "))} — run the EGM deep review before approving.</p></div>` : "";
     const findings = review?.findings || [];
-    const reviewTitle = review?.verdict === "passed" ? "Review passed" : review ? "Changes needed before approval" : "Review this plan";
-    const reviewIntro = review?.verdict === "passed" ? "The current review found no blocking issues." : review ? "Work through these findings, then review the revised draft." : "Check this draft before creating tasks in the Plan Queue.";
+    const reviewRunning = studioBusy || reviewingDrafts.has(draft.id);
+    const reviewTitle = review?.verdict === "passed" ? "Review passed" : review ? "Continue the review conversation" : "Review this plan";
+    const reviewIntro = review?.verdict === "passed" ? "The current review found no blocking issues." : review ? "ATL checks corrections in the conversation. You can keep planning while approval concerns are resolved." : "Check this draft before creating tasks in the Plan Queue.";
     const findingCards = findings.map((item, index) => `<article class="review-finding"><div class="review-finding-top"><span class="review-severity ${escapeHtml(item.severity || "note")}">${escapeHtml(item.severity || "Note")}</span><span class="muted tiny">${escapeHtml(item.requirement_id || item.task_id || "Whole plan")}</span></div><h4>Issue ${index + 1}</h4><p>${escapeHtml(item.message || "No explanation supplied")}</p>${item.correction ? `<div class="review-correction"><b>What to change</b><p>${escapeHtml(item.correction)}</p></div>` : ""}</article>`).join("");
     const proposals = Array.isArray(plan.task_proposals) && plan.task_proposals.length ? plan.task_proposals : null;
-    return `<div class="planout"><div class="bar">${btn("Publish to GitHub/Azure", `plan-publish:${escapeHtml(draft.id)}`, "sm ghost")}<span class="muted tiny">Publish is separate from the queue — it writes remote tasks.</span></div><section class="plan-review" aria-label="Plan review"><div class="plan-review-head"><div><span class="eyebrow">Review &amp; approval</span><h3>${reviewTitle}</h3><p>${reviewIntro}</p></div>${review ? `<span class="review-verdict ${escapeHtml(review.verdict)}">${escapeHtml(review.verdict)}</span>` : ""}</div>${policyBlock}${review && findings.length ? `<div class="review-findings" aria-label="Review findings">${findingCards}</div>` : review?.verdict === "passed" ? '<p class="review-clear">No findings recorded.</p>' : ""}<div class="plan-review-controls">${plan.plan_contract_version === 2 ? `<label class="label" for="reviewKindSelect">Review depth</label><select id="reviewKindSelect" class="input"${studioBusy ? " disabled" : ""}><option value="atl" ${reviewKind === "atl" ? "selected" : ""}>Accuracy review</option><option value="egm" ${reviewKind === "egm" ? "selected" : ""}>Deep review (multiple reviewers)</option></select><div class="actionrow">${btn(studioBusy ? "Reviewing..." : review ? "Run review again" : "Run review", `plan-review:${escapeHtml(draft.id)}`, `primary ${studioBusy ? "disabled" : ""}`)}${studioEgmStage ? `<button type="button" class="btn" data-action="egm-cancel:${escapeHtml(draft.id)}">Cancel deep review: ${escapeHtml(studioEgmStage)}</button>` : ""}${btn("Approve → Plan Queue", `plan-queue:${escapeHtml(draft.id)}`, `primary ${studioBusy || !(review && review.verdict === "passed") ? "disabled" : ""}`)}</div>${approvalStateLine(draft, review)}` : `<p class="sub">Complete this local template with a model plan before review.</p>${btn("Complete with model", "plan-complete-model", "primary")}`}</div><p class="muted tiny">Approval creates ${proposals ? proposals.length : plan.implementation_steps?.length || 0} queued tasks. You can preview them before starting a run.</p>${studioNotice && !studioBusy && /review|approv/i.test(studioNotice) ? `<p class="sub ${/^Error|failed|blocked/i.test(studioNotice) ? "red" : "green"}" role="status" style="margin:8px 0 0">${escapeHtml(studioNotice)}</p>` : ""}</section></div>`;
+    return `<div class="planout"><div class="bar">${btn("Publish to GitHub/Azure", `plan-publish:${escapeHtml(draft.id)}`, "sm ghost")}<span class="muted tiny">Publish is separate from the queue — it writes remote tasks.</span></div><section class="plan-review" aria-label="Plan review"><div class="plan-review-head"><div><span class="eyebrow">Review &amp; approval</span><h3>${reviewTitle}</h3><p>${reviewIntro}</p></div>${review ? `<span class="review-verdict ${escapeHtml(review.verdict)}">${review.verdict === "passed" ? "Ready for approval" : "Continue planning"}</span>` : ""}</div>${policyBlock}${review && findings.length ? `<p class="sub">ATL's recommendations and plan updates are in the conversation. Planning stays open.</p>${btn("Continue conversation", "studio-review-chat", "sm")}` : review?.verdict === "passed" ? '<p class="review-clear">No findings recorded.</p>' : ""}<div class="plan-review-controls">${plan.plan_contract_version === 2 ? `<label class="label" for="reviewKindSelect">Review depth</label><select id="reviewKindSelect" class="input"${reviewRunning ? " disabled" : ""}><option value="atl" ${reviewKind === "atl" ? "selected" : ""}>Accuracy review</option><option value="egm" ${reviewKind === "egm" ? "selected" : ""}>Deep review (multiple reviewers)</option></select><div class="actionrow">${btn(reviewRunning ? "Reviewing..." : review ? "Run review again" : "Run review", `plan-review:${escapeHtml(draft.id)}`, `primary ${reviewRunning ? "disabled" : ""}`)}${studioEgmStage ? `<button type="button" class="btn" data-action="egm-cancel:${escapeHtml(draft.id)}">Cancel deep review: ${escapeHtml(studioEgmStage)}</button>` : ""}${btn("Approve → Plan Queue", `plan-queue:${escapeHtml(draft.id)}`, `primary ${reviewRunning || !(review && review.verdict === "passed") ? "disabled" : ""}`)}</div>${approvalStateLine(draft, review)}` : `<p class="sub">Complete this local template with a model plan before review.</p>${btn("Complete with model", "plan-complete-model", "primary")}`}</div><p class="muted tiny">Approval creates ${proposals ? proposals.length : plan.implementation_steps?.length || 0} queued tasks. You can preview them before starting a run.</p>${studioNotice && !reviewRunning && /review|approv/i.test(studioNotice) ? `<p class="sub ${/^Error|failed|blocked/i.test(studioNotice) ? "red" : "green"}" role="status" style="margin:8px 0 0">${escapeHtml(studioNotice)}</p>` : ""}</section></div>`;
   }
   function studioConversationPane(draft) {
     const entries = draft?.conversation || [];
@@ -1086,7 +1103,7 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     if (!response.ok) throw new Error(result.error || "Issue sources unavailable");
     if (historyResponse.ok) sourceHistory = await historyResponse.json();
     if (!connectionsResponse.ok) { const failure = await connectionsResponse.json().catch(() => ({})); throw new Error(failure.error || 'Connected sources unavailable'); }
-    { const connections = await connectionsResponse.json(); sourceConnections = connections.connections || []; sourceConnectionRevision = connections.revision || 0; if (!sourceConnections.some(c => c.id === sourceSelectedId)) sourceSelectedId = sourceConnections[0]?.id || null; }
+    { const connections = await connectionsResponse.json(); sourceConnections = connections.connections || []; sourceConnectionRevision = connections.revision || 0; if (!sourceConnections.some(c => c.id === sourceSelectedId)) { sourceSelectedId = Object.values(connections.defaults || {}).find(id => sourceConnections.some(c => c.id === id && c.enabled)) || sourceConnections.find(c => c.enabled)?.id || sourceConnections[0]?.id || null; sourceIteration = sourceConnections.find(c => c.id === sourceSelectedId)?.settings?.iteration_path || ''; sourceWorkItem = ''; } }
     sourceSettings = result.sources; return result;
   }
   async function loadProjectMap() {
@@ -1320,17 +1337,94 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
     const unassigned = (map.unassigned || []).length ? `<section class="panel space"><div class="paneltitle"><h2>Requests without a repository</h2><span class="pill amber">${map.unassigned.length}</span></div><p class="sub" style="margin:0;padding:0 15px 10px">Imported requests that affect no registered repository yet. Assign them so planning inspects the right codebase.</p><div class="pad">${unassignedRows}</div></section>` : "";
     return `${unassigned}<div class="grid two" style="align-items:start">${cards || `<div class="pad muted">No repositories with active work — register one, plan imported requests, or assign a task to an idle repository below.</div>`}</div>${idleStrip}<p class="muted tiny space">A request affecting several repositories gets one plan and one queue per repository, all linked back to the same request. Plans are never moved between repositories.</p>`;
   }
+  function selectSource(id) {
+    sourcePreviewSequence++; sourceSelectedId = id; sourcePreview = null; sourceSelectedIndices.clear(); sourceNotice = '';
+    azureIterations = []; azureSprintsNotice = '';
+    sourceIteration = sourceConnections.find(c => c.id === id)?.settings?.iteration_path || '';
+    sourceWorkItem = ''; sourceSearchTerm = ''; sourceBrowseLoading = false;
+    render();
+    if (id) void browseCurrentDefaults();
+  }
+  async function browseCurrentDefaults() {
+    const id = sourceSelectedId, connection = sourceConnections.find(c => c.id === id);
+    if (!connection || !connection.enabled) return;
+    if (connection.provider === 'azure') void loadSourceSprints(id);
+    await browseSelectedSource();
+  }
+  async function loadSourceSprints(id) {
+    const connection = sourceConnections.find(c => c.id === id);
+    if (!connection || connection.provider !== 'azure' || !connection.enabled) return;
+    try {
+      const response = await fetch(`/api/intake/azure/iterations?connection_id=${encodeURIComponent(id)}`, { cache: 'no-store', headers: { 'x-atl-csrf': document.querySelector('meta[name="atl-csrf"]')?.content || '' } });
+      const result = await response.json();
+      if (sourceSelectedId !== id) return;
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Could not list sprints');
+      azureIterations = result.iterations || [];
+      azureSprintsNotice = azureIterations.length ? `${azureIterations.length} sprints available.` : 'No sprints were returned for this project.';
+    } catch (error) { if (sourceSelectedId !== id) return; azureIterations = []; azureSprintsNotice = `Could not load sprints: ${error.message}`; }
+    if (page === 'sources') {
+      const select = $('#sourceAzureSearchIteration');
+      if (select) {
+        const value = select.value;
+        select.innerHTML = `<option value="">All sprints</option>${value && !azureIterations.some(it => it.path === value) ? `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>` : ''}${azureIterations.map(it => `<option value="${escapeHtml(it.path)}">${escapeHtml(it.name)}</option>`).join('')}`;
+        select.value = value;
+      }
+      const notice = $('#sourceSprintsNotice'); if (notice) notice.textContent = azureSprintsNotice;
+    }
+  }
+  async function browseSelectedSource() {
+    const c = sourceConnections.find(item => item.id === sourceSelectedId);
+    if (!c) { sourceNotice = 'Choose a connection first.'; render(); return; }
+    if (!c.enabled) { sourceNotice = 'Resume this connection before browsing.'; render(); return; }
+    sourceIteration = $('#sourceAzureSearchIteration')?.value ?? sourceIteration;
+    sourceWorkItem = $('#sourceAzureWorkItem')?.value.trim() ?? sourceWorkItem;
+    const sequence = ++sourcePreviewSequence;
+    sourceBrowseLoading = true; sourcePreview = null; sourceNotice = 'Loading issues…'; render();
+    try {
+      const payload = { connection_id: c.id };
+      if (c.provider === 'azure') { payload.work_item = sourceWorkItem; if (sourceIteration) payload.iteration_path = sourceIteration; else payload.all_iterations = true; }
+      const response = await fetch('/api/intake/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await response.json(); if (sequence !== sourcePreviewSequence || sourceSelectedId !== c.id) return;
+      if (!response.ok) throw new Error(result.error || 'Issue preview failed');
+      sourcePreview = { ...result, source: c.provider }; sourceSelectedIndices = new Set(result.candidates.map(item => item.index)); sourceNotice = `${result.candidates.length} issue(s) found. No task was created.`;
+    } catch (error) { if (sequence !== sourcePreviewSequence) return; sourcePreview = null; sourceNotice = error.message; }
+    finally { if (sequence === sourcePreviewSequence) { sourceBrowseLoading = false; if (page === 'sources') { render(); updateSourcePreview(); } } }
+  }
   function issueSourcesPanelV2() {
     const selected = sourceConnections.find(c => c.id === sourceSelectedId) || null;
     const candidates = sourcePreview?.candidates || [];
     const providerName = { github: 'GitHub', jira: 'Jira', azure: 'Azure Boards' };
-    const location = c => c.provider === 'github' ? c.settings.repo : c.provider === 'jira' ? `${c.settings.base_url} · ${c.settings.projects.join(', ')}` : `${c.settings.org_url} · ${c.settings.project}`;
-    const cards = sourceConnections.map(c => `<article class="source-connection-card ${c.id === sourceSelectedId ? 'is-selected' : ''}"><div class="source-connection-heading"><span class="source-icon source-${c.provider}">${{ github: 'GH', jira: 'JR', azure: 'AZ' }[c.provider]}</span><div><h3>${escapeHtml(c.name)}</h3><span class="muted tiny">${providerName[c.provider]}</span></div><span class="source-status ${c.status === 'verified' ? 'is-enabled' : ''}">${escapeHtml(c.status === 'needs-auth' ? 'Needs authentication' : c.status === 'verified' ? 'Access verified' : c.status === 'unavailable' ? 'Unavailable' : 'Access not checked')}</span></div><p class="source-connection-location" dir="auto">${escapeHtml(location(c))}</p><p class="muted tiny">${c.enabled ? 'Enabled' : 'Paused'}${c.checked_at ? ` · Checked ${escapeHtml(new Date(c.checked_at).toLocaleString())}` : ''}${c.error ? ` · ${escapeHtml(c.error)}` : ''}</p><div class="source-actions">${btn('Browse issues', `sources-browse:${c.id}`, 'primary sm')}${btn('Check access', `sources-check:${c.id}`, 'sm')}${c.provider === 'azure' ? btn(c.token_present ? 'Replace PAT' : 'Connect PAT', `sources-credential:${c.id}`, 'sm') : c.provider === 'github' ? btn(c.token_present ? 'Replace token' : 'Connect token', `sources-credential:${c.id}`, 'sm') : ''}<details class="source-card-menu"><summary aria-label="More actions for ${escapeHtml(c.name)}">⋮</summary><div>${btn('Edit connection', `sources-edit:${c.id}`, 'sm ghost')}${btn(c.enabled ? 'Pause connection' : 'Enable connection', `sources-toggle:${c.id}`, 'sm ghost')}${btn('Remove connection', `sources-delete:${c.id}`, 'sm ghost')}</div></details></div></article>`).join('');
-    const rows = candidates.map(item => { const source = item.source?.type || sourcePreview?.source || selected?.provider; const key = item.source?.remote_id == null ? 'Issue' : String(item.source.remote_id); return `<tr data-preview-source="${escapeHtml(source)}" data-preview-search="${escapeHtml([item.title,key,item.objective_hint].filter(Boolean).join(' ').toLowerCase())}"><td><input type="checkbox" data-source-index="${item.index}" aria-label="Select ${escapeHtml(item.title)}" checked></td><td>${escapeHtml(key)}</td><td class="source-issue-copy"><b dir="auto">${escapeHtml(item.title)}</b><span dir="auto">${escapeHtml(item.source?.repo || item.objective_hint || '')}</span></td><td>${escapeHtml(item.priority || 'Issue')}</td><td>${btn('Import', 'sources-import-one:' + item.index, 'sm')}</td></tr>`; }).join('');
-    return `<div class="issue-sources source-v2">${head('WORKSPACE / ISSUE SOURCES', 'Issue sources', 'Connect saved sources, verify access, browse issues, and import selected requests for planning.', btn('Check all access', 'sources-check-all') + btn('+ Add source', 'sources-add', 'primary'))}
-      ${sourceConnectionNotice ? `<div class="source-notice source-connection-notice" role="status"><span>${escapeHtml(sourceConnectionNotice)}</span>${btn('Dismiss', 'sources-dismiss-notice', 'sm ghost')}</div>` : ''}
-      <section class="panel source-workbench"><div class="paneltitle"><div><h2>Connected sources <span class="pill blue">${sourceConnections.length} connections</span></h2><p class="muted tiny">Saved names and locations appear here. New source forms start empty.</p></div></div><div class="source-connection-grid">${cards || '<p class="muted">No sources connected yet. Add a source to begin.</p>'}</div></section>
-      <section class="panel source-workbench"><div class="paneltitle"><div><h2>Browse issues</h2><p class="muted tiny">Select a connection, preview matching issues, and import requests for planning.</p></div></div><div class="source-browse-controls"><label class="source-field"><span class="label">Connection</span><select class="input" id="sourceConnectionSelect"><option value="">Choose a connection</option>${sourceConnections.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === sourceSelectedId ? 'selected' : ''}>${escapeHtml(c.name)} · ${providerName[c.provider]}</option>`).join('')}</select></label>${selected?.provider === 'azure' ? `<label class="source-field"><span class="label">Sprint</span><input class="input" id="sourceAzureSearchIteration" list="sourceAzureSprintList" placeholder="Sprint 74"><datalist id="sourceAzureSprintList">${azureIterations.map(it => `<option value="${escapeHtml(it.path)}">${escapeHtml(it.name)}</option>`).join('')}</datalist></label><label class="source-field"><span class="label">Work item</span><input class="input" id="sourceAzureWorkItem" placeholder="Number or link"></label>${btn('Load sprints', 'sources-azure-sprints', 'sm')}${azureSprintsNotice ? `<span class="muted tiny" role="status">${escapeHtml(azureSprintsNotice)}</span>` : ''}` : ''}${btn('Preview issues', 'sources-preview-selected', 'primary')}</div>${sourceNotice ? `<p class="source-notice" role="status">${escapeHtml(sourceNotice)}</p>` : ''}<div class="source-toolbar"><input id="sourceSearch" class="input" type="search" aria-label="Filter previewed issues" placeholder="Filter previewed issues"><div class="source-repo-pills" role="group" aria-label="Affected repositories">${(snapshot.supervisor?.projects || []).map(p => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(p.id)}"><span>${escapeHtml(p.name)}</span></label>`).join('')}</div>${btn(`Import selected issues (${candidates.length})`, 'sources-import', 'primary')}</div><div class="source-table-scroll"><table class="source-table"><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? 'checked' : 'disabled'}></th><th>Key</th><th>Issue</th><th>Priority</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div><p class="source-empty" ${candidates.length ? 'hidden' : ''}>${candidates.length ? 'No issues match this filter.' : 'Choose a connected source and preview issues here.'}</p></section>${sourceHistoryPanel()}</div>`;
+    const location = c => c.provider === 'github' ? c.settings.repo : c.provider === 'jira' ? `${c.settings.base_url} · ${c.settings.projects.join(', ')}` : `${c.settings.org_url} / ${c.settings.project}`;
+    const cards = sourceConnections.map(c => {
+      const status = !c.enabled ? 'Paused' : c.status === 'verified' ? 'Access verified' : c.status === 'needs-auth' ? 'Needs authentication' : c.status === 'unavailable' ? 'Unavailable' : 'Not checked';
+      const badge = !c.enabled ? 'paused' : c.status === 'verified' ? 'verified' : c.status === 'needs-auth' ? 'auth' : 'unchecked';
+      const mainAction = !c.enabled ? 'sources-toggle' : c.status === 'needs-auth' ? 'sources-credential' : 'sources-browse';
+      return `<article class="source-connection-card connection ${c.id === sourceSelectedId ? 'selected' : ''}"><div class="card-top"><span class="provider ${c.provider === 'azure' ? 'az' : c.provider}">${{ github: 'GH', jira: 'JR', azure: 'AZ' }[c.provider]}</span><div><h3 class="card-title">${escapeHtml(c.name)}</h3><div class="provider-label">${providerName[c.provider]}</div></div></div><details class="source-card-menu"><summary aria-label="More actions for ${escapeHtml(c.name)}">⋮</summary><div>${btn('Edit connection', `sources-edit:${c.id}`, 'sm ghost')}${['azure','github','jira'].includes(c.provider) ? btn(c.provider === 'azure' ? (c.token_present ? 'Replace PAT' : 'Connect PAT') : (c.token_present ? 'Replace token' : 'Connect token'), `sources-credential:${c.id}`, 'sm ghost') : ''}${btn(c.enabled ? 'Pause connection' : 'Enable connection', `sources-toggle:${c.id}`, 'sm ghost')}${btn('Remove connection', `sources-delete:${c.id}`, 'sm ghost')}</div></details><span class="badge ${badge}">${badge === 'verified' ? '✓' : badge === 'auth' ? '!' : '○'} ${status}</span><p class="remote" title="${escapeHtml(location(c))}" dir="auto">${escapeHtml(location(c))}</p><p class="verified-time">${c.checked_at ? `Last checked ${escapeHtml(new Date(c.checked_at).toLocaleString())}` : 'Never checked'}${c.error ? ` · ${escapeHtml(c.error)}` : ''}</p><div class="card-actions">${btn(!c.enabled ? 'Resume connection' : c.status === 'needs-auth' ? 'Update authentication' : 'Browse issues →', `${mainAction}:${c.id}`, c.status === 'verified' ? 'primary' : '')}${c.enabled ? `<button class="btn subtle" data-action="sources-check:${c.id}" aria-label="Check access for ${escapeHtml(c.name)}">↻</button>` : ''}</div></article>`;
+    }).join('');
+    const rows = candidates.map(item => {
+      const source = item.source?.type || selected?.provider;
+      const key = String(item.source?.remote_id ?? 'Issue');
+      const imported = (sourceHistory.requests || []).some(r => {
+        const prior = r.source || {}, incoming = item.source || {};
+        if (prior.type !== source || String(prior.remote_id) !== key) return false;
+        if (prior.url && incoming.url) return prior.url === incoming.url;
+        if (incoming.repo) return prior.repo === incoming.repo;
+        if (incoming.base_url) return prior.base_url === incoming.base_url;
+        return prior.connection_id ? prior.connection_id === selected?.id : prior.project === incoming.project;
+      });
+      const label = item.labels?.[0] || item.priority || 'Issue';
+      return `<tr class="${imported ? 'row-disabled' : ''}" data-preview-source="${escapeHtml(source)}" data-preview-state="${escapeHtml(item.state || item.source?.state || 'open')}" data-preview-label="${escapeHtml(selected?.provider === 'jira' ? key.split('-')[0] : label)}" data-preview-search="${escapeHtml([item.title,key,item.objective_hint].filter(Boolean).join(' ').toLowerCase())}"><td><input type="checkbox" data-source-index="${item.index}" aria-label="Select ${escapeHtml(item.title)}" ${imported ? 'disabled' : sourceSelectedIndices.has(item.index) ? 'checked' : ''}></td><td class="issue-title"><span class="id">#${escapeHtml(key)}</span>${escapeHtml(item.title)}</td><td><span class="label ${['bug','docs'].includes(label) ? label : ''}">${escapeHtml(label)}</span></td><td class="muted">${escapeHtml(item.source?.repo || 'Choose repositories below')}</td><td><span class="status">${imported ? '✓ Already imported' : '○ Ready to import'}</span></td></tr>`;
+    }).join('');
+    const requests = sourceHistory.requests || [];
+    const requestCards = requests.map(r => {
+      const repos = r.repositories?.length ? r.repositories : r.repository?.id ? [r.repository] : [];
+      return `<article class="request" data-import-request="${escapeHtml(r.id)}"><div class="request-left"><span class="request-icon">↳</span><div><h3><span class="muted">#${escapeHtml(String(r.source?.remote_id ?? '?'))}</span> &nbsp;${escapeHtml(r.title)}</h3><p>${escapeHtml(r.id)} · via ${escapeHtml(r.source?.type || 'source')} · ${repos.length} ${repos.length === 1 ? 'repository' : 'repositories'}</p></div></div><div class="actions"><span class="badge ${r.needs_plan ? 'auth' : 'verified'}">${r.needs_plan ? 'Needs plan' : 'Planned'}</span>${btn('Edit repos', `source-repos:${r.id}`, 'small')}${btn('Open in Plan Studio ↗', `plan:${r.id}${repos.length === 1 ? ':' + repos[0].id : ''}`, 'small')}</div></article>`;
+    }).join('');
+    return `<div class="issue-sources source-v2"><div class="page-head"><div><div class="eyebrow">CONNECT. CHOOSE. PLAN.</div><h1>Issue sources</h1><p>Your team's work, connected. Bring the right issues into your next plan.</p></div><div class="actions">${btn('↻  Check all access', 'sources-check-all')}${btn('＋  Add source', 'sources-add', 'primary')}</div></div><div class="flow" aria-label="Import workflow"><span class="current"><i>1</i> Connect sources</span><em>›</em><span><i>2</i> Browse &amp; select</span><em>›</em><span><i>3</i> Import &amp; plan</span></div>
+      ${sourceConnectionNotice ? `<div class="notice" role="status"><span>${escapeHtml(sourceConnectionNotice)}</span>${btn('×', 'sources-dismiss-notice', 'quiet small')}</div>` : ''}
+      <section class="source-section source-workbench"><div class="section-head"><div><div class="title-line"><h2>Connected sources</h2><span class="count">${sourceConnections.length} connections</span></div><p class="section-sub">Your saved connections. Check access before browsing issues.</p></div><span class="muted small">Credentials stay private</span></div><div class="connections source-connection-grid">${cards || '<p class="empty">No sources connected yet. Add a source to begin.</p>'}</div></section>
+      <section class="source-section source-workbench"><div class="section-head browser-head"><div><h2>Browse issues</h2><p class="section-sub">Find the work you want to bring into ATL.</p></div><span class="browsing">${selected ? `<span class="dot"></span> Browsing ${escapeHtml(selected.name)}` : 'Choose a connection'}</span></div><div class="filters"><div><label for="sourceConnectionSelect">Connection</label><select id="sourceConnectionSelect"><option value="">Choose a connection</option>${sourceConnections.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === sourceSelectedId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select></div><div><label for="sourceStateFilter">${selected?.provider === 'azure' ? 'Work item state' : 'State'}</label><select id="sourceStateFilter"><option>All states</option>${[...new Set(candidates.map(item => item.state).filter(Boolean))].map(state => `<option>${escapeHtml(state)}</option>`).join('')}</select></div><div><label for="${selected?.provider === 'azure' ? 'sourceAzureSearchIteration' : 'sourceLabelFilter'}">${selected?.provider === 'azure' ? 'Sprint' : selected?.provider === 'jira' ? 'Project' : 'Label'}</label>${selected?.provider === 'azure' ? `<select id="sourceAzureSearchIteration"><option value="">All sprints</option>${sourceIteration && !azureIterations.some(it => it.path === sourceIteration) ? `<option value="${escapeHtml(sourceIteration)}" selected>${escapeHtml(sourceIteration)}</option>` : ''}${azureIterations.map(it => `<option value="${escapeHtml(it.path)}" ${it.path === sourceIteration ? 'selected' : ''}>${escapeHtml(it.name)}</option>`).join('')}</select>` : `<select id="sourceLabelFilter"><option value="">${selected?.provider === 'jira' ? 'All projects' : 'Any label'}</option>${[...new Set(selected?.provider === 'jira' ? (selected.settings.projects || []) : candidates.flatMap(i => i.labels || []))].map(l => `<option>${escapeHtml(l)}</option>`).join('')}</select>`}</div><div class="search-field"><label for="sourceSearch">Search</label><input id="sourceSearch" type="search" aria-label="Filter previewed issues" placeholder="Search by title or issue number" value="${escapeHtml(sourceSearchTerm)}"></div>${btn(sourceBrowseLoading ? 'Searching…' : '⌕  Search issues', 'sources-preview-selected', 'primary')}</div>
+      ${selected?.provider === 'azure' ? `<div class="source-extra-filters"><label for="sourceAzureWorkItem">Work item number or link</label><input id="sourceAzureWorkItem" placeholder="Number or link" value="${escapeHtml(sourceWorkItem)}">${btn('Load sprints', 'sources-azure-sprints', 'small')}<span id="sourceSprintsNotice" role="status">${escapeHtml(azureSprintsNotice)}</span></div>` : ''}${sourceNotice ? `<p class="notice" role="status">${escapeHtml(sourceNotice)}</p>` : ''}<div class="result-header"><span><b>${candidates.length} issues</b> <span class="muted">${selected ? 'from ' + escapeHtml(selected.name) : ''}</span></span><span class="muted">Select issues to import as requests</span></div><div class="table-wrap"><table><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? 'checked' : 'disabled'}></th><th>Issue</th><th>Label</th><th>Affected repositories</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><p class="source-empty empty" ${candidates.length ? 'hidden' : ''}>Choose a connected source and search issues here.</p><div class="import-bar"><div><b id="sourceSelectionCount">${candidates.length} selected</b><span class="muted"> &nbsp;·&nbsp; Imported issues are excluded automatically</span></div><div class="actions">${btn('Clear', 'sources-clear-selection', 'quiet small')}${btn(`↓  Import ${candidates.length} issues`, 'sources-import', 'primary small')}</div></div><details class="source-import-options"><summary>Affected repository mapping</summary><div class="source-repo-pills" role="group" aria-label="Affected repositories">${(snapshot.supervisor?.projects || []).map(p => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(p.id)}" ${sourceImportRepos.has(p.id) ? 'checked' : ''}><span>${escapeHtml(p.name)}</span></label>`).join('')}</div></details></section><section class="source-section"><div class="section-head"><div><div class="title-line"><h2>Imported requests</h2><span class="count">${requests.length}</span></div><p class="section-sub">Ready for the next step. Review repositories and start a plan.</p></div></div>${requestCards || '<p class="empty">No requests imported yet.</p>'}</section><details class="source-workstream-details"><summary>Repository workstreams &amp; import history</summary>${sourceHistoryPanel()}</details><p class="footnote">Sources are read-only. ATL never modifies your original issues.</p></div>`;
   }
   function issueSourcesPanel() {
     return issueSourcesPanelV2();
@@ -1338,12 +1432,15 @@ ${resourceSummary(currentDraft?.resources?.[proposal.id])}<div class="muted tiny
 
   function updateSourcePreview() {
     const search = $("#sourceSearch")?.value.trim().toLowerCase() || "";
+    const label = $("#sourceLabelFilter")?.value || "";
+    const state = $("#sourceStateFilter")?.value.toLowerCase() || "all states";
     const rows = [...document.querySelectorAll("[data-preview-source]")];
-    for (const row of rows) row.hidden = !row.dataset.previewSearch.includes(search);
-    const visible = rows.filter(row => !row.hidden);
-    const selected = [...document.querySelectorAll("[data-source-index]:checked")].length;
+    for (const row of rows) row.hidden = !row.dataset.previewSearch.includes(search) || (!!label && row.dataset.previewLabel !== label) || (state !== "all states" && row.dataset.previewState.toLowerCase() !== state);
+    const visible = rows.filter(row => !row.hidden && !row.querySelector("input")?.disabled);
+    const selected = [...document.querySelectorAll("[data-source-index]:checked:not(:disabled)")].length;
     const button = document.querySelector('[data-action="sources-import"]');
-    if (button) { button.textContent = "Import selected issues (" + selected + ")"; button.disabled = selected === 0; }
+    if (button) { button.textContent = "↓  Import " + selected + (selected === 1 ? " issue" : " issues"); button.disabled = selected === 0 || !connected; }
+    if ($("#sourceSelectionCount")) $("#sourceSelectionCount").textContent = selected + " selected";
     const selectAll = $("#sourceSelectAll");
     if (selectAll) {
       const checked = visible.filter(row => row.querySelector("input").checked).length;
@@ -1949,7 +2046,7 @@ operations: () => {
     // item is what key `n` opens.
     shortcutOrder = groups.flatMap((group) => group[1].map((id) => byRoute[id]).filter(Boolean));
     const shortcutFor = (route) => { const index = shortcutOrder.indexOf(route); return index >= 0 && index < 9 ? String(index + 1) : null; };
-    const groupHtml = (names) => names.map((name) => `<div class="section">${name}</div>` + groups.find((group) => group[0] === name)[1].map((id) => byRoute[id]).filter(Boolean).map((route) => { const key = shortcutFor(route); return `<button class="nav ${page === route[0] ? "on" : ""}" data-page="${route[0]}"${page === route[0] ? ' aria-current="page"' : ""}${key ? ` title="${route[2]} — press ${key}"` : ""}><span class="ico">${iconFor(route[0], route[1])}</span><span class="lbl">${route[2]}</span>${key ? `<span class="nav-key">${key}</span>` : ""}${navBadges(route[0])}</button>`; }).join("")).join("");
+    const groupHtml = (names) => names.map((name) => `<div class="source-section">${name}</div>` + groups.find((group) => group[0] === name)[1].map((id) => byRoute[id]).filter(Boolean).map((route) => { const key = shortcutFor(route); return `<button class="nav ${page === route[0] ? "on" : ""}" data-page="${route[0]}"${page === route[0] ? ' aria-current="page"' : ""}${key ? ` title="${route[2]} — press ${key}"` : ""}><span class="ico">${iconFor(route[0], route[1])}</span><span class="lbl">${route[2]}</span>${key ? `<span class="nav-key">${key}</span>` : ""}${navBadges(route[0])}</button>`; }).join("")).join("");
     $("#navA").innerHTML = groupHtml(["Workspace", "Build"]);
     $("#navB").innerHTML = groupHtml(["Intelligence", "Operations"]);
     $("#mobile").innerHTML = routes.map((route) => `<button class="btn sm ${page === route[0] ? "primary" : ""}" data-page="${route[0]}">${route[2]}${navBadges(route[0])}</button>`).join("");
@@ -2130,6 +2227,7 @@ operations: () => {
     // deliberately scrolled up (tracked by the capture scroll listener).
     if (page === "studio") { const transcript = $("#studioTranscript"); if (transcript && studioTranscriptStick) transcript.scrollTop = transcript.scrollHeight; }
     syncOfflineActions();
+    if (page === "sources") updateSourcePreview();
   }
   function renderConnectionIndicator() {
     if (PLUGIN) return;
@@ -2167,6 +2265,7 @@ operations: () => {
         button.dataset.disabledOffline = "true";
       }
     });
+    if (page === "sources" && connected) updateSourcePreview();
   }
   let snapshotDeferred = false;
   function announceSnapshotUpdate() {
@@ -2192,7 +2291,7 @@ operations: () => {
   function showModal(title, body, actions = "", dialogClass = "") {
     if (!dialogOpen) modalReturnFocus = document.activeElement;
     dialogOpen = true;
-    $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog ${escapeHtml(dialogClass)}" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1"><div class="dialoghead"><h2 id="modalTitle">${title}</h2><button class="btn ghost dialog-close" type="button" data-action="close" aria-label="Close dialog">✕</button></div><div class="dialogbody">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`;
+    $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog ${escapeHtml(dialogClass)}" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1"><div class="dialoghead">${dialogClass === 'source-design' ? `<div class="eyebrow">${title === 'Add a source' ? 'NEW CONNECTION' : 'CONNECTION SETTINGS'}</div>` : ''}<h2 id="modalTitle">${title}</h2><button class="btn ghost dialog-close" type="button" data-action="close" aria-label="Close dialog">✕</button></div><div class="dialogbody">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`;
     const dialog = $("#modal .dialog");
     const first = dialog.querySelector(".dialogbody input:not([disabled]), .dialogbody textarea:not([disabled]), .dialogbody select:not([disabled])");
     (first || dialog).focus({ preventScroll: true });
@@ -2203,8 +2302,17 @@ operations: () => {
     const settings = connection?.settings || {};
     const field = (id, label, value = '', placeholder = '') => `<label class="source-field"><span class="label">${label}</span><input class="input" id="${id}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" required></label>`;
     const providerTabs = ['github', 'jira', 'azure'].map(p => `<button class="btn ${p === provider ? 'primary' : ''}" type="button" data-action="sources-form-provider:${p}" ${connection ? 'disabled' : ''}>${{github:'GitHub',jira:'Jira',azure:'Azure Boards'}[p]}</button>`).join('');
-    const body = `<p class="sub">Create a saved connection to browse and import issues.</p><div class="source-provider-tabs" role="group" aria-label="Provider">${providerTabs}</div>${field('sourceFormName', 'Connection name', connection?.name || '', 'e.g., Platform Backlog')}${provider === 'github' ? field('sourceFormRepo', 'Repository URL or owner/repository', settings.repo || '', 'owner/repository') : provider === 'jira' ? field('sourceFormUrl', 'Jira base URL (HTTPS)', settings.base_url || '', 'https://jira.example.com') + field('sourceFormProjects', 'Project keys', settings.projects?.join(', ') || '', 'IT, IS') + field('sourceFormToken', 'Token environment variable', settings.token_env || 'JIRA_TOKEN') : field('sourceFormUrl', 'Azure collection URL (HTTPS)', settings.org_url || '', 'https://dev.azure.com/organization') + field('sourceFormProject', 'Project', settings.project || '') + field('sourceFormIteration', 'Default sprint (optional)', settings.iteration_path || '') + field('sourceFormToken', 'Token environment variable', settings.token_env || 'AZDO_PAT')}<p class="source-hint">Credentials stay on the server. Saved values appear in connection cards and editors.</p><p id="sourceFormError" class="source-form-error" role="alert">${escapeHtml(error)}</p>`;
-    popup(connection ? 'Edit source' : 'Add source', body, btn('Cancel', 'close') + `<button class="btn primary" type="button" data-action="sources-form-save:${provider}:${connection?.id || ''}" ${sourceFormBusy ? 'disabled' : ''}>${sourceFormBusy ? 'Saving…' : 'Save connection'}</button>`);
+    const secretField = (label, placeholder) => `<label class="source-field"><span class="label">${label}</span><input class="input" id="sourceFormPat" type="password" autocomplete="new-password" placeholder="${placeholder}"></label>`;
+    const body = `<p class="sub">Create a saved connection to browse and import issues.</p><div class="source-provider-tabs" role="group" aria-label="Provider">${providerTabs}</div>${field('sourceFormName', 'Connection name', connection?.name || '', 'e.g., Platform Backlog')}${provider === 'github' ? field('sourceFormRepo', 'Repository URL or owner/repository', settings.repo || '', 'owner/repository') + secretField('GitHub token (optional)', 'Paste token for private repositories') : provider === 'jira' ? field('sourceFormUrl', 'Jira base URL (HTTPS)', settings.base_url || '', 'https://jira.example.com') + field('sourceFormProjects', 'Project keys', settings.projects?.join(', ') || '', 'IT, IS') + secretField('Jira token (optional)', 'Paste Jira token, or use an environment variable') + `<details><summary>Advanced credential settings</summary>${field('sourceFormToken', 'Token environment variable name', settings.token_env || 'JIRA_TOKEN')}</details>` : field('sourceFormUrl', 'Azure collection URL (HTTPS)', settings.org_url || '', 'https://dev.azure.com/organization') + field('sourceFormProject', 'Project', settings.project || '') + field('sourceFormIteration', 'Default sprint (optional)', settings.iteration_path || '') + secretField('Personal access token (optional)', 'Paste Azure PAT, or use an environment variable') + `<details><summary>Advanced credential settings</summary>${field('sourceFormToken', 'Token environment variable name', settings.token_env || 'AZDO_PAT')}</details>`}<p class="source-hint">Tokens stay on the server and are never shown in saved connection details. Environment variable fields accept names, not token values.</p><p id="sourceFormError" class="source-form-error" role="alert">${escapeHtml(error)}</p>`;
+    showModal(connection ? 'Edit connection' : 'Add a source', body, btn('Cancel', 'close') + `<button class="btn primary" type="button" data-action="sources-form-save:${provider}:${connection?.id || ''}" ${sourceFormBusy ? 'disabled' : ''}>${sourceFormBusy ? 'Saving…' : 'Save connection'}</button>`, 'source-design');
+    updateSourceFormReady();
+  }
+  function updateSourceFormReady() {
+    const save = document.querySelector('.source-design [data-action^="sources-form-save:"]');
+    if (!save) return;
+    const provider = save.dataset.action.split(':')[1];
+    const ids = provider === 'github' ? ['sourceFormName', 'sourceFormRepo'] : provider === 'jira' ? ['sourceFormName', 'sourceFormUrl', 'sourceFormProjects'] : ['sourceFormName', 'sourceFormUrl', 'sourceFormProject'];
+    save.disabled = sourceFormBusy || !connected || ids.some(id => !document.getElementById(id)?.value.trim());
   }
   function enhanceCurrentProviderModal() {
     // Save connection is intentionally disabled until an existing field changes.
@@ -2796,15 +2904,16 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     // tiny response instead of a full snapshot re-download every cycle. Mutations
     // that bypass the state revision (config writes) pass forceFull so the
     // response cannot answer "unchanged" before the next server tick.
-    try { const response = await fetch(forceFull ? "/api/snapshot" : `/api/snapshot?cursor=${frameCursor}`, { cache: "no-store" }); if (!response.ok) throw new Error(`snapshot ${response.status}`); const payload = await response.json(); if (payload.unchanged && !forceFull) { lastRefreshOk = Date.now(); connected = true; return; } snapshot = payload; frameCursor = payload.cursor || 0; lastRefreshOk = Date.now(); connected = true; }
+    try { const response = await fetch(forceFull ? "/api/snapshot" : `/api/snapshot?cursor=${frameCursor}`, { cache: "no-store" }); if (!response.ok) throw new Error(`snapshot ${response.status}`); const payload = await response.json(); if (payload.unchanged && !forceFull) { lastRefreshOk = Date.now(); connected = true; renderConnectionIndicator(); syncOfflineActions(); return; } snapshot = payload; frameCursor = payload.cursor || 0; lastRefreshOk = Date.now(); connected = true; }
     catch { connected = false; }
+    renderConnectionIndicator(); syncOfflineActions();
     refreshTaskDetail();
     const editing = dialogOpen || cardDraft || page === "sources" || document.activeElement?.matches("input, textarea, select");
     if (renderAfter && !editing) { discardPendingRender(); render(); }
     else if (renderAfter) queueSuppressedRender();
   }
-  function connectStream() { if (stream) stream.close(); stream = new EventSource(`/api/events?cursor=${streamCursor}`); stream.addEventListener("snapshot", (event) => { try { const payload = JSON.parse(event.data); streamCursor = payload.cursor || streamCursor; snapshot = payload.snapshot || snapshot; connected = true; streamRetry = 1000; if (page !== "sources" && !dialogOpen && !cardDraft && !document.activeElement?.matches("input,textarea,select")) render(); } catch {} }); stream.addEventListener("unchanged", () => { const wasStale = !connected; connected = true; streamRetry = 1000; if (wasStale && page !== "sources" && !dialogOpen && !cardDraft && !document.activeElement?.matches("input,textarea,select")) render(); }); stream.onerror = () => { connected = false; stream.close(); setTimeout(connectStream, streamRetry); streamRetry = Math.min(streamRetry * 2, 15000); if (page !== "sources") render(); }; }
-  setInterval(() => { if (connected && lastRefreshOk && Date.now() - lastRefreshOk > 10000) { connected = false; if (page !== "sources") render(); } }, 1000);
+  function connectStream() { if (stream) stream.close(); stream = new EventSource(`/api/events?cursor=${streamCursor}`); stream.addEventListener("snapshot", (event) => { try { const payload = JSON.parse(event.data); streamCursor = payload.cursor || streamCursor; snapshot = payload.snapshot || snapshot; connected = true; lastRefreshOk = Date.now(); renderConnectionIndicator(); syncOfflineActions(); streamRetry = 1000; if (page !== "sources" && !dialogOpen && !cardDraft && !document.activeElement?.matches("input,textarea,select")) render(); } catch {} }); stream.addEventListener("unchanged", () => { const wasStale = !connected; connected = true; lastRefreshOk = Date.now(); renderConnectionIndicator(); syncOfflineActions(); streamRetry = 1000; if (wasStale && page !== "sources" && !dialogOpen && !cardDraft && !document.activeElement?.matches("input,textarea,select")) render(); }); stream.onerror = () => { connected = false; renderConnectionIndicator(); syncOfflineActions(); stream.close(); setTimeout(connectStream, streamRetry); streamRetry = Math.min(streamRetry * 2, 15000); if (page !== "sources") render(); }; }
+  setInterval(() => { if (connected && lastRefreshOk && Date.now() - lastRefreshOk > 10000) { connected = false; renderConnectionIndicator(); syncOfflineActions(); if (page !== "sources") render(); } }, 1000);
   async function refreshProviderUsage() {
     usageNotice = "Refreshing configured provider telemetry…";
     render();
@@ -3319,7 +3428,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         popup(`GitHub access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a token with read access to the repository. It is held by this local server for this session only — nothing is written to disk; "gh auth login" or GITHUB_TOKEN persists access.</p><label class="source-field"><span class="label">GitHub token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste token"></label><p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
         return;
       }
-      popup(`Azure access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a PAT with Work Items: Read access. The token is sent only to this local server.</p><label class="source-field"><span class="label">Personal access token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste PAT"></label>${sourceSettings?.azure?.remember_supported ? '<label class="source-enable"><input id="sourceConnectionRemember" type="checkbox" checked> Remember securely on this Windows account</label>' : '<p class="source-hint">Session credential; reconnect after restarting the server.</p>'}<p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
+      popup(`${c.provider === 'jira' ? 'Jira' : 'Azure'} access - ${escapeHtml(c.name)}`, `<p class="sub">${c.provider === 'jira' ? 'Enter a Jira token for this server session.' : 'Enter a PAT with Work Items: Read access. The token is sent only to this local server.'}</p><label class="source-field"><span class="label">${c.provider === 'jira' ? 'Jira token' : 'Personal access token'}</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste token"></label>${c.provider === 'azure' && sourceSettings?.azure?.remember_supported ? '<label class="source-enable"><input id="sourceConnectionRemember" type="checkbox" checked> Remember securely on this Windows account</label>' : '<p class="source-hint">Session credential; reconnect after restarting the server.</p>'}<p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
       return;
     }
     if (value.startsWith('sources-credential-save:') || value.startsWith('sources-credential-disconnect:')) {
@@ -3344,7 +3453,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       try {
         const response = await fetch(`/api/intake/connections/${encodeURIComponent(id)}/credential`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ revision: sourceConnectionRevision, action: disconnect ? 'disconnect' : 'connect', token: disconnect ? '' : $('#sourceConnectionPat')?.value, remember: Boolean($('#sourceConnectionRemember')?.checked) }) });
         const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Credential could not be saved');
-        close(); await loadIssueSources(); sourceConnectionNotice = disconnect ? 'Azure credential disconnected.' : 'Azure credential saved. Check access to verify it.'; render();
+        close(); await loadIssueSources(); sourceConnectionNotice = disconnect ? `${credentialConnection?.provider === 'jira' ? 'Jira' : 'Azure'} credential disconnected.` : `${credentialConnection?.provider === 'jira' ? 'Jira' : 'Azure'} credential saved. Check access to verify it.`; render();
       } catch (error) { const node = $('#sourceCredentialError'); if (node) node.textContent = error.message; if (button) button.disabled = false; }
       return;
     }
@@ -3354,16 +3463,28 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const payload = { provider, name: $('#sourceFormName')?.value.trim(), repo: $('#sourceFormRepo')?.value.trim(), projects: $('#sourceFormProjects')?.value.trim(), project: $('#sourceFormProject')?.value.trim(), iteration_path: $('#sourceFormIteration')?.value.trim(), token_env: $('#sourceFormToken')?.value.trim(), revision: sourceConnectionRevision };
       if (provider === 'jira') payload.base_url = $('#sourceFormUrl')?.value.trim();
       if (provider === 'azure') payload.org_url = $('#sourceFormUrl')?.value.trim();
+      const token = $('#sourceFormPat')?.value.trim() || '';
       const errorNode = $('#sourceFormError'), button = document.querySelector('.dialogfoot [data-action^="sources-form-save:"]');
       sourceFormBusy = true; if (button) { button.disabled = true; button.textContent = 'Saving…'; } if (errorNode) errorNode.textContent = '';
       try {
         const response = await fetch(id ? `/api/intake/connections/${encodeURIComponent(id)}` : '/api/intake/connections', { method: id ? 'PATCH' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
         const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not save connection');
+        if (token) {
+          const credentialResponse = await fetch(provider === 'github' ? '/api/intake/credentials/github' : `/api/intake/connections/${encodeURIComponent(result.connection.id)}/credential`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(provider === 'github' ? { action: 'save', token } : { revision: result.revision, action: 'connect', token, remember: false }) });
+          const credential = await credentialResponse.json();
+          if (!credentialResponse.ok) {
+            close(); await loadIssueSources();
+            await action(`sources-credential:${result.connection.id}`);
+            const message = $('#sourceCredentialError'); if (message) message.textContent = 'Connection saved. Token could not be saved: ' + (credential.error || 'Try again.');
+            return;
+          }
+        }
         close(); await loadIssueSources(); sourceSelectedId = result.connection.id; sourcePreview = null; sourceConnectionNotice = `“${result.connection.name}” saved successfully and is available in Connected sources.`; render();
       } catch (error) { if (errorNode) errorNode.textContent = error.message; if (button) { button.disabled = false; button.textContent = 'Save connection'; } }
       finally { sourceFormBusy = false; } return;
     }
-    if (value.startsWith('sources-browse:')) { sourcePreviewSequence++; sourceSelectedId = value.slice(15); sourcePreview = null; sourceNotice = ''; render(); document.querySelector('#sourceConnectionSelect')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+    if (value === 'sources-clear-selection') { sourceSelectedIndices.clear(); document.querySelectorAll('[data-source-index]').forEach(input => { input.checked = false; }); updateSourcePreview(); return; }
+    if (value.startsWith('sources-browse:')) { selectSource(value.slice(15)); document.querySelector('#sourceConnectionSelect')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     if (value.startsWith('sources-toggle:') || value.startsWith('sources-delete:') || value.startsWith('sources-check:') || value === 'sources-check-all') {
       const op = value.split(':')[0];
       const targets = value === 'sources-check-all' ? sourceConnections.filter(c => c.enabled) : [sourceConnections.find(c => c.id === value.split(':')[1])].filter(Boolean);
@@ -3379,26 +3500,11 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       }
       await loadIssueSources(); sourcePreview = null; render(); return;
     }
-    if (value === 'sources-preview-selected') {
-      const c = sourceConnections.find(item => item.id === sourceSelectedId);
-      if (!c) { sourceNotice = 'Choose a connection first.'; render(); return; }
-      const sequence = ++sourcePreviewSequence;
-      try { const response = await fetch('/api/intake/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ connection_id: c.id, work_item: $('#sourceAzureWorkItem')?.value.trim(), iteration_path: $('#sourceAzureSearchIteration')?.value.trim() }) }); const result = await response.json(); if (sequence !== sourcePreviewSequence || sourceSelectedId !== c.id) return; if (!response.ok) throw new Error(result.error || 'Issue preview failed'); sourcePreview = { ...result, source: c.provider }; sourceNotice = `${result.candidates.length} issue(s) found. No task was created.`; }
-      catch (error) { if (sequence !== sourcePreviewSequence) return; sourcePreview = null; sourceNotice = error.message; } render(); return;
-    }
-    if (value === "sources-azure-sprints") {
-      try {
-        const response = await fetch("/api/intake/azure/iterations", { cache: "no-store" });
-        const result = await response.json();
-        if (!response.ok || !result.ok) throw new Error(result.error || "Could not list sprints");
-        azureIterations = result.iterations || [];
-        azureSprintsNotice = azureIterations.length ? `${azureIterations.length} sprint(s) loaded — pick one in the Sprint field, then Preview.` : "Azure returned no sprints under this project.";
-      } catch (error) { azureSprintsNotice = ""; sourceNotice = error.message; }
-      render(); return;
-    }
+    if (value === 'sources-preview-selected') { await browseSelectedSource(); return; }
+    if (value === 'sources-azure-sprints') { await loadSourceSprints(sourceSelectedId); return; }
     if (value === "sources-import" || value.startsWith("sources-import-one:")) {
       if (!sourcePreview) return;
-      const indices = value.startsWith("sources-import-one:") ? [Number(value.slice(19))] : [...document.querySelectorAll("[data-source-index]:checked")].map((item) => Number(item.dataset.sourceIndex));
+      const indices = value.startsWith("sources-import-one:") ? [Number(value.slice(19))] : [...document.querySelectorAll("[data-source-index]:checked:not(:disabled)")].map((item) => Number(item.dataset.sourceIndex));
       if (!indices.length) { sourceNotice = "Select at least one issue."; render(); return; }
       try { const repositoryIds = [...document.querySelectorAll("[data-import-repository]:checked")].map((input) => input.value); const response = await fetch("/api/intake/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: sourcePreview.token, indices, destination: 'planning', repository_ids: repositoryIds }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Import failed"); const repoNames = repositoryIds.map((id) => (snapshot.supervisor?.projects || []).find((p) => p.id === id)?.name).filter(Boolean); sourcePreview = null; await refresh(false); await loadIssueSources(); sourceNotice = `${result.added} request(s) imported for planning; ${result.skipped} already present.${repoNames.length ? ` Linked to ${repoNames.join(", ")}.` : " No repositories linked; planning will inspect this workspace."} Create one reviewed plan per repository. No execution queue was created.`; page = "sources"; }
       catch (error) { sourceNotice = error.message; } render(); return;
@@ -4073,12 +4179,22 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const egm = ($("#reviewKindSelect")?.value || studioReviewKind) === "egm";
       const provider = studioProvider || currentDraft?.provider;
       if (!provider) { studioNotice = "Select a configured provider for the review."; render(); return; }
-      studioBusy = true; render();
+      if (reviewingDrafts.has(id)) return;
+      reviewingDrafts.add(id); render();
       let progressTimer = null;
       if (egm) progressTimer = setInterval(async () => { try { const p = await planApi("/api/plan/review-progress", { draftId: id }); const entries = (p.progress && p.progress.entries) || []; const last = entries.at(-1); if (last) { studioEgmStage = `stage ${last.index}/${last.total} — ${String(last.stage || "").replace(".md", "")}`; render(); } } catch { /* progress is best-effort */ } }, 3000);
-      try { const result = await planApi("/api/plan/review", egm ? { draftId: id, reviewType: "egm", provider, model: studioModel || null } : { draftId: id, provider, model: studioModel || null }); currentDraft = result.draft; studioNotice = egm ? `EGM deep review ${result.review.verdict} (${result.review.egm?.backend || "codex"} · ${(result.review.egm?.version_sha || "egm").slice(0, 12)}). Findings are shown with the plan.` : `Accuracy review ${result.review.verdict}. Review findings are shown with the plan.`; }
-      catch (error) { studioNotice = `${egm ? "EGM deep review" : "Accuracy review"} failed: ${error.message}${error.workdir ? ` (raw run preserved at ${error.workdir})` : ""} The draft is unchanged — the verdict recorded on the plan still decides approval.`; }
-      finally { if (progressTimer) clearInterval(progressTimer); studioEgmStage = ""; studioBusy = false; render(); }
+      try {
+        const result = await planApi("/api/plan/review", { draftId: id, ...(egm ? { reviewType: "egm" } : {}), provider, model: studioModel || null });
+        if (currentDraft?.id === id) {
+          if (currentDraft.revision <= result.draft.revision) currentDraft = result.draft;
+          studioNotice = result.draft.accuracy_followup?.status === 'retry'
+            ? 'Review saved. ATL could not finish the correction check; your answers and plan are retained. You can retry or keep planning.'
+            : `Accuracy review ${result.review?.verdict || 'pending'}. Corrections and next steps are in the conversation.`;
+        }
+      } catch (error) {
+        if (currentDraft?.id === id) studioNotice = `Review could not finish: ${error.message}. Your saved plan and conversation remain available.`;
+      }
+      finally { if (progressTimer) clearInterval(progressTimer); studioEgmStage = ""; reviewingDrafts.delete(id); render(); }
       return;
     }
     if (value.startsWith("egm-cancel:")) {
@@ -4114,19 +4230,24 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       return;
     }
     if (value.startsWith("question-answer:")) {
-      const [, source, questionId] = value.split(":");
-      const radio = document.querySelector(`input[name="studio-q-${source}-${questionId}"]:checked`);
-      const custom = $(`#studio-q-custom-${source}-${questionId}`)?.value.trim();
-      const answer = custom || radio?.value || "";
-      if (!answer) { studioNotice = "Choose a suggested answer or write a custom one before sending."; render(); return; }
+      const [, source, questionId] = value.split(':');
+      const draftId = currentDraft.id;
+      const key = `${draftId}:${source}:${questionId}`;
+      if (checkingQuestions.has(key)) return;
+      const answer = $(`#studio-q-custom-${source}-${questionId}`)?.value.trim() || document.querySelector(`input[name="studio-q-${source}-${questionId}"]:checked`)?.value || questionDraft(source, questionId) || currentDraft.answer_assessments?.[questionId]?.original_answer || '';
+      if (!answer) { studioNotice = 'Choose a suggested answer or write a custom one before sending.'; render(); return; }
+      const revision = currentDraft.revision;
+      checkingQuestions.add(key); render();
       try {
-        const result = await planApi("/api/plan/clarify", { draftId: currentDraft.id, questionId, answer, target: source === "candidate" ? "candidate" : undefined });
-        currentDraft = result.draft;
-        studioNotice = source === "candidate" ? "Answer saved on the proposed changes." : "Answer saved. The previous review was cleared; run accuracy review again.";
+        const result = await planApi('/api/plan/clarify', { draftId, questionId, answer, revision, provider: studioProvider || currentDraft.provider, model: studioModel || null, target: source === 'candidate' ? 'candidate' : undefined });
+        if (currentDraft?.id === draftId && currentDraft.revision <= result.draft.revision) currentDraft = result.draft;
+        studioNotice = (source === 'candidate' ? result.draft.pending_candidate : result.draft)?.accuracy_followup?.status === 'retry' ? 'Answer retained. Retry its check whenever convenient; planning stays open.' : 'Answer checked and plan updated. You can keep planning.';
         studioTranscriptStick = true;
-      } catch (error) { studioNotice = `Error: ${error.message}`; }
-      render();
-      return;
+      } catch (error) {
+        studioNotice = `Answer retained: ${error.message}. You can keep planning.`;
+        try { const result = await planApi('/api/plan/drafts', { draftId }); if (currentDraft?.id === draftId) currentDraft = result.draft; } catch { /* keep local draft */ }
+      } finally { checkingQuestions.delete(key); }
+      render(); return;
     }
     if (value === "candidate-apply") {
       if (studioBusy || !currentDraft?.pending_candidate) return;
@@ -4159,7 +4280,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "ask-task-clear") { studioComposerTarget = null; render(); return; }
     if (value.startsWith("studio-pane:")) { studioMobilePane = value.slice(12); render(); return; }
     if (value.startsWith("studio-plantab:")) { studioPlanTab = value.slice(15); render(); return; }
-    if (value === "studio-focus-questions") { studioMobilePane = "conversation"; render(); const first = document.querySelector("[data-studio-question]"); if (first) { first.scrollIntoView({ block: "center", behavior: "smooth" }); first.querySelector("input, textarea")?.focus({ preventScroll: true }); } return; }
+    if (value === "studio-review-chat") { studioMobilePane = "conversation"; render(); $("#goal")?.focus(); return; }
+    if (value === "studio-focus-questions") { studioMobilePane = "conversation"; render(); const first = document.querySelector("[data-studio-question]"); if (first) { first.closest("details").open = true; first.scrollIntoView({ block: "center", behavior: "smooth" }); first.querySelector("input, textarea")?.focus({ preventScroll: true }); } return; }
     if (value === "studio-run-egm") { studioReviewKind = "egm"; if (currentDraft) return action(`plan-review:${currentDraft.id}`); render(); return; }
     if (value.startsWith("plan-approve:") || value.startsWith("plan-queue:")) {
       const queueAfter = value.startsWith("plan-queue:");
@@ -4272,7 +4394,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     pluginOverflowOpen = false;
     render();
     // The Settings page renders live provider state — refresh it on arrival.
-    if (next === "sources") void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { if (page === "sources") render(); });
+    if (next === "sources") void loadIssueSources().then(() => { if (page === 'sources') { render(); if (sourceSelectedId && !sourcePreview) void browseCurrentDefaults(); } }).catch((error) => { sourceNotice = error.message; if (page === 'sources') render(); });
     if (next === "sources") void loadProjectMap();
     if (next === "projects") void loadProjectMap();
     if (next === "mytasks") {
@@ -4302,10 +4424,14 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.id === "overlay") close();
   }, true);
   document.addEventListener("input", (event) => {
-    if (event.target.id === 'sourceConnectionSelect') { sourcePreviewSequence++; sourceSelectedId = event.target.value || null; sourcePreview = null; sourceNotice = ''; render(); return; }
+    if (event.target.closest?.('.source-design')) updateSourceFormReady();
+    if (['sourceLabelFilter','sourceStateFilter'].includes(event.target.id)) { updateSourcePreview(); return; }
+    if (event.target.id === 'sourceConnectionSelect') { selectSource(event.target.value || null); return; }
+    if (event.target.id === 'sourceAzureSearchIteration') { sourceIteration = event.target.value; void browseSelectedSource(); return; }
+    if (event.target.id === 'sourceAzureWorkItem') { sourceWorkItem = event.target.value; }
     if (event.target.matches?.("[data-repo-select]") && event.target.isConnected) { const taskId = event.target.dataset.repoSelect; if (taskId) currentAssign.set(taskId, event.target.value); }
     if (event.target.matches?.("[data-import-repository]")) { if (event.target.checked) sourceImportRepos.add(event.target.value); else sourceImportRepos.delete(event.target.value); }
-    if (event.target.id === "sourceSearch") { updateSourcePreview(); return; }
+    if (event.target.id === "sourceSearch") { sourceSearchTerm = event.target.value; updateSourcePreview(); return; }
     if(event.target.closest('[data-resource-form]'))resourceDraft=readResourceForm();
     if (event.target.id === "goal") {
       studioGoal = event.target.value;
@@ -4359,10 +4485,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.target.matches("[data-mt-filter]")) { myTasksFilter[event.target.dataset.mtFilter] = event.target.value; render(); return; }
     if (event.target.id === "mtInterval") { const custom = $("#mtIntervalCustom"); if (custom) custom.hidden = event.target.value !== "custom"; return; }
     if (event.target.id === "sourceSelectAll") {
-      document.querySelectorAll("[data-preview-source]").forEach(row => { if (!row.hidden) row.querySelector("input").checked = event.target.checked; });
+      document.querySelectorAll("[data-preview-source]").forEach(row => { if (!row.hidden && !row.querySelector("input").disabled) { const input = row.querySelector("input"); input.checked = event.target.checked; if (input.checked) sourceSelectedIndices.add(Number(input.dataset.sourceIndex)); else sourceSelectedIndices.delete(Number(input.dataset.sourceIndex)); } });
       updateSourcePreview(); return;
     }
-    if (event.target.matches("[data-source-index]")) { updateSourcePreview(); return; }
+    if (event.target.matches("[data-source-index]")) { const index = Number(event.target.dataset.sourceIndex); if (event.target.checked) sourceSelectedIndices.add(index); else sourceSelectedIndices.delete(index); updateSourcePreview(); return; }
     if(event.target.closest('[data-resource-form]'))resourceDraft=readResourceForm();
     if (event.target.id === "studioFiles") {
       const files = [...(event.target.files || [])].slice(0, 8);
@@ -4429,6 +4555,56 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (!["assistantMessage", "assistantMode", "assistantProvider"].includes(event.target.id)) return;
     assistantDrafts.set(assistantScope, { message: $("#assistantMessage")?.value || "", mode: $("#assistantMode")?.value || "diagnose", provider: $("#assistantProvider")?.value || "" });
   };
+  const progressTimers = new Map();
+  function rememberQuestionAnswer(event) {
+    const card = event.target.closest?.('[data-studio-question]');
+    if (!card || !currentDraft || !event.target.matches('textarea,input')) return;
+    const id = card.dataset.studioQuestion;
+    const source = card.dataset.questionSource;
+    const draftId = currentDraft.id;
+    if (event.target.matches('input[type=radio]')) card.querySelector('textarea').value = '';
+    const answer = card.querySelector('textarea').value || card.querySelector('input:checked')?.value || '';
+    try { localStorage.setItem(questionStorageKey(draftId, source, id), answer); } catch { /* server fallback */ }
+    {
+      const record = source === 'candidate' ? currentDraft.pending_candidate : currentDraft;
+      record.question_progress ||= {}; record.question_progress[id] = answer;
+      const key = `${draftId}:${source}:${id}`;
+      clearTimeout(progressTimers.get(key));
+      progressTimers.set(key, setTimeout(() => { progressTimers.delete(key); void planApi('/api/plan/question-progress', { draftId, target: source, progress: { [id]: answer } }).catch(() => {}); }, 350));
+    }
+  }
+  document.addEventListener('input', rememberQuestionAnswer);
+  document.addEventListener('change', rememberQuestionAnswer);
+  document.addEventListener('toggle', (event) => {
+    if (event.target.matches?.('[data-studio-questions]') && event.target.isConnected && currentDraft) {
+      try { localStorage.setItem(`atl-studio-questions:${currentDraft.id}`, event.target.open ? 'open' : 'closed'); } catch { /* optional preference */ }
+    }
+  }, true);
+  let secretInputSequence = 0;
+  function enhanceSecretInputs() {
+    document.querySelectorAll('input[type="password"]:not([data-secret-enhanced])').forEach(input => {
+      input.dataset.secretEnhanced = 'true';
+      input.id ||= `secret-input-${++secretInputSequence}`;
+      const wrapper = document.createElement('span'); wrapper.className = 'secret-input';
+      input.before(wrapper); wrapper.append(input);
+      const toggle = document.createElement('button');
+      toggle.type = 'button'; toggle.className = 'btn sm ghost'; toggle.textContent = 'Show';
+      toggle.dataset.secretToggle = input.id;
+      toggle.setAttribute('aria-controls', input.id); toggle.setAttribute('aria-pressed', 'false'); toggle.setAttribute('aria-label', 'Show token or API key');
+      wrapper.append(toggle);
+    });
+  }
+  new MutationObserver(enhanceSecretInputs).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('click', event => {
+    const toggle = event.target.closest?.('[data-secret-toggle]');
+    if (!toggle) return;
+    const input = document.getElementById(toggle.dataset.secretToggle);
+    if (!input) return;
+    const reveal = input.type === 'password'; input.type = reveal ? 'text' : 'password';
+    toggle.textContent = reveal ? 'Hide' : 'Show'; toggle.setAttribute('aria-pressed', String(reveal));
+    toggle.setAttribute('aria-label', reveal ? 'Hide token or API key' : 'Show token or API key');
+  });
+  enhanceSecretInputs();
   document.addEventListener("input", saveAssistantDraft);
   document.addEventListener("change", saveAssistantDraft);
   document.addEventListener("keydown", (event) => {
@@ -4543,7 +4719,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   void Promise.all([refresh(false), refreshRun(false), loadProviders(true), loadSavedPlans(), ...(page === "sources" ? [loadIssueSources()] : []), ...(page === "projects" ? [loadProjectMap()] : []), ...(page === "mytasks" ? [loadMyTasks()] : []), ...(page === "settings" ? [loadNavigation(), loadAccess(), loadResources()] : [])]).then(() => {
     render();
     connectStream();
+    if (page === 'sources' && sourceSelectedId && !sourcePreview) void browseCurrentDefaults();
     if (page === "mytasks" && !myTasksTimer) myTasksTimer = setInterval(() => { if (page === "mytasks") void loadMyTasks({ silent: true }); }, 5000);
-    setInterval(() => { if (page !== "sources") { void refresh(); void refreshRun(); } }, 2000);
+    setInterval(() => { if (page === "sources") void refresh(false); else { void refresh(); void refreshRun(); } }, 2000);
   });
 })();
