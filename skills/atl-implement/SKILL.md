@@ -44,10 +44,15 @@ A plan exists (or the user asked for a bounded fix within the stated dose). If t
 
 - Never weaken, delete, or skip a meaningful test or assertion to get green. If a check is genuinely wrong, say why and get agreement (Critical dose: always).
 - After each task, re-read the actual diff: scope leaks, stray generated files, unintended edits → fix or revert immediately.
+- Keep the diff focused: every change supports the requested outcome, its verification, or a necessary compatibility contract; unrelated code, comments, formatting, and existing work stay untouched.
+- Clean up what the task orphans: remove imports, variables, functions, and files this change left unused after confirming they have no remaining consumers; report unrelated pre-existing dead code instead of removing it unless removal is authorized.
+- Choose the simplest implementation that meets the approved behavior: no speculative features, configuration, or abstractions; keep complexity that an established contract, safety, compatibility, or maintainability requires.
 - Keep artifacts current as you go — task states, new OPEN items, decisions — not in a final dump.
 - Follow repo commit conventions; never commit or push unless authorized.
 
 ## Stop and escalate
+
+Before escalating on ambiguity, exhaust what the repository can answer — code, docs, history, reproduction. State consequential assumptions as `ASSUMPTION (source)`, and ask only when a human-owned decision materially changes the outcome.
 
 Stop instead of improvising when: intent is ambiguous or conflicting; authority is missing (credentials, production, spend, publication, irreversible deletion); a required verifier is missing or unreliable; budgets are exhausted; protected work is at risk. Report: facts, evidence so far, the exact decision needed, a recommended safe default, and what can still proceed safely.
 
