@@ -2080,7 +2080,7 @@ operations: () => {
     // item is what key `n` opens.
     shortcutOrder = groups.flatMap((group) => group[1].map((id) => byRoute[id]).filter(Boolean));
     const shortcutFor = (route) => { const index = shortcutOrder.indexOf(route); return index >= 0 && index < 9 ? String(index + 1) : null; };
-    const groupHtml = (names) => names.map((name) => `<div class="source-section">${name}</div>` + groups.find((group) => group[0] === name)[1].map((id) => byRoute[id]).filter(Boolean).map((route) => { const key = shortcutFor(route); return `<button class="nav ${page === route[0] ? "on" : ""}" data-page="${route[0]}"${page === route[0] ? ' aria-current="page"' : ""}${key ? ` title="${route[2]} — press ${key}"` : ""}><span class="ico">${iconFor(route[0], route[1])}</span><span class="lbl">${route[2]}</span>${key ? `<span class="nav-key">${key}</span>` : ""}${navBadges(route[0])}</button>`; }).join("")).join("");
+    const groupHtml = (names) => names.map((name) => `<div class="section">${name}</div>` + groups.find((group) => group[0] === name)[1].map((id) => byRoute[id]).filter(Boolean).map((route) => { const key = shortcutFor(route); return `<button class="nav ${page === route[0] ? "on" : ""}" data-page="${route[0]}"${page === route[0] ? ' aria-current="page"' : ""}${key ? ` title="${route[2]} — press ${key}"` : ""}><span class="ico">${iconFor(route[0], route[1])}</span><span class="lbl">${route[2]}</span>${key ? `<span class="nav-key">${key}</span>` : ""}${navBadges(route[0])}</button>`; }).join("")).join("");
     $("#navA").innerHTML = groupHtml(["Workspace", "Build"]);
     $("#navB").innerHTML = groupHtml(["Intelligence", "Operations"]);
     $("#mobile").innerHTML = routes.map((route) => `<button class="btn sm ${page === route[0] ? "primary" : ""}" data-page="${route[0]}">${route[2]}${navBadges(route[0])}</button>`).join("");
@@ -4356,27 +4356,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         render();
         popup("Plan approved — Plan Queue created", `<p>Queue <b>${escapeHtml(approved.queueId || "(unknown)")}</b> now holds ${escapeHtml(String((approved.taskIds || []).length))} ordered canonical task(s).</p><p class="sub">Nothing is executing. Preview the queue and confirm a run explicitly when you want the overnight gate opened.</p>`, btn("Open Queues", "go:queues", "primary") + btn("Close", "close"));
       } catch (error) { popup("Plan approval failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
-      return;
-    }
-    if (value.startsWith("plan-revise:")) {
-      const draftId = value.slice(12);
-      let draft;
-      try { draft = (await planApi("/api/plan/drafts", { draftId })).draft; } catch (error) { studioNotice = `Error: could not load the draft to revise: ${error.message}`; render(); return; }
-      if (!draft) return;
-      const findings = (draft.review?.findings || []).filter((item) => ["blocker", "major"].includes(item.severity));
-      if (!findings.length) return;
-      const original = String(draft.intent || "").trim();
-      studioSourceTaskId = draft.source_task_id || null;
-      studioSourceContext = null;
-      studioSourceContextConfirmed = true;
-      studioSourceRepository = draft.repository || null;
-      studioGoal = original;
-      studioRevisionFindings = findings;
-      currentDraft = null;
-      studioNotice = `Revision request prepared from ${findings.length} review finding(s). Choose an engine and generate; the original draft ${draftId} stays saved for comparison.`;
-      closeCardEditor();
-      page = "studio";
-      render();
       return;
     }
     if (value === "newqueue") return popup("Create named queue", '<label class="label">Queue id</label><input class="input" id="queueId" placeholder="e.g. security"><label class="label" style="margin-top:12px">Display name</label><input class="input" id="queueName" placeholder="Security">', btn("Cancel", "close") + btn("Create", "savequeue", "primary"));
