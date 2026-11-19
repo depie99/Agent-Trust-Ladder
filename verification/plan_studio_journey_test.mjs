@@ -85,7 +85,7 @@ try {
   console.log('PASS: browser create task → plan task → model draft → approve → persisted task/queue, no run');
   await page.locator('[data-page="tasks"]').first().click();
   await page.getByRole("button",{name:"Open imported requests",exact:true}).click();
-  await page.getByText("Bug 6341: S2H - Top sales issue",{exact:true}).waitFor();
+  await page.getByText(/Bug 6341: S2H - Top sales issue/).first().waitFor();
   await page.getByRole("button",{name:"Create plan",exact:true}).click();
   assert.match(await page.locator("#goal").inputValue(),/محصولات پرفروش درست نیستند/,"the Azure work item description is preserved in Plan Studio");
   await page.getByText("Check the codebase before planning · example-project",{exact:false}).waitFor();
