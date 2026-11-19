@@ -19,6 +19,8 @@ try {
     await page.addInitScript(()=>sessionStorage.setItem('atl-cp-page','settings'));
     await page.goto(started.url);
     await page.locator('#resourceDefault').waitFor();
+    assert.equal(await page.locator('#settings-browser .set-card-sub').count(),1,'Browser access has one card description');
+    assert.equal(await page.locator('#settings-browser .set-card-body > .sub').count(),0,'Browser access controls do not repeat the card description');
     await page.locator('#resourceDefault').fill('9');await page.locator('#resourceMax').fill('18');
     await page.locator('#resourceCeiling').selectOption('standard');
     await page.locator('[data-action="resource-save"]').click();
