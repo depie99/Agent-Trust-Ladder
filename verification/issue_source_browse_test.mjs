@@ -25,7 +25,7 @@ const candidate=(type,id,title,extra={})=>({title,objective_hint:'',completion_c
 let running,browser;
 try {
  running=await startControlPlaneServer(root,{
-  azureFetch:async (url, options)=>{const auth=Buffer.from(options.headers.authorization.slice(6),'base64').toString();seenIterations.push({url:String(url),auth});const project=String(url).includes('/Alpha/')?'Alpha':'Beta';return {ok:true,status:200,json:async()=>({children:[{name:'Sprint 74'},{name:'Sprint 75'}]})};},
+  azureFetch:async (url, options)=>{const auth=Buffer.from(options.headers.authorization.slice(6),'base64').toString();seenIterations.push({url:String(url),auth});return {ok:true,status:200,json:async()=>({children:[{name:'Sprint 74'},{name:'Sprint 75'}]})};},
   intakeAdapters:{
    github:async cfg=>[candidate('github',1,'GitHub issue',{repo:cfg.repos[0]})],
    jira:async cfg=>[candidate('jira','OPS-1','Jira issue',{base_url:cfg.base_url})],
@@ -48,8 +48,9 @@ try {
  assert(seenIterations.some(x=>x.url.includes('/collection-a/Alpha/') && x.auth===':test-token-alpha'));
  assert(seenAzure.some(x=>x.cfg.project==='Alpha' && x.cfg.iteration_path==='Alpha\\Sprint 74' && x.token==='test-token-alpha'));
  await page.locator('#sourceAzureSearchIteration').selectOption('Alpha\\Sprint 75');
- await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent !== 'Loading issues…');
- await page.waitForTimeout(200);
+ // Wait on the actual adapter call: the result notice text is identical for
+ // every browse of this connection, so it cannot disambiguate the new POST.
+ for (let i = 0; i < 50 && !seenAzure.some(x=>x.cfg.project==='Alpha' && x.cfg.iteration_path==='Alpha\\Sprint 75'); i++) await page.waitForTimeout(100);
  assert(seenAzure.some(x=>x.cfg.project==='Alpha' && x.cfg.iteration_path==='Alpha\\Sprint 75'));
  await page.locator('#sourceConnectionSelect').selectOption('azure-b');
  await page.locator('.issue-title').filter({hasText:'Work item Beta'}).waitFor();

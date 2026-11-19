@@ -32,7 +32,9 @@ export function validateConnection(payload) {
     }
   }
   const token_env = clean(payload.token_env || (provider === 'jira' ? 'JIRA_TOKEN' : 'AZDO_PAT'));
-  if (provider !== 'github' && !/^[A-Z_][A-Z0-9_]*$/.test(token_env)) throw new Error('Enter an environment variable name such as AZDO_PAT or JIRA_TOKEN, not the token itself. For Azure, paste your token in Personal access token.');
+  if (provider !== 'github' && !/^[A-Z_][A-Z0-9_]*$/.test(token_env)) throw new Error(provider === 'azure'
+    ? 'Enter an environment variable name such as AZDO_PAT or JIRA_TOKEN, not the token itself. For Azure, paste your token in Personal access token.'
+    : 'Enter an environment variable name such as JIRA_TOKEN, not the token itself. For Jira, paste your token in Jira token.');
   if (provider !== 'github') settings.token_env = token_env;
   return { provider, name, settings, enabled: payload.enabled !== false };
 }

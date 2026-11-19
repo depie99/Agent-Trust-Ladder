@@ -91,8 +91,14 @@ try {
   await page.getByText(/Sprint 74.*saved\./).waitFor();
   const cardAction = async (card, action) => {
     const target = card.locator(`[data-action^="${action}:"]`).first();
-    if (await target.evaluate(n => !n.closest('.source-card-menu'))) { const menu = card.locator('.source-card-menu'); if (await menu.getAttribute('open') !== null) await menu.locator('summary').click(); }
-    if (!await target.isVisible()) await card.locator('.source-card-menu summary').click();
+    // Actions that exist both as the visible CTA and in the kebab resolve to
+    // the CTA (the <details> menu precedes .card-actions in the DOM); make the
+    // intent explicit — open the menu for hidden actions, close it otherwise.
+    const inMenu = await target.evaluate(n => Boolean(n.closest('.source-card-menu')));
+    const menu = card.locator('.source-card-menu');
+    const open = await menu.getAttribute('open') !== null;
+    if (inMenu && !open) await menu.locator('summary').click();
+    if (!inMenu && open) await menu.locator('summary').click();
     return target;
   };
   const azureCard = page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' });

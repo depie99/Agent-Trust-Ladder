@@ -72,7 +72,6 @@
     "○ Saved · access not checked": "○ ذخیره شد · دسترسی بررسی نشده",
     "! Unavailable": "! در دسترس نیست",
     "Re-authenticate": "احراز هویت دوباره",
-    "Resume": "از سر گرفتن",
     "Check access": "بررسی دسترسی",
     "Browse issues": "مرور مسئله‌ها",
     "Pause connection": "مکث اتصال",

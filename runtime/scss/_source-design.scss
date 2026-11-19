@@ -130,9 +130,6 @@
 
 .source-v2 {
   .btn { display:inline-flex;justify-content:center;align-items:center;gap:5px;line-height:normal;box-shadow:none; }
-  .connections { padding:0 22px 22px;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px; }
-  .connection { border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--surface); }
-  .connection.selected {border-color:#b3aaf2;box-shadow:0 0 0 2px #5b4ee614;}
   .connection .card-title {font-size:12px;line-height:normal;}
   .source-card-menu {position:absolute;inset-inline-end:8px;top:13px;margin:0;}
   .source-card-menu summary {border:0;padding:3px 7px;font-size:18px;color:var(--muted);}
