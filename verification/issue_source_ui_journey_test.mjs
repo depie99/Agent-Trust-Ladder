@@ -28,34 +28,43 @@ try {
   await page.goto(running.url);
   await page.locator('[data-page="sources"]:visible').first().click();
   assert.equal(await page.evaluate(async () => (await fetch('/api/intake/connections')).status), 403, 'connection inventory requires owner CSRF');
-  await page.locator('[data-action="sources-add"]').click();
+  await page.locator('.source-empty-state').getByText('No sources yet').waitFor();
+  assert.equal(await page.locator('.source-v2 .flow').count(), 0, 'v2 drops the flow strip');
+  assert.equal(await page.locator('.source-v2 .eyebrow').innerText(), 'WORKSPACE / ISSUE SOURCES');
+  await page.locator('[data-action="sources-add"]').first().click();
+  assert.equal(await page.locator('#modalTitle').innerText(), 'Add source');
+  assert.equal(await page.locator('.provider-option.chosen').innerText(), 'GitHub');
   assert.equal(await page.locator('#sourceFormName').inputValue(), '');
   assert.equal(await page.locator('#sourceFormRepo').inputValue(), '');
   await page.locator('#sourceFormName').fill('Main repository');
   await page.locator('#sourceFormRepo').fill('example/demo');
   await page.locator('[data-action^="sources-form-save:"]').click();
-  await page.getByText(/Main repository.*saved successfully/).waitFor();
+  await page.getByText(/Main repository.*saved\./).waitFor();
   await page.locator('.source-connection-card').getByText('Main repository').waitFor();
-  await page.locator('[data-action="sources-add"]').click();
+  assert.ok((await page.locator('.source-connection-card').first().locator('.card-tag').allInnerTexts()).join(' ').includes('#24292f'), 'github cards carry the brand tag');
+  await page.locator('[data-action="sources-add"]').first().click();
   assert.equal(await page.locator('#sourceFormName').inputValue(), '', 'a new form never inherits saved values');
   assert.equal(await page.locator('#sourceFormRepo').inputValue(), '');
   await page.locator('#sourceFormName').fill('Second repository');
   await page.locator('#sourceFormRepo').fill('example/other');
   await page.locator('[data-action^="sources-form-save:"]').click();
-  await page.getByText(/Second repository.*saved successfully/).waitFor();
+  await page.getByText(/Second repository.*saved\./).waitFor();
   assert.equal(await page.locator('.source-connection-card').count(), 2);
-  await page.locator('[data-action="sources-add"]').click();
+  await page.locator('[data-action="sources-add"]').first().click();
   await page.locator('#sourceFormName').fill('Duplicate');
   await page.locator('#sourceFormRepo').fill('example/demo');
   await page.locator('[data-action^="sources-form-save:"]').click();
   await page.getByText('This location is already connected.').waitFor();
   assert.equal(await page.locator('#sourceFormRepo').inputValue(), 'example/demo', 'failed save keeps entered values');
   await page.locator('[data-action="close"]').last().click();
-  await page.locator('[data-action="sources-add"]').click();
+  await page.locator('[data-action="sources-add"]').first().click();
   await page.locator('[data-action="sources-form-provider:azure"]').click();
   await page.locator('#sourceFormName').fill('Sprint 74');
   await page.locator('#sourceFormUrl').fill('https://devops.example.com/Collection');
   await page.locator('#sourceFormProject').fill('Example');
+  // v2: the token and env-var fields live inside the collapsed
+  // "Advanced authentication" accordion — open it before typing.
+  await page.locator('.source-advanced summary').click();
   const pat = page.locator('#sourceFormPat');
   await pat.fill('synthetic-initial-pat');
   assert.equal(await pat.getAttribute('type'), 'password');
@@ -71,7 +80,6 @@ try {
   assert.ok(await page.locator('.secret-input').evaluate(node => node.getBoundingClientRect().right <= window.innerWidth), 'token and reveal control fit on mobile');
   await page.screenshot({ path: path.join(tokenEvidence, 'azure-token-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.getByText('Advanced credential settings', { exact: true }).click();
   await page.locator('#sourceFormToken').fill('not-an-environment-variable');
   await page.locator('[data-action^="sources-form-save:"]').click();
   await page.locator('#sourceFormError').filter({ hasText: 'not the token itself' }).waitFor();
@@ -80,11 +88,17 @@ try {
   await page.locator('#sourceFormToken').fill('AZDO_PAT');
 
   await page.locator('[data-action^="sources-form-save:"]').click();
-  await page.getByText(/Sprint 74.*saved successfully/).waitFor();
+  await page.getByText(/Sprint 74.*saved\./).waitFor();
   const cardAction = async (card, action) => {
     const target = card.locator(`[data-action^="${action}:"]`).first();
-    if (await target.evaluate(n => !n.closest('.source-card-menu'))) { const menu = card.locator('.source-card-menu'); if (await menu.getAttribute('open') !== null) await menu.locator('summary').click(); }
-    if (!await target.isVisible()) await card.locator('.source-card-menu summary').click();
+    // Actions that exist both as the visible CTA and in the kebab resolve to
+    // the CTA (the <details> menu precedes .card-actions in the DOM); make the
+    // intent explicit — open the menu for hidden actions, close it otherwise.
+    const inMenu = await target.evaluate(n => Boolean(n.closest('.source-card-menu')));
+    const menu = card.locator('.source-card-menu');
+    const open = await menu.getAttribute('open') !== null;
+    if (inMenu && !open) await menu.locator('summary').click();
+    if (!inMenu && open) await menu.locator('summary').click();
     return target;
   };
   const azureCard = page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' });
@@ -110,11 +124,24 @@ try {
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('0 issue(s) found. No task was created.').waitFor();
   assert.equal(azureTokenSeen, 'synthetic-azure-pat', 'connection-specific Azure credential reaches adapter');
-  await (await cardAction(page.locator('.source-connection-card').first(), 'sources-browse')).click();
+  // v2: an unchecked card's single CTA is Check access — verify first, then
+  // the CTA flips to Browse issues.
+  const mainCard = page.locator('.source-connection-card').filter({ hasText: 'Main repository' });
+  await (await cardAction(mainCard, 'sources-check')).click();
+  await page.getByText('Access check complete.').waitFor();
+  await mainCard.getByText('Access verified').waitFor();
+  assert.equal(await mainCard.locator('.card-actions .btn').count(), 1, 'one state-driven action per card');
+  assert.equal(await mainCard.locator('.card-actions .btn').innerText(), 'Browse issues');
+  await mainCard.getByText(/Last verified: (just now|\d+ (min|hour|day)s? ago)/).waitFor();
+  await (await cardAction(mainCard, 'sources-browse')).click();
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('1 issue(s) found. No task was created.').waitFor();
+  assert.equal(await page.locator('#sourceSelectionCount').innerText(), '1 selected');
   await page.locator('[data-action="sources-import"]').click();
-  await page.getByText(/1 request\(s\) imported for planning/).waitFor();
+  await page.locator('.import-result-banner').getByText(/1 request created/).waitFor();
+  assert.ok((await page.locator('.import-result-items li').first().innerText()).includes('request created'), 'per-item import outcome is listed');
+  await page.locator('[data-action="sources-import-result-dismiss"]').click();
+  assert.equal(await page.locator('.source-import-result').count(), 0, 'import result dismisses');
   const task = Object.values(loadState(root).tasks).find(item => item.title === 'Issue in example/demo');
   assert.ok(task?.source?.connection_id, 'import retains connection provenance');
   // GitHub session token (bug: the UI had no token entry, so private-repo 404s
@@ -166,7 +193,7 @@ try {
   await page.keyboard.type(' in example');
   assert.equal(await search.inputValue(), 'Issue in example', 'typing continues after the project map repaint');
   assert.equal(await page.locator('#modal .dialog').count(), 0, 'no global-shortcut dialog opened after the project map repaint');
-  await page.locator('[data-action="sources-add"]').click();
+  await page.locator('[data-action="sources-add"]').first().click();
   assert.equal(await page.locator('#sourceFormRepo').inputValue(), '');
   await page.locator('[data-action="close"]').last().click();
   const evidenceDir = path.join(process.cwd(), '.atl-evidence', 'issue-sources');
@@ -176,19 +203,21 @@ try {
   assert.ok(await page.locator('body').evaluate(node => node.scrollWidth <= node.clientWidth + 2), 'sources fit mobile viewport');
   await page.screenshot({ path: path.join(evidenceDir, 'saved-connections-mobile.png'), fullPage: true });
   // Jira lifecycle: provider-specific form → card → browse → import provenance.
-  await page.locator('[data-action="sources-add"]').click();
+  await page.locator('[data-action="sources-add"]').first().click();
   await page.locator('[data-action="sources-form-provider:jira"]').click();
   await page.locator('#sourceFormName').fill('Ops Jira');
   await page.locator('#sourceFormUrl').fill('https://jira.example.com');
   await page.locator('#sourceFormProjects').fill('it');
   await page.locator('[data-action^="sources-form-save:"]').click();
-  await page.getByText(/Ops Jira.*saved successfully/).waitFor();
+  await page.getByText(/Ops Jira.*saved\./).waitFor();
   assert.equal(await page.locator('.source-connection-card').count(), 4);
+  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }), 'sources-check')).click();
+  await page.getByText('Access check complete.').waitFor();
   await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }), 'sources-browse')).click();
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('1 issue(s) found. No task was created.').waitFor();
   await page.locator('[data-action="sources-import"]').click();
-  await page.getByText(/1 request\(s\) imported for planning/).waitFor();
+  await page.locator('.import-result-banner').getByText(/1 request created/).waitFor();
   assert.ok(Object.values(loadState(root).tasks).find(item => item.title === 'Jira intake bug')?.source?.connection_id, 'jira import retains connection provenance');
   // Access status is observed through the provider, never implied by a saved
   // credential — and adapter errors never echo the token back.
@@ -210,13 +239,13 @@ try {
   await page.waitForFunction(() => [...document.querySelectorAll('.source-connection-card')].some(c => c.textContent.includes('Ops Jira') && c.textContent.includes('Paused')));
   await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu summary').click();
   await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu [data-action^="sources-toggle:"]').click();
-  await page.waitForFunction(() => [...document.querySelectorAll('.source-connection-card')].some(c => c.textContent.includes('Ops Jira') && !c.textContent.includes('○ Paused')));
+  await page.waitForFunction(() => [...document.querySelectorAll('.source-connection-card')].some(c => c.textContent.includes('Ops Jira') && !c.textContent.includes('‖ Paused')));
   // Double submission is guarded: two clicks in one tick create one connection.
-  await page.locator('[data-action="sources-add"]').click();
+  await page.locator('[data-action="sources-add"]').first().click();
   await page.locator('#sourceFormName').fill('Race Repo');
   await page.locator('#sourceFormRepo').fill('example/race');
   await page.evaluate(() => { const button = document.querySelector('[data-action^="sources-form-save:"]'); button.click(); button.click(); });
-  await page.getByText(/Race Repo.*saved successfully/).waitFor();
+  await page.getByText(/Race Repo.*saved\./).waitFor();
   assert.equal(await page.locator('.source-connection-card').count(), 5, 'double submit creates exactly one connection');
   // Remove through the kebab menu — and the menu must not be clipped: .panel's
   // overflow:hidden sliced the dropdown mid-item, leaving the last row's
@@ -240,7 +269,7 @@ try {
   await page.evaluate(() => localStorage.setItem('atl-cp-theme', 'light'));
   await page.reload();
   await page.locator('.source-connection-card').first().waitFor();
-  assert.deepEqual(await themeProbe(), { bg: 'rgb(255, 255, 255)', border: 'rgb(231, 232, 240)' }, 'cards render with light theme tokens');
+  assert.deepEqual(await themeProbe(), { bg: 'rgb(255, 255, 255)', border: 'rgb(227, 229, 238)' }, 'cards render with light theme tokens');
   // RTL: the Persian locale flips direction and the layout still fits.
   await page.locator('#localeBtn').click();
   await page.waitForFunction(() => document.documentElement.dir === 'rtl');
@@ -248,7 +277,16 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.locator('body').evaluate(node => node.scrollWidth <= node.clientWidth + 2), 'sources fit mobile viewport in RTL');
   await page.screenshot({ path: path.join(evidenceDir, 'saved-connections-rtl-mobile.png'), fullPage: true });
-  console.log('PASS: saved cards, blank add form, GitHub+Jira lifecycles, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, verified/needs-auth states with redaction, pause/resume, double-submit guard, kebab-menu remove, dark/light/RTL rendering, reload and mobile');
+  // Plugin panel context: the same page renders inside the host panel iframe
+  // (plugins/panel-entry.mjs sets data-atl-context="plugin" and the panel is
+  // narrow). It must fit, and the Add source modal must stay inside the panel.
+  await page.evaluate(() => { document.documentElement.dataset.atlContext = 'plugin'; });
+  await page.locator('[data-action="sources-add"]').first().click();
+  assert.ok(await page.locator('.source-design.dialog').evaluate(node => node.getBoundingClientRect().right <= window.innerWidth + 2 && node.getBoundingClientRect().left >= -2), 'add source modal fits the plugin panel width');
+  await page.locator('[data-action="close"]').last().click();
+  assert.ok(await page.locator('body').evaluate(node => node.scrollWidth <= node.clientWidth + 2), 'sources fit the plugin panel width');
+  await page.evaluate(() => { delete document.documentElement.dataset.atlContext; });
+  console.log('PASS: v2 page (brand tags, single-CTA cards, dark import bar, import-result section, empty state), Add source modal v2 (segmented providers, Advanced authentication accordion), saved cards, blank add form, GitHub+Jira lifecycles, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, verified/needs-auth states with redaction, pause/resume, double-submit guard, kebab-menu remove, dark/light/RTL rendering, plugin-panel fit, reload and mobile');
 } finally {
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));

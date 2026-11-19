@@ -49,9 +49,12 @@ try {
   const click = action => page.locator(`[data-action="${action}"]:visible`).first().click();
   await page.goto(running.url);
   await page.locator('[data-page="sources"]:visible').first().click();
-  // The V2 sources page opens straight on the connections workbench; browse
-  // through the configured Azure connection, then preview its issues.
-  await page.locator('.source-connection-card').first().locator('[data-action^="sources-browse:"]').click();
+  // The V2 sources page requires an access check before its Browse action is
+  // available for a newly saved connection.
+  const azureConnection = page.locator('.source-connection-card').first();
+  await azureConnection.locator('[data-action^="sources-check:"]:visible').click();
+  await azureConnection.locator('[data-action^="sources-browse:"]').waitFor();
+  await azureConnection.locator('[data-action^="sources-browse:"]').click();
   await page.locator('[data-action="sources-preview-selected"]').click();
   await page.getByText('1 issue(s) found. No task was created.').waitFor();
   assert.equal(Object.keys(loadState(root).tasks).length, 0);
@@ -59,7 +62,7 @@ try {
   await page.locator('label.source-repo-pill').filter({ hasText: 'Cart fixture' }).click();
   assert.equal(await page.locator(`[data-import-repository][value="${repository.id}"]`).isChecked(), true);
   await click('sources-import');
-  await page.getByText(/1 request\(s\) imported for planning/).waitFor();
+  await page.getByRole('region', { name: 'Import result' }).getByText(/1 request created/).waitFor();
   await page.locator('[data-import-request="T-001"] [data-action^="plan:"]').click();
   assert.match(await page.locator('#goal').inputValue(), /Cart items must remain visible/);
   await page.locator('.studio-settings > summary').click();

@@ -747,7 +747,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
         const verdict = parsed.verdictHint === "passed" && !parsed.findings.some((finding) => ["blocker", "major"].includes(finding.severity)) ? "passed" : "blocked";
         let updated = reviewPlanArtifact(root, loaded, { verdict, findings: parsed.findings, kind: "egm", provider: config.backend === "glm-goldfish" ? ((run.stageRuns || []).map((stage) => stage.provider).find(Boolean) || egmProviderId) : "codex-egm", model: config.model, egm: { backend: config.backend, version_sha: config.versionSha, model: config.model || (run.stageRuns || []).map((stage) => stage.model).find(Boolean) || null, workdir: run.workdir, duration_ms: run.durationMs, exit_code: run.exitCode, last_message: run.lastMessage, stage_runs: run.stageRuns || null } }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence, repoRoot });
         if (updated.review.verdict === 'blocked' || updated.accuracy_followup?.status === 'retry') updated = await accuracyContinue(root, updated, payload, seam);
-      return json(res, 200, { ok: true, draft: draftResponse(updated, root), review: updated.review });
+        return json(res, 200, { ok: true, draft: draftResponse(updated, root), review: updated.review });
       } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message, workdir: error.workdir || null }); }
       finally { if (reviewKey) releaseReviewLock(reviewDir); }
     }
@@ -1902,7 +1902,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
               try { return { ok: true, status: 200, data: await requestJson(link, { headers: authHeaders, allowUntrusted: true }) }; }
               catch (error) { return { ok: false, status: 400, data: { message: error.message } }; }
             }
-            return seam.azureFetch(link, { headers: authHeaders, signal: AbortSignal.timeout(15000) });
+            return (seam.azureFetch || globalThis.fetch)(link, { headers: authHeaders, signal: AbortSignal.timeout(15000) });
           };
           // Seam contract: fetch-compatible (Response). Transport-style seams
           // ({ data, status }) — the myTasksFetch convention — are accepted too.

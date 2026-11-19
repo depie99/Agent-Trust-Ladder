@@ -638,16 +638,32 @@ textarea.input{resize:vertical;min-height:110px}
 .candidate-changes li{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .studio-mobile-tabs{display:none}
 @media(max-width:959px){
-  .studio-mobile-tabs{display:flex;gap:6px;margin:10px 0 0}
+  // Mobile pane switch (v2 mobile design): full-width underline tabs with
+  // count badges, one pane at a time, sticky bottom composer / next-step.
+  .studio-mobile-tabs{display:flex;gap:6px;margin:10px 0 0;border-bottom:1px solid var(--border)}
+  .studio-mobile-tabs .tasks-seg-btn{flex:1;min-height:46px;justify-content:center;border-radius:8px 8px 0 0;border-bottom:2px solid transparent;font-weight:700;color:var(--muted)}
+  .studio-mobile-tabs .tasks-seg-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:transparent}
+  .studio-mobile-tabs .tasks-seg-count{margin-inline-start:5px}
   .studio-workspace{flex-direction:column;min-height:0}
   .studio-workspace[data-mobile-pane="conversation"] .studio-plan{display:none}
   .studio-workspace[data-mobile-pane="plan"] .studio-conversation{display:none}
   .studio-splitter{display:none}
   .studio-pane{min-height:0;width:100%}
   .studio-conversation{width:100%}
-  .studio-transcript{max-height:50vh;flex:none}
+  .studio-transcript{max-height:none;flex:none;min-height:30vh}
   .studio-plan-body{max-height:none}
   .studio-settings-body{position:fixed;inset-inline:10px;bottom:10px;width:auto}
+  .studio-composer{position:sticky;bottom:0;z-index:5;border-radius:10px 10px 0 0;box-shadow:0 -8px 22px rgba(0,0,0,.22);padding-bottom:max(12px, env(safe-area-inset-bottom))}
+  .studio-composer .btn.primary{min-height:44px}
+  .studio-composer-input{font-size:14px}
+  .studio-nextstep{position:sticky;bottom:0;z-index:5}
+  // Question cards become touch-first: stacked options with large targets
+  // and a full-width send action.
+  .studio-question{padding:14px}
+  .studio-question-option{padding:12px 14px;min-height:46px;font-size:14px}
+  .studio-question-custom{font-size:14px}
+  .studio-question .bar{justify-content:stretch}
+  .studio-question .bar .btn{width:100%;min-height:44px}
 }
 
 /* Agent Team pipeline rail and pod cards */

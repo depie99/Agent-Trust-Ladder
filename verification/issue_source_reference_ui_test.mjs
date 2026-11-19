@@ -34,4 +34,4 @@ try {
  await page.locator('[data-action="sources-add"]').click();await page.screenshot({path:path.join(evidence,'mobile-dialog.png')});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.locator('[data-action="close"]').last().click();
  await page.setViewportSize({width:1512,height:1120});await page.evaluate(()=>document.documentElement.classList.remove('light'));await page.screenshot({path:path.join(evidence,'dark.png'),fullPage:true});await page.evaluate(()=>document.documentElement.dir='rtl');await page.screenshot({path:path.join(evidence,'rtl.png'),fullPage:true});
  assert.deepEqual(errors,[]);console.log('PASS: desktop four cards, mobile one card, no overflow, search/label filtering, clear/select all, dialog, dark/RTL captures, no browser errors.');
-} finally {await browser?.close();await new Promise(resolve=>running?.server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
+} finally {await browser?.close();if(running)await new Promise(resolve=>running.server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}

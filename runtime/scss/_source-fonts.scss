@@ -1,4 +1,8 @@
-// Reference typography, embedded for offline rendering.
+// Reference typography, embedded for offline rendering (woff2 subsets from
+// Google Fonts). DM Sans and Manrope — Copyright their respective authors,
+// licensed under the SIL Open Font License 1.1 (https://openfontlicense.org);
+// the license texts ship alongside these binaries in runtime/assets/
+// (dmsans.LICENSE, manrope.LICENSE).
 /* latin-ext */
 @font-face {
   font-family: 'DM Sans';

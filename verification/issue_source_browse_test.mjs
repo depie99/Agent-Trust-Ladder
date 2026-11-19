@@ -25,7 +25,7 @@ const candidate=(type,id,title,extra={})=>({title,objective_hint:'',completion_c
 let running,browser;
 try {
  running=await startControlPlaneServer(root,{
-  azureFetch:async (url, options)=>{const auth=Buffer.from(options.headers.authorization.slice(6),'base64').toString();seenIterations.push({url:String(url),auth});const project=String(url).includes('/Alpha/')?'Alpha':'Beta';return {ok:true,status:200,json:async()=>({children:[{name:'Sprint 74'},{name:'Sprint 75'}]})};},
+  azureFetch:async (url, options)=>{const auth=Buffer.from(options.headers.authorization.slice(6),'base64').toString();seenIterations.push({url:String(url),auth});return {ok:true,status:200,json:async()=>({children:[{name:'Sprint 74'},{name:'Sprint 75'}]})};},
   intakeAdapters:{
    github:async cfg=>[candidate('github',1,'GitHub issue',{repo:cfg.repos[0]})],
    jira:async cfg=>[candidate('jira','OPS-1','Jira issue',{base_url:cfg.base_url})],
@@ -39,16 +39,18 @@ try {
  assert.equal(await page.locator('#sourceConnectionSelect').inputValue(),'github','default source is automatically browsed');
  // A long idle period previously let the page mark its live service offline.
  await page.waitForTimeout(12000);
- assert(await page.locator('[data-action="sources-browse:azure-a"]').isEnabled(),'browse stays enabled on the live source page');
- await page.locator('[data-action="sources-browse:azure-a"]').click();
+ assert(await page.locator('#sourceConnectionSelect').isEnabled(),'browse controls stay enabled on the live source page');
+ assert(await page.locator('[data-action="sources-preview-selected"]').isEnabled(),'search stays enabled on the live source page');
+ await page.locator('#sourceConnectionSelect').selectOption('azure-a');
  await page.locator('.issue-title').filter({hasText:'Work item Alpha'}).waitFor();
  await page.locator('#sourceAzureSearchIteration option').filter({hasText:'Sprint 75'}).waitFor({state:'attached'});
  assert.equal(await page.locator('#sourceAzureSearchIteration').inputValue(),'Alpha\\Sprint 74');
  assert(seenIterations.some(x=>x.url.includes('/collection-a/Alpha/') && x.auth===':test-token-alpha'));
  assert(seenAzure.some(x=>x.cfg.project==='Alpha' && x.cfg.iteration_path==='Alpha\\Sprint 74' && x.token==='test-token-alpha'));
  await page.locator('#sourceAzureSearchIteration').selectOption('Alpha\\Sprint 75');
- await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent !== 'Loading issues…');
- await page.waitForTimeout(200);
+ // Wait on the actual adapter call: the result notice text is identical for
+ // every browse of this connection, so it cannot disambiguate the new POST.
+ for (let i = 0; i < 50 && !seenAzure.some(x=>x.cfg.project==='Alpha' && x.cfg.iteration_path==='Alpha\\Sprint 75'); i++) await page.waitForTimeout(100);
  assert(seenAzure.some(x=>x.cfg.project==='Alpha' && x.cfg.iteration_path==='Alpha\\Sprint 75'));
  await page.locator('#sourceConnectionSelect').selectOption('azure-b');
  await page.locator('.issue-title').filter({hasText:'Work item Beta'}).waitFor();

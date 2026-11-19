@@ -122,6 +122,10 @@ Developer guides, generated website, visual sources, and historical evidence.
 | [docs/diagrams/codex-history-bridge-mobile.png](../docs/diagrams/codex-history-bridge-mobile.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/codex-history-bridge.light.svg](../docs/diagrams/codex-history-bridge.light.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/codex-history-bridge.svg](../docs/diagrams/codex-history-bridge.svg) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.after.add-source.png](../docs/diagrams/issue-sources-v2.after.add-source.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.after.page.png](../docs/diagrams/issue-sources-v2.after.page.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.before.add-source.png](../docs/diagrams/issue-sources-v2.before.add-source.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.before.page.png](../docs/diagrams/issue-sources-v2.before.page.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-compose.svg](../docs/diagrams/tui-compose.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-dashboard.svg](../docs/diagrams/tui-dashboard.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-launch.svg](../docs/diagrams/tui-launch.svg) | Visual source or retained historical capture; see the diagram library. |
