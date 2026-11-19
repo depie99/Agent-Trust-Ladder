@@ -54,5 +54,13 @@ try {
   await app.close();
   const cleanup = pathToFileURL(path.join(bundle.path, 'runtime', 'lib', 'daemon.mjs'));
   try { const { stopDaemon } = await import(cleanup); await stopDaemon(scratch); } catch { /* already stopped or bundle gone */ }
-  fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 8, retryDelay: 300 });
+  // Windows may keep handles to a stopped daemon's files briefly after it
+  // exits. Match the bundle test's bounded cleanup behavior so a transient
+  // EBUSY does not fail the whole plugin suite.
+  try {
+    fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 8, retryDelay: 300 });
+  } catch (error) {
+    if (error.code !== 'EBUSY') throw error;
+    console.log('note: connect temp dir cleanup deferred (EBUSY); the OS clears it');
+  }
 }

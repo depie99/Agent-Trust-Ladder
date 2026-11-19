@@ -41,7 +41,7 @@ const fakeRunner = async (rootArg, { draft }) => {
   return { workdir, exitCode: 0, durationMs: 1, lastMessage: "ok" };
 };
 
-const server = await startControlPlaneServer(root, { egmRunner: fakeRunner });
+const server = await startControlPlaneServer(root, { planningInvoke: async () => ({ code: 1, providerFailure: { reason: 'Fixture intentionally leaves deep-review findings unresolved' } }), egmRunner: fakeRunner });
 const post = async (route, body) => {
   const response = await fetch(`${server.url}${route.replace(/^\//, "")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   return { status: response.status, body: await response.json() };

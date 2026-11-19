@@ -37,7 +37,7 @@ import { taskStatechart } from "./task-statechart.mjs";
 import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
 import { previewPlanPublish, publishPlan, verifyImportedSource, refreshImportedAzureSource } from "./plan-publish.mjs";
 import { runEgmReview, runGlmGoldfishReview, readEgmReviewConfig, parseEgmReports, egmReviewBudgetGate } from "./egm-review.mjs";
-import { acquireReviewLock, releaseReviewLock, reviewPolicyCheck } from "./plan-studio.mjs";
+import { acquireReviewLock, releaseReviewLock, reviewPolicyCheck, continueAccuracyConversation, saveQuestionProgress, planReviewSnapshotCurrent, saveCandidateAccuracyReview } from "./plan-studio.mjs";
 import { installSkill, designateSkill } from "./skill-install.mjs";
 import { executionAccess, saveExecutionAccess, probeWorkspaceAccess } from "./execution-access.mjs";
 import { browserAccess, saveBrowserAccess, checkBrowserRuntime } from "./browser-access.mjs";
@@ -45,7 +45,7 @@ import { resourcePolicy, resourceView, saveResourcePolicy, taskResourcePreview, 
 import {recordExecution,publishPlanningExecution} from './execution-report.mjs';
 import {recordQuotaFailure, quotaStatus} from './provider-quota.mjs';
 import { resolveTaskRef, qualifyTaskId } from './task-refs.mjs';
-import { runIntake, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub } from './intake.mjs';
+import { runIntake, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub, intakeFromJira, requestJson } from './intake.mjs';
 import { loadConnections, saveConnections, validateConnection, sameConnection, connectionIdentity } from './issue-connections.mjs';
 import { importCandidates } from './composer.mjs';
 import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
@@ -262,6 +262,31 @@ function planningRunActive(root) {
   const lock = readRunLock(root);
   if (!lock?.pid) return false;
   try { process.kill(lock.pid, 0); return true; } catch { return false; }
+}
+
+async function accuracyReviewOnce(root, loaded, payload, seam, { transient = false } = {}) {
+  assertDraftUsesCurrentImportedSource(root, loaded);
+  const repoRoot = resolvePlanRepository(root, loaded).repoRoot;
+  validatePlanArtifact(loaded.artifact);
+  validatePlanGrounding(root, loaded.artifact, { repoRoot });
+  const provider = payload.provider || loaded.provider;
+  const entry = planningEntry(root, payload, loaded.artifact, 'planning-review', provider);
+  const projectEvidence = planningEvidence(root, loaded.artifact, { repoRoot });
+  const sourceRevision = loaded.source_task_id ? await verifyImportedSource(root, loaded.source_task_id, { fetchImpl: seam.publishFetch, azureToken: await seam.azureToken?.() }) : null;
+  const response = await planningCall(seam, entry, { logPath: path.join(loaded.dir, 'review.log'), request: { review: true, task: "Independently review the updated plan. Return JSON {verdict:'passed'|'blocked',findings:[{severity,message,correction}]}. Optional questions with recorded usable defaults do not block approval. Consequential unresolved issues do. Never claim checks ran.", intent: loaded.intent, artifact: loaded.artifact, project_evidence: { ...projectEvidence, external_source: sourceRevision }, required: ['verdict', 'findings'] } });
+  if (!response || response.code !== 0) throw new Error(response?.providerFailure?.reason || 'Accuracy review provider failed');
+  const result = JSON.parse(String(response.text || response.output || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''));
+  if (!['passed', 'blocked'].includes(result.verdict) || !Array.isArray(result.findings)) throw new Error('review response must contain verdict and findings');
+  return reviewPlanArtifact(root, loaded, { ...result, source_revision: sourceRevision, provider: response.provider || provider, model: response.model || payload.model || null }, { expectedRevision: loaded.revision, evidenceSnapshot: projectEvidence, repoRoot, transient });
+}
+
+async function accuracyContinue(root, loaded, payload, seam, questionId = null, target = 'artifact') {
+  const provider = payload.provider || loaded.provider;
+  return continueAccuracyConversation(root, loaded, { questionId, target, provider, model: payload.model || null, invoke: (call) => planningCall(seam, planningEntry(root, payload, loaded.artifact, 'planning', provider), call), review: async (draft) => {
+    if (target !== 'candidate') return accuracyReviewOnce(root, draft, payload, seam);
+    const reviewed = await accuracyReviewOnce(root, { ...draft, artifact: draft.pending_candidate.artifact, review: null }, payload, seam, { transient: true });
+    return saveCandidateAccuracyReview(root, draft, reviewed);
+  } });
 }
 
 // The browser Studio draft response: artifact plus the honest source label.
@@ -720,7 +745,8 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
           throw failure;
         }
         const verdict = parsed.verdictHint === "passed" && !parsed.findings.some((finding) => ["blocker", "major"].includes(finding.severity)) ? "passed" : "blocked";
-        const updated = reviewPlanArtifact(root, loaded, { verdict, findings: parsed.findings, kind: "egm", provider: config.backend === "glm-goldfish" ? ((run.stageRuns || []).map((stage) => stage.provider).find(Boolean) || egmProviderId) : "codex-egm", model: config.model, egm: { backend: config.backend, version_sha: config.versionSha, model: config.model || (run.stageRuns || []).map((stage) => stage.model).find(Boolean) || null, workdir: run.workdir, duration_ms: run.durationMs, exit_code: run.exitCode, last_message: run.lastMessage, stage_runs: run.stageRuns || null } }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence, repoRoot });
+        let updated = reviewPlanArtifact(root, loaded, { verdict, findings: parsed.findings, kind: "egm", provider: config.backend === "glm-goldfish" ? ((run.stageRuns || []).map((stage) => stage.provider).find(Boolean) || egmProviderId) : "codex-egm", model: config.model, egm: { backend: config.backend, version_sha: config.versionSha, model: config.model || (run.stageRuns || []).map((stage) => stage.model).find(Boolean) || null, workdir: run.workdir, duration_ms: run.durationMs, exit_code: run.exitCode, last_message: run.lastMessage, stage_runs: run.stageRuns || null } }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence, repoRoot });
+        if (updated.review.verdict === 'blocked' || updated.accuracy_followup?.status === 'retry') updated = await accuracyContinue(root, updated, payload, seam);
         return json(res, 200, { ok: true, draft: draftResponse(updated, root), review: updated.review });
       } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message, workdir: error.workdir || null }); }
       finally { if (reviewKey) releaseReviewLock(reviewDir); }
@@ -752,20 +778,38 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       const text = String(response.text || response.output || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
       const result = JSON.parse(text);
       if (!["passed", "blocked"].includes(result.verdict) || !Array.isArray(result.findings)) throw new Error("review response must contain verdict and findings");
-      const updated = reviewPlanArtifact(root, loaded, { ...result, source_revision: sourceRevision, provider: response.provider || providerId, model: response.model || payload.model || null }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence, repoRoot });
+      let updated = reviewPlanArtifact(root, loaded, { ...result, source_revision: sourceRevision, provider: response.provider || providerId, model: response.model || payload.model || null }, { expectedRevision: loaded.revision || 1, evidenceSnapshot: projectEvidence, repoRoot });
+      if (updated.review.verdict === 'blocked' || updated.accuracy_followup?.status === 'retry') updated = await accuracyContinue(root, updated, payload, seam);
       return json(res, 200, { ok: true, draft: draftResponse(updated, root), review: updated.review });
     } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message }); }
     finally { if (reviewKey) releaseReviewLock(reviewDir); }
   }
-  if (pathname === "/api/plan/clarify") {
+  if (pathname === "/api/plan/question-progress") {
     try {
-      if (payload.target === "candidate") {
-        const updated = answerCandidateQuestion(root, String(payload.draftId || ""), String(payload.questionId || ""), payload.answer);
-        return json(res, 200, { ok: true, draft: draftResponse(updated, root) });
-      }
-      const updated = answerPlanQuestion(root, String(payload.draftId || ""), String(payload.questionId || ""), payload.answer);
+      const updated = saveQuestionProgress(root, String(payload.draftId || ''), payload.progress, { target: payload.target });
       return json(res, 200, { ok: true, draft: draftResponse(updated, root) });
-    } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
+    } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message }); }
+  }
+  if (pathname === "/api/plan/clarify") {
+    let reviewDir = null;
+    try {
+      const loaded = loadPlanDraft(root, String(payload.draftId || ''));
+      assertDraftUsesCurrentImportedSource(root, loaded);
+      if (payload.revision != null && Number(payload.revision) !== loaded.revision) throw Object.assign(new Error('plan draft changed; reload and retry'), { statusCode: 409 });
+      if (!planningConcurrentAllowed(root) && planningRunActive(root)) throw Object.assign(new Error('An overnight queue run is active; your unfinished answer is retained for later.'), { statusCode: 409 });
+      acquireReviewLock(loaded.dir);
+      reviewDir = loaded.dir;
+      const id = String(payload.questionId || '');
+      const record = payload.target === 'candidate' ? loaded.pending_candidate : loaded;
+      const previous = record?.answer_assessments?.[id];
+      // A duplicate network retry must not spend another provider session.
+      if (previous?.original_answer === String(payload.answer || '').trim() && record?.accuracy_followup?.status === 'complete' && record.accuracy_followup.completed_revision === loaded.revision) return json(res, 200, { ok: true, draft: draftResponse(loaded, root), feedback: previous, review: record.review, review_ready: payload.target !== 'candidate' && planReviewSnapshotCurrent(root, loaded) });
+      let updated = payload.target === 'candidate' ? answerCandidateQuestion(root, loaded, id, payload.answer) : answerPlanQuestion(root, loaded, id, payload.answer, { expectedRevision: payload.revision });
+      updated = await accuracyContinue(root, updated, payload, seam, id, payload.target);
+      const result = payload.target === 'candidate' ? updated.pending_candidate : updated;
+      return json(res, 200, { ok: true, draft: draftResponse(updated, root), feedback: result?.answer_assessments?.[id], review: result?.review || null, review_ready: payload.target !== 'candidate' && planReviewSnapshotCurrent(root, updated) });
+    } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message }); }
+    finally { if (reviewDir) releaseReviewLock(reviewDir); }
   }
   if (pathname === "/api/plan/refine") {
     const draftId = String(payload.draftId || "");
@@ -1149,7 +1193,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       redactionCache.envKeys = envKeys;
       redactionCache.envSecrets = Object.entries(process.env).filter(([key, item]) => item && /(?:PAT|TOKEN|SECRET|CREDENTIAL)/i.test(key)).map(([, item]) => item);
     }
-    const secrets = [...new Set([azureUiToken, ...azureConnectionTokens.values(), ...redactionCache.envSecrets, ...extra])].filter(secret => secret && String(secret).length >= 8);
+    const secrets = [...new Set([azureUiToken, githubUiToken, ...jiraConnectionTokens.values(), ...azureConnectionTokens.values(), ...redactionCache.envSecrets, ...extra])].filter(secret => secret && String(secret).length >= 8);
     for (const secret of secrets) message = message.split(secret).join('[redacted]');
     return message;
   };
@@ -1168,6 +1212,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   let azureUiToken = null;
   let azureTokenIdentity = null, azureLoadedIdentity = null, azureRemembered = false;
   let githubUiToken = null; // session-scoped token from the UI; GITHUB_TOKEN stays untouched
+  const jiraConnectionTokens = new Map(); // session credentials are scoped to saved connections
   async function currentAzureToken() {
     const cfg = readManagerConfig(root).intake?.azure || {}, identity = azureIdentity(cfg);
     if (azureTokenIdentity !== identity) { azureUiToken = null; azureRemembered = false; }
@@ -1639,6 +1684,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         return;
       }
       if (url.pathname === '/api/intake/connections' && ['GET', 'POST'].includes(req.method) || /^\/api\/intake\/connections\/[0-9a-f-]+(?:\/(?:check|credential))?$/.test(url.pathname) && ['PATCH', 'DELETE', 'POST'].includes(req.method)) {
+        let payload = {};
         try {
           const ownerCookie = String(req.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith('atl_owner='))?.slice(10);
           if (!validateOwnerSession(root, decodeURIComponent(ownerCookie || ''), String(req.headers['x-atl-csrf'] || '')) || req.headers.origin && !isSameLoopbackOrigin(req, server)) { json(res, 403, { ok: false, error: 'An authenticated owner session is required for issue connections.' }); return; }
@@ -1647,9 +1693,9 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const id = parts[4];
           const index = id ? data.connections.findIndex(c => c.id === id) : -1;
           if (id && index < 0) { json(res, 404, { ok: false, error: 'Connection not found.' }); return; }
-          if (req.method === 'GET') { json(res, 200, { ok: true, ...data, connections: data.connections.map(c => ({ ...c, token_present: c.provider === 'github' ? Boolean(githubUiToken || process.env.GITHUB_TOKEN) : Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
+          if (req.method === 'GET') { json(res, 200, { ok: true, ...data, connections: data.connections.map(c => ({ ...c, token_present: c.provider === 'github' ? Boolean(githubUiToken || process.env.GITHUB_TOKEN) : c.provider === 'jira' ? Boolean(jiraConnectionTokens.has(c.id) || process.env[c.settings.token_env]) : Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
           if (run.status === 'running' || planningRunActive(root)) { json(res, 409, { ok: false, error: 'Wait for the active run before changing issue sources.' }); return; }
-          const payload = JSON.parse(await readBody(req) || '{}');
+          payload = JSON.parse(await readBody(req) || '{}');
           if (payload.revision !== data.revision) { json(res, 409, { ok: false, error: 'Connections changed. Refresh and try again.' }); return; }
           if (req.method === 'POST' && !id) {
             const parsed = validateConnection(payload);
@@ -1663,7 +1709,16 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           if (req.method === 'POST' && parts[5] === 'credential') {
             if (!req.headers.origin || !isSameLoopbackOrigin(req, server)) { json(res, 403, { ok: false, error: 'Credentials can only be changed from the authenticated ATL UI.' }); return; }
             const record = data.connections[index];
-            if (record.provider !== 'azure') throw new Error('Credential entry is available for Azure Boards.');
+            if (!['azure', 'jira'].includes(record.provider)) throw new Error('Credential entry is available for Jira and Azure Boards.');
+            if (record.provider === 'jira') {
+              if (payload.action === 'disconnect') jiraConnectionTokens.delete(id);
+              else {
+                const token = String(payload.token || '').trim();
+                if (!token || token.length > 4096 || /[\r\n]/.test(token)) throw new Error('Enter a valid Jira token.');
+                jiraConnectionTokens.set(id, token);
+              }
+              json(res, 200, { ok: true, revision: data.revision, credential_source: jiraConnectionTokens.has(id) ? 'session' : 'environment' }); return;
+            }
             if (payload.action === 'disconnect') {
               azureConnectionTokens.delete(id);
               forgetAzureConnection(record.settings, { dir: azureCredentialDir(id) });
@@ -1689,6 +1744,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
               forgetAzureConnection(previous.settings, { dir: azureCredentialDir(id) });
               previous.credential_ref = null;
             }
+            if (previous.provider === 'jira' && connectionIdentity(previous) !== connectionIdentity(parsed)) jiraConnectionTokens.delete(id);
             data.connections[index] = { ...previous, ...parsed, status: 'unchecked', checked_at: null };
             if (data.defaults[previous.provider] === id && previous.legacy && previous.enabled !== parsed.enabled) {
               const manager = readManagerConfig(root);
@@ -1712,6 +1768,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             }
             if (record.legacy) data.dismissed_legacy.push(connectionIdentity(record));
             if (record.provider === 'azure') { azureConnectionTokens.delete(id); forgetAzureConnection(record.settings, { dir: azureCredentialDir(id) }); }
+            if (record.provider === 'jira') jiraConnectionTokens.delete(id);
             data.connections.splice(index, 1);
           } else if (req.method === 'POST' && parts[5] === 'check') {
             const record = data.connections[index];
@@ -1723,6 +1780,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             // The session GitHub token is account-scoped: it authenticates the
             // access check of every github connection, not one saved location.
             if (record.provider === 'github' && githubUiToken) adapters = { ...adapters, github: cfg => seam.intakeAdapters.github ? seam.intakeAdapters.github(cfg, { token: githubUiToken }) : intakeFromGitHub(cfg, { token: githubUiToken }) };
+            if (record.provider === 'jira' && jiraConnectionTokens.has(id)) adapters = { ...adapters, jira: cfg => seam.intakeAdapters.jira ? seam.intakeAdapters.jira(cfg, { token: jiraConnectionTokens.get(id) }) : intakeFromJira(cfg, { token: jiraConnectionTokens.get(id) }) };
             try { await runIntake(config, record.provider, adapters); record.status = 'verified'; record.error = null; }
             catch (error) { const message = redactConnectionSecrets(error.message); record.status = /auth|token|credential|unauthori|forbidden|401|403/i.test(message) ? 'needs-auth' : 'unavailable'; record.error = message.slice(0, 240); }
             record.checked_at = new Date().toISOString();
@@ -1820,14 +1878,32 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         // Sprint combobox feed: the read-only iteration tree from the saved
         // connection. Names, paths and dates only — never credentials.
         try {
-          const cfg = readManagerConfig(root).intake?.azure || {};
+          const connectionId = url.searchParams.get('connection_id');
+          let connection = null, connections = null;
+          if (connectionId) {
+            const ownerCookie = String(req.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith('atl_owner='))?.slice('atl_owner='.length);
+            if (!validateOwnerSession(root, decodeURIComponent(ownerCookie || ''), String(req.headers['x-atl-csrf'] || ''))) { json(res, 403, { ok: false, error: 'An authenticated owner session is required for issue connections.' }); return; }
+            connections = loadConnections(root, readManagerConfig(root).intake || {});
+            connection = connections.connections.find(item => item.id === connectionId);
+            if (!connection || connection.provider !== 'azure') throw new Error('Azure connection not found. Refresh sources.');
+            if (!connection.enabled) throw new Error('Resume this connection before loading its sprints.');
+          }
+          const legacy = readManagerConfig(root).intake?.azure || {};
+          const sameAzure = connection && legacy.org_url === connection.settings.org_url && legacy.project === connection.settings.project;
+          const cfg = connection ? { ...(sameAzure ? legacy : {}), ...connection.settings } : legacy;
           if (!cfg.org_url || !cfg.project) throw new Error("Save the Azure collection and project first.");
           await currentAzureToken();
-          const token = azureUiToken || process.env[cfg.token_env || "AZDO_PAT"];
+          const token = connection ? await connectionAzureToken(connection) || (connection.id === connections.defaults.azure ? azureUiToken : null) : azureUiToken || process.env[cfg.token_env || "AZDO_PAT"];
           if (!token) throw new Error("Connect Azure Boards first — the sprint list comes from your saved connection.");
           const iterationsUrl = `${cfg.org_url.replace(/\/$/, "")}/${encodeURIComponent(cfg.project)}/_apis/wit/classificationnodes/iterations?$depth=2&api-version=7.1-preview.1`;
           const authHeaders = { authorization: "Basic " + Buffer.from(`:${token}`).toString("base64") };
-          const callAzure = (link) => (seam.azureFetch || fetch)(link, { headers: authHeaders, signal: AbortSignal.timeout(15000) });
+          const callAzure = async (link) => {
+            if (cfg.tls_allow_untrusted && seam.azureFetch === globalThis.fetch) {
+              try { return { ok: true, status: 200, data: await requestJson(link, { headers: authHeaders, allowUntrusted: true }) }; }
+              catch (error) { return { ok: false, status: 400, data: { message: error.message } }; }
+            }
+            return (seam.azureFetch || globalThis.fetch)(link, { headers: authHeaders, signal: AbortSignal.timeout(15000) });
+          };
           // Seam contract: fetch-compatible (Response). Transport-style seams
           // ({ data, status }) — the myTasksFetch convention — are accepted too.
           const readJson = async (response) => (typeof response.json === "function" ? await response.json().catch(() => ({})) : (response.data ?? {}));
@@ -1845,7 +1921,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const iterations = [];
           const walk = (node, prefix) => {
             for (const child of node.children || []) {
-              const iterationPath = `${prefix}\\${child.name}`;
+              const iterationPath = child.path || `${prefix}\\${child.name}`;
               iterations.push({ name: child.name, path: iterationPath, start: child.attributes?.startDate || null, finish: child.attributes?.finishDate || null });
               if (child.hasChildren) walk(child, iterationPath);
             }
@@ -1854,7 +1930,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           json(res, 200, { ok: true, iterations });
         } catch (error) {
           const message = String(error?.message || "Could not list Azure sprints");
-          json(res, 400, { ok: false, error: azureUiToken ? message.split(azureUiToken).join("[redacted]") : message });
+          json(res, 400, { ok: false, error: redactConnectionSecrets(message) });
         }
         return;
       }
@@ -1867,7 +1943,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const source = connection?.provider || String(payload.source || "");
           if (!["github", "jira", "azure"].includes(source)) throw new Error("Choose GitHub, Jira, or Azure Boards.");
           const config = readManagerConfig(root);
-          if (connection) { config.intake ||= {}; config.intake[source] = source === 'github' ? { enabled: connection.enabled, repos: [connection.settings.repo] } : { ...connection.settings, enabled: connection.enabled }; }
+          if (connection) { config.intake ||= {}; const legacy = config.intake[source] || {}; const sameAzure = source === 'azure' && legacy.org_url === connection.settings.org_url && legacy.project === connection.settings.project; config.intake[source] = source === 'github' ? { enabled: connection.enabled, repos: [connection.settings.repo] } : { ...(sameAzure ? legacy : {}), ...connection.settings, enabled: connection.enabled }; }
           if (!config.intake?.[source]?.enabled) throw new Error(`${source} source is not enabled.`);
           if (source === 'azure') {
             await currentAzureToken();
@@ -1881,6 +1957,8 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
               }
               if (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value))) throw new Error('Enter a positive work item number or an Azure work item link.');
               cfg.work_item_id = Number(value); delete cfg.wiql;
+            } else if (payload.all_iterations === true) {
+              cfg.all_iterations = true; delete cfg.wiql; delete cfg.work_item_id;
             } else if (payload.iteration_path != null) {
               const iteration = String(payload.iteration_path).trim();
               // A pasted taskboard URL like .../_sprints/taskboard/…/Sprint%2074?workitem=6340
@@ -1904,10 +1982,11 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             ? { ...seam.intakeAdapters, azure: (cfg) => seam.intakeAdapters.azure ? seam.intakeAdapters.azure(cfg, { token: azureUiToken }) : intakeFromAzure(cfg, { token: azureUiToken }) }
             : seam.intakeAdapters;
           if (source === "github" && githubUiToken) adapters = { ...adapters, github: (cfg) => seam.intakeAdapters.github ? seam.intakeAdapters.github(cfg, { token: githubUiToken }) : intakeFromGitHub(cfg, { token: githubUiToken }) };
+          if (source === 'jira' && connection && jiraConnectionTokens.has(connection.id)) adapters = { ...adapters, jira: cfg => seam.intakeAdapters.jira ? seam.intakeAdapters.jira(cfg, { token: jiraConnectionTokens.get(connection.id) }) : intakeFromJira(cfg, { token: jiraConnectionTokens.get(connection.id) }) };
           const results = await runIntake(config, source, adapters);
           const candidates = results.flatMap((entry) => entry.tasks);
           const token = crypto.randomUUID(); intakePreviews.set(token, { source, connection_id: connection?.id || null, connection_identity: connection ? connectionIdentity(connection) : null, candidates, at: Date.now(), selection: { work_item: source === 'azure' ? String(payload.work_item || '') : '', iteration: config.intake[source]?.iteration_path || '', project: config.intake[source]?.project || '' } });
-          json(res, 200, { ok: true, token, candidates: candidates.map((item, index) => ({ index, title: item.title, objective_hint: item.objective_hint, source: item.source, priority: item.priority })) });
+          json(res, 200, { ok: true, token, candidates: candidates.map((item, index) => ({ index, title: item.title, objective_hint: item.objective_hint, source: item.source, priority: item.priority, labels: item.labels || [], state: item.state || item.source?.state || (source === 'azure' ? item.labels?.[0] : null) || "Open" })) });
         } catch (error) {
           let message = String(error?.message || "Issue search failed");
           // Never echo a session credential or a saved connection secret back

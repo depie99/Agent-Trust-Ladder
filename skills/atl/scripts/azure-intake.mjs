@@ -58,7 +58,7 @@ function normalizedConfig(cfg) {
 export function azureQuery(cfg) {
   const normalized = normalizedConfig(cfg);
   return cfg.wiql || `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${normalized.project.replace(/'/g, "''")}' `
-    + `AND [System.IterationPath] = '${normalized.iteration.replace(/'/g, "''")}' `
+    + (cfg.all_iterations ? "" : `AND [System.IterationPath] = '${normalized.iteration.replace(/'/g, "''")}' `)
     + `AND [System.WorkItemType] IN (${(cfg.types || ["Task", "Bug", "User Story"]).map((type) => `'${String(type).replace(/'/g, "''")}'`).join(", ")})`;
 }
 
@@ -133,7 +133,7 @@ export async function fetchAzureTasks(cfg, { requestImpl = requestJson, env = pr
     headers,
     body: {
       ids,
-      fields: ["System.Id", "System.Rev", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "Microsoft.VSTS.Common.Priority", "System.Description", "Microsoft.VSTS.TCM.ReproSteps", "Microsoft.VSTS.Common.AcceptanceCriteria"],
+      fields: ["System.Id", "System.Rev", "System.Title", "System.State", "System.WorkItemType", "System.AssignedTo", "System.IterationPath", "Microsoft.VSTS.Common.Priority", "System.Description", "Microsoft.VSTS.TCM.ReproSteps", "Microsoft.VSTS.Common.AcceptanceCriteria"],
     },
     ...tls,
   });

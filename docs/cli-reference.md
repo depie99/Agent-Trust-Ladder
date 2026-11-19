@@ -127,10 +127,10 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   providers                     providers, keys (masked), and per-role mapping
   provider templates            pre-filled endpoint presets (zai, bigmodel, custom)
   provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url]
-                [--key secret | --key-env VAR] [--model model] [--thinking-level level]
+                [--key-env VAR] [--model model] [--thinking-level level]
                                 store an API provider once per machine in ~/.atl/providers.json
-                                (e.g. GLM: provider add zai --key <key> --model glm-4.6)
-  provider key <id> --key secret | --key-env VAR
+                                (key is prompted without echo; Ctrl+R shows/hides)
+  provider key <id> [--key-env VAR]
                                 update the stored API key
   provider use <id> [--role role]
                                 make a stored provider the project default (or one role's provider)

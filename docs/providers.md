@@ -4,14 +4,14 @@ Choose a ready provider and an eligible model before execution. Authentication, 
 
 ## Configure a provider
 
-Open **Settings** and inspect built-in readiness. Install and authenticate the chosen CLI, or configure an API provider with its base URL, protocol, credential, and models. A supported CLI subscription and an API key are different authentication paths.
+Open **Settings** and inspect built-in readiness. Install and authenticate the chosen CLI, or configure an API provider with its base URL, protocol, credential, and models. A supported CLI subscription and an API key are different authentication paths. Graphical API-key fields start masked and provide **Show/Hide** controls. In the terminal dashboard's provider wizard, the key starts masked; press **Ctrl+R** to show or hide it while entering.
 
 ```sh
 atl providers
 atl provider templates
 ```
 
-Inspect [CLI reference](cli-reference.md) before changing provider keys or overrides. Keep credentials out of task descriptions, screenshots, and research records.
+Use `atl provider add <id>` or `atl provider key <id>` to enter a key at a hidden terminal prompt; **Ctrl+R** temporarily toggles visibility. Non-interactive shells can use `--key-env VAR`. Avoid `--key secret` in shared terminals because command arguments can be retained in shell history and process listings. Inspect [CLI reference](cli-reference.md) before changing provider keys or overrides. Keep credentials out of task descriptions, screenshots, and research records.
 
 ## Validate model selection
 
