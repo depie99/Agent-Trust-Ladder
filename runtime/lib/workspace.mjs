@@ -2,6 +2,7 @@
 // The worker never touches the active workspace of any repository.
 
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { paths } from "./state.mjs";
@@ -201,6 +202,15 @@ export function ensureWorkspace(root, cfg, task) {
   const localRepo = configuredRepo || boundRepo || (!repoKey(task) && isGitRepo(root) ? path.resolve(root) : null);
   try {
     if (localRepo) {
+      if (task.base_revision) {
+        if (!/^[a-f0-9]{40,64}$/.test(task.base_revision)) throw new Error("Invalid task base revision");
+        git(["cat-file", "-e", `${task.base_revision}^{commit}`], localRepo);
+        const identity = crypto.createHash('sha256').update(path.resolve(root)).digest('hex').slice(0,10);
+        const branch = `atl/${identity}/${task.id}-${crypto.randomUUID().slice(0,8)}`;
+        git(["worktree", "add", "-b", branch, dir, task.base_revision], localRepo);
+        writeMarker(dir, { root, task, mode: "worktree", from: localRepo, base_revision: task.base_revision, branch });
+        return { dir, reused: false, mode: "worktree", from: localRepo, branch, base_revision: task.base_revision };
+      }
       if (path.resolve(localRepo) === path.resolve(root)) {
         return createSnapshotWorktree(root, dir, task);
       }

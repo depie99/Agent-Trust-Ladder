@@ -15,6 +15,10 @@ atl ui --port 4317
 
 `atl ui` and `atl control-plane` start the browser server; `atl tui` opens the terminal. Check any `ATL_PROJECT` override before acting.
 
+The browser Plan Studio pairs the conversation with Overview, Tasks and Review tabs. Settings groups resource budgets and providers above paired access and execution cards; these cards stack on narrow screens. Automatic model route controls appear when automatic selection is enabled, and switching it off preserves configured routes. Bundled plugins consume the same browser runtime; terminal and CLI behavior is unchanged by this layout.
+
+The harness planning API in `lib/harness-planning.mjs` lets the active chat assistant author and persist the same revisioned Plan Studio artifact. Its plugin tools keep questions and answers in chat, preserve project/repository/issue/base-revision binding, use ATL's existing reviewer, and separate plan approval from bounded run approval. Programs in `lib/programs.mjs` bind reviewed queues to dependency-linked milestones and maintain aggregate session/time accounting across registered repositories. Task workspaces use pinned commits and unique branches; branch delivery is serialized. `lib/execution-backend.mjs` defines the local execution contract and the future remote adapter boundary. Remote execution provisioning is not part of the current release.
+
 ## Find implementation and contracts
 
 | Boundary | Read |

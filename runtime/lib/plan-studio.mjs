@@ -826,6 +826,12 @@ function persistArtifact(root, loaded, artifact, envelopePatch = {}) {
   });
 }
 
+// Harness edits use the same revision lock and review invalidation as card edits.
+export function replaceHarnessPlanArtifact(root, draft, artifact, harness, stage = draft.stage || "plan") {
+  const loaded = loadEditableDraft(root, draft);
+  return persistArtifact(root, loaded, artifact, { stage, generated_via: "harness", harness, pending_candidate: null });
+}
+
 function cloneArtifact(loaded) {
   return JSON.parse(JSON.stringify(loaded.artifact || {}));
 }
@@ -1018,6 +1024,7 @@ export function planDraftLabel(loaded) {
   const via = loaded.generated_via || (loaded.provider ? "provider" : "local");
   const provider = loaded.provider || null;
   const model = loaded.model || null;
+  if (via === "harness") return { mode: "model", label: `Harness plan ? ${loaded.harness?.author || "current assistant"}`, provider: null, model: loaded.harness?.author || null, generated_at: loaded.saved_at || null };
   return via === "provider"
     ? { mode: "model", label: `Model plan · ${provider || "provider"}${model ? ` / ${model}` : ""}`, provider, model, generated_at: loaded.saved_at || null }
     : { mode: "local", label: "Local skeleton · deterministic structure — not approvable, complete with a model plan", provider: null, model: null, generated_at: loaded.saved_at || null };
@@ -1299,6 +1306,12 @@ function approvePlanDraftUnlocked(root, draft, { note = "approved by manager in 
     const nextState = loadState(root);
     const stored = nextState.tasks[task.id];
     stored.plan_draft_id = loaded.id;
+    if (loaded.harness) {
+      stored.base_revision = loaded.harness.base_revision;
+      stored.base_branch = loaded.harness.base_branch;
+      stored.planning_author = loaded.harness.author;
+      stored.planning_issue = loaded.harness.issue;
+    }
     if (loaded.source_task_id) {
       const request = nextState.tasks[loaded.source_task_id];
       stored.source_task_id = loaded.source_task_id;
@@ -1371,7 +1384,11 @@ function approvePlanDraftUnlocked(root, draft, { note = "approved by manager in 
 
 export function approvePlanDraft(root, draft, options = {}) {
   const loaded = typeof draft === "string" ? loadPlanDraft(root, draft) : draft;
-  return withDraftLock(loaded.dir, () => approvePlanDraftUnlocked(root, loaded.id, options));
+  return withDraftLock(loaded.dir, () => {
+    const current = loadPlanDraft(root, loaded.id);
+    if (options.expectedRevision !== undefined && current.revision !== options.expectedRevision) throw Object.assign(new Error("Plan changed before approval; reload and retry"), { statusCode: 409 });
+    return approvePlanDraftUnlocked(root, loaded.id, options);
+  });
 }
 
 export async function runPlanProvider(root, intent, { role = "pip", provider, confirm = false, invoke, draftId = null, budget = null, sourceTaskId = null, repositoryId = null } = {}) {

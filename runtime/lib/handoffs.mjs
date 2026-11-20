@@ -1,3 +1,4 @@
+import { withFileLock } from './file-transaction.mjs';
 // Content-addressed handoffs include dirty and untracked source, without committing
 // or changing the user's branch. Records are published only after their blobs.
 import fs from "node:fs";
@@ -213,6 +214,9 @@ export function deliveryGate(root, tasks, integratedTask) {
 }
 
 export function createDeliveryBranch(root, tasks, integratedTask) {
+  return withFileLock(path.join(store(root), 'integration'), () => createDeliveryBranchLocked(root, tasks, integratedTask));
+}
+function createDeliveryBranchLocked(root, tasks, integratedTask) {
   const gate = deliveryGate(root, tasks, integratedTask);
   if (!gate.ready) throw new Error("integrated review, predecessor checks and browser journey are required");
   const workspace = integratedTask.workspace;

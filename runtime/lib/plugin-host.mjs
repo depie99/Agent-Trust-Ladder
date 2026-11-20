@@ -12,7 +12,31 @@ const bundleRoot = fileURLToPath(new URL('../../', import.meta.url));
 const schema = (properties = {}, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
 const project = { type: 'string', description: 'Absolute path of the application to manage, explicitly selected by the user. Never the plugin installation directory.' };
 const str = { type: 'string' };
+const harnessTool = (name, description, properties, required = []) => ({ name, description, inputSchema: schema({ project, ...properties }, ['project', ...required]) });
+const revision = { draftId: str, expectedRevision: { type: 'integer', minimum: 1, maximum: 2147483647 } };
+const preference = { type: 'object', properties: { mode: { type: 'string', enum: ['all', 'consequential', 'defaults'] }, scope: { type: 'string', enum: ['personal', 'project', 'request'] } }, additionalProperties: false };
+const confirmation = { confirm: { type: 'boolean' }, idempotencyKey: str };
+const harnessTools = [
+  harnessTool('atl_project_bootstrap', 'Initialize an authorized empty/unborn repository and create an empty local base commit without staging developer files. Requires explicit authorization; does not choose a stack or run workers.', {confirm:{type:'boolean'},branch:str}, ['confirm']),
+  harnessTool('atl_program_save', 'Persist a phased multi-project program with explicit milestone dependencies, acceptance checks and total session/time limits. No execution starts.', { programId: str, expectedRevision: {type:'integer',minimum:1,maximum:2147483647}, program: {type:'object',additionalProperties:true}, reason: str, idempotencyKey: str }, ['program','idempotencyKey']),
+  harnessTool('atl_program_status', 'Read the program morning report, project/task status, consumed sessions and milestones requiring elaboration.', { programId: str }),
+  harnessTool('atl_program_reconcile', 'After a runtime interruption, resolve every uncertain dispatch with inspected evidence as completed, safe-to-retry, or blocked. This never starts work; a later exact run authorization is required.', {programId:str,decisions:{type:'array',items:{type:'object',properties:{dispatchId:str,outcome:{type:'string',enum:['completed','safe-to-retry','blocked']},evidence:str},required:['dispatchId','outcome','evidence'],additionalProperties:false},minItems:1,maxItems:50},confirm:{type:'boolean'}}, ['programId','decisions','confirm']),
+  harnessTool('atl_program_approve', 'Record developer approval of exact program requirements, milestone contracts and aggregate limits. Starts nothing.', {programId:str,expectedRevision:{type:'integer',minimum:1,maximum:2147483647},...confirmation}, ['programId','expectedRevision','confirm','idempotencyKey']),
+  harnessTool('atl_program_bind', 'Attach an already reviewed and approved plan queue to an approved milestone. Each task retains its project identity.', {programId:str,milestoneId:str,draftId:str,replacesDraftId:str,expectedRevision:{type:'integer',minimum:1,maximum:2147483647},reason:str}, ['programId','milestoneId','draftId','expectedRevision']),
+  harnessTool('atl_program_start', 'Start or resume a developer-approved program on the local persistent runtime, within its original aggregate limits. Explicit execution authorization is required.', {programId:str,expectedRevision:{type:'integer',minimum:1,maximum:2147483647},...confirmation}, ['programId','expectedRevision','confirm','idempotencyKey']),
+  harnessTool('atl_program_stop', 'Pause this program and request safe stops for its own active tasks; preserve accounting and unrelated work.', {programId:str}, ['programId']),
+  harnessTool('atl_plan_context', 'Get repository evidence, current plan and clarification preferences for planning in this harness chat. For a program milestone, provide programId, milestoneId and programCoordinator (the coordinator project path returned by program status) to receive readiness and verified predecessor evidence. Save the plan in this target project; bind it later from the coordinator project. If ask_preference is true, ask once and persist the chosen personal preference. Does not invoke a paid planner.', { draftId: str, sourceTaskId: str, repositoryId: str, programId:str, milestoneId:str, programCoordinator:str, preference }),
+  harnessTool('atl_plan_save', 'Persist the current harness assistant plan in shared Plan Studio. Use state=draft for incomplete progress or ready for full contract validation. Never submit author-supplied review evidence. Reuse an idempotency key only for identical content.', { ...revision, intent: str, author: str, artifact: { type: 'object', additionalProperties: true }, state: { type: 'string', enum: ['draft', 'ready'] }, sourceTaskId: str, repositoryId: str, baseBranch: str, issue: str, preference, idempotencyKey: str }, ['author', 'artifact', 'idempotencyKey']),
+  harnessTool('atl_plan_answer', 'Persist a developer answer in the same revisioned Plan Studio artifact. Answers still need the normal review before approval.', { ...revision, questionId: str, answer: str }, ['draftId', 'expectedRevision', 'questionId', 'answer']),
+  harnessTool('atl_plan_review', 'Run the configured ATL reviewer policy for this exact plan revision. This may spend a configured provider session and requires the developer authorization. Never invent a passing review.', { ...revision, provider: str, model: str, reviewType: str, confirm: { type: 'boolean' } }, ['draftId', 'expectedRevision', 'confirm']),
+  harnessTool('atl_plan_approve', 'Approve the developer-approved exact plan revision, creating canonical tasks and a queue idempotently. Does not start execution. Requires a fresh passing policy review.', { ...revision, ...confirmation }, ['draftId', 'expectedRevision', 'confirm', 'idempotencyKey']),
+  harnessTool('atl_run_preview', 'Preview explicit tasks or a queue with bounded time and sessions per task. Return a short-lived exact-content token to present for developer approval. Starts nothing.', { queueId: str, taskIds: { type: 'array', items: str, minItems: 1, maxItems: 128 }, maxMinutes: { type: 'integer', minimum: 1, maximum: 10080 }, maxSessions: { type: 'integer', minimum: 1, maximum: 50 } }, ['maxMinutes', 'maxSessions']),
+  harnessTool('atl_run_start', 'Start the exact developer-approved bounded preview in the persistent project daemon, which outlives harness closure. Never set confirm without developer execution authorization.', { previewToken: str, ...confirmation }, ['previewToken', 'confirm', 'idempotencyKey']),
+  harnessTool('atl_run_status', 'Read live run status and the durable overnight recovery ledger. A running job is not completion evidence.', {}),
+  harnessTool('atl_run_stop', 'Request a safe stop of the current project run without unloading the harness.', {}),
+];
 export const pluginTools = [
+  ...harnessTools,
   ...['search', 'issue', 'comments', 'transitions'].map(operation => ({ name: `atl_jira_${operation}`, description: `Read Jira ${operation} through the configured official Atlassian MCP connection. arguments_json contains tool arguments; the configured site is enforced.`, inputSchema: schema({ project, arguments_json: str }, ['project', 'arguments_json']), readOnly: true })),
   { name: 'atl_jira_preview', description: 'Prepare a Jira comment, edit or transition preview. No remote write occurs. The user must review and approve this exact proposal in ATL My Tasks → Analysis & Jira settings → Review pending actions. Never approve on the user behalf.', inputSchema: schema({ project, operation: str, issue_key: str, changes_json: str }, ['project', 'operation', 'issue_key', 'changes_json']) },
   { name: 'atl_connect', description: 'Open the local ATL connection assistant: choose a harness, copy matching connection settings, switch English/Persian and open a project. No project is initialized until explicitly selected and opened. Returns a browser URL; does not launch workers.', inputSchema: schema() },
@@ -31,8 +55,25 @@ function validate(tool, args) {
   for (const [key, value] of Object.entries(args)) {
     const rule = tool.inputSchema.properties[key];
     if (rule.type === 'string' && (typeof value !== 'string' || !value.trim() || value.includes('\0'))) throw new Error(`${key} must be a non-empty string.`);
+    if (rule.type === 'boolean' && typeof value !== 'boolean') throw new Error(`Invalid ${key}.`);
+    if (rule.type === 'object' && (!value || typeof value !== 'object' || Array.isArray(value))) throw new Error(`Invalid ${key}.`);
+    if (rule.enum && !rule.enum.includes(value)) throw new Error(`Invalid ${key}.`);
     if (rule.type === 'integer' && (!Number.isInteger(value) || value < rule.minimum || value > rule.maximum)) throw new Error(`Invalid ${key}.`);
-    if (rule.type === 'array' && (!Array.isArray(value) || value.length < rule.minItems || value.length > rule.maxItems || value.some(v => typeof v !== 'string' || v.includes('\0')))) throw new Error(`Invalid ${key} array.`);
+    if (rule.type === 'array') {
+      const validItems = Array.isArray(value) && value.length >= rule.minItems && value.length <= rule.maxItems && value.every(item => {
+        if (rule.items?.type === 'string') return typeof item === 'string' && !item.includes('\0');
+        if (rule.items?.type === 'object') {
+          if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).some(name => !Object.hasOwn(rule.items.properties || {}, name))) return false;
+          if ((rule.items.required || []).some(name => !(name in item))) return false;
+          return Object.entries(item).every(([name, field]) => {
+            const spec=rule.items.properties[name];
+            return spec.type==='string' ? typeof field==='string'&&Boolean(field.trim())&&!field.includes('\0') : spec.type==='boolean' ? typeof field==='boolean' : spec.enum ? spec.enum.includes(field) : true;
+          });
+        }
+        return false;
+      });
+      if (!validItems) throw new Error(`Invalid ${key} array.`);
+    }
   }
 }
 
@@ -168,7 +209,7 @@ export function createPluginHost() {
         healthy: health.healthy,
         error: health.error,
         skills: fs.readdirSync(path.join(bundleRoot, 'skills')).filter(name => fs.existsSync(path.join(bundleRoot, 'skills', name, 'SKILL.md'))).sort(),
-        instructions: 'Read atl_skill(name="atl") first. For an authorized setup or dashboard request, call atl_start with the absolute application path. All runtime commands use this bundle; no global atl install is required. Provider CLIs/authentication and feature-specific tools still need to be available. Native harness tools do not automatically become unattended ATL workers.',
+        instructions: 'For planning, keep the conversation in this harness chat: call atl_plan_context with the explicit project, resolve and show the repository and issue target, ask the clarification preference once (default: consequential questions), investigate and persist drafts with atl_plan_save after meaningful changes, then use atl_plan_answer/review/approve. Approval creates the shared Plan Studio queue but starts nothing. Show atl_run_preview and obtain approval of that exact bounded preview before atl_run_start. Use atl_program_* for reviewed multi-project milestones; reconcile interrupted dispatches with evidence before resuming. Read atl_skill(name="atl") first. For setup or a dashboard request, call atl_start with the absolute application path. No global atl install is required. Provider CLIs/authentication and feature-specific tools still need to be available; native harness tools do not automatically become unattended workers.',
       };
     }
     if (name === 'atl_skill') {
@@ -187,6 +228,15 @@ export function createPluginHost() {
       return wait(job, args.wait_ms, signal);
     }
     const root = projectPath(args.project);
+    if (harnessTools.some(tool => tool.name === name)) {
+      const ui = await call('atl_control_plane', { project: root }, { signal });
+      const { project: ignored, ...payload } = args;
+      const operation = name.slice(4).replace('_', '/');
+      const response = await fetch(new URL(`/api/harness/${operation}`, ui.url), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal });
+      const result = await response.json();
+      if (!response.ok || result.ok === false) return { ...result, ok: false, status: response.status };
+      return result;
+    }
     if (name.startsWith('atl_jira_')) {
       const ui = await call('atl_control_plane', { project: root }, { signal });
       const preview = name === 'atl_jira_preview';

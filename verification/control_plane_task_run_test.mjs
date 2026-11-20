@@ -102,6 +102,9 @@ function makeProject(label) {
     assert.equal(started.status, 202, "confirmed per-task run starts");
     const startedBody = await started.json();
     assert.deepEqual(startedBody.run.taskIds, ["T-001"], "the run record names its task");
+    assert.ok(startedBody.run.runId, "every run has an identity for scoped cancellation");
+    const wrongStop = await fetch(`${running.url}api/run/stop`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ runId: "unrelated-run" }) });
+    assert.equal(wrongStop.status, 409, "a stale program cancellation cannot stop a different project run");
 
     const deadline = Date.now() + 20000;
     let finished = null;

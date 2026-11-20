@@ -232,3 +232,35 @@ html:not(.light) .studio-nextstep{background:#101018;color:#e9e7f4}
   .settings-nav-item.on{border-color:var(--accent-edge)}
 }
 @media(max-width:700px){.settings-keys{grid-template-columns:1fr}.set-row{align-items:flex-start;flex-direction:column;gap:8px}}
+
+/* Reference layouts: quiet navigation, paired defaults, and progressive routes. */
+.settings-nav{border:0;background:transparent;padding:4px 0}
+.settings-nav-item{padding:11px 14px}
+.settings-content{display:grid;gap:18px}
+.settings-content>.settings-section,.settings-content>.settings-card-grid{margin-top:0}
+.settings-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}
+.settings-card-grid>.set-card{margin:0;min-width:0}
+.settings-card-grid+.settings-section{margin-top:18px}
+.resource-policy-card:has(#resourceModels:not(:checked)){
+  .set-row:has(#resourceCeiling),.resource-routes-table,.resource-routes-help,.resource-route-editor,[data-action="resource-add"]{display:none}
+}
+.resource-policy-card:has(#resourceModels:checked) .set-note-dashed{display:none}
+.resource-policy-card .set-rows{border-top:1px solid var(--row-line)}
+.providers-table th,.accept-table th{text-transform:none;letter-spacing:normal;font-size:12px}
+.studio-pane{border-radius:16px}
+.studio-pane-head{background:transparent;border-bottom:0;border-radius:16px 16px 0 0}
+.studio-msg{box-shadow:none;font-size:14px}
+.studio-msg-manager,.studio-msg-assistant{border:0;border-radius:14px}
+.studio-question{box-shadow:none;border-color:var(--accent)}
+.tc.is-open{box-shadow:none}
+.tc-head{border-bottom:0;padding-bottom:0}
+.tc-body{gap:12px}
+.tc-label{text-transform:none;letter-spacing:normal;color:var(--text);font-size:13px;margin-bottom:3px}
+.tc-checks{gap:2px;color:var(--muted)}
+.tc-check{width:10px;height:10px;border-radius:0;margin-top:5px;border-width:1px}
+.tc-resource{border:0;border-top:1px solid var(--row-line);border-radius:0;background:transparent;padding:10px 0 0}
+.accept-wrap{border:0;border-radius:0}
+.accept-table td:first-child{color:var(--text)}
+.ev-card ul{list-style:none;padding:0}
+.review-banner,.request-card{background:var(--pane)}
+@media(max-width:1100px){.settings-card-grid{grid-template-columns:1fr}}

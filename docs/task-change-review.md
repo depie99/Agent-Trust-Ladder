@@ -6,9 +6,10 @@ Open a task in the live browser Control Plane's task workspace: the Tasks page k
 
 1. Read the status and attention items on Overview. Blocked tasks remain blocked even when checks passed. Title, objective, and latest summary come from task records.
 2. Check the baseline/output content identifiers and capture time. These are SHA-256 source revisions, not Git commits. The revision selector opens earlier captures. **Refresh evidence** keeps the selected source pinned.
-3. Open Files. Expand directories, search loaded paths, or filter by change type. Select a file to load its diff. Use **Load more files** to include later pages in search/filtering. Patches load individually.
-4. Open Evidence. `current` means both packet and code revision match; result and coverage remain separate. Revisionless evidence is `unknown`; old and invalidated evidence stay visibly labeled. Task-level evidence is not automatically proof for one file.
-5. Open Relationships to inspect actual task, change-set, snapshot, file, evidence and artifact-reference data. File records open diffs; evidence records open observations. Artifact hashes are references only, without a content-availability claim. Run links and structured decisions are explicitly unavailable when not established by source records.
+3. Open Changes to land directly in the searchable file tree and diff. Expand directories, search loaded paths, or filter by change type. Use **Previous/Next file** and **Previous/Next hunk**, or `J`/`K` and `N`/`P` outside editable controls. Unified and split views use the same captured patch. Use **Load more files** to include later pages in search/filtering. Patches load individually.
+4. Add file or old/new line comments, resolve or reopen threads, and mark a file reviewed. Notes are local to ATL and keyed to the pinned capture. When you select a newer capture, earlier notes remain visibly historical and are never shown as current. A stale save returns a conflict and requires a reload.
+5. Open Evidence. `current` means both packet and code revision match; result and coverage remain separate. Revisionless evidence is `unknown`; old and invalidated evidence stay visibly labeled. Task-level evidence is not automatically proof for one file.
+6. Open Relationships to inspect actual task, change-set, snapshot, file, evidence and artifact-reference data. File records open diffs; evidence records open observations. Artifact hashes are references only, without a content-availability claim. Run links and structured decisions are explicitly unavailable when not established by source records.
 
 Completed handoffs can be inspected after their workspace is archived. Active or blocked work needs **Capture current changes**. Capture stores immutable inspection data and compares two successive snapshots; a mismatch prevents publication. It never invents a missing baseline from Git HEAD. Pause a busy worker before capturing if consistency errors persist.
 
@@ -48,12 +49,16 @@ Captures publish `.trust/manager/change-reviews/<task-id>/<change-set-id>.json` 
 | `GET /api/task-change-diff?taskId=...&changeSetId=...&fileId=...` | Bounded preview for a file belonging to that task/change set. |
 | `POST /api/task-changes/capture` | Explicit capture; JSON `{ "task_id": "T-001" }`. |
 | `GET /api/task-execution?taskId=...` | Read-only execution projection for the workspace Activity/Process views (stages, attempts, captures, checks). |
+| `GET /api/task-review-state?taskId=...` | Read local comments, resolutions and reviewed files. |
+| `PUT /api/task-review-state` | Optimistic revision update. Requires `expected_revision`, task, captured change-set id, and an action (`comment`, `resolve`, `reopen`, `reviewed`). Line anchors must exist in the pinned complete patch. |
 
 All of these require the owner cookie and `x-atl-csrf` header, including source-reading GET requests. Capture also uses the existing origin checks. The browser never supplies arbitrary filesystem paths. Periodic snapshots/SSE contain no patches or new capture work. Paths reject traversal, symlinks and Windows junctions. Record associations, manifest hashes and requested blob hashes are checked.
 
 ## Execution projection
 
-The workspace Activity and Process views read `GET /api/task-execution`, a pure join over records that already exist: state events, the execution ledger and overnight session summaries, captured change sets and task evidence. Stages (intake, repository preparation, planning, implementation, review, verification, integration) appear only when a recorded event, session role or evidence kind maps to them; each attempt keeps its actor, provider/model, window, exit outcome, commands, evidence references and checkpoint. Capture-to-stage links exist only when a recorded packet revision is shared. Missing links render as "Not recorded"; tasks without sessions are labeled planned. The projection introduces no new workflow engine and migrates nothing.
+The workspace Activity and Process views read `GET /api/task-execution`, a pure join over records that already exist: state events, the execution ledger and overnight session summaries, captured change sets and task evidence. Stages (intake, repository preparation, planning, implementation, review, verification, integration) appear only when a recorded event, session role or evidence kind maps to them; each attempt keeps its actor, provider/model, window, exit outcome, commands, evidence references and checkpoint. Capture-to-stage links exist only when a recorded packet revision is shared. The additive graph links captures, files, attempts and checks. Edges say `recorded`, `inferred` or `unknown`; a task-level check is never treated as file-level verification. Process exposes Execution and Code impact views, an accessible list, Mermaid source copy, SVG export and navigation into Changes. No provider call occurs when a task or diagram opens.
+
+Review state is stored at `.trust/manager/change-reviews/<task-id>/review-state.json` (version 1). Updates use an exclusive lock, expected revision, a temporary file and atomic rename. Comments do not alter task lifecycle, captures or GitHub.
 
 ## Bounds and missing data
 

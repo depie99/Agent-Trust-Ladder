@@ -1,3 +1,4 @@
+import { listPrograms, programReport } from './programs.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { loadState, paths } from "./state.mjs";
@@ -246,6 +247,7 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
       }
     })(),
     approvals: approvalSnapshot(root),
+    programs: listPrograms(root).map(program => { try { return programReport(root, program.id); } catch(error) { return { id: program.id, outcome: program.outcome, status: 'unavailable', error: error.message, milestones: [] }; } }),
     supervisor: supervisorSnapshot(),
     leases: reconcileLeases(root),
     backups: listBackups(root),
