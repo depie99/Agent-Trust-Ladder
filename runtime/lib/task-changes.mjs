@@ -59,7 +59,7 @@ const sensitiveText = (text) => /-----BEGIN [\w ]*PRIVATE KEY-----|(?:api[_-]?ke
 
 // Bounded line LCS, after removing common prefix/suffix. Large unrelated edits
 // return an explicit limit state rather than freezing the control plane.
-export function unifiedDiff(before, after, name) {
+export function unifiedDiff(before, after, name, { milliseconds = LIMITS.milliseconds, cells = LIMITS.cells } = {}) {
   const started = performance.now();
   const lines = (text) => text === "" ? [] : text.replace(/\n$/, "").split("\n");
   const a = lines(before), b = lines(after);
@@ -68,10 +68,10 @@ export function unifiedDiff(before, after, name) {
   while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix++;
   while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
   const x = a.slice(prefix, a.length - suffix), y = b.slice(prefix, b.length - suffix);
-  if ((x.length + 1) * (y.length + 1) > LIMITS.cells) return { availability: "diff_limit", truncated: true, patch: "", additions: null, deletions: null };
+  if ((x.length + 1) * (y.length + 1) > cells) return { availability: "diff_limit", truncated: true, patch: "", additions: null, deletions: null };
   const width = y.length + 1, table = new Uint32Array((x.length + 1) * width);
   for (let i = x.length - 1; i >= 0; i--) {
-    if (performance.now() - started > LIMITS.milliseconds) return { availability: "timeout", truncated: true, patch: "", additions: null, deletions: null };
+    if (performance.now() - started > milliseconds) return { availability: "timeout", truncated: true, patch: "", additions: null, deletions: null };
     for (let j = y.length - 1; j >= 0; j--) table[i * width + j] = x[i] === y[j] ? 1 + table[(i + 1) * width + j + 1] : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
   }
   const ops = a.slice(0, prefix).map((text) => [" ", text]);
@@ -108,7 +108,7 @@ export function unifiedDiff(before, after, name) {
   if (Buffer.byteLength(patch) > LIMITS.patch) return { availability: "patch_limit", truncated: true, patch: "", additions, deletions };
   return { availability: "available", truncated: false, patch, additions, deletions };
 }
-export function fileDiff(root, record, fileId) {
+export function fileDiff(root, record, fileId, options = {}) {
   const file = compareSnapshots(record.baseline, record.output).find((entry) => entry.id === fileId);
   if (!file) throw new ChangeReviewError("file_not_found", "File does not belong to this change set", 404);
   if (sensitivePath(file.path)) return { file, availability: "redacted", patch: "", truncated: false, complete: false };
@@ -119,7 +119,7 @@ export function fileDiff(root, record, fileId) {
     let a, b;
     try { a = decode.decode(before); b = decode.decode(after); } catch { return { file, availability: "binary", patch: "", complete: false }; }
     if (sensitiveText(a) || sensitiveText(b)) return { file, availability: "redacted", patch: "", complete: false };
-    const diff = unifiedDiff(a, b, file.path);
+    const diff = unifiedDiff(a, b, file.path, options);
     return { file, ...diff, complete: diff.availability === "available", mode_change: file.before_mode !== file.after_mode };
   } catch (error) {
     if (!(error instanceof ChangeReviewError)) throw error;

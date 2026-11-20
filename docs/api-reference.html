@@ -9,6 +9,8 @@
 <h2 id="owner-session-boundary">Owner-session boundary</h2>
 <p>The browser server binds to loopback by default. Browser-origin mutations use same-origin and owner-session/CSRF checks. Origin-less command-line requests remain supported by the outer guard; inspect each route rather than assuming universal session authentication. Some sensitive read operations, including change review, also require the owner cookie and <code>x-atl-csrf</code> header. A copied URL alone is insufficient authority. The browser client demonstrates the supported request flow.</p>
 <p>Read <code>runtime/lib/session-auth.mjs</code>, route guards in <code>control-plane-server.mjs</code>, and <code>verification/owner_session_approval_test.mjs</code> before integrating. Keep tokens out of logs and URLs.</p>
+<h2 id="harness-planning-and-execution-tools">Harness planning and execution tools</h2>
+<p>The bundled MCP host exposes atl_plan_<em>, atl_run_</em>, atl_program_*, and atl_project_bootstrap tools. Every tool requires an absolute project path and routes to that project local daemon. The shared internal HTTP adapter is POST /api/harness/<operation>. Plan approval creates a queue; run start consumes a fingerprinted preview and requires exact developer authorization. Program recovery requires evidence for each uncertain dispatch. These routes are internal; harness clients should use the tool contracts in runtime/lib/plugin-host.mjs.</p>
 <h2 id="literal-route-index">Literal route index</h2>
 <table>
 <thead>
@@ -84,6 +86,14 @@
 </tr>
 <tr>
 <td><code>/api/execution-access</code></td>
+<td><code>runtime/lib/control-plane-server.mjs</code></td>
+</tr>
+<tr>
+<td><code>/api/harness/</code></td>
+<td><code>runtime/lib/control-plane-server.mjs</code></td>
+</tr>
+<tr>
+<td><code>/api/harness/program/link</code></td>
 <td><code>runtime/lib/control-plane-server.mjs</code></td>
 </tr>
 <tr>
@@ -371,6 +381,10 @@
 <td><code>runtime/lib/control-plane-server.mjs</code></td>
 </tr>
 <tr>
+<td><code>/api/task-review-state</code></td>
+<td><code>runtime/lib/control-plane-server.mjs</code></td>
+</tr>
+<tr>
 <td><code>/api/tasks/provider-route</code></td>
 <td><code>runtime/lib/control-plane-server.mjs</code></td>
 </tr>
@@ -390,5 +404,5 @@
 </table>
 <h2 id="verify-behavior">Verify behavior</h2>
 <p>Run <code>node verification/control_plane_server_test.mjs</code> and the feature-specific verifier from the <a href="guides.html">feature map</a>. This index does not claim every route was exercised during a documentation refresh.</p>
-</article><nav class="adjacent" aria-label="Adjacent pages"><a href="cli-reference.html"><small>Previous</small>CLI reference</a><a href="repository-map.html"><small>Next</small>File catalog</a></nav><footer><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/api-reference.md">View Markdown source ↗</a><a href="documentation.html">Improve this documentation</a><span>MIT</span></footer></main><aside class="page-toc"><h2>On this page</h2><nav aria-label="On this page"><a class="h2" href="#how-to-inspect-a-request">How to inspect a request</a><a class="h2" href="#owner-session-boundary">Owner-session boundary</a><a class="h2" href="#literal-route-index">Literal route index</a><a class="h2" href="#verify-behavior">Verify behavior</a></nav></aside></div>
+</article><nav class="adjacent" aria-label="Adjacent pages"><a href="cli-reference.html"><small>Previous</small>CLI reference</a><a href="repository-map.html"><small>Next</small>File catalog</a></nav><footer><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/docs/api-reference.md">View Markdown source ↗</a><a href="documentation.html">Improve this documentation</a><span>MIT</span></footer></main><aside class="page-toc"><h2>On this page</h2><nav aria-label="On this page"><a class="h2" href="#how-to-inspect-a-request">How to inspect a request</a><a class="h2" href="#owner-session-boundary">Owner-session boundary</a><a class="h2" href="#harness-planning-and-execution-tools">Harness planning and execution tools</a><a class="h2" href="#literal-route-index">Literal route index</a><a class="h2" href="#verify-behavior">Verify behavior</a></nav></aside></div>
 <dialog id="search-dialog"><div class="search-heading"><label for="search-input">Search documentation</label><button id="search-close" aria-label="Close search">Esc</button></div><input id="search-input" type="search" placeholder="Try Jira, queue, Ask ATL, or models" autocomplete="off"><div id="search-results" aria-live="polite"></div></dialog></body></html>

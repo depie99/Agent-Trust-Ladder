@@ -4,6 +4,8 @@ Use Plan Studio when a request describes an outcome but lacks independently exec
 
 The Studio is a conversational workspace: the **conversation** on the left drives generation and revisions, the **plan** on the right (Overview / Tasks / Review tabs) always shows the saved artifact. Nothing queues or executes from this page.
 
+In a connected developer harness, use the current harness assistant as the primary planning conversation. `atl_plan_context` gathers repository and issue context, and `atl_plan_save` writes revisioned drafts to this same Studio. Ask once whether the developer prefers every uncertainty, only consequential questions (default), or broad defaults. Keep the questions and answers in harness chat; save meaningful changes as they happen. Do not invoke a separate planning provider unless the developer asks. The browser remains available to inspect and revise the identical artifact.
+
 ## Prepare the request
 
 Open **Plan Studio** with a request or imported issue. State the outcome, constraints, project, and acceptance examples in the composer — Enter adds a line, Ctrl/Cmd+Enter sends. Distinguish observed evidence from assumptions. Attach reference files from **⚙ Settings**, and start with [issue sources](issue-sources.md) for external work.

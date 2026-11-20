@@ -71,6 +71,28 @@ try {
   assert.match(await workspace.locator(".process-flow").textContent(), /workspace/, "repository node shows the recorded workspace");
   assert.ok(await workspace.locator(".process-attempt").count() >= 2, "stage attempts render as connected nodes");
   assert.ok(await workspace.locator(".process-check").count() >= 1, "completion checks render");
+  await workspace.locator("[data-action=process-impact]").click();
+  const impactSvg = workspace.locator(".process-impact-svg"); await impactSvg.waitFor();
+  assert.ok(await impactSvg.locator("[role=button]").count() > 0, "Mermaid nodes have keyboard-accessible actions");
+  await impactSvg.locator("[role=button][aria-label^=\"hunk: runtime/example.js\"]").press("Enter");
+  await workspace.locator(".review-patch .diff-line").first().waitFor();
+  assert.match(await workspace.locator(".review-patch").textContent(), /after/, "a graph file node opens its captured diff");
+  await workspace.locator("[data-review-action=comment-file]").click();
+  await workspace.locator("#reviewDraft").fill("Browser review note");
+  await workspace.locator("[data-review-action=comment-save]").click();
+  await workspace.getByText("Browser review note", { exact: true }).waitFor();
+  await workspace.locator("[data-review-action=file-reviewed]").click();
+  await workspace.locator("[data-review-action=\"tab:files\"]").click();
+  await workspace.locator(".review-tree").waitFor();
+  await page.reload();
+  await workspace.getByText("Browser review note", { exact: true }).waitFor();
+  assert.equal(await workspace.locator("[data-review-action=file-reviewed]").textContent(), "Reviewed", "reviewed-file state survives reload");
+  assert.ok(await workspace.locator(".review-patch").evaluate((node) => node.scrollWidth <= node.clientWidth + 2), "diff pane remains bounded at desktop width");
+  await page.setViewportSize({ width: 390, height: 740 });
+  await page.locator('[data-task="T-001"]').first().click();
+  await workspace.locator(".review-tree").waitFor();
+  assert.ok(await workspace.locator(".review-files").evaluate((node) => node.scrollWidth <= node.clientWidth + 2), "narrow Changes layout fits the harness pane");
+  await page.setViewportSize({ width: 1280, height: 800 });
 
   // Changes view embeds the pinned review with its revision selector.
   await workspace.locator('[data-action="workspace-view:changes"]').click();

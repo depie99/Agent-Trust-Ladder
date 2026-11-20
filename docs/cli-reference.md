@@ -141,6 +141,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                 persist the default or per-role provider/model selection
   provider clear --role role    remove a per-role provider override
   show [task-id]                portfolio or one task
+  review <task-id> [--mermaid|--json]  inspect captured diffs and execution impact
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
@@ -160,6 +161,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   run <task-id> --worker <provider-id> [--model model] [--auth subscription|api] [--confirm]
                                 run one bounded role session
   overnight [<task-id> | --all] --worker <provider-id> [--model model] [--auth subscription|api] --confirm
+  harness <operation> [file]    harness planning/program/run API with a JSON request file
   overnight status              inspect the durable overnight ledger; starts nothing
   overnight recover --confirm   resume only untouched tasks after an interrupted runner
                                 run bounded role sessions until a gate or budget stops it;
@@ -520,11 +522,13 @@ Enter these inside the Control Plane CLI console or the terminal command console
 | `help` | read | list commands |
 | `why [task-id]` | read | explain blockers and next actions |
 | `show [task-id]` | read | inspect a task or active portfolio |
+| `review <task-id> [--mermaid / --json]` | read | inspect captured diffs and execution impact |
 | `brief` | read | render the manager brief |
 | `wake` | read | show the next role actions |
 | `feed [--task T-001]` | read | read the team feed |
 | `queue list / create / use / rename / reorder / pause / resume / archive / inspect / dry-run / add / remove / clear` | mutation | manage named execution queues |
 | `task create / edit / archive / restore ...` | mutation | manage task records safely |
+| `program list / show <id>` | read | inspect phased programs and morning reports |
 | `plan generate / list / show / frame / card / feedback / approve` | mutation | generate, edit, and approve plan drafts with typed task cards |
 | `unblock <task-id> [--to triaged / assigned] [--note text]` | mutation | recover a blocked task |
 | `approve <task-id> [--note text]` | confirm | record owner approval and queue |

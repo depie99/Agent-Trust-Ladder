@@ -280,6 +280,8 @@ textarea.input{resize:vertical;min-height:110px}
 .review-tabs [aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
 .review-files { display: grid; grid-template-columns: minmax(220px, 30%) minmax(0, 1fr); gap: 16px; }
 .review-files > aside { min-width: 0; }
+.review-resize { width: 8px; cursor: col-resize; background: var(--border); border-radius: 5px; touch-action: none; }
+.review-resize:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .review-files label { display: block; margin-block: 8px 4px; }
 .review-tree { max-height: 42vh; overflow: auto; }
 .review-tree details { margin-inline-start: 8px; }
@@ -347,7 +349,8 @@ textarea.input{resize:vertical;min-height:110px}
 .review-receipt[data-delivery-verdict="review-required"] .pill[data-delivery-status] { border-color: var(--blue); color: var(--blue); }
 .task-change-review :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 760px) {
-  .review-files { grid-template-columns: minmax(0, 1fr); }
+  .review-files { grid-template-columns: minmax(0, 1fr) !important; }
+  .review-resize { display: none; }
   .review-tree { max-height: 24vh; }
   .review-patch { max-height: 40vh; }
 }

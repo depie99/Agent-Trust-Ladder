@@ -8,7 +8,8 @@
 <ol>
 <li>Read the status and attention items on Overview. Blocked tasks remain blocked even when checks passed. Title, objective, and latest summary come from task records.</li>
 <li>Check the baseline/output content identifiers and capture time. These are SHA-256 source revisions, not Git commits. The revision selector opens earlier captures. <strong>Refresh evidence</strong> keeps the selected source pinned.</li>
-<li>Open Files. Expand directories, search loaded paths, or filter by change type. Select a file to load its diff. Use <strong>Load more files</strong> to include later pages in search/filtering. Patches load individually.</li>
+<li>Open Changes to land directly in the searchable file tree and diff. Expand directories, search loaded paths, or filter by change type. Use <strong>Previous/Next file</strong> and <strong>Previous/Next hunk</strong>, or <code>J</code>/<code>K</code> and <code>N</code>/<code>P</code> outside editable controls. Unified and split views use the same captured patch. Use <strong>Load more files</strong> to include later pages in search/filtering. Patches load individually.</li>
+<li>Add file or old/new line comments, resolve or reopen threads, and mark a file reviewed. Notes are local to ATL and keyed to the pinned capture. When you select a newer capture, earlier notes remain visibly historical and are never shown as current. A stale save returns a conflict and requires a reload.</li>
 <li>Open Evidence. <code>current</code> means both packet and code revision match; result and coverage remain separate. Revisionless evidence is <code>unknown</code>; old and invalidated evidence stay visibly labeled. Task-level evidence is not automatically proof for one file.</li>
 <li>Open Relationships to inspect actual task, change-set, snapshot, file, evidence and artifact-reference data. File records open diffs; evidence records open observations. Artifact hashes are references only, without a content-availability claim. Run links and structured decisions are explicitly unavailable when not established by source records.</li>
 </ol>
@@ -88,11 +89,20 @@
 <td><code>GET /api/task-execution?taskId=...</code></td>
 <td>Read-only execution projection for the workspace Activity/Process views (stages, attempts, captures, checks).</td>
 </tr>
+<tr>
+<td><code>GET /api/task-review-state?taskId=...</code></td>
+<td>Read local comments, resolutions and reviewed files.</td>
+</tr>
+<tr>
+<td><code>PUT /api/task-review-state</code></td>
+<td>Optimistic revision update. Requires <code>expected_revision</code>, task, captured change-set id, and an action (<code>comment</code>, <code>resolve</code>, <code>reopen</code>, <code>reviewed</code>). Line anchors must exist in the pinned complete patch.</td>
+</tr>
 </tbody>
 </table>
 <p>All of these require the owner cookie and <code>x-atl-csrf</code> header, including source-reading GET requests. Capture also uses the existing origin checks. The browser never supplies arbitrary filesystem paths. Periodic snapshots/SSE contain no patches or new capture work. Paths reject traversal, symlinks and Windows junctions. Record associations, manifest hashes and requested blob hashes are checked.</p>
 <h2 id="execution-projection">Execution projection</h2>
-<p>The workspace Activity and Process views read <code>GET /api/task-execution</code>, a pure join over records that already exist: state events, the execution ledger and overnight session summaries, captured change sets and task evidence. Stages (intake, repository preparation, planning, implementation, review, verification, integration) appear only when a recorded event, session role or evidence kind maps to them; each attempt keeps its actor, provider/model, window, exit outcome, commands, evidence references and checkpoint. Capture-to-stage links exist only when a recorded packet revision is shared. Missing links render as &quot;Not recorded&quot;; tasks without sessions are labeled planned. The projection introduces no new workflow engine and migrates nothing.</p>
+<p>The workspace Activity and Process views read <code>GET /api/task-execution</code>, a pure join over records that already exist: state events, the execution ledger and overnight session summaries, captured change sets and task evidence. Stages (intake, repository preparation, planning, implementation, review, verification, integration) appear only when a recorded event, session role or evidence kind maps to them; each attempt keeps its actor, provider/model, window, exit outcome, commands, evidence references and checkpoint. Capture-to-stage links exist only when a recorded packet revision is shared. The additive graph links captures, files, attempts and checks. Edges say <code>recorded</code>, <code>inferred</code> or <code>unknown</code>; a task-level check is never treated as file-level verification. Process exposes Execution and Code impact views, an accessible list, Mermaid source copy, SVG export and navigation into Changes. No provider call occurs when a task or diagram opens.</p>
+<p>Review state is stored at <code>.trust/manager/change-reviews/&lt;task-id&gt;/review-state.json</code> (version 1). Updates use an exclusive lock, expected revision, a temporary file and atomic rename. Comments do not alter task lifecycle, captures or GitHub.</p>
 <h2 id="bounds-and-missing-data">Bounds and missing data</h2>
 <ul>
 <li>Metadata returns at most 100 file rows/page. Aggregate line totals stay unknown; loading one diff computes its counts. No complete-review badge is inferred.</li>

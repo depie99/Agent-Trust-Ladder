@@ -3,7 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { snapshot, readHandoff } from "./handoffs.mjs";
-import { ChangeReviewError, changeSetId, compareSnapshots, safePath, validateSnapshot } from "./task-changes.mjs";
+import { ChangeReviewError, changeSetId, compareSnapshots, fileDiff, safePath, validateSnapshot } from "./task-changes.mjs";
 
 const handoffCache = new Map();
 
@@ -90,6 +90,76 @@ export function listChangeReviews(root, task) {
   const records = ids.map((id) => readChangeReview(root, task, id));
   if (task.handoff) { try { records.push(fromHandoff(root, task)); } catch { /* reported by main read when no inspection exists */ } }
   return [...new Map(records.map((record) => [record.id, record])).values()].sort((a, b) => b.captured_at.localeCompare(a.captured_at)).map(({ id, captured_at, source_kind, packet_revision, output }) => ({ id, captured_at, source_kind, packet_revision, output_revision: output.revision }));
+}
+
+// Review notes are separate from immutable capture manifests. Anchors always
+// name a capture and file so newer code cannot silently inherit an old note.
+export function readTaskReviewState(root, task) {
+  const directory = taskDirectory(root, task);
+  const file = safePath(directory, "review-state.json");
+  if (!fs.existsSync(file)) return { version: 1, revision: 0, comments: [], reviewed_files: [] };
+  let value;
+  try { value = JSON.parse(fs.readFileSync(file, "utf8")); }
+  catch { throw new ChangeReviewError("review_state_corrupt", "Review state cannot be read", 409); }
+  if (value.version !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 1 || !Array.isArray(value.comments) || !Array.isArray(value.reviewed_files)) throw new ChangeReviewError("review_state_corrupt", "Review state is invalid", 409);
+  return value;
+}
+
+export function writeTaskReviewState(root, task, payload, { diff = fileDiff } = {}) {
+  if (!payload || !Number.isSafeInteger(payload.expected_revision) || payload.expected_revision < 0) throw new ChangeReviewError("invalid_revision", "Expected review-state revision is required");
+  const directory = taskDirectory(root, task); fs.mkdirSync(directory, { recursive: true });
+  const lock = safePath(directory, "review-state.lock"); let lockFd;
+  try { lockFd = fs.openSync(lock, "wx"); }
+  catch (error) { if (error.code === "EEXIST") throw new ChangeReviewError("review_conflict", "Another review update is in progress. Reload before saving.", 409); throw error; }
+  try {
+  const current = readTaskReviewState(root, task);
+  if (current.revision !== payload.expected_revision) throw new ChangeReviewError("review_conflict", "Review state changed. Reload before saving.", 409);
+  const record = readChangeReview(root, task, payload.change_set_id);
+  const files = compareSnapshots(record.baseline, record.output);
+  const byId = new Map(files.map((file) => [file.id, file]));
+  const next = { version: 1, revision: current.revision + 1, comments: current.comments.slice(), reviewed_files: current.reviewed_files.slice() };
+  const action = payload.action;
+  if (action === "comment") {
+    const file = byId.get(payload.file_id);
+    const text = typeof payload.text === "string" ? payload.text.trim() : "";
+    if (!file || !text || text.length > 4000) throw new ChangeReviewError("invalid_comment", "Comment needs a captured file anchor and up to 4,000 characters");
+    const side = payload.side || "file", line = payload.line ?? null;
+    if (!(["file", "old", "new"].includes(side)) || (side === "file" ? line !== null : !Number.isSafeInteger(line) || line < 1)) throw new ChangeReviewError("invalid_anchor", "Comment anchor is invalid");
+    if (side !== "file") {
+      const result = diff(root, record, file.id);
+      if (!result.patch || !result.complete) throw new ChangeReviewError("anchor_unavailable", "Line comments require a complete captured text diff", 409);
+      let oldNo = 0, newNo = 0, found = false;
+      for (const row of result.patch.split("\n")) {
+        const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(row);
+        if (hunk) { oldNo = Number(hunk[1]); newNo = Number(hunk[3]); continue; }
+        if (row.startsWith("+") && !row.startsWith("+++")) { if (side === "new" && newNo === line) found = true; newNo++; }
+        else if (row.startsWith("-") && !row.startsWith("---")) { if (side === "old" && oldNo === line) found = true; oldNo++; }
+        else if (row.startsWith(" ")) { if ((side === "old" && oldNo === line) || (side === "new" && newNo === line)) found = true; oldNo++; newNo++; }
+      }
+      if (!found) throw new ChangeReviewError("anchor_missing", "Line is outside the captured diff", 409);
+    }
+    const id = crypto.randomUUID();
+    next.comments.push({ id, change_set_id: record.id, file_id: file.id, side, line, text, resolved: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+  } else if (action === "resolve" || action === "reopen") {
+    const item = next.comments.find((comment) => comment.id === payload.comment_id && comment.change_set_id === payload.change_set_id);
+    if (!item) throw new ChangeReviewError("comment_missing", "Comment is unavailable", 404);
+    item.resolved = action === "resolve"; item.updated_at = new Date().toISOString();
+  } else if (action === "reviewed") {
+    const file = byId.get(payload.file_id);
+    if (!file) throw new ChangeReviewError("file_not_found", "File does not belong to this change set", 404);
+    const key = `${record.id}:${file.id}`;
+    if (payload.reviewed === false) next.reviewed_files = next.reviewed_files.filter((entry) => entry.key !== key);
+    else if (!next.reviewed_files.some((entry) => entry.key === key)) next.reviewed_files.push({ key, change_set_id: record.id, file_id: file.id, reviewed_at: new Date().toISOString() });
+  } else throw new ChangeReviewError("invalid_action", "Unknown review-state action");
+  const target = safePath(directory, "review-state.json"), temporary = safePath(directory, `review-state-${crypto.randomUUID()}.tmp`);
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(next, null, 2) + "\n", { flag: "wx" });
+    // Hard-link is an atomic create; replace uses rename only after a revision
+    // check. The store is local to the owner-protected manager workspace.
+    fs.renameSync(temporary, target);
+  } finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
+  return next;
+  } finally { fs.closeSync(lockFd); if (fs.existsSync(lock)) fs.unlinkSync(lock); }
 }
 export function captureChangeReview(root, task, { takeSnapshot = snapshot } = {}) {
   if (!task.handoff_baseline) throw new ChangeReviewError("baseline_missing", "No captured task baseline exists. The task diff cannot be reconstructed.", 409);

@@ -241,7 +241,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/batch-runner.mjs](../runtime/lib/batch-runner.mjs) | Manager-side adapter for one finite sequential batch. The checkpoint rules |
 | [runtime/lib/brain.mjs](../runtime/lib/brain.mjs) | Evidence-linked project memory. Human-readable knowledge may live in |
 | [runtime/lib/browser-access.mjs](../runtime/lib/browser-access.mjs) | browser access: runtime implementation; inspect exports and matching verification. |
-| [runtime/lib/change-review-store.mjs](../runtime/lib/change-review-store.mjs) | change review store: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/change-review-store.mjs](../runtime/lib/change-review-store.mjs) | Review notes are separate from immutable capture manifests. Anchors always |
 | [runtime/lib/codex-bridge.mjs](../runtime/lib/codex-bridge.mjs) | Optional bridge from ATL's durable team state into a persistent Codex thread. |
 | [runtime/lib/command-console.mjs](../runtime/lib/command-console.mjs) | command console: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/composer.mjs](../runtime/lib/composer.mjs) | The control room's composition path: free text or imported candidates in, |
@@ -256,13 +256,16 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/dispatcher.mjs](../runtime/lib/dispatcher.mjs) | Supervisor scheduling policy: deterministic, bounded and project-fair. It |
 | [runtime/lib/egm-review.mjs](../runtime/lib/egm-review.mjs) | Bounded EGM deep-review path for Plan Studio. The runner uses exactly the |
 | [runtime/lib/execution-access.mjs](../runtime/lib/execution-access.mjs) | A single permission contract for Ask ATL and built-in queue workers. |
+| [runtime/lib/execution-backend.mjs](../runtime/lib/execution-backend.mjs) | Remote implementations must preserve these semantics, never impersonate local paths. |
 | [runtime/lib/execution-projection.mjs](../runtime/lib/execution-projection.mjs) | Read-only execution projection: joins what ATL already recorded (state |
 | [runtime/lib/execution-report.mjs](../runtime/lib/execution-report.mjs) | execution report: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/feed.mjs](../runtime/lib/feed.mjs) | The team feed: a chat-style narration of everything the bots do. |
 | [runtime/lib/feedback.mjs](../runtime/lib/feedback.mjs) | Durable human feedback for bounded provider sessions. |
+| [runtime/lib/file-transaction.mjs](../runtime/lib/file-transaction.mjs) | Synchronous transactions only: never hold this lock across provider calls. |
 | [runtime/lib/governance.mjs](../runtime/lib/governance.mjs) | governance: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/handoffs.mjs](../runtime/lib/handoffs.mjs) | Content-addressed handoffs include dirty and untracked source, without committing |
 | [runtime/lib/harness-catalog.mjs](../runtime/lib/harness-catalog.mjs) | Connection profiles only; worker-provider capability is a separate contract. |
+| [runtime/lib/harness-planning.mjs](../runtime/lib/harness-planning.mjs) | Establish an initial revision without staging or committing developer files. |
 | [runtime/lib/history.mjs](../runtime/lib/history.mjs) | history.mjs — the unified chat-history viewer for the agent CLIs on this machine. |
 | [runtime/lib/intake.mjs](../runtime/lib/intake.mjs) | Intake adapters: local bullet files, GitHub issues, Azure Boards work items. |
 | [runtime/lib/issue-connections.mjs](../runtime/lib/issue-connections.mjs) | Locks carry their holder's pid so a crashed writer's lock is reclaimed |
@@ -285,6 +288,8 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/plugin-host.mjs](../runtime/lib/plugin-host.mjs) | Shared full-runtime bridge for native harness plugins and stdio MCP. |
 | [runtime/lib/plugin-panel.mjs](../runtime/lib/plugin-panel.mjs) | Same Control Plane HTTP contract, carried over the host's MCP App bridge. |
 | [runtime/lib/plugin-release.mjs](../runtime/lib/plugin-release.mjs) | One content identity for the Control Plane and every harness distribution. |
+| [runtime/lib/program-runner.mjs](../runtime/lib/program-runner.mjs) | program runner: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/programs.mjs](../runtime/lib/programs.mjs) | Charged before provider spawn. A crash retains the charge rather than refunding unknown work. |
 | [runtime/lib/project-map.mjs](../runtime/lib/project-map.mjs) | Projects work map: how imported requests, plans, plan queues and executable |
 | [runtime/lib/provider-quota.mjs](../runtime/lib/provider-quota.mjs) | provider quota: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/providers.mjs](../runtime/lib/providers.mjs) | Provider discovery and per-role provider profiles for the control room. |
@@ -298,6 +303,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/resources.mjs](../runtime/lib/resources.mjs) | Task resources are durable references, not prompt noise. Local files are |
 | [runtime/lib/roles.mjs](../runtime/lib/roles.mjs) | Role contracts for the ATL digital team. |
 | [runtime/lib/routines.mjs](../runtime/lib/routines.mjs) | Durable routine scheduler. It only creates internal ATL run records; |
+| [runtime/lib/run-authorization.mjs](../runtime/lib/run-authorization.mjs) | run authorization: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/session-auth.mjs](../runtime/lib/session-auth.mjs) | session auth: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/show-me.mjs](../runtime/lib/show-me.mjs) | show me: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/skill-install.mjs](../runtime/lib/skill-install.mjs) | Parse supported skills CLI syntax as data. Never execute the pasted command. |
@@ -363,7 +369,7 @@ Build, installation, validation, and maintenance programs.
 | [scripts/check-relative-imports.mjs](../scripts/check-relative-imports.mjs) | check relative imports: source/configuration for its containing feature. |
 | [scripts/check-tracked-paths.mjs](../scripts/check-tracked-paths.mjs) | check tracked paths: source/configuration for its containing feature. |
 | [scripts/docs-preview.mjs](../scripts/docs-preview.mjs) | Read-only synthetic UI for documentation captures. No real issue adapters. |
-| [scripts/docs-reference.mjs](../scripts/docs-reference.mjs) | Regenerate source-derived references before building the public website. |
+| [scripts/docs-reference.mjs](../scripts/docs-reference.mjs) | docs reference: source/configuration for its containing feature. |
 | [scripts/install-atl.cmd](../scripts/install-atl.cmd) | install atl: source/configuration for its containing feature. |
 | [scripts/install-atl.sh](../scripts/install-atl.sh) | ATL team installer — puts the `atl` CLI in ~/.atl. |
 | [scripts/install.mjs](../scripts/install.mjs) | ATL team installer — puts the atl CLI in ~/.atl for the current user. |
@@ -670,6 +676,8 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/full_e2e_playwright_test.mjs](../verification/full_e2e_playwright_test.mjs) | Executable regression check for full e2e playwright. |
 | [verification/github_adapter_contract_test.mjs](../verification/github_adapter_contract_test.mjs) | Executable regression check for github adapter contract. |
 | [verification/governance_test.mjs](../verification/governance_test.mjs) | Executable regression check for governance. |
+| [verification/harness_api_test.mjs](../verification/harness_api_test.mjs) | Executable regression check for harness api. |
+| [verification/harness_planning_test.mjs](../verification/harness_planning_test.mjs) | Executable regression check for harness planning. |
 | [verification/history_test.mjs](../verification/history_test.mjs) | Executable regression check for history. |
 | [verification/import_plan_revision_journey_test.mjs](../verification/import_plan_revision_journey_test.mjs) | Executable regression check for import plan revision journey. |
 | [verification/install_test.mjs](../verification/install_test.mjs) | Executable regression check for install. |
@@ -738,6 +746,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plugin_connect_test.mjs](../verification/plugin_connect_test.mjs) | Executable regression check for plugin connect. |
 | [verification/plugin_native_panel_test.mjs](../verification/plugin_native_panel_test.mjs) | Executable regression check for plugin native panel. |
 | [verification/portable_overnight_batch_test.mjs](../verification/portable_overnight_batch_test.mjs) | Executable regression check for portable overnight batch. |
+| [verification/program_orchestration_test.mjs](../verification/program_orchestration_test.mjs) | Executable regression check for program orchestration. |
 | [verification/project_readiness_verifier_test.mjs](../verification/project_readiness_verifier_test.mjs) | Executable regression check for project readiness verifier. |
 | [verification/project_workmap_ui_test.mjs](../verification/project_workmap_ui_test.mjs) | Executable regression check for project workmap ui. |
 | [verification/provider_quota_failover_test.mjs](../verification/provider_quota_failover_test.mjs) | Executable regression check for provider quota failover. |

@@ -139,6 +139,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                 persist the default or per-role provider/model selection
   provider clear --role role    remove a per-role provider override
   show [task-id]                portfolio or one task
+  review &lt;task-id&gt; [--mermaid|--json]  inspect captured diffs and execution impact
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
@@ -158,6 +159,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   run &lt;task-id&gt; --worker &lt;provider-id&gt; [--model model] [--auth subscription|api] [--confirm]
                                 run one bounded role session
   overnight [&lt;task-id&gt; | --all] --worker &lt;provider-id&gt; [--model model] [--auth subscription|api] --confirm
+  harness &lt;operation&gt; [file]    harness planning/program/run API with a JSON request file
   overnight status              inspect the durable overnight ledger; starts nothing
   overnight recover --confirm   resume only untouched tasks after an interrupted runner
                                 run bounded role sessions until a gate or budget stops it;
@@ -533,6 +535,11 @@ function saveConfig(config) {
 <td>inspect a task or active portfolio</td>
 </tr>
 <tr>
+<td><code>review &lt;task-id&gt; [--mermaid / --json]</code></td>
+<td>read</td>
+<td>inspect captured diffs and execution impact</td>
+</tr>
+<tr>
 <td><code>brief</code></td>
 <td>read</td>
 <td>render the manager brief</td>
@@ -556,6 +563,11 @@ function saveConfig(config) {
 <td><code>task create / edit / archive / restore ...</code></td>
 <td>mutation</td>
 <td>manage task records safely</td>
+</tr>
+<tr>
+<td><code>program list / show &lt;id&gt;</code></td>
+<td>read</td>
+<td>inspect phased programs and morning reports</td>
 </tr>
 <tr>
 <td><code>plan generate / list / show / frame / card / feedback / approve</code></td>

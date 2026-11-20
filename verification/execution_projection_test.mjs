@@ -79,6 +79,8 @@ assert.equal(buildExecutionProjection(root, "T-NOPE").availability, "unknown_tas
   assert.equal(withEvidence.repository.name, "example-org-base");
   assert.deepEqual(withEvidence.repository.repositories, ["repo-1", "repo-2"]);
   assert.equal(withEvidence.checks.items[0].check, "tests-pass");
+  assert.ok(withEvidence.graph.nodes.some((node) => node.kind === "check" && node.label.includes("tests-pass")));
+  assert.ok(withEvidence.graph.edges.some((edge) => edge.provenance === "recorded" && edge.label === "session-linked evidence"), "check links only through its recorded session id");
 }
 
 // Repeated events collapse (first + last kept) to keep history scannable.
@@ -105,11 +107,14 @@ assert.equal(buildExecutionProjection(root, "T-NOPE").availability, "unknown_tas
     { id: "f2", path: "src/b.js", kind: "added", capture_id: "cap-2" },
   ];
   const records = [{ id: "S1", taskId: "T-100", role: "rowan", packetRevision: 2, startedAt: "2026-11-16T08:00:00Z" }];
-  const linked = buildExecutionProjection(root, "T-100", { state, records, events: [], revisions, files });
+  const linkedState = { ...state, tasks: { ...state.tasks, "T-100": { ...state.tasks["T-100"], evidence: [{ kind: "check", check: "task-level", result: "pass", at: "2026-11-16T09:00:00Z" }] } } };
+  const linked = buildExecutionProjection(root, "T-100", { state: linkedState, records, events: [], revisions, files });
   assert.equal(linked.files.length, 2);
   assert.equal(linked.captures.length, 2);
   const implementation = linked.stages.find((stage) => stage.key === "implementation");
   assert.deepEqual(implementation.capture_ids, ["cap-2"], "capture links to the stage whose session shares the packet revision");
+  assert.ok(linked.graph.edges.some((edge) => edge.provenance === "recorded" && edge.label === "packet-linked capture"));
+  assert.ok(linked.graph.edges.some((edge) => edge.provenance === "unknown" && edge.label === "file coverage not recorded"));
   const planningStage = linked.stages.find((stage) => stage.key === "planning");
   assert.equal(planningStage, undefined, "no session in planning, no invented link");
 }
