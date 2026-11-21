@@ -5,6 +5,7 @@ import path from "node:path";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 import { addClaim } from "../runtime/lib/brain.mjs";
+import { validateOwnerSession } from "../runtime/lib/session-auth.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-control-plane-server-"));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
@@ -12,15 +13,49 @@ saveState(root, emptyState());
 const pendingClaim = addClaim(root, { text: "Control Plane approval test", source_id: "source-ui", source_content: "evidence" }).claim;
 const running = await startControlPlaneServer(root);
 try {
-  const html = await fetch(running.url).then((response) => response.text());
+  const boot = await fetch(running.url);
+  const html = await boot.text();
+  const ownerCookie = boot.headers.get("set-cookie")?.split(";")[0] || "";
+  const csrfToken = html.match(/name="atl-csrf" content="([^"]+)"/)?.[1] || "";
+  assert.ok(ownerCookie.startsWith("atl_owner="), "page boot provides the owner session used for protected reads");
+  assert.ok(csrfToken, "page boot provides the CSRF value paired with the owner session");
+  assert.equal(validateOwnerSession(root, decodeURIComponent(ownerCookie.slice("atl_owner=".length)), csrfToken), true, "boot session token and CSRF pair validate on the owning project");
+  const snapshotResponse = await fetch(`${running.url}api/snapshot`, { headers: { cookie: ownerCookie, "x-atl-csrf": csrfToken } });
+  assert.equal(snapshotResponse.status, 200, `owner can read its snapshot: ${await snapshotResponse.clone().text()}`);
+  const snapshot = await snapshotResponse.json();
   assert.match(html, /id="navA"/, "served artifact keeps the reference sidebar mount");
   assert.match(html, /<\/header><div id="mobile"/, "live shell closes the flex topbar before page content");
   assert.doesNotMatch(html, /ATL CLI demo ready/, "stale inline demo controller is not served beside the live client");
   assert.equal((html.match(/<script src="\.\/control-plane-client\.js"><\/script>/g) || []).length, 1, "served artifact has one live controller");
   assert.doesNotMatch(html, /Interactive mock/, "served surface does not carry the artifact's offline mock banner");
-  assert.match(html, new RegExp(`Live · connected to ${path.basename(root)}<`), "served footer names the connected workspace");
+  assert.match(html, new RegExp(`Live - connected to ${path.basename(root)}<`), "served footer names the connected workspace");
   assert.doesNotMatch(html, /INTERACTIVE DEMO/, "served topbar does not advertise demo mode");
+  assert.doesNotMatch(html, /Developer Control Plane Prototype/, "served title is production-ready");
+  assert.doesNotMatch(html, /<span class="amber">3<\/span>/, "static demo unread count is removed");
   assert.match(fs.readFileSync(new URL("../runtime/control-plane.html", import.meta.url), "utf8"), /Interactive mock/, "the standalone artifact keeps its honest mock banner");
+
+  // The live HTML rewrite must fail closed if an artifact carries more than
+  // one copy of the legacy-controller region.
+  const artifact = fs.readFileSync(new URL("../runtime/control-plane.html", import.meta.url), "utf8");
+  const legacyPattern = /<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/;
+  const legacy = artifact.match(legacyPattern)?.[0];
+  assert.ok(legacy, "fixture finds the legacy controller marker");
+  const driftDir = fs.mkdtempSync(path.join(os.tmpdir(), "atl-html-contract-"));
+  const driftRoot = fs.mkdtempSync(path.join(os.tmpdir(), "atl-html-project-"));
+  fs.mkdirSync(path.join(driftRoot, "config"), { recursive: true });
+  fs.writeFileSync(path.join(driftRoot, "config", "manager.json"), JSON.stringify({ version: 1 }));
+  saveState(driftRoot, emptyState());
+  fs.writeFileSync(path.join(driftDir, "control-plane.html"), artifact.replace(legacy, `${legacy}${legacy}`));
+  const drift = await startControlPlaneServer(driftRoot, { assetRoot: driftDir });
+  try {
+    const response = await fetch(drift.url);
+    assert.equal(response.status, 500, "duplicate legacy controller marker is rejected at render time");
+    assert.match(await response.text(), /expected one legacy controller marker, found 2/);
+  } finally {
+    await new Promise((resolve) => drift.server.close(resolve));
+    fs.rmSync(driftDir, { recursive: true, force: true });
+    fs.rmSync(driftRoot, { recursive: true, force: true });
+  }
 
   const client = await fetch(`${running.url}control-plane-client.js`).then((response) => response.text());
   assert.match(client, /let studioGoal = ""/, "Plan Studio preserves a user's in-progress objective across snapshot refreshes");
@@ -65,7 +100,6 @@ try {
     body: JSON.stringify({ mode: "on", max_tokens: 1200, build_on_launch: true }),
   }).then((response) => response.json());
   assert.deepEqual(updatedNavigation.navigation, { mode: "on", max_tokens: 1200, build_on_launch: true }, "browser saves validated navigation settings atomically");
-  const snapshot = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
   assert.equal(snapshot.version, 1, "browser receives the versioned ATL snapshot");
   assert.equal(snapshot.brain.claims.length, 1, "browser snapshot includes evidence-linked claims");
   const approved = await fetch(`${running.url}api/brain`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "approve-claim", claim_id: pendingClaim.claim_id, note: "UI test" }) }).then((response) => response.json());
@@ -89,13 +123,15 @@ try {
     body: JSON.stringify({ command: `queue add ${created.selectedTaskId} --queue default` }),
   }).then((response) => response.json());
   assert.equal(queued.ok, true, "browser can persist queue membership for the created task");
-  const queuedSnapshot = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
+  const queuedResponse = await fetch(`${running.url}api/snapshot`, { headers: { cookie: ownerCookie, "x-atl-csrf": csrfToken } });
+  assert.equal(queuedResponse.status, 200, `owner can read updated snapshot: ${await queuedResponse.clone().text()}`);
+  const queuedSnapshot = await queuedResponse.json();
   assert.ok(queuedSnapshot.queues.items.find((queue) => queue.id === "default").items.some((item) => item.id === created.selectedTaskId), "queued browser task appears in the live snapshot");
   const cleared = await fetch(`${running.url}api/command`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ command: "queue clear --queue default" }),
   }).then((response) => response.json());
   assert.equal(cleared.ok, true, "the protected default queue can be reset through the browser command bridge");
-  const clearedSnapshot = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
+  const clearedSnapshot = await fetch(`${running.url}api/snapshot`, { headers: { cookie: ownerCookie, "x-atl-csrf": csrfToken } }).then((response) => response.json());
   assert.equal(clearedSnapshot.queues.items.find((queue) => queue.id === "default").items.length, 0, "resetting default removes queue membership");
   assert.ok(clearedSnapshot.state.tasks[created.selectedTaskId], "resetting default keeps the task itself intact");
   const idleRun = await fetch(`${running.url}api/run`).then((response) => response.json());

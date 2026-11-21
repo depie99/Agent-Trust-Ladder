@@ -201,8 +201,7 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE), embed
   // appear to open another page. Keep the artifact's DOM/CSS intact while
   // removing only that stale inline controller at the HTTP boundary.
   const legacyController = /<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/;
-  if (!legacyController.test(source)) throw new Error('Control Plane artifact is missing the expected legacy-controller boundary');
-  let bodyText = source.replace(legacyController, '<script src="./control-plane-i18n.js"></script><script src="./control-plane-client.js"></script>');
+  let bodyText = replaceRegexExactlyOnce(source, legacyController, '<script src="./control-plane-i18n.js"></script><script src="./control-plane-client.js"></script>', 'legacy controller');
   bodyText = replaceExactlyOnce(bodyText, '<script src="./control-plane-client.js">', '<script src="./control-plane-changes.js"></script><script src="./control-plane-client.js">', 'client script');
   bodyText = replaceExactlyOnce(bodyText, '<script src="./control-plane-client.js">', '<script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">', 'client script');
   // The checked-in standalone artifact predates the live client and places
