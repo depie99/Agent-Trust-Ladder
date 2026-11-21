@@ -231,6 +231,35 @@ try {
   assert.ok(azureCardText.includes('[redacted]'), 'adapter errors are redacted before display');
   assert.ok(!azureCardText.includes('synthetic-azure-pat'), 'saved token never reaches the page');
   azureMode = 'ok';
+  // Auth recovery: the needs-auth card's CTA is Re-authenticate. Saving a
+  // fresh PAT through it must also heal the DEFAULT azure connection's legacy
+  // surfaces (config.intake.azure + the My Tasks token seam), so a reconnect
+  // from an Issue sources card revives My Tasks too (owner report 2026-11-21).
+  {
+    process.env.ATL_AZURE_CONNECTION_DIR = path.join(root, '.atl-test-vault');
+    // The state-driven CTA lives in .card-actions; cardAction() resolves to the
+    // kebab's Replace PAT because the <details> menu precedes it in the DOM.
+    const cta = azureCard.locator('.card-actions [data-action^="sources-credential:"]');
+    try {
+      await azureCard.getByText('Needs authentication').waitFor();
+      assert.equal(await cta.innerText(), 'Re-authenticate', 'a needs-auth card offers Re-authenticate as its CTA');
+      await cta.click();
+      await page.locator('#sourceConnectionPat').fill('synthetic-healed-pat');
+      await page.locator('[data-action^="sources-credential-save:"]').click();
+      await page.getByText('Azure credential saved. Check access to verify it.').waitFor({ timeout: 30000 });
+      const healed = await page.evaluate(async () => (await fetch('/api/my-tasks/settings', { cache: 'no-store' })).json());
+      assert.ok(healed.connection.id, 'settings expose the default azure connection id');
+      assert.equal(healed.connection.token_present, true, 'the healed credential reaches the My Tasks token seam');
+      const manager = JSON.parse(fs.readFileSync(path.join(root, 'config', 'manager.json'), 'utf8'));
+      assert.equal(manager.intake.azure.org_url, 'https://devops.example.com/Collection', 'heal mirrors the connection into legacy intake config');
+      assert.equal(manager.intake.azure.project, 'Example', 'legacy mirror keeps the project');
+      assert.equal(manager.intake.azure.token_env, 'AZDO_PAT', 'legacy mirror keeps the token env name');
+      await (await cardAction(azureCard, 'sources-check')).click();
+      await page.getByText('Access check complete.').waitFor();
+      await azureCard.getByText('Access verified').waitFor();
+      assert.equal(azureTokenSeen, 'synthetic-healed-pat', 'the healed credential is what the adapter now receives');
+    } finally { delete process.env.ATL_AZURE_CONNECTION_DIR; }
+  }
   // Pause and resume through the overflow menu.
   await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu summary').click();
   await page.locator('.source-connection-card').filter({ hasText: 'Ops Jira' }).locator('.source-card-menu [data-action^="sources-toggle:"]').click();
@@ -286,7 +315,7 @@ try {
   await page.locator('[data-action="close"]').last().click();
   assert.ok(await page.locator('body').evaluate(node => node.scrollWidth <= node.clientWidth + 2), 'sources fit the plugin panel width');
   await page.evaluate(() => { delete document.documentElement.dataset.atlContext; });
-  console.log('PASS: v2 page (brand tags, single-CTA cards, dark import bar, import-result section, empty state), Add source modal v2 (segmented providers, Advanced authentication accordion), saved cards, blank add form, GitHub+Jira lifecycles, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, verified/needs-auth states with redaction, pause/resume, double-submit guard, kebab-menu remove, dark/light/RTL rendering, plugin-panel fit, reload and mobile');
+  console.log('PASS: v2 page (brand tags, single-CTA cards, dark import bar, import-result section, empty state), Add source modal v2 (segmented providers, Advanced authentication accordion), saved cards, blank add form, GitHub+Jira lifecycles, session GitHub token connect/check/browse/disconnect, focus-preserving repaint, verified/needs-auth states with redaction, needs-auth Re-authenticate heal across My Tasks, pause/resume, double-submit guard, kebab-menu remove, dark/light/RTL rendering, plugin-panel fit, reload and mobile');
 } finally {
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));

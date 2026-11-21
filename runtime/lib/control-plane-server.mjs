@@ -1037,9 +1037,14 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
     if (req.method === "GET" && path === "/api/my-tasks/settings") {
       const tokenInfo = await azureToken();
       const cfg = readManagerConfig(root).intake?.azure || {};
-      const connections = loadConnections(root, readManagerConfig(root).intake || {});
-      const connection = connections.connections.find(item => item.id === connections.defaults.azure) || connections.connections.find(item => item.provider === 'azure' && item.settings.org_url === cfg.org_url && item.settings.project === cfg.project);
-      json(res, 200, { ok: true, settings: myTasks.settings(), connection: { id: connection?.id || null, org_url: cfg.org_url || "", project: cfg.project || "", token_present: Boolean(tokenInfo), remember_supported: await dpapiSupported() } });
+      // Expose the saved connection's id so auth failures in the setup dialog
+      // can offer a direct Re-authenticate action for that connection.
+      const store = loadConnections(root, readManagerConfig(root).intake || {});
+      const azureConnection = store.connections.find(c => c.id === store.defaults.azure && c.provider === "azure")
+        || store.connections.find(c => c.provider === "azure" && c.enabled)
+        || store.connections.find(c => c.provider === "azure" && c.settings.org_url === cfg.org_url && c.settings.project === cfg.project)
+        || null;
+      json(res, 200, { ok: true, settings: myTasks.settings(), connection: { id: azureConnection?.id || null, name: azureConnection?.name || "", org_url: azureConnection?.settings.org_url || cfg.org_url || "", project: azureConnection?.settings.project || cfg.project || "", token_present: Boolean(tokenInfo), remember_supported: await dpapiSupported() } });
       return;
     }
     if (req.method === "POST" && path === "/api/my-tasks/settings") {
@@ -1259,6 +1264,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   // logs, or API responses.
   let azureUiToken = null;
   let azureTokenIdentity = null, azureLoadedIdentity = null, azureRemembered = false;
+  let azureVaultReprobeAt = 0;
   let githubUiToken = null; // session-scoped token from the UI; GITHUB_TOKEN stays untouched
   const jiraConnectionTokens = new Map(); // session credentials are scoped to saved connections
   async function currentAzureToken() {
@@ -1269,7 +1275,15 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       try { azureUiToken = await readAzureConnection(cfg); azureRemembered = Boolean(azureUiToken); } catch { /* UI can reconnect if the OS user cannot decrypt. */ }
       azureTokenIdentity = identity;
     }
-    return azureUiToken || process.env[cfg.token_env || 'AZDO_PAT'] || null;
+    const envToken = process.env[cfg.token_env || 'AZDO_PAT'] || null;
+    if (!azureUiToken && !envToken && Date.now() - azureVaultReprobeAt > 15000) {
+      // The home vault can gain a credential after this server first resolved
+      // none — `atl intake connect azure` heals it from the CLI. Re-probe at
+      // most every 15s so the scheduler never hammers DPAPI while offline.
+      azureVaultReprobeAt = Date.now();
+      try { const healed = await readAzureConnection(cfg); if (healed) { azureUiToken = healed; azureRemembered = true; } } catch { /* stay unauthenticated */ }
+    }
+    return azureUiToken || envToken || null;
   }
   seam.azureToken = currentAzureToken;
   // Spec 021 "My Tasks": the scheduler lives in this server process. It keeps
@@ -1795,6 +1809,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
               }
               json(res, 200, { ok: true, revision: data.revision, credential_source: jiraConnectionTokens.has(id) ? 'session' : 'environment' }); return;
             }
+            let healedToken = null;
             if (payload.action === 'disconnect') {
               azureConnectionTokens.delete(id);
               forgetAzureConnection(record.settings, { dir: azureCredentialDir(id) });
@@ -1807,6 +1822,33 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
               else forgetAzureConnection(record.settings, { dir: azureCredentialDir(id) });
               azureConnectionTokens.set(id, token);
               record.credential_ref = payload.remember === true ? 'os-protected' : 'session';
+              healedToken = token;
+            }
+            if (record.id === data.defaults.azure) {
+              // The default Azure connection also backs My Tasks and CLI pulls,
+              // which read the legacy surface (config.intake.azure + the home
+              // vault). A credential saved here must heal both consumers, or a
+              // reconnect in Issue sources leaves My Tasks failing with 401.
+              const manager = readManagerConfig(root);
+              manager.intake ||= {};
+              const legacy = { ...(manager.intake.azure || {}) };
+              if (healedToken === null) {
+                forgetAzureConnection(record.settings);
+                azureUiToken = null; azureRemembered = false;
+              } else {
+                legacy.org_url = record.settings.org_url;
+                legacy.project = record.settings.project;
+                legacy.iteration_path = record.settings.iteration_path || '';
+                legacy.token_env = record.settings.token_env || 'AZDO_PAT';
+                manager.intake.azure = legacy;
+                if (payload.remember === true) await saveAzureConnection(record.settings, healedToken);
+                else forgetAzureConnection(record.settings);
+                azureUiToken = healedToken; azureRemembered = payload.remember === true;
+              }
+              const managerFile = path.join(root, 'config', 'manager.json'), managerTemp = `${managerFile}.${crypto.randomUUID()}.tmp`;
+              fs.writeFileSync(managerTemp, JSON.stringify(manager, null, 2) + '\n'); fs.renameSync(managerTemp, managerFile);
+              azureTokenIdentity = azureLoadedIdentity = azureIdentity(record.settings);
+              myTasks.resume(); // a reconnect lifts the scheduler's auth pause
             }
             saveConnections(root, data, payload.revision);
             json(res, 200, { ok: true, revision: data.revision, credential_source: record.credential_ref }); return;
