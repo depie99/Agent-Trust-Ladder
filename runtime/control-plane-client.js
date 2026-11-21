@@ -312,7 +312,7 @@ let queueFilterTouched = false;
   let resourceNotice = '';
   let sourceSettings = null, sourcePreview = null, sourceNotice = "";
   let sourceConnections = [], sourceConnectionRevision = 0, sourceSelectedId = null;
-  let mtReconnectReturn = false; // a credential save from a My Tasks recovery flow reopens the setup dialog
+  let mtReconnectConnection = null; // a credential save for this connection (My Tasks recovery flow) reopens the setup dialog; cleared on close
   let sourcePreviewSequence = 0;
   let sourceIteration = '', sourceWorkItem = '', sourceSearchTerm = '', sourceBrowseLoading = false;
   let sourceStateFilter = 'All states', sourceLabelFilter = '';
@@ -2431,6 +2431,10 @@ operations: () => {
   let modalReturnFocus = null;
   function close() {
     detailExecution = null; dialogOpen = false; $("#modal").innerHTML = "";
+    // A cancelled My Tasks recovery popup must not leak into an unrelated
+    // credential save later; the save handler captures its return-to-setup
+    // decision BEFORE closing.
+    mtReconnectConnection = null;
     discardPendingRender();
     if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
     modalReturnFocus = null;
@@ -3739,7 +3743,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         if (projectListNode) projectListNode.insertAdjacentHTML("beforeend", '<p class="source-form-error" role="alert">Could not open the saved connection. Open Issue sources and re-authenticate it there.</p>');
         return;
       }
-      mtReconnectReturn = true;
+      mtReconnectConnection = id;
       return void action(`sources-credential:${id}`);
     }
     if (value === "mt-check") return void requestMyTasksCheck();
@@ -3803,17 +3807,17 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       try {
         const response = await fetch(`/api/intake/connections/${encodeURIComponent(id)}/credential`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ revision: sourceConnectionRevision, action: disconnect ? 'disconnect' : 'connect', token: disconnect ? '' : $('#sourceConnectionPat')?.value, remember: Boolean($('#sourceConnectionRemember')?.checked) }) });
         const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Credential could not be saved');
+        // Capture the recovery-flow decision before close() clears it.
+        const returnToSetup = !disconnect && mtReconnectConnection === id;
         close(); await loadIssueSources();
-        if (!disconnect && mtReconnectReturn) {
+        if (returnToSetup) {
           // My Tasks recovery flow: land back in the setup dialog with the
           // healed credential; the project list reloads on its own because
           // myTasksSetupProjects was cleared.
-          mtReconnectReturn = false;
           myTasksSetupProjects = null;
           await openMyTasksSettings().catch(() => {});
           return;
         }
-        mtReconnectReturn = false;
         sourceConnectionNotice = disconnect ? `${credentialConnection?.provider === 'jira' ? 'Jira' : 'Azure'} credential disconnected.` : `${credentialConnection?.provider === 'jira' ? 'Jira' : 'Azure'} credential saved. Check access to verify it.`; render();
       } catch (error) { const node = $('#sourceCredentialError'); if (node) node.textContent = error.message; if (button) button.disabled = false; }
       return;
