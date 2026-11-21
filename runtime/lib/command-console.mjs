@@ -10,9 +10,9 @@ import { submitFeedback } from "./feedback.mjs";
 import { wrapLine } from './tui-layout.mjs';
 import { listNotifications, snoozeNotification, updateNotification } from "./notifications.mjs";
 import { archiveTask, createTaskInWorkspace, editTaskInWorkspace, restoreTask } from "./task-workspace.mjs";
-import { readChangeReview, listChangeReviews, readTaskReviewState } from "./change-review-store.mjs";
+import { readChangeReview, readTaskReviewState } from "./change-review-store.mjs";
 import { compareSnapshots, fileDiff } from "./task-changes.mjs";
-import { buildExecutionProjection } from "./execution-projection.mjs";
+import { buildExecutionProjection, readImpactChildren } from "./execution-projection.mjs";
 import { addProposal, addProposalFeedback, approvePlanDraft, editProposal, frameIntent, generateLocalPlan, listPlanDrafts, loadPlanDraft, normalizeProposals, planDraftLabel, removeProposal, reorderProposals, savePlanDraft } from "./plan-studio.mjs";
 
 export const TUI_COMMANDS = Object.freeze([
@@ -97,16 +97,22 @@ function formatWhy(root, id) {
   return lines;
 }
 
-export function taskReviewReport(root, taskId, format = "text") {
+export function taskReviewReport(root, taskId, format = "text", options = {}) {
   const task = requireTask(root, taskId);
-  const record = readChangeReview(root, task);
+  const record = readChangeReview(root, task, options.captureId || null);
   if (!record) {
     const message = `No captured change set is available for ${taskId}. A baseline is required before a diff can be reconstructed.`;
     if (format === "mermaid") return "flowchart LR\n  missing[No captured change set]";
-    if (format === "json") return JSON.stringify({ version: 1, task: { id: taskId, title: task.title }, availability: "capture_required", message }, null, 2);
+    if (format === "json") return JSON.stringify({ version: 1, task: { id: taskId, title: task.title }, availability: task.handoff_baseline ? "capture_required" : "baseline_missing", message }, null, 2);
     return message;
   }
-  const projection = buildExecutionProjection(root, taskId);
+  if (options.expand || options.fileId || options.cursor != null) {
+    const children = readImpactChildren(root, task, { captureId: record.id, fileId: options.fileId || null, cursor: options.cursor || 0 });
+    if (format === "json") return JSON.stringify(children, null, 2);
+    if (format === "mermaid") return reviewGraphMermaid(children);
+    return [`Capture ${record.id}`, `Availability: ${children.availability}`, ...children.nodes.map((node) => `${node.kind}: ${node.label}`), `Next cursor: ${children.next_cursor ?? "none"}`].join("\n");
+  }
+  const projection = buildExecutionProjection(root, taskId, { captureId: record.id });
   const files = compareSnapshots(record.baseline, record.output).map((file) => {
     const diff = fileDiff(root, record, file.id);
     return { id: file.id, path: file.path, kind: file.kind, availability: diff.availability, additions: diff.additions ?? null, deletions: diff.deletions ?? null, hunks: diff.patch ? (diff.patch.match(/^@@/gm) || []).length : 0 };
@@ -115,9 +121,7 @@ export function taskReviewReport(root, taskId, format = "text") {
   const report = { version: 1, task: { id: taskId, title: task.title, objective: task.objective || task.objective_hint || null, status: task.status }, capture: { id: record.id, captured_at: record.captured_at, baseline_revision: record.baseline.revision, output_revision: record.output.revision }, files, comments: review.comments, reviewed_files: review.reviewed_files, execution: projection.stages.flatMap((stage) => stage.attempts.map((attempt) => ({ stage: stage.label, actor: attempt.actor, started_at: attempt.started_at, outcome: attempt.outcome, failure: attempt.failure?.summary || null }))).sort((a, b) => String(a.started_at || "").localeCompare(String(b.started_at || ""))), checks: projection.checks.items, graph: projection.graph };
   if (format === "json") return JSON.stringify(report, null, 2);
   if (format === "mermaid") {
-    const safeId = (value) => `n_${Buffer.from(String(value)).toString("hex")}`;
-    const safeLabel = (value) => String(value || "").replace(/["\\\n\r<>|{}]/g, " ").slice(0, 140);
-    return ["flowchart LR", ...report.graph.nodes.map((node) => `${safeId(node.id)}["${safeLabel(node.kind + ": " + node.label)}"]`), ...report.graph.edges.map((edge) => `${safeId(edge.from)} -. "${safeLabel(edge.provenance + ": " + edge.label)}" .-> ${safeId(edge.to)}`)].join("\n");
+    return reviewGraphMermaid(report.graph);
   }
   return [
     `${taskId} · ${task.title} · ${task.status}`,
@@ -135,7 +139,15 @@ export function taskReviewReport(root, taskId, format = "text") {
     `Review notes: ${review.comments.length} · Reviewed files: ${review.reviewed_files.length}`,
     "",
     `Graph edges: ${report.graph.edges.length} (recorded/inferred/unknown provenance retained). Use: atl review ${taskId} --mermaid`,
+    `Expand pinned files or hunks: atl review ${taskId} --capture ${record.id} --expand [--file <file-id>] [--cursor <offset>] --json`,
   ].join("\n");
+}
+
+function reviewGraphMermaid(graph) {
+  const safeId = (value) => `n_${Buffer.from(String(value)).toString("hex")}`;
+  const safeLabel = (value) => String(value || "").replace(/["\\\n\r<>|{}]/g, " ").slice(0, 140);
+  const nodes = [...(graph.parent ? [graph.parent] : []), ...(graph.nodes || [])];
+  return ["flowchart LR", ...nodes.map((node) => `${safeId(node.id)}["${safeLabel(node.kind + ": " + node.label)}"]`), ...(graph.edges || []).map((edge) => `${safeId(edge.from)} -. "${safeLabel(edge.provenance + ": " + edge.label)}" .-> ${safeId(edge.to)}`)].join("\n");
 }
 
 function formatQueue(root) {
@@ -186,7 +198,7 @@ export function dispatchTuiCommand(root, input, { selectedTaskId = null } = {}) 
   try {
     if (command === "help" || command === "?") return result(commandHelp());
     if (command === "why") return result(formatWhy(root, args[0] || selectedTaskId));
-    if (command === "review") { const taskId = args[0] || selectedTaskId; if (!taskId) throw new Error("review needs a task id"); return result(taskReviewReport(root, taskId, flags.mermaid ? "mermaid" : flags.json ? "json" : "text")); }
+    if (command === "review") { const taskId = args[0] || selectedTaskId; if (!taskId) throw new Error("review needs a task id"); return result(taskReviewReport(root, taskId, flags.mermaid ? "mermaid" : flags.json ? "json" : "text", { captureId: flags.capture, fileId: flags.file, cursor: flags.cursor, expand: flags.expand })); }
     if (command === "show") {
       const state = loadState(root);
       if (args[0]) return result(renderTask(requireTask(root, args[0])));

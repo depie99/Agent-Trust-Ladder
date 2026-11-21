@@ -141,7 +141,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                 persist the default or per-role provider/model selection
   provider clear --role role    remove a per-role provider override
   show [task-id]                portfolio or one task
-  review <task-id> [--mermaid|--json]  inspect captured diffs and execution impact
+  review <task-id> [--mermaid|--json] [--capture id] [--expand --file id --cursor n]  inspect captured changes
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state

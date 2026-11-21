@@ -210,6 +210,10 @@
     return true;
   })();
   void workspaceRestore;
+  if (PLUGIN) {
+    pluginTaskId = workspaceTaskId;
+    try { if (workspaceTaskId && sessionStorage.getItem("atl-cp-page") === "task" && window.matchMedia("(max-width: 959px)").matches) page = "task"; } catch { /* storage may be unavailable */ }
+  }
   const workspacePersist = () => {
     try { localStorage.setItem("atl-cp-workspace", JSON.stringify({ task: workspaceTaskId, view: workspaceView })); } catch { /* private browsing */ }
     try {
@@ -1092,7 +1096,7 @@ ${feedbackLine}
     if (!queue || !(queue.items || []).some((item) => (item.id || item.taskId) === task.id)) return null;
     return "queued";
   }
-  const taskRow = (task, selectedId = null) => { const outcome = taskOutcome(task); const isRunning = liveRunState(task) === "running"; const isBlocked = task.rawStatus === "blocked" || task.rawStatus === "escalated"; const isDone = task.rawStatus === "done"; const rowState = (isBlocked ? "is-blocked" : isRunning ? "is-running" : isDone ? "is-done" : "") + (selectedId === task.id ? " is-selected" : ""); const priorityTone = { Urgent: "red", High: "amber", Normal: "blue", Low: "" }[task.priority] || ""; const summaryText = task.lastCheckpoint?.note || task.desc || task.stage || statusLabel(task.rawStatus); return `<div class="tableitem task-row ${rowState}" data-task="${escapeHtml(task.id)}"><div class="task-main"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><div class="task-main-copy"><div class="task-topline"><span class="task-id-badge">${isRunning ? '<span class="running-mark" aria-label="running"></span>' : isDone ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.id)}</span><span class="pill">${escapeHtml(task.queue)}</span>${task.repository_name ? `<span class="pill ghost task-repo-pill" title="Repository">⌂ ${escapeHtml(task.repository_name)}</span>` : ""}${task.priority && task.priority !== "Normal" ? `<span class="pill ${priorityTone}">${escapeHtml(task.priority)}</span>` : ""}${task.plan_review_required ? '<span class="pill amber">Plan review</span>' : ""}</div><b class="task-title-text truncate" dir="auto">${escapeHtml(task.title)}</b>${isBlocked && task.block ? `<div class="task-inline-blocker" title="${escapeHtml(task.block)}"><b>◈</b><span class="truncate">${escapeHtml(task.block)}</span></div>` : `<div class="task-subcopy truncate" dir="auto">${escapeHtml(summaryText)}</div>`}</div></div><div class="task-mid">${taskProgressMarkup(task)}${executionTokenBadge(task.executionReport)}<div class="task-progress-meta"><span>${isDone ? `Accomplished · ${outcome.passed}/${outcome.total} checks` : `Stage: ${escapeHtml(statusLabel(task.rawStatus))}`}</span><span>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</span></div></div><div class="task-controls"><div class="task-control-meta">${badge(task.status)}<span class="task-agent-chip" title="Assigned to ${escapeHtml(task.agent)}"><span class="task-agent-avatar">${escapeHtml((task.agent || "U")[0].toUpperCase())}</span><span class="task-owner-name">${escapeHtml(task.agent)}</span></span></div><div class="task-actions">${taskRowActions(task)}</div></div></div>`; };
+  const taskRow = (task, selectedId = null) => { const outcome = taskOutcome(task); const isRunning = liveRunState(task) === "running"; const isBlocked = task.rawStatus === "blocked" || task.rawStatus === "escalated"; const isDone = task.rawStatus === "done"; const rowState = (isBlocked ? "is-blocked" : isRunning ? "is-running" : isDone ? "is-done" : "") + (selectedId === task.id ? " is-selected" : ""); const priorityTone = { Urgent: "red", High: "amber", Normal: "blue", Low: "" }[task.priority] || ""; const summaryText = task.lastCheckpoint?.note || task.desc || task.stage || statusLabel(task.rawStatus); return `<div class="tableitem task-row ${rowState}" data-task="${escapeHtml(task.id)}"><div class="task-main"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><button type="button" class="task-main-copy" data-action="task-detail:${escapeHtml(task.id)}" aria-label="Open task ${escapeHtml(task.id)}: ${escapeHtml(task.title)}"><div class="task-topline"><span class="task-id-badge">${isRunning ? '<span class="running-mark" aria-label="running"></span>' : isDone ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.id)}</span><span class="pill">${escapeHtml(task.queue)}</span>${task.repository_name ? `<span class="pill ghost task-repo-pill" title="Repository">⌂ ${escapeHtml(task.repository_name)}</span>` : ""}${task.priority && task.priority !== "Normal" ? `<span class="pill ${priorityTone}">${escapeHtml(task.priority)}</span>` : ""}${task.plan_review_required ? '<span class="pill amber">Plan review</span>' : ""}</div><b class="task-title-text truncate" dir="auto">${escapeHtml(task.title)}</b>${isBlocked && task.block ? `<div class="task-inline-blocker" title="${escapeHtml(task.block)}"><b>◈</b><span class="truncate">${escapeHtml(task.block)}</span></div>` : `<div class="task-subcopy truncate" dir="auto">${escapeHtml(summaryText)}</div>`}</button></div><div class="task-mid">${taskProgressMarkup(task)}${executionTokenBadge(task.executionReport)}<div class="task-progress-meta"><span>${isDone ? `Accomplished · ${outcome.passed}/${outcome.total} checks` : `Stage: ${escapeHtml(statusLabel(task.rawStatus))}`}</span><span>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</span></div></div><div class="task-controls"><div class="task-control-meta">${badge(task.status)}<span class="task-agent-chip" title="Assigned to ${escapeHtml(task.agent)}"><span class="task-agent-avatar">${escapeHtml((task.agent || "U")[0].toUpperCase())}</span><span class="task-owner-name">${escapeHtml(task.agent)}</span></span></div><div class="task-actions">${taskRowActions(task)}</div></div></div>`; };
   const eventRow = (event) => `<div class="event"><span class="muted tiny" style="white-space:nowrap">${escapeHtml(event[0])}</span><div>${badge(event[1])} <span class="muted">${escapeHtml(event[2])}</span><div style="margin-top:5px">${escapeHtml(event[3])}</div></div></div>`;
   const stat = (name, value, detail) => `<div class="panel stat"><small>${name}</small><strong>${value}</strong><div class="muted tiny">${detail}</div></div>`;
 
@@ -1768,7 +1772,7 @@ ${feedbackLine}
       const workspaceTask = !PLUGIN && workspaceTaskId ? tasks.find((task) => task.id === workspaceTaskId) : null;
       return tasksHead + (PLUGIN
         ? `<div class="plugin-tasks-split${pluginPaneTask ? " with-pane" : ""}"><div class="plugin-task-list">${shell}</div>${pluginPaneTask ? `<aside class="plugin-task-pane" aria-label="Task details">${taskWorkspaceBody(pluginPaneTask, pluginDetailOpen)}</aside>` : ""}</div>`
-        : `<div class="task-workspace-layout${workspaceNarrowDetail ? " show-detail" : ""}"><div class="task-workspace-side">${shell}</div><section class="task-workspace-main" id="taskWorkspace" data-task-view="${escapeHtml(workspaceView)}" aria-label="Task workspace">${workspaceTask ? taskWorkspaceBody(workspaceTask, workspaceOpen) : workspaceEmptyBody()}</section></div>`);
+        : `<div class="task-workspace-layout${workspaceView !== "activity" && workspaceTaskId ? " review-focused show-detail" : workspaceNarrowDetail ? " show-detail" : ""}"><div class="task-workspace-side">${shell}</div><section class="task-workspace-main" id="taskWorkspace" data-task-view="${escapeHtml(workspaceView)}" aria-label="Task workspace">${workspaceTask ? taskWorkspaceBody(workspaceTask, workspaceOpen) : workspaceEmptyBody()}</section></div>`);
     },
     shipped: () => {
       const { tasks, queues } = derived();
@@ -2099,7 +2103,10 @@ operations: () => {
   }
   function closePluginOverflow() { if (pluginOverflowOpen) { pluginOverflowOpen = false; nav(); } }
   function pluginOpenTask(id) {
+    if (workspaceTaskId !== id) impactExpanded.clear();
     pluginTaskId = id;
+    workspaceTaskId = id;
+    workspacePersist();
     if (window.matchMedia("(min-width: 960px)").matches) render();
     else openPage("task");
   }
@@ -2123,7 +2130,7 @@ operations: () => {
     if (!task) return head("WORKSPACE / TASK", "Task details", "This task is no longer in the snapshot.")
       + `<div class="pad">${btn("← Back to tasks", "plugin-back")}</div>`;
     return head("WORKSPACE / TASK", task.id, task.title, btn("← Back", "plugin-back") + btn("Ask ATL", `assistant-open:${task.id}`, "primary"))
-      + `<div class="task-detail-screen">${taskDetailBody(task, pluginDetailOpen)}</div>`;
+      + `<div class="task-detail-screen">${taskWorkspaceBody(task, pluginDetailOpen)}</div>`;
   };
 
   function nav() {
@@ -2304,7 +2311,7 @@ operations: () => {
     syncRunSnapshot(); if (PLUGIN) ensurePluginTopbar(); nav(); renderProviderStatus(); renderConnectionIndicator();
     if (!(page === "studio" && document.activeElement?.id === "planRepairResponse")) {
       content.innerHTML = panels[page]?.() || panels.overview();
-      const freshWorkspace = !PLUGIN && page === "tasks" ? document.querySelector("#taskWorkspace") : null;
+      const freshWorkspace = workspaceHost();
       const freshBody = freshWorkspace?.querySelector(".task-workspace");
       const currentWorkspaceTask = freshBody?.dataset.workspaceTaskId ? derived().tasks.find((item) => item.id === freshBody.dataset.workspaceTaskId) : null;
       if (preservedWorkspace && freshWorkspace && currentWorkspaceTask
@@ -2678,25 +2685,88 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     return `<section class="activity-stage" data-stage="changes"><header class="activity-stage-head"><span class="activity-stage-glyph" aria-hidden="true">▾</span><b>Captured changes</b><span class="muted tiny">${captures.length} capture${captures.length === 1 ? "" : "s"}</span></header>${[...byCapture.entries()].map(([id, list]) => captureSection(id, list)).join("")}${!byCapture.size ? `<p class="muted tiny">Captures exist for this task; their file lists were not retained in the projection.</p>` : ""}</section>`;
   }
 
+  const impactExpanded = new Set();
+  let graphRenderId = 0, mermaidLoader;
+  function graphToolbar(groups = false) {
+    return `<div class="bar">${btn("Zoom out", "impact-zoom-out", "sm")}<span class="pill" data-graph-zoom>Fit</span>${btn("Zoom in", "impact-zoom-in", "sm")}${btn("Fit", "impact-fit", "sm")}${btn("Export SVG", "impact-export", "sm")}${btn("Copy Mermaid", "impact-copy", "sm")}${btn("View as list", "impact-list", "sm")}${groups ? btn("Collapse groups", "impact-collapse", "sm") : ""}</div>`;
+  }
+  const activeGraphSection = () => document.querySelector('.process-flow[data-process-view="impact"] .process-impact, .process-flow[data-process-view="execution"] .process-execution-diagram');
+  function zoomGraph(section, mode) {
+    const svg = section?.querySelector("svg"), canvas = svg?.closest(".process-impact-canvas");
+    if (!svg || !canvas) return;
+    const box = svg.viewBox.baseVal;
+    if (!box.width || !box.height) return;
+    const fit = Math.min(1, Math.max(.02, (canvas.clientWidth - 16) / box.width));
+    const current = Number(svg.dataset.zoom || fit), zoom = mode === "fit" ? fit : Math.max(.02, Math.min(4, current * (mode === "in" ? 1.25 : .8)));
+    svg.dataset.zoom = String(zoom); svg.style.width = `${box.width * zoom}px`; svg.style.height = `${box.height * zoom}px`; svg.style.minWidth = "0";
+    const label = section.querySelector("[data-graph-zoom]"); if (label) label.textContent = `${Math.round(zoom * 100)}%`;
+    if (mode === "fit") { canvas.scrollLeft = 0; canvas.scrollTop = 0; }
+  }
+  function impactListMarkup(graph) {
+    return graph.nodes.map((item) => {
+      const expand = item.kind === "capture" && item.files_next_cursor != null ? "Load more captured files" : item.kind === "file" && (!item.hunks_loaded || item.hunks_next_cursor != null) ? "Expand captured hunks" : null;
+      const actionable = ["group", "file", "hunk", "attempt", "check", "capture"].includes(item.kind);
+      return `<li>${actionable ? `<button type="button" data-action="impact-node:${escapeHtml(encodeURIComponent(item.id))}">` : "<span>"}<b>${escapeHtml(item.kind)}</b> · ${escapeHtml(item.label)}${actionable ? "</button>" : "</span>"}${expand ? btn(expand, `impact-expand:${encodeURIComponent(item.id)}`, "sm") : ""}${item.hunks_availability && item.hunks_availability !== "available" ? `<span class="pill">${escapeHtml(item.hunks_availability)}</span>` : ""}</li>`;
+    }).join("");
+  }
+
+  function repaintImpactGraph() {
+    const full = workspaceProjection.get(workspaceTaskId)?.data?.graph;
+    if (!full) return;
+    const graph = visibleImpactGraph(full), source = document.querySelector("[data-impact-source]");
+    if (source) { delete source.dataset.rendered; source.textContent = impactMermaid(graph); source.dataset.mermaid = source.textContent; if (!source.closest(".process-impact-canvas")?.hidden) void renderImpactDiagram(); }
+    const list = document.querySelector(".process-impact-list");
+    if (list) list.innerHTML = impactListMarkup(graph);
+    const edges = document.querySelector(".process-impact-edges");
+    if (edges) edges.innerHTML = graph.edges.map((edge) => `<li>${escapeHtml(edge.label)} <span class="pill">${escapeHtml(edge.provenance)}</span></li>`).join("");
+  }
+
+  async function expandImpactChildren(id) {
+    const taskId = workspaceTaskId, graph = workspaceProjection.get(taskId)?.data?.graph;
+    const node = graph?.nodes.find((item) => item.id === id);
+    if (!node || node.loading) return;
+    node.loading = true;
+    const status = document.querySelector("[data-impact-status]");
+    if (status) status.textContent = "Loading captured graph details…";
+    try {
+      const params = new URLSearchParams({ taskId, changeSetId: node.capture_id, cursor: String(node.kind === "file" ? node.hunks_next_cursor ?? 0 : node.files_next_cursor ?? 0) });
+      if (node.kind === "file") params.set("fileId", node.file_id);
+      const response = await fetch(`/api/task-impact-children?${params}`, { cache: "no-store", headers: { "x-atl-csrf": document.querySelector('meta[name="atl-csrf"]')?.content || "" } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Captured details unavailable");
+      if (result.capture_id !== node.capture_id) throw new Error("Capture changed while loading details");
+      const nodes = new Map(graph.nodes.map((item) => [item.id, item]));
+      for (const child of result.nodes || []) if (!nodes.has(child.id)) nodes.set(child.id, child);
+      graph.nodes = [...nodes.values()];
+      const edges = new Map(graph.edges.map((edge) => [JSON.stringify([edge.from, edge.to, edge.provenance, edge.label]), edge]));
+      for (const edge of result.edges || []) edges.set(JSON.stringify([edge.from, edge.to, edge.provenance, edge.label]), edge);
+      graph.edges = [...edges.values()];
+      if (node.kind === "file") { node.hunks_next_cursor = result.next_cursor; node.hunks_loaded = result.next_cursor == null; node.hunks_availability = result.availability; }
+      else node.files_next_cursor = result.next_cursor;
+      if (taskId === workspaceTaskId) { repaintImpactGraph(); if (status?.isConnected) status.textContent = result.availability === "available" ? `${result.nodes.length} captured items loaded` : `${result.availability}: ${result.message || "Patch unavailable"}`; }
+    } catch (error) { if (status?.isConnected) status.textContent = error.message; }
+    finally { node.loading = false; }
+  }
   function processMarkup(task, projection) {
     if (!projection) return '<p role="status"><span class="running-mark" aria-hidden="true"></span><span class="muted">Loading process…</span></p>';
     if (projection.availability !== "available") return `<div class="notice"><b>Execution view unavailable</b><p>${escapeHtml(projection.message || "Execution records cannot be read right now.")}</p></div>`;
     const repo = projection.repository || {};
     const stages = projection.stages || [];
     const orderedAttempts = stages.flatMap((stage) => stage.attempts.map((attempt) => ({ stage, attempt }))).sort((a, b) => String(a.attempt.started_at || a.attempt.ended_at || "").localeCompare(String(b.attempt.started_at || b.attempt.ended_at || "")));
+    const executionGraph = buildExecutionGraph(projection.graph || { nodes: [], edges: [] });
     const executionTimeline = `<section class="process-timeline" aria-label="Recorded execution in chronological order">${orderedAttempts.map(({ stage, attempt }) => `<button type="button" class="process-attempt ${attempt.outcome === "failed" ? "is-failed" : ""}" data-action="activity-stage:${escapeHtml(stage.key)}:${escapeHtml(String(attempt.attempt))}"><span>${escapeHtml(stage.label)}</span><b>${escapeHtml(workspaceAttemptTitle(attempt))}</b><span class="muted tiny"><bdi dir="ltr">${escapeHtml(workspaceRange(attempt) || "Time not recorded")}</bdi></span>${workspaceOutcomePill(attempt.outcome)}</button>`).join("")}${projection.status ? `<div class="process-final-status"><b>Recorded final status</b> · ${escapeHtml(statusLabel(projection.status))}</div>` : ""}</section>`;
-    const impact = projection.graph || { nodes: [], edges: [] };
-    const codeImpact = `<section class="process-impact" aria-label="Code impact"><div class="row between"><h3>Code impact</h3><div class="bar">${btn("−", "impact-zoom-out", "sm")}<span class="pill" data-impact-zoom>100%</span>${btn("+", "impact-zoom-in", "sm")}${btn("Fit", "impact-fit", "sm")}${btn("Export SVG", "impact-export", "sm")}${btn("Copy Mermaid", "impact-copy", "sm")}${btn("View as list", "impact-list", "sm")}</div></div><p class="muted tiny">Connections are labelled recorded, inferred, or unknown. Changed files and task-level checks are not treated as proof of per-file verification.</p><div class="process-impact-canvas"><div class="mermaid process-impact-mermaid" data-impact-source>${escapeHtml(impactMermaid(impact))}</div></div><ol class="process-impact-list">${impact.nodes.map((item) => `<li><button type="button" data-action="impact-node:${escapeHtml(encodeURIComponent(item.id))}"><b>${escapeHtml(item.kind)}</b> · ${escapeHtml(item.label)}</button></li>`).join("")}</ol><ul class="process-impact-edges">${impact.edges.map((edge) => `<li>${escapeHtml(edge.label)} <span class="pill">${escapeHtml(edge.provenance)}</span></li>`).join("")}</ul></section>`;
+    const impact = visibleImpactGraph(projection.graph || { nodes: [], edges: [] });
+    const codeImpact = `<section class="process-impact" aria-label="Code impact"><div class="row between"><h3>Code impact</h3>${graphToolbar(impact.groups)}</div><p class="muted tiny">Connections are labelled recorded, inferred, or unknown. Changed files and task-level checks are not treated as proof of per-file verification.</p>${impact.groups ? `<p class="muted tiny">Large graph: select a stage or directory to expand it.</p>` : ""}${projection.graph?.hunks_truncated ? `<p role="status">Graph details load in pages. Expand captured files or hunks in the list below.</p>` : ""}<div class="process-impact-canvas"><div class="mermaid process-impact-mermaid" data-impact-source>${escapeHtml(impactMermaid(impact))}</div></div><p data-impact-status role="status" aria-live="polite"></p><ol class="process-impact-list" hidden>${impactListMarkup(impact)}</ol><ul class="process-impact-edges" hidden>${impact.edges.map((edge) => `<li>${escapeHtml(edge.label)} <span class="pill">${escapeHtml(edge.provenance)}</span></li>`).join("")}</ul></section>`;
     const node = (tone, title, body) => `<div class="process-node ${tone}"><div class="process-node-dot" aria-hidden="true"></div><div class="process-node-body">${body ? `<b>${title}</b>${body}` : `<b>${title}</b>`}</div></div>`;
-    const stageNode = (stage) => `<div class="process-stage" data-stage="${escapeHtml(stage.key)}"><header class="process-stage-head"><span class="activity-stage-glyph" aria-hidden="true">▾</span><b>${escapeHtml(stage.label)}</b><span class="muted tiny">${stage.attempts.length} step${stage.attempts.length === 1 ? "" : "s"}</span></header><div class="process-attempts">${stage.attempts.map((attempt) => `<button type="button" class="process-attempt${attempt.outcome === "running" ? " is-running" : attempt.outcome === "failed" ? " is-failed" : ""}" data-action="activity-stage:${escapeHtml(stage.key)}:${escapeHtml(String(attempt.attempt))}"><span class="attempt-glyph ${attempt.outcome === "complete" ? "green" : attempt.outcome === "failed" ? "red" : attempt.outcome === "running" ? "green" : ""}" aria-hidden="true">${attempt.outcome === "complete" ? "✓" : attempt.outcome === "failed" ? "✕" : attempt.outcome === "running" ? "●" : "·"}</span><span class="truncate">${escapeHtml(workspaceAttemptTitle(attempt))}</span><span class="muted tiny"><bdi dir="ltr">${escapeHtml(workspaceRange(attempt))}</bdi></span>${workspaceOutcomePill(attempt.outcome)}</button>`).join("")}</div></div>`;
     const fileGroups = new Map();
     for (const file of projection.files || []) { const list = fileGroups.get(file.capture_id) || []; list.push(file); fileGroups.set(file.capture_id, list); }
     const filesNode = fileGroups.size ? `<div class="process-stage" data-stage="files"><header class="process-stage-head"><span class="activity-stage-glyph" aria-hidden="true">▾</span><b>Changed files</b><span class="muted tiny">${(projection.files || []).length} file${(projection.files || []).length === 1 ? "" : "s"} · ${(projection.captures || []).length} capture${(projection.captures || []).length === 1 ? "" : "s"}</span></header><div class="activity-capture-files">${[...fileGroups.entries()].flatMap(([captureId, list]) => list.map((file) => `<button type="button" class="review-file" data-action="review-file:${escapeHtml(captureId)}:${escapeHtml(file.id)}" title="${escapeHtml(captureId || "")}"><span class="pill">${escapeHtml(file.kind || "file")}</span><code class="review-path" dir="ltr">${escapeHtml(file.path)}</code></button>`)).join("")}</div></div>` : "";
     const checks = projection.checks?.items || [];
     const checksNode = checks.length || (projection.captures || []).length ? `<div class="process-stage" data-stage="checks"><header class="process-stage-head"><span class="activity-stage-glyph" aria-hidden="true">▾</span><b>Checks & review</b><span class="muted tiny">${checks.length} completion check${checks.length === 1 ? "" : "s"}</span></header><div class="process-checks">${checks.map((check) => `<div class="process-check"><span class="attempt-glyph ${check.result === "pass" ? "green" : check.result === "fail" ? "red" : ""}" aria-hidden="true">${check.result === "pass" ? "✓" : check.result === "fail" ? "✕" : "·"}</span><span class="truncate" dir="auto">${escapeHtml(check.check)}</span>${check.coverage ? `<span class="muted tiny">${escapeHtml(check.coverage)}</span>` : ""}<span class="muted tiny">${check.at ? escapeHtml(new Date(check.at).toLocaleString()) : "Not recorded"}</span></div>`).join("") || '<p class="muted tiny">No completion checks recorded.</p>'}</div></div>` : "";
     return `<div class="process-flow" data-process-view="execution">
-      <div class="process-view-switch" role="group" aria-label="Process view">${btn("Execution", "process-execution", "sm primary")}${btn("Code impact", "process-impact", "sm")}</div>
+      <div class="process-view-switch" role="group" aria-label="Process view"><button type="button" class="btn sm primary" data-action="process-execution" aria-pressed="true">Execution</button><button type="button" class="btn sm" data-action="process-impact" aria-pressed="false">Code impact</button></div>
       ${node(repo.workspace_recorded ? "" : "is-unknown", repo.name || "Repository", `<p class="muted tiny">${repo.workspace ? `<code class="review-path" dir="ltr">${escapeHtml(repo.workspace)}</code>` : "Workspace not recorded"}${repo.name ? "" : " · Repository not recorded"}</p>`)}
+      <section class="process-execution-diagram" aria-label="Execution diagram">${graphToolbar()}<div class="process-impact-canvas"><div class="mermaid process-impact-mermaid" data-execution-source>${escapeHtml(impactMermaid(executionGraph))}</div></div><p class="muted tiny">Order follows recorded timestamps; items without a timestamp have unknown order. Select an attempt or check to open its evidence.</p><ol class="process-execution-list" hidden>${impactListMarkup(executionGraph)}</ol></section>
       ${executionTimeline}
       ${filesNode}
       ${checksNode}
@@ -2705,33 +2775,81 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     </div>`;
   }
 
+  let graphWasLight = document.documentElement.classList.contains("light");
+  if (typeof MutationObserver !== "undefined") new MutationObserver(() => {
+    const light = document.documentElement.classList.contains("light");
+    if (light === graphWasLight) return;
+    graphWasLight = light;
+    for (const source of document.querySelectorAll(".process-impact-mermaid[data-mermaid]")) {
+      source.textContent = source.dataset.mermaid; delete source.dataset.rendered;
+      void renderImpactDiagram(source.hasAttribute("data-execution-source"));
+    }
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+
+  function buildExecutionGraph(graph) {
+    const nodes = (graph.nodes || []).filter((node) => ["attempt", "check", "outcome"].includes(node.kind));
+    const timed = nodes.filter((node) => node.kind !== "outcome" && node.at).sort((a, b) => String(a.at).localeCompare(String(b.at)) || a.id.localeCompare(b.id));
+    const edges = timed.slice(1).map((node, index) => ({ from: timed[index].id, to: node.id, provenance: "inferred", label: "timestamp order" }));
+    return { nodes: [...timed, ...nodes.filter((node) => node.kind !== "outcome" && !node.at).map((node) => ({ ...node, label: `${node.label} (time not recorded)` })), ...nodes.filter((node) => node.kind === "outcome")], edges };
+  }
+
+  function visibleImpactGraph(graph) {
+    const nodes = graph.nodes || [], edges = graph.edges || [];
+    if (nodes.length <= 40) return { nodes, edges, groups: false };
+    const parent = new Map(nodes.filter((n) => n.kind === "file").map((n) => [n.id, n]));
+    const remap = new Map(), grouped = new Map();
+    for (const n of nodes) {
+      let key = null, title = "";
+      if (n.kind === "attempt") { key = `stage:${n.stage}`; title = `Stage: ${n.stage}`; }
+      if (n.kind === "file" || n.kind === "hunk") {
+        const file = n.kind === "file" ? n : parent.get(`file:${n.capture_id}:${n.file_id}`);
+        const path = file?.label || ""; const directory = path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : "/";
+        key = n.kind === "hunk" && impactExpanded.has(`directory:${directory}`) ? `hunks:${n.capture_id}:${n.file_id}` : `directory:${directory}`; title = n.kind === "hunk" && key.startsWith("hunks:") ? `Hunks: ${path}` : `Directory: ${directory}`;
+      }
+      if (key && !impactExpanded.has(key)) {
+        const id = `group:${key}`; remap.set(n.id, id);
+        const item = grouped.get(id) || { id, kind: "group", label: title, group_key: key, count: 0 }; item.count++; grouped.set(id, item);
+      } else remap.set(n.id, n.id);
+    }
+    const visible = nodes.filter((n) => remap.get(n.id) === n.id).concat([...grouped.values()].map((n) => ({ ...n, label: `${n.label} (${n.count}; expand)` })));
+    const unique = new Map();
+    for (const edge of edges) { const from = remap.get(edge.from), to = remap.get(edge.to); if (!from || !to || from === to) continue; const value = { ...edge, from, to }; unique.set(JSON.stringify([from, to, edge.provenance, edge.label]), value); }
+    return { nodes: visible, edges: [...unique.values()], groups: true };
+  }
+
   function impactMermaid(graph) {
     const nodes = graph.nodes || [], edges = graph.edges || [];
-    const id = (value) => `n_${Array.from(String(value)).map((char) => char.codePointAt(0).toString(16)).join("")}`;
+    const id = (value) => `n_${Array.from(String(value)).map((char) => char.codePointAt(0).toString(16)).join("_")}`;
     const quote = (value) => String(value).replace(/["\\\n\r<>|{}]/g, " ").slice(0, 140);
     return ["flowchart LR", ...nodes.map((item) => `${id(item.id)}["${quote(item.kind + ": " + item.label)}"]`), ...edges.map((edge) => `${id(edge.from)} -. "${quote(edge.provenance + ": " + edge.label)}" .-> ${id(edge.to)}`)].join("\n");
   }
 
-  async function renderImpactDiagram() {
-    const source = document.querySelector(".process-impact-mermaid[data-impact-source]");
+  async function renderImpactDiagram(execution = false) {
+    const source = document.querySelector(execution ? ".process-impact-mermaid[data-execution-source]" : ".process-impact-mermaid[data-impact-source]");
     if (!source || source.dataset.rendered) return;
+    source.dataset.rendered = "loading";
+    const ticket = String(++graphRenderId); source.dataset.renderTicket = ticket;
     try {
-      if (!window.mermaid) await new Promise((resolve, reject) => { const script = document.createElement("script"); script.src = "/assets/mermaid.min.js"; script.onload = resolve; script.onerror = () => reject(new Error("Diagram renderer unavailable")); document.head.append(script); });
-      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", htmlLabels: false, theme: document.documentElement.classList.contains("light") ? "default" : "dark", flowchart: { htmlLabels: false, useMaxWidth: true } });
+      if (!window.mermaid) await (mermaidLoader ||= new Promise((resolve, reject) => { const script = document.createElement("script"); script.src = "/assets/mermaid.min.js"; script.onload = resolve; script.onerror = () => reject(new Error("Diagram renderer unavailable")); document.head.append(script); }));
+      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", htmlLabels: false, maxEdges: 10000, maxTextSize: 1000000, theme: document.documentElement.classList.contains("light") ? "default" : "dark", flowchart: { htmlLabels: false, useMaxWidth: true } });
       source.dataset.mermaid = source.textContent;
-      const rendered = await window.mermaid.render(`atl-impact-${Date.now()}`, source.textContent);
-      if (!source.isConnected) return;
+      const rendered = await window.mermaid.render(`atl-impact-${ticket}`, source.textContent);
+      if (!source.isConnected || source.dataset.renderTicket !== ticket) return;
       source.innerHTML = rendered.svg; source.dataset.rendered = "true";
-      const svg = source.querySelector("svg"); svg?.classList.add("process-impact-svg");
-      const graph = workspaceProjection.get(workspaceTaskId)?.data?.graph;
-      for (const item of graph?.nodes || []) {
-        const safeId = `n_${Array.from(String(item.id)).map((char) => char.codePointAt(0).toString(16)).join("")}`;
-        const group = [...(svg?.querySelectorAll("g[id]") || [])].find((entry) => entry.id.includes(safeId));
+      const svg = source.querySelector("svg"); svg?.classList.add(execution ? "process-execution-svg" : "process-impact-svg");
+      const fullGraph = workspaceProjection.get(workspaceTaskId)?.data?.graph || { nodes: [], edges: [] };
+      const graph = execution ? buildExecutionGraph(fullGraph) : visibleImpactGraph(fullGraph);
+      for (const item of graph.nodes) {
+        if (!["group", "file", "hunk", "attempt", "check", "capture"].includes(item.kind)) continue;
+        const safeId = `n_${Array.from(String(item.id)).map((char) => char.codePointAt(0).toString(16)).join("_")}`;
+        const group = [...(svg?.querySelectorAll("g.node[id]") || [])].find((entry) => new RegExp(`(?:^|-)flowchart-${safeId}-\\d+$`).test(entry.id));
         if (group) { group.setAttribute("role", "button"); group.setAttribute("tabindex", "0"); group.setAttribute("aria-label", `${item.kind}: ${item.label}`); const open = () => void action(`impact-node:${encodeURIComponent(item.id)}`); group.addEventListener("click", open); group.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }); }
       }
+      zoomGraph(source.closest("section"), "fit");
       const canvas = source.closest(".process-impact-canvas");
-      if (canvas && !canvas.dataset.panReady) { canvas.dataset.panReady = "true"; let drag = null; canvas.addEventListener("pointerdown", (event) => { if (event.button === 0) drag = { x: event.clientX, y: event.clientY, left: canvas.scrollLeft, top: canvas.scrollTop }; }); canvas.addEventListener("pointermove", (event) => { if (!drag) return; canvas.scrollLeft = drag.left - (event.clientX - drag.x); canvas.scrollTop = drag.top - (event.clientY - drag.y); }); for (const name of ["pointerup", "pointercancel", "pointerleave"]) canvas.addEventListener(name, () => { drag = null; }); }
-    } catch { source.setAttribute("role", "status"); source.textContent = "Diagram unavailable. Use the accessible graph list below."; }
+      if (canvas) { canvas.tabIndex = 0; canvas.setAttribute("role", "region"); canvas.setAttribute("aria-label", "Diagram: arrow keys pan, toolbar controls zoom"); }
+      if (canvas && !canvas.dataset.panReady) { canvas.dataset.panReady = "true"; canvas.addEventListener("keydown", (event) => { if (event.target !== canvas || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return; event.preventDefault(); canvas.scrollBy({ left: event.key === "ArrowLeft" ? -80 : event.key === "ArrowRight" ? 80 : 0, top: event.key === "ArrowUp" ? -80 : event.key === "ArrowDown" ? 80 : 0 }); }); let drag = null; canvas.addEventListener("pointerdown", (event) => { if (event.button === 0 && !event.target.closest?.('[role="button"]')) drag = { x: event.clientX, y: event.clientY, left: canvas.scrollLeft, top: canvas.scrollTop }; }); canvas.addEventListener("pointermove", (event) => { if (!drag) return; canvas.scrollLeft = drag.left - (event.clientX - drag.x); canvas.scrollTop = drag.top - (event.clientY - drag.y); }); for (const name of ["pointerup", "pointercancel", "pointerleave"]) canvas.addEventListener(name, () => { drag = null; }); }
+    } catch { source.setAttribute("role", "status"); source.textContent = "Diagram unavailable. Use the accessible graph list below."; const list = source.closest("section")?.querySelector("ol"); if (list) list.hidden = false; }
   }
 
   function taskWorkspaceBody(task, openMap) {
@@ -2819,9 +2937,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   // ---- Workspace runtime ---------------------------------------------------
+  function workspaceHost() { return document.querySelector(PLUGIN ? ".plugin-task-pane, .task-detail-screen" : "#taskWorkspace"); }
   function captureWorkspaceNode() {
-    if (PLUGIN || page !== "tasks") return null;
-    const node = document.querySelector("#taskWorkspace");
+    if (page !== "tasks" && !(PLUGIN && page === "task")) return null;
+    const node = workspaceHost();
     const body = node?.querySelector(".task-workspace");
     const taskId = body?.dataset.workspaceTaskId;
     if (!node || !taskId) return null;
@@ -2848,7 +2967,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   function paintWorkspaceView(taskId) {
-    const node = document.querySelector("#taskWorkspace .task-workspace");
+    const node = document.querySelector(PLUGIN ? ".task-workspace" : "#taskWorkspace .task-workspace");
     if (!node || node.dataset.workspaceTaskId !== taskId) return;
     const view = node.dataset.workspaceView;
     if (view === "changes") return; // the embedded review owns its DOM
@@ -2859,10 +2978,11 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const cached = workspaceProjection.get(taskId);
     target.innerHTML = view === "activity" ? activityMarkup(task, cached?.data) : processMarkup(task, cached?.data);
     translateSubtree(target);
+    if (view === "process") void renderImpactDiagram(true);
   }
 
   function mountWorkspaceEffects() {
-    const node = document.querySelector("#taskWorkspace");
+    const node = workspaceHost();
     const body = node?.querySelector(".task-workspace");
     const taskId = body?.dataset.workspaceTaskId;
     if (!node || !taskId) return;
@@ -2870,6 +2990,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const fingerprint = task ? JSON.stringify(task) : "missing";
     const cached = workspaceProjection.get(taskId);
     if (!cached || cached.fingerprint !== fingerprint) void fetchWorkspaceProjection(taskId, fingerprint);
+    if (body.dataset.workspaceView === "process" && cached?.data) void renderImpactDiagram(true);
     if (body.dataset.workspaceView === "changes" && globalThis.ATL_CHANGE_REVIEW) {
       const mount = node.querySelector("[data-workspace-changes]");
       if (mount && !mount.dataset.embedded) {
@@ -2883,6 +3004,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   function selectWorkspaceTask(id, { view } = {}) {
+    if (workspaceTaskId !== id) impactExpanded.clear();
     workspaceTaskId = id;
     if (view) workspaceView = view;
     if (window.matchMedia("(max-width: 959px)").matches) workspaceNarrowDetail = true;
@@ -3366,31 +3488,34 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       }
       return;
     }
-    if (value.startsWith("workspace-view:")) { const view = value.slice(15); if (workspaceViews.includes(view)) { workspaceView = view; workspacePersist(); render(); } return; }
+    if (value.startsWith("workspace-view:")) { const view = value.slice(15); if (workspaceViews.includes(view)) { workspaceView = view; workspacePersist(); render(); document.querySelector(`.task-workspace-tab[data-action="workspace-view:${view}"]`)?.focus(); } return; }
     if (value === "process-impact" || value === "process-execution") {
       const flow = document.querySelector(".process-flow");
-      if (flow) { flow.dataset.processView = value === "process-impact" ? "impact" : "execution"; if (value === "process-impact") void renderImpactDiagram(); }
+      if (flow) { flow.dataset.processView = value === "process-impact" ? "impact" : "execution"; for (const button of flow.querySelectorAll(".process-view-switch button")) { const selected = button.dataset.action === value; button.classList.toggle("primary", selected); button.setAttribute("aria-pressed", String(selected)); } if (value === "process-impact") void renderImpactDiagram(); else void renderImpactDiagram(true); }
       return;
     }
-    if (value === "impact-list") { const list = document.querySelector(".process-impact-list"); if (list) list.hidden = !list.hidden; return; }
-    if (["impact-zoom-in", "impact-zoom-out", "impact-fit"].includes(value)) {
-      const svg = document.querySelector(".process-impact-svg"); if (!svg) return;
-      let zoom = Number(svg.dataset.zoom || 1); zoom = value === "impact-fit" ? 1 : Math.max(.5, Math.min(2.5, zoom + (value === "impact-zoom-in" ? .15 : -.15)));
-      svg.dataset.zoom = String(zoom); svg.style.transform = `scale(${zoom})`; const label = document.querySelector("[data-impact-zoom]"); if (label) label.textContent = `${Math.round(zoom * 100)}%`; return;
+    if (value === "impact-list") {
+      const section = activeGraphSection(), list = section?.querySelector("ol"), canvas = section?.querySelector(".process-impact-canvas");
+      if (list) { list.hidden = !list.hidden; if (canvas) canvas.hidden = !list.hidden; const edges = section.querySelector(".process-impact-edges"); if (edges) edges.hidden = list.hidden; const button = section.querySelector('[data-action="impact-list"]'); if (button) { button.textContent = list.hidden ? "View as list" : "View diagram"; button.setAttribute("aria-pressed", String(!list.hidden)); } if (list.hidden) { void renderImpactDiagram(section.classList.contains("process-execution-diagram")); zoomGraph(section, "fit"); } }
+      return;
     }
-    if (value === "impact-copy") { const source = document.querySelector(".process-impact-mermaid"); if (source?.dataset.mermaid) void navigator.clipboard?.writeText(source.dataset.mermaid); return; }
-    if (value === "impact-export") { const svg = document.querySelector(".process-impact-svg svg"); if (svg) { const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "atl-code-impact.svg"; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); } return; }
+    if (value === "impact-collapse") { impactExpanded.clear(); repaintImpactGraph(); return; }
+    if (value.startsWith("impact-expand:")) { let id; try { id = decodeURIComponent(value.slice(14)); } catch { return; } await expandImpactChildren(id); return; }
+    if (["impact-zoom-in", "impact-zoom-out", "impact-fit"].includes(value)) { zoomGraph(activeGraphSection(), value === "impact-fit" ? "fit" : value === "impact-zoom-in" ? "in" : "out"); return; }
+    if (value === "impact-copy") { const source = activeGraphSection()?.querySelector(".process-impact-mermaid"); if (source?.dataset.mermaid) { try { await navigator.clipboard.writeText(source.dataset.mermaid); } catch { popupWide("Mermaid source", `<textarea class="input" rows="12" readonly aria-label="Mermaid source" dir="ltr">${escapeHtml(source.dataset.mermaid)}</textarea>`, btn("Close", "close")); } } return; }
+    if (value === "impact-export") { const svg = activeGraphSection()?.querySelector("svg"); if (svg) { const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "atl-task-process.svg"; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); } return; }
     if (value.startsWith("impact-node:")) {
       let id; try { id = decodeURIComponent(value.slice(12)); } catch { return; }
       const graph = workspaceProjection.get(workspaceTaskId)?.data?.graph;
-      const node = graph?.nodes?.find((entry) => entry.id === id); if (!node) return;
+      const node = graph?.nodes.find((entry) => entry.id === id) || visibleImpactGraph(graph || { nodes: [], edges: [] }).nodes.find((entry) => entry.id === id); if (!node) return;
+      if (node.kind === "group") { impactExpanded.add(node.group_key); repaintImpactGraph(); return; }
       if (node.kind === "file" || node.kind === "hunk") { if (workspaceView !== "changes") { workspaceView = "changes"; workspacePersist(); render(); } workspaceReview?.selectFile?.(node.file_id, node.capture_id, node.hunk_index); return; }
-      if (node.kind === "attempt") { const [, stageKey, attemptNo] = id.split(":"); if (workspaceView !== "activity") { workspaceView = "activity"; workspacePersist(); render(); } const disclosure = document.querySelector(`[data-workspace-disclosure="activity:${CSS.escape(stageKey)}:${CSS.escape(String(attemptNo))}"]`); if (disclosure) { disclosure.open = true; disclosure.scrollIntoView({ behavior: "smooth", block: "start" }); disclosure.querySelector("summary")?.focus(); } return; }
-      if (node.kind === "check") { const attempt = graph.nodes.find((entry) => entry.kind === "attempt" && node.session_id && entry.session_id === node.session_id); if (attempt) { const [, stageKey, attemptNo] = attempt.id.split(":"); if (workspaceView !== "activity") { workspaceView = "activity"; workspacePersist(); render(); } const disclosure = document.querySelector(`[data-workspace-disclosure="activity:${CSS.escape(stageKey)}:${CSS.escape(String(attemptNo))}"]`); if (disclosure) { disclosure.open = true; disclosure.scrollIntoView({ behavior: "smooth", block: "start" }); disclosure.querySelector("summary")?.focus(); } } else popupWide("Recorded check evidence", `<p><b>${escapeHtml(node.check || node.label)}</b> · ${escapeHtml(node.result || "unknown")}</p><p>Coverage: ${escapeHtml(node.coverage || "not recorded")} · Actor: ${escapeHtml(node.actor || "not recorded")}</p><p>${escapeHtml(node.at || "Time not recorded")}</p>${node.command ? `<pre dir="ltr">${escapeHtml(node.command)}</pre>` : "<p>Command not recorded.</p>"}`, btn("Close", "close")); return; }
+      if (node.kind === "attempt") { const stageKey = node.stage, attemptNo = node.attempt; if (workspaceView !== "activity") { workspaceView = "activity"; workspacePersist(); render(); } const disclosure = document.querySelector(`[data-workspace-disclosure="activity:${CSS.escape(stageKey)}:${CSS.escape(String(attemptNo))}"]`); if (disclosure) { disclosure.open = true; disclosure.scrollIntoView({ behavior: "smooth", block: "start" }); disclosure.querySelector("summary")?.focus(); } return; }
+      if (node.kind === "check") { const attempt = graph.nodes.find((entry) => entry.kind === "attempt" && node.session_id && entry.session_id === node.session_id); if (attempt) { const stageKey = attempt.stage, attemptNo = attempt.attempt; if (workspaceView !== "activity") { workspaceView = "activity"; workspacePersist(); render(); } const disclosure = document.querySelector(`[data-workspace-disclosure="activity:${CSS.escape(stageKey)}:${CSS.escape(String(attemptNo))}"]`); if (disclosure) { disclosure.open = true; disclosure.scrollIntoView({ behavior: "smooth", block: "start" }); disclosure.querySelector("summary")?.focus(); } } else popupWide("Recorded check evidence", `<p><b>${escapeHtml(node.check || node.label)}</b> · ${escapeHtml(node.result || "unknown")}</p><p>Coverage: ${escapeHtml(node.coverage || "not recorded")} · Actor: ${escapeHtml(node.actor || "not recorded")}</p><p>${escapeHtml(node.at || "Time not recorded")}</p>${node.command ? `<pre dir="ltr">${escapeHtml(node.command)}</pre>` : "<p>Command not recorded.</p>"}`, btn("Close", "close")); return; }
       if (node.kind === "capture") { workspaceView = "changes"; workspacePersist(); render(); workspaceReview?.selectFile?.(null, node.capture_id); }
       return;
     }
-    if (value === "workspace-back") { workspaceNarrowDetail = false; workspacePersist(); render(); return; }
+    if (value === "workspace-back") { if (PLUGIN && window.matchMedia("(max-width: 959px)").matches) { await action("plugin-back"); return; } workspaceView = "activity"; workspaceNarrowDetail = false; workspacePersist(); render(); document.querySelector(`[data-task="${CSS.escape(workspaceTaskId || "")}"] .task-main-copy`)?.focus(); return; }
     if (value.startsWith("review-file:")) {
       const [, captureId, fileId] = value.split(":");
       if (workspaceView !== "changes") { workspaceView = "changes"; workspacePersist(); render(); }
@@ -4858,6 +4983,12 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       return;
     }
     if (event.target.closest(".review-dialog") && event.key !== "Escape") return;
+    if (event.target.closest(".task-change-review") && !event.ctrlKey && !event.metaKey) return;
+    if (event.target.matches(".task-workspace-tab") && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      event.preventDefault(); const tabs = [...event.target.parentElement.querySelectorAll(".task-workspace-tab")], index = tabs.indexOf(event.target);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+      const view = tabs[next].dataset.action; void action(view); document.querySelector(`[data-action="${view}"]`)?.focus(); return;
+    }
     if (event.key === "Enter" && (event.target.id === "cliInput" || event.target.id === "dockInput")) { const value = event.target.value; event.target.value = ""; void runCommand(value); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); palette(); return; }
     if (event.key === "Escape" && cardDraft) { closeCardEditor(); render(); return; }

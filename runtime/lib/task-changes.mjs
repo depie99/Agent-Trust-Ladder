@@ -148,8 +148,10 @@ function fileStatCached(root, record, file) {
   statCache.set(key, stat);
   return stat;
 }
-export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page, root = null } = {}) {
-  const files = compareSnapshots(record.baseline, record.output), evidence = evidenceFor(task, record), attention = [];
+export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page, root = null, query = "", kind = "all" } = {}) {
+  const allFiles = compareSnapshots(record.baseline, record.output);
+  const files = allFiles.filter((file) => file.path.toLowerCase().includes(String(query).toLowerCase()) && (kind === "all" || file.kind === kind));
+  const evidence = evidenceFor(task, record), attention = [];
   const artifacts = evidence.filter((entry) => entry.artifact_hash).map((entry) => ({ id: `artifact-${digest(String(entry.artifact_hash)).slice(0, 20)}`, hash: entry.artifact_hash, evidence_id: entry.id, code_revision: entry.code_revision || null, packet_revision: entry.packet_revision ?? null, availability: "reference_only" }));
   const add = (code, reason) => attention.push({ id: code, code, reason });
   if (["blocked", "escalated"].includes(task.status)) add("blocked", task.blocker?.reason || `Task is ${task.status}`);
@@ -169,7 +171,7 @@ export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page,
   }
   const withStats = files.slice(offset, offset + size).map((file) => ({ ...file, ...(stats.get(file.id) || { additions: null, deletions: null }) }));
   const computed = [...stats.values()].filter((stat) => stat.additions != null && stat.deletions != null);
-  const additions = computed.reduce((sum, stat) => sum + stat.additions, 0) || null;
-  const deletions = computed.reduce((sum, stat) => sum + stat.deletions, 0) || null;
-  return { version: 1, capability: "task-change-review-v1", availability: "available", id: record.id, task_id: task.id, title: task.title || "", objective: task.objective || "", summary: task.last_checkpoint?.note || task.evidence?.at(-1)?.detail || null, status: task.status, captured_status: record.captured_status || null, packet_revision: record.packet_revision, captured_at: record.captured_at, source_kind: record.source_kind, run_id: record.run_id || null, baseline_revision: record.baseline.revision, output_revision: record.output.revision, input_revisions: record.input_revisions || {}, repository: task.repository_name || null, workspace: task.workspace || null, evidence, artifacts, attention, decisions: [], decisions_availability: "unavailable", total_files: files.length, additions, deletions, stats_complete: files.length > 0 && computed.length === Math.min(size, files.length) && offset + size >= files.length, files: withStats, next_cursor: offset + size < files.length ? offset + size : null, preview_complete: false };
+  const additions = computed.length ? computed.reduce((sum, stat) => sum + stat.additions, 0) : null;
+  const deletions = computed.length ? computed.reduce((sum, stat) => sum + stat.deletions, 0) : null;
+  return { version: 1, capability: "task-change-review-v1", availability: "available", id: record.id, task_id: task.id, title: task.title || "", objective: task.objective || "", summary: task.last_checkpoint?.note || task.evidence?.at(-1)?.detail || null, status: task.status, captured_status: record.captured_status || null, packet_revision: record.packet_revision, captured_at: record.captured_at, source_kind: record.source_kind, run_id: record.run_id || null, baseline_revision: record.baseline.revision, output_revision: record.output.revision, input_revisions: record.input_revisions || {}, repository: task.repository_name || null, workspace: task.workspace || null, evidence, artifacts, attention, decisions: [], decisions_availability: "unavailable", total_files: allFiles.length, matching_files: files.length, query: String(query), filter: kind, additions, deletions, stats_complete: files.length > 0 && computed.length === Math.min(size, files.length) && offset + size >= files.length, files: withStats, next_cursor: offset + size < files.length ? offset + size : null, preview_complete: false };
 }

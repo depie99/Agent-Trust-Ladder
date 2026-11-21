@@ -1689,6 +1689,22 @@ textarea.input {
   outline-offset: 2px;
 }
 
+.review-mobile-back {
+  display: none;
+}
+
+.review-reply {
+  margin-inline-start: 16px;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--border);
+}
+
+.split-note {
+  grid-column: 1/-1;
+  color: var(--muted);
+  padding: 4px 10px;
+}
+
 .review-files label {
   display: block;
   margin-block: 8px 4px;
@@ -2072,6 +2088,16 @@ textarea.input {
   }
   .review-resize {
     display: none;
+  }
+  .review-files.is-file-open > aside {
+    display: none;
+  }
+  .review-files:not(.is-file-open) > .review-patch {
+    display: none;
+  }
+  .review-mobile-back {
+    display: block;
+    margin-block-end: 8px;
   }
   .review-tree {
     max-height: 24vh;
@@ -4611,7 +4637,8 @@ textarea.input {
   gap: 6px;
   align-items: center;
   flex-wrap: wrap;
-  flex: none;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .diff-kind.kind-add {
@@ -4668,7 +4695,7 @@ textarea.input {
 
 .diff-line {
   display: grid;
-  grid-template-columns: 40px 40px 18px minmax(0, 1fr);
+  grid-template-columns: 40px 40px 18px minmax(0, 1fr) 24px;
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 12px;
   line-height: 1.55;
@@ -6304,6 +6331,60 @@ html:not(.light) .studio-nextstep {
   min-height: 120px;
 }
 
+.task-main-copy {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.task-main-copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.task-workspace-layout.review-focused {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.task-workspace-layout.review-focused .task-workspace-side {
+  display: none;
+}
+
+.task-workspace-layout.review-focused .task-workspace-back {
+  display: inline-flex;
+}
+
+.plugin-tasks-split:has(.task-workspace[data-workspace-view=changes]),
+.plugin-tasks-split:has(.task-workspace[data-workspace-view=process]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.plugin-tasks-split:has(.task-workspace[data-workspace-view=changes]) > .plugin-task-list,
+.plugin-tasks-split:has(.task-workspace[data-workspace-view=process]) > .plugin-task-list {
+  display: none;
+}
+
+.plugin-task-pane:has(.task-workspace[data-workspace-view=changes]) .task-workspace-back,
+.plugin-task-pane:has(.task-workspace[data-workspace-view=process]) .task-workspace-back {
+  display: inline-flex;
+}
+
+.review-capture-details {
+  margin-block: 8px;
+  font-size: 12px;
+}
+
+.review-capture-details summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
 .process-flow > .process-impact {
   display: none;
 }
@@ -6320,14 +6401,32 @@ html:not(.light) .studio-nextstep {
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
-  min-height: 280px;
+  min-height: 220px;
+  max-height: 520px;
+  padding: 8px;
   background: var(--surface);
 }
 
 .process-impact-mermaid svg {
   max-width: none !important;
-  min-width: 100%;
-  min-height: 280px;
+}
+
+.process-impact-mermaid {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.process-flow [hidden] {
+  display: none !important;
+}
+
+.process-execution-list, .process-impact-list {
+  padding-inline-start: 22px;
+  overflow-wrap: anywhere;
+}
+
+.process-impact-list li, .process-execution-list li {
+  margin-block: 6px;
 }
 
 .process-impact-list button {

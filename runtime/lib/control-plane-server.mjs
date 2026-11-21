@@ -38,7 +38,7 @@ import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDelivery
 import { inspectHandoffChain } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview, readTaskReviewState, writeTaskReviewState } from "./change-review-store.mjs";
-import { buildExecutionProjection } from "./execution-projection.mjs";
+import { buildExecutionProjection, readImpactChildren } from "./execution-projection.mjs";
 import { taskStatechart } from "./task-statechart.mjs";
 import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
 import { previewPlanPublish, publishPlan, verifyImportedSource, refreshImportedAzureSource } from "./plan-publish.mjs";
@@ -1404,7 +1404,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         });
         return;
       }
-      if (["/api/task-changes", "/api/task-change-diff", "/api/task-changes/capture", "/api/task-review-state"].includes(url.pathname)) {
+      if (["/api/task-changes", "/api/task-change-diff", "/api/task-changes/capture", "/api/task-review-state", "/api/task-impact-children"].includes(url.pathname)) {
         // Source previews require the owner session even on GET, including a
         // CSRF header a cross-origin page cannot obtain through a simple request.
         const token = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length);
@@ -1428,12 +1428,15 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const taskState = loadState(root);
           const task = taskState.tasks[capture ? payload.task_id : url.searchParams.get("taskId")];
           if (!task) { json(res, 404, { error: "Task not found", availability: "task_missing" }); return; }
+          if (url.pathname === "/api/task-impact-children") {
+            json(res, 200, readImpactChildren(root, task, { captureId: url.searchParams.get("changeSetId"), fileId: url.searchParams.get("fileId"), cursor: url.searchParams.get("cursor") || 0 })); return;
+          }
           const record = capture ? captureChangeReview(root, task) : readChangeReview(root, task, url.searchParams.get("changeSetId"));
           if (url.pathname === "/api/task-change-diff") {
             if (!url.searchParams.get("changeSetId") || !record) throw new ChangeReviewError("change_set_missing", "A pinned change set is required", 400);
             json(res, 200, { change_set_id: record.id, ...fileDiff(root, record, url.searchParams.get("fileId")) }); return;
           }
-          const review = record ? { ...describeChanges(task, record, { cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit"), root }), revisions: listChangeReviews(root, task) } : unavailableReview(task);
+          const review = record ? { ...describeChanges(task, record, { cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit"), query: url.searchParams.get("q") || "", kind: url.searchParams.get("kind") || "all", root }), revisions: listChangeReviews(root, task) } : unavailableReview(task);
           const delivery = record ? taskDeliveryReceiptFromRecord(task, record) : null;
           json(res, 200, {
             ...review,
