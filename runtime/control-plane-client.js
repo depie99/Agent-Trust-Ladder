@@ -2392,7 +2392,7 @@ operations: () => {
     if (page === "sources") updateSourcePreview();
   }
   function renderConnectionIndicator() {
-    if (PLUGIN) return;
+    if (PLUGIN) { renderPluginTopbar(); return; }
     const liveBadge = document.querySelector(".topbar .pill.hotkey");
     if (liveBadge) {
       liveBadge.textContent = connected ? "LIVE" : "OFFLINE";
