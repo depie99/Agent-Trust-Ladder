@@ -257,7 +257,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/egm-review.mjs](../runtime/lib/egm-review.mjs) | Bounded EGM deep-review path for Plan Studio. The runner uses exactly the |
 | [runtime/lib/execution-access.mjs](../runtime/lib/execution-access.mjs) | A single permission contract for Ask ATL and built-in queue workers. |
 | [runtime/lib/execution-backend.mjs](../runtime/lib/execution-backend.mjs) | Remote implementations must preserve these semantics, never impersonate local paths. |
-| [runtime/lib/execution-projection.mjs](../runtime/lib/execution-projection.mjs) | Read-only execution projection: joins what ATL already recorded (state |
+| [runtime/lib/execution-projection.mjs](../runtime/lib/execution-projection.mjs) | The same pinned patch powers the reviewer and graph. Expansion pages only |
 | [runtime/lib/execution-report.mjs](../runtime/lib/execution-report.mjs) | execution report: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/feed.mjs](../runtime/lib/feed.mjs) | The team feed: a chat-style narration of everything the bots do. |
 | [runtime/lib/feedback.mjs](../runtime/lib/feedback.mjs) | Durable human feedback for bounded provider sessions. |
@@ -783,6 +783,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/task_preparation_api_test.mjs](../verification/task_preparation_api_test.mjs) | Executable regression check for task preparation api. |
 | [verification/task_preparation_store_test.mjs](../verification/task_preparation_store_test.mjs) | Executable regression check for task preparation store. |
 | [verification/task_preparation_ui_journey_test.mjs](../verification/task_preparation_ui_journey_test.mjs) | Executable regression check for task preparation ui journey. |
+| [verification/task_review_acceptance_test.mjs](../verification/task_review_acceptance_test.mjs) | Executable regression check for task review acceptance. |
 | [verification/task_statechart_test.mjs](../verification/task_statechart_test.mjs) | Executable regression check for task statechart. |
 | [verification/task_triage_test.mjs](../verification/task_triage_test.mjs) | Executable regression check for task triage. |
 | [verification/task_ui_workspace_test.mjs](../verification/task_ui_workspace_test.mjs) | Executable regression check for task ui workspace. |

@@ -81,16 +81,23 @@ try {
   await workspace.locator("#reviewDraft").fill("Browser review note");
   await workspace.locator("[data-review-action=comment-save]").click();
   await workspace.getByText("Browser review note", { exact: true }).waitFor();
+  await workspace.locator('[data-review-action^="reply:"]').click();
+  await workspace.locator("#reviewDraft").fill("Browser reply");
+  await workspace.locator("[data-review-action=comment-save]").click();
+  await workspace.getByText("Browser reply", { exact: true }).waitFor();
   await workspace.locator("[data-review-action=file-reviewed]").click();
   await workspace.locator("[data-review-action=\"tab:files\"]").click();
   await workspace.locator(".review-tree").waitFor();
   await page.reload();
   await workspace.getByText("Browser review note", { exact: true }).waitFor();
+  await workspace.getByText("Browser reply", { exact: true }).waitFor();
+  await workspace.locator(".review-patch .diff-line").first().waitFor();
   assert.equal(await workspace.locator("[data-review-action=file-reviewed]").textContent(), "Reviewed", "reviewed-file state survives reload");
   assert.ok(await workspace.locator(".review-patch").evaluate((node) => node.scrollWidth <= node.clientWidth + 2), "diff pane remains bounded at desktop width");
   await page.setViewportSize({ width: 390, height: 740 });
-  await page.locator('[data-task="T-001"]').first().click();
+  await workspace.locator('[data-review-action="back-files"]').click();
   await workspace.locator(".review-tree").waitFor();
+  assert.equal(await workspace.locator(".review-patch").isVisible(), false, "narrow review shows one pane at a time");
   assert.ok(await workspace.locator(".review-files").evaluate((node) => node.scrollWidth <= node.clientWidth + 2), "narrow Changes layout fits the harness pane");
   await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -107,6 +114,7 @@ try {
   await workspace.locator(".review-diff, .review-patch").first().waitFor();
 
   // Task B: planned work renders the honest unrun state.
+  await workspace.locator('[data-action="workspace-back"]').click();
   await page.locator('[data-task="T-002"]').first().click();
   await workspace.locator(".task-detail-title").waitFor();
   assert.equal(await workspace.getAttribute("data-workspace-task-id", { exact: true }) ?? (await workspace.locator(".task-workspace").getAttribute("data-workspace-task-id")), "T-002");
@@ -122,6 +130,7 @@ try {
   assert.equal(await page.locator("#taskWorkspace .task-workspace").getAttribute("data-workspace-view"), "process", "view persists across reload");
 
   // Ask ATL mounts inline from the composer invite.
+  await workspace.locator('[data-action="workspace-back"]').click();
   await page.locator('[data-page="tasks"]:visible').first().click();
   await page.locator('[data-task="T-001"]').first().click();
   await workspace.locator(".task-detail-title").waitFor();
@@ -150,7 +159,7 @@ try {
   assert.equal(await workspace.locator("#assistantTranscript").count(), 1, "inline assistant survives a mid-fetch workspace repaint");
   await page.waitForTimeout(300);
   assert.equal(await page.getByText("Assistant unavailable").count(), 0, "no assistant-unavailable error dialog");
-  await page.unroute("**/api/assistant");
+  await page.unrouteAll({ behavior: "wait" });
 
   // Disclosures start collapsed and survive the polling tick.
   const acceptance = workspace.locator('[data-workspace-disclosure="acceptance"]');

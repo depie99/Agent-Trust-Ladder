@@ -105,6 +105,9 @@ try {
   await frame.locator('[data-task] .task-main-copy').first().click();
   await frame.locator('.plugin-task-pane').first().waitFor();
   await page.setViewportSize({ width: 420, height: 760 });
+  // Re-enter the tasks list after resizing so the harness exercises its
+  // narrow-screen task-to-detail navigation rather than stale desktop DOM.
+  await frame.locator('#mobile [data-page="tasks"]').first().click();
   await frame.locator('[data-task] .task-main-copy').first().click();
   await frame.locator('.task-detail-screen').waitFor();
   await frame.locator('[data-action="plugin-back"]').first().click();

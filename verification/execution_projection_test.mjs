@@ -113,7 +113,7 @@ assert.equal(buildExecutionProjection(root, "T-NOPE").availability, "unknown_tas
   assert.equal(linked.captures.length, 2);
   const implementation = linked.stages.find((stage) => stage.key === "implementation");
   assert.deepEqual(implementation.capture_ids, ["cap-2"], "capture links to the stage whose session shares the packet revision");
-  assert.ok(linked.graph.edges.some((edge) => edge.provenance === "recorded" && edge.label === "packet-linked capture"));
+  assert.ok(linked.graph.edges.some((edge) => edge.provenance === "inferred" && edge.label === "same packet revision"));
   assert.ok(linked.graph.edges.some((edge) => edge.provenance === "unknown" && edge.label === "file coverage not recorded"));
   const planningStage = linked.stages.find((stage) => stage.key === "planning");
   assert.equal(planningStage, undefined, "no session in planning, no invented link");

@@ -236,7 +236,7 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims")) continue;
+  if (eat("capture") || eat("file") || eat("cursor") || eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -261,6 +261,7 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--no-open") { flags.noOpen = true; continue; }
   if (a === "--fresh") { flags.fresh = true; continue; }
   if (a === "--json") { flags.json = true; continue; }
+  if (a === "--expand") { flags.expand = true; continue; }
   if (a === "--mermaid") { flags.mermaid = true; continue; }
   pos.push(a);
 }
@@ -399,7 +400,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                 persist the default or per-role provider/model selection
   provider clear --role role    remove a per-role provider override
   show [task-id]                portfolio or one task
-  review <task-id> [--mermaid|--json]  inspect captured diffs and execution impact
+  review <task-id> [--mermaid|--json] [--capture id] [--expand --file id --cursor n]  inspect captured changes
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
@@ -1784,7 +1785,7 @@ async function dispatch() {
     case "review": {
       const taskId = pos[0];
       if (!taskId) throw new StateError("review needs a task id: atl review T-001 [--mermaid|--json]");
-      console.log(taskReviewReport(ROOT, taskId, flags.mermaid ? "mermaid" : flags.json ? "json" : "text"));
+      console.log(taskReviewReport(ROOT, taskId, flags.mermaid ? "mermaid" : flags.json ? "json" : "text", { captureId: flags.capture, fileId: flags.file, cursor: flags.cursor, expand: flags.expand }));
       return;
     }
     case "show": {

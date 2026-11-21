@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { fixture } from "./fixtures/task-changes/project.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 import { digest } from "../runtime/lib/task-changes.mjs";
 import { taskReviewReport } from "../runtime/lib/command-console.mjs";
+import { createPluginHost, pluginTools } from "../runtime/lib/plugin-host.mjs";
 
 const f = fixture(); f.edit();
 const running = await startControlPlaneServer(f.root);
@@ -53,6 +56,32 @@ try {
   assert.notEqual(newer.id, captured.id);
   review = await (await get("api/task-review-state?taskId=T-001")).json();
   assert.equal(review.comments[0].change_set_id, captured.id, "older comments stay pinned to their historical capture");
+  saved = await put({ action: "reply", file_id: example.id, comment_id: review.comments[0].id, text: "A reply" });
+  review = await saved.json(); assert.equal(saved.status, 200); assert.equal(review.comments[0].replies[0].text, "A reply");
+  const wrongCapture = await fetch(reviewUrl, { method: "PUT", headers, body: JSON.stringify({ task_id: "T-001", change_set_id: newer.id, expected_revision: review.revision, action: "reply", file_id: example.id, comment_id: review.comments[0].id, text: "wrong revision" }) });
+  assert.equal(wrongCapture.status, 404, "replies cannot cross captured revisions");
+  const lock = path.join(f.root, ".trust/manager/change-reviews/T-001/review-state.json.lock");
+  fs.writeFileSync(lock, JSON.stringify({ pid: 2147483646, token: "dead-fixture-owner", at: Date.now() - 2000 }));
+  saved = await put({ action: "resolve", file_id: example.id, comment_id: review.comments[0].id });
+  review = await saved.json(); assert.equal(saved.status, 200); assert.equal(review.comments[0].resolved, true, "a dead lock owner cannot permanently block review saves");
+  saved = await put({ action: "reopen", file_id: example.id, comment_id: review.comments[0].id });
+  review = await saved.json(); assert.equal(saved.status, 200); assert.equal(review.comments[0].resolved, false);
+  saved = await put({ action: "resolve", file_id: "foreign", comment_id: review.comments[0].id });
+  assert.equal(saved.status, 404, "resolution anchors cannot cross files");
+  const unpinned = await fetch(reviewUrl, { method: "PUT", headers, body: JSON.stringify({ task_id: "T-001", expected_revision: review.revision, action: "reviewed", file_id: example.id }) });
+  assert.equal(unpinned.status, 400, "writes must explicitly pin the capture");
+  const oldReport = JSON.parse(taskReviewReport(f.root, "T-001", "json", { captureId: captured.id }));
+  assert.equal(oldReport.capture.id, captured.id);
+  assert.ok(oldReport.graph.nodes.filter((node) => node.kind === "file").every((node) => node.capture_id === captured.id), "historical CLI reports use the same capture in files and graph");
+  const cli = execFileSync(process.execPath, [fileURLToPath(new URL("../runtime/atl-manager.mjs", import.meta.url)), "review", "T-001", "--capture", captured.id, "--expand", "--file", example.id, "--json"], { cwd: f.root, env: { ...process.env, ATL_PROJECT: f.root }, windowsHide: true, encoding: "utf8", timeout: 15000 });
+  assert.equal(JSON.parse(cli).nodes[0].kind, "hunk");
+  const host = createPluginHost();
+  try {
+    assert.equal(pluginTools.find((tool) => tool.name === "atl_review").readOnly, true);
+    const inspected = await host.call("atl_review", { project: f.root, taskId: "T-001", captureId: captured.id, fileId: example.id, expand: true, format: "json" });
+    assert.equal(JSON.parse(inspected.content).capture_id, captured.id);
+    assert.equal(host.serverGeneration, 0, "inspection does not start a daemon");
+  } finally { await host.close(); }
   assert.equal((await get(`api/task-change-diff?taskId=T-001&changeSetId=${captured.id}&fileId=foreign`)).status, 404);
   assert.equal((await get("api/task-changes?taskId=T-001&changeSetId=..%2Foutside")).status, 400);
   assert.equal((await get("api/task-changes?taskId=T-999")).status, 404);

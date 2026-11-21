@@ -87,11 +87,28 @@
 }
 
 .task-workspace-viewbody { min-height: 120px; }
+.task-main-copy { appearance: none; border: 0; background: transparent; padding: 0; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.task-main-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.task-workspace-layout.review-focused { grid-template-columns: minmax(0, 1fr); }
+.task-workspace-layout.review-focused .task-workspace-side { display: none; }
+.task-workspace-layout.review-focused .task-workspace-back { display: inline-flex; }
+.plugin-tasks-split:has(.task-workspace[data-workspace-view="changes"]),
+.plugin-tasks-split:has(.task-workspace[data-workspace-view="process"]) { grid-template-columns: minmax(0, 1fr); }
+.plugin-tasks-split:has(.task-workspace[data-workspace-view="changes"]) > .plugin-task-list,
+.plugin-tasks-split:has(.task-workspace[data-workspace-view="process"]) > .plugin-task-list { display: none; }
+.plugin-task-pane:has(.task-workspace[data-workspace-view="changes"]) .task-workspace-back,
+.plugin-task-pane:has(.task-workspace[data-workspace-view="process"]) .task-workspace-back { display: inline-flex; }
+.review-capture-details { margin-block: 8px; font-size: 12px; }
+.review-capture-details summary { cursor: pointer; color: var(--muted); }
 .process-flow > .process-impact { display: none; }
 .process-flow[data-process-view="impact"] > :not(.process-view-switch):not(.process-impact) { display: none; }
 .process-flow[data-process-view="impact"] > .process-impact { display: block; }
-.process-impact-canvas { overflow: auto; border: 1px solid var(--border); border-radius: 10px; min-height: 280px; background: var(--surface); }
-.process-impact-mermaid svg { max-width: none !important; min-width: 100%; min-height: 280px; }
+.process-impact-canvas { overflow: auto; border: 1px solid var(--border); border-radius: 10px; min-height: 220px; max-height: 520px; padding: 8px; background: var(--surface); }
+.process-impact-mermaid svg { max-width: none !important; }
+.process-impact-mermaid { direction: ltr; unicode-bidi: isolate; }
+.process-flow [hidden] { display: none !important; }
+.process-execution-list, .process-impact-list { padding-inline-start: 22px; overflow-wrap: anywhere; }
+.process-impact-list li, .process-execution-list li { margin-block: 6px; }
 .process-impact-list button { border: 0; background: transparent; color: inherit; text-align: start; cursor: pointer; }
 .process-impact-edges { display: grid; gap: 4px; }
 .process-impact-canvas { cursor: grab; touch-action: none; }

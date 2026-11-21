@@ -42,6 +42,7 @@ export const pluginTools = [
   { name: 'atl_connect', description: 'Open the local ATL connection assistant: choose a harness, copy matching connection settings, switch English/Persian and open a project. No project is initialized until explicitly selected and opened. Returns a browser URL; does not launch workers.', inputSchema: schema() },
   { name: 'atl_start', description: 'Start ATL for the selected application in one step: initialize missing ATL project state, preserve existing state, and return the full Control Plane URL. Use for an authorized setup or open-dashboard request. Does not launch workers.', inputSchema: schema({ project }, ['project']) },
   { name: 'atl_info', description: 'Discover the bundled ATL runtime, skill catalog and usage. Does not initialize projects or install anything.', inputSchema: schema(), readOnly: true },
+  { name: 'atl_review', description: 'Inspect captured task changes and actual execution without starting workers or calling a provider. Return text, JSON or Mermaid. Use expand with an optional fileId and cursor to page through pinned graph details.', inputSchema: schema({ project, taskId: str, format: { type: 'string', enum: ['text', 'json', 'mermaid'] }, captureId: str, fileId: str, cursor: { type: 'integer', minimum: 0 }, expand: { type: 'boolean' } }, ['project', 'taskId']), readOnly: true },
   { name: 'atl_skill', description: 'Read a bundled ATL skill or one of its supporting files. Start with name=atl; follow its workflow and trust gates.', inputSchema: schema({ name: str, file: { ...str, description: 'Path within the skill, default SKILL.md. References are loaded on demand.' } }, ['name']), readOnly: true },
   { name: 'atl_command', description: 'Execute the full bundled ATL CLI in the selected project, without a global atl installation. Pass argv as separate strings (e.g. ["init"], ["compose","--title","Fix login"], ["run",id,"--dry-run"]). Returns a job; poll atl_job until finished. Mutates state, may run providers or external operations depending on argv. Existing ATL and host approval gates apply; never invent user approval or add --confirm on your own.', inputSchema: schema({ project, args: { type: 'array', items: str, minItems: 1, maxItems: 128 }, wait_ms: { type: 'integer', minimum: 0, maximum: 10000 } }, ['project', 'args']) },
   { name: 'atl_job', description: 'Read output and exit status of a command started in this plugin session. A running job is not completion evidence. Job handles live in memory for this plugin session only; once 32 exist, the oldest finished handles are dropped and their ids become unknown — durable task state stays in the project. Use the Control Plane to stop provider runs safely.', inputSchema: schema({ id: str, wait_ms: { type: 'integer', minimum: 0, maximum: 10000 } }, ['id']), readOnly: true },
@@ -228,6 +229,12 @@ export function createPluginHost() {
       return wait(job, args.wait_ms, signal);
     }
     const root = projectPath(args.project);
+    if (name === 'atl_review') {
+      const { taskReviewReport } = await import('./command-console.mjs');
+      signal?.throwIfAborted();
+      const format = args.format || 'text';
+      return { project: root, taskId: args.taskId, format, content: taskReviewReport(root, args.taskId, format, { captureId: args.captureId, fileId: args.fileId, cursor: args.cursor, expand: args.expand }) };
+    }
     if (harnessTools.some(tool => tool.name === name)) {
       const ui = await call('atl_control_plane', { project: root }, { signal });
       const { project: ignored, ...payload } = args;
