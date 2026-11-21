@@ -13,6 +13,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import readline from "node:readline";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -22,6 +23,8 @@ import {
 } from "./lib/state.mjs";
 import { contractFor, renderRole, ROLE_SLOT } from "./lib/roles.mjs";
 import { IntakeError, ghCliAuthenticated, normalizeGitHubRepo, probeGitHubRepo, runIntake } from "./lib/intake.mjs";
+import { loadConnections, saveConnections, validateConnection } from "./lib/issue-connections.mjs";
+import { dpapiSupported, saveAzureConnection } from "./lib/azure-connection.mjs";
 import { WorkspaceError, ensureWorkspace } from "./lib/workspace.mjs";
 import { renderBrief, renderTask, wakeActions, saveBrief, activeTasks } from "./lib/render.mjs";
 import { post as feedPost, renderFeed, renderRoster } from "./lib/feed.mjs";
@@ -236,7 +239,7 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("capture") || eat("file") || eat("cursor") || eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims")) continue;
+  if (eat("capture") || eat("file") || eat("cursor") || eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims") || eat("url") || eat("project") || eat("iteration") || eat("token-env") || eat("name") || eat("token")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -896,8 +899,29 @@ async function printIntakeStatus(only = "all") {
     console.log(`  azure    ${az.enabled ? "enabled " : "disabled"}  ${az.org_url || "(no org_url)"} · ${az.project || "(no project)"} · ${az.iteration_path || "(no iteration_path)"}`);
     console.log(`           auth: ${tokenEnv} ${process.env[tokenEnv] ? "set" : "not set"}`);
   }
+  // Saved issue-source connections (what the ATL UI manages). The CLI can
+  // only see durable credentials (DPAPI vaults, environment); session tokens
+  // live inside the running server and are intentionally invisible here.
+  try {
+    const store = loadConnections(ROOT, cfg.intake || {});
+    if (store.connections.length) {
+      console.log("\nSaved connections (Issue sources):");
+      for (const connection of store.connections) {
+        const envName = connection.provider === "jira" ? connection.settings.token_env || "JIRA_TOKEN" : "AZDO_PAT";
+        const durable = connection.credential_ref === "os-protected";
+        const fromEnv = connection.provider !== "github" && Boolean(process.env[envName]);
+        const marker = store.defaults[connection.provider] === connection.id ? " (default)" : "";
+        const credential = durable ? "credential saved on this account" : fromEnv ? "credential from environment" : "no durable credential (session-only or none)";
+        console.log(`  ${connection.provider.padEnd(6)} ${connection.name}${marker} — ${connection.enabled ? "enabled" : "paused"}, ${connection.status || "unchecked"}, ${credential}`);
+        if (connection.provider === "azure" && (connection.status === "needs-auth" || (!durable && !fromEnv))) {
+          console.log("         fix: atl intake connect azure --token -   (or ATL UI → Issue sources → Re-authenticate)");
+        }
+      }
+    }
+  } catch { /* unreadable store — legacy status above still stands */ }
   console.log(`\nEnable:   atl intake enable <file|github|azure> [--repo owner/name]`);
   console.log(`Disable:  atl intake disable <file|github|azure>`);
+  console.log(`Reconnect: atl intake connect azure [--url … --project …] --token -`);
 }
 
 async function intakeConfigCommand(sub) {
@@ -912,6 +936,8 @@ async function intakeConfigCommand(sub) {
     await printIntakeStatus(source);
     return;
   }
+
+  if (sub === "connect") return connectAzureCommand();
 
   if (!INTAKE_SOURCES.includes(source)) {
     throw new StateError(`intake ${sub} needs a source: ${INTAKE_SOURCES.join(" | ")}`);
@@ -993,6 +1019,83 @@ async function intakeConfigCommand(sub) {
 }
 
 // ---------- commands
+
+// Reconnect (or create) the saved Azure connection from the terminal — the
+// same durable surfaces the ATL UI writes: the per-connection DPAPI vault and
+// the connection store, plus the legacy home vault and config.intake.azure
+// that My Tasks and intake pulls read. Session-only credentials cannot cross
+// a process boundary to a running server, so the CLI always persists.
+async function connectAzureCommand() {
+  if (flags.token && flags.token !== "-") {
+    throw new StateError('Passing the PAT as a --token value exposes it in the process list. Use --token - (pipe it via stdin) or run in a terminal for a hidden prompt.');
+  }
+  const cfg = loadConfig();
+  const store = loadConnections(ROOT, cfg.intake || {});
+  let record = store.connections.find((c) => c.id === store.defaults.azure && c.provider === "azure")
+    || store.connections.find((c) => c.provider === "azure" && c.enabled)
+    || null;
+  const url = String(flags.url || "");
+  const project = String(flags.project || "");
+  if (!record && !(url && project)) {
+    throw new StateError("No saved Azure connection found. Add --url https://server/collection and --project NAME to create one, or connect from the ATL UI (Issue sources).");
+  }
+  const validated = validateConnection({
+    provider: "azure",
+    name: String(flags.name || record?.name || `${project || record.settings.project} (Azure Boards)`),
+    org_url: url || record.settings.org_url,
+    project: project || record.settings.project,
+    iteration_path: String(flags.iteration || record?.settings.iteration_path || ""),
+    token_env: String(flags["token-env"] || record?.settings.token_env || "AZDO_PAT"),
+    enabled: true,
+  });
+
+  let token = "";
+  if (flags.token === "-") token = fs.readFileSync(0, "utf8").trim();
+  else if (process.stdin.isTTY && process.stdout.isTTY) token = (await promptSecret(`PAT for ${validated.settings.org_url}`)).trim();
+  else token = String(process.env[validated.settings.token_env] || "").trim();
+  if (!token) {
+    throw new StateError(`No PAT supplied. Pipe one (… | atl intake connect azure --token -), run in a terminal for a hidden prompt, or set ${validated.settings.token_env}.`);
+  }
+  if (token.length > 4096 || /[\r\n]/.test(token)) throw new StateError("Enter a valid Azure PAT.");
+
+  // CLI credentials are always remembered: a session credential could not be
+  // handed to the (separate) server process even if one is running.
+  if (!(await dpapiSupported())) {
+    throw new StateError('Windows credential protection (DPAPI) is unavailable here, so the CLI cannot persist the PAT. Reconnect in the ATL UI (Issue sources → Re-authenticate) without "Remember securely" to keep it for that server session.');
+  }
+
+  if (!record) {
+    record = { id: crypto.randomUUID(), ...validated, status: "unchecked", checked_at: null };
+    store.connections.push(record);
+    store.defaults.azure ||= record.id;
+  } else {
+    Object.assign(record, validated);
+  }
+  record.status = "unchecked";
+  record.checked_at = null;
+  // Write the vaults before the store marks credential_ref, so a failed
+  // DPAPI save can never leave the store pointing at a missing credential.
+  await saveAzureConnection(record.settings, token, { dir: path.join(ROOT, ".trust", "manager", "credentials", record.id) });
+  await saveAzureConnection(record.settings, token);
+  record.credential_ref = "os-protected";
+  saveConnections(ROOT, store, store.revision);
+
+  cfg.intake ||= {};
+  cfg.intake.azure = {
+    ...(cfg.intake.azure || {}),
+    org_url: record.settings.org_url,
+    project: record.settings.project,
+    iteration_path: record.settings.iteration_path || "",
+    token_env: record.settings.token_env,
+    enabled: true,
+  };
+  saveConfig(cfg);
+
+  console.log(`Azure connection "${record.name}" saved for ${record.settings.org_url} · ${record.settings.project}.`);
+  console.log("  Credential encrypted for this Windows account (connection store + legacy vault).");
+  console.log("  A running ATL server picks the new credential up automatically within a few seconds.");
+  console.log("Verify: atl intake --source azure   ·   ATL UI → Issue sources → Check access");
+}
 
 async function promptSecret(prompt) {
   const input = process.stdin;
@@ -1107,14 +1210,23 @@ async function dispatch() {
 
     case "intake": {
       const sub = pos[0];
-      if (sub === "status" || sub === "enable" || sub === "disable") {
+      if (sub === "status" || sub === "enable" || sub === "disable" || sub === "connect") {
         await intakeConfigCommand(sub);
         return;
       }
       const cfg = loadConfig();
       const state = loadState(ROOT);
       const which = flags.source || "all";
-      const batches = await runIntake({ ...cfg, inbox_dir: path.resolve(ROOT, cfg.inbox_dir) }, which);
+      let batches;
+      try {
+        batches = await runIntake({ ...cfg, inbox_dir: path.resolve(ROOT, cfg.inbox_dir) }, which);
+      } catch (error) {
+        if (/401|403|unauthori|forbidden|credential|token/i.test(String(error?.message))) {
+          // A rejected credential gets the fix path inline, not a bare error.
+          throw new StateError(`${error.message}\n  The saved credential was rejected. Fix it with:\n    atl intake connect azure --token -   (pipe a PAT, or hidden prompt in a terminal)\n    ATL UI → Issue sources → connection card → Re-authenticate`);
+        }
+        throw error;
+      }
       let added = 0, skipped = 0;
       for (const b of batches) {
         const result = importCandidates(ROOT, state, b.tasks, { cfg });

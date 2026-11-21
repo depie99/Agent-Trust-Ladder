@@ -34,4 +34,19 @@ Imports keep the connection ID and name, remote issue identity, and revision. De
 
 Check the card's access status, enabled state, URL, project/repository, token availability, and network access. Reconnect a session token after server restart. Jira intake does not imply Jira writeback; plan publishing currently targets GitHub and Azure.
 
-Implementation: `runtime/lib/issue-connections.mjs`, `intake.mjs`, `composer.mjs`, and source routes in `control-plane-server.mjs`. Run `node verification/issue_connections_test.mjs` and `node verification/issue_source_ui_journey_test.mjs` from the clone.
+### When a credential is rejected (HTTP 401/403)
+
+A rejected or missing credential never dead-ends in a bare retry — every auth failure offers **Re-authenticate**, which opens the saved connection's credential entry:
+
+- **Issue sources**: a `Needs authentication` card's primary action is **Re-authenticate**; the kebab menu keeps **Replace PAT** / **Replace token**.
+- **My Tasks setup**: if the project list fails with 401/403 or no credential, the dialog shows what went wrong and a **Re-authenticate** button. Saving returns you to setup with the project list reloading.
+- **My Tasks board**: when checks pause with `the Azure credential was rejected`, the banner carries **Re-authenticate** and **Check now**.
+- **CLI**: `atl intake status` lists every saved connection with its credential state and prints the fix line; `atl intake` pulls print `atl intake connect azure --token -` when the PAT was rejected. Saving a credential for the default Azure connection — from the UI or the CLI — also heals the legacy surface My Tasks and pulls read, so one reconnect revives every consumer.
+
+![Setup dialog before: a 401 with only a Retry button](diagrams/my-tasks-auth-recovery.before.setup-401.png)
+
+![Setup dialog after: classified guidance with Re-authenticate](diagrams/my-tasks-auth-recovery.after.setup-401.png)
+
+![Re-authenticate opens the saved connection's credential entry](diagrams/my-tasks-auth-recovery.after.credential-modal.png)
+
+Implementation: `runtime/lib/issue-connections.mjs`, `intake.mjs`, `composer.mjs`, and source routes in `control-plane-server.mjs`. Run `node verification/issue_connections_test.mjs`, `node verification/issue_source_ui_journey_test.mjs`, and `node verification/intake_connect_cli_test.mjs` from the clone.
