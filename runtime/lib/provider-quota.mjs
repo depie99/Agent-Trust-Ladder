@@ -18,7 +18,9 @@ export function quotaStatus(root,provider,model,{now=Date.now()}={}) {
   const failure=quotaFailures(root).find(item=>item.provider===provider&&(!item.model||item.model===model)&&Date.parse(item.retryAt)>now);
   if(failure)return {status:'exhausted',source:'provider-error',retryAt:failure.retryAt,reason:failure.reason};
   if(root) {
-    const sample=loadUsage(root).snapshots.filter(row=>row.provider===provider&&(!row.model||row.model===model)&&row.confidence==='verified'&&row.source==='provider-adapter'&&typeof row.remaining==='number'&&now-Date.parse(row.captured_at)<3600000&&now>=Date.parse(row.captured_at)).at(-1);
+    let snapshots=[];
+    try { snapshots=loadUsage(root).snapshots; } catch { return {status:'unknown',source:'usage-unavailable',reason:'usage history could not be read; quota is unknown'}; }
+    const sample=snapshots.filter(row=>row.provider===provider&&(!row.model||row.model===model)&&row.confidence==='verified'&&row.source==='provider-adapter'&&typeof row.remaining==='number'&&now-Date.parse(row.captured_at)<3600000&&now>=Date.parse(row.captured_at)).at(-1);
     if(sample&&!(sample.reset_at&&Date.parse(sample.reset_at)<=now))return {status:sample.remaining>0?'available':'exhausted',source:'verified-provider-adapter',retryAt:sample.reset_at||null};
   }
   return {status:'unknown',source:'not-exposed'};

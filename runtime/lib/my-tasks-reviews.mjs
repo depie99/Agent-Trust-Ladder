@@ -8,6 +8,8 @@ import { supervisorSnapshot } from './supervisor.mjs';
 import { loadState } from './state.mjs';
 
 export const REVIEW_VERSION = 'my-tasks-review-2';
+const MAX_REVIEW_ENTRIES = 1000;
+const MAX_REVIEW_JOBS = 1000;
 const hash = value => crypto.createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 const language = value => value === 'fa-IR' ? 'fa-IR' : 'en-US';
 const home = root => path.join(root, '.trust', 'manager', 'my-tasks');
@@ -153,6 +155,14 @@ export function createMyTasksReviews(root, { invoke, getItems = null, registry =
       data.jobs.push({ id, key: context.item.key, locale: data.locale, fingerprint: context.fingerprint, attempts: 0, due: now(), priority: { inprogress: 0, proposed: 1, complete: 2 }[context.item.state_category] ?? 1, item_priority: context.item.priority ?? 99, changed: context.item.changed_at || '' });
       data.entries[id] = { ...old, key: context.item.key, locale: data.locale, fingerprint: context.fingerprint, status: old?.result ? 'stale' : 'queued', error: null };
     }
+    for (const [id, entry] of Object.entries(data.entries)) if (!keys.has(entry?.key)) delete data.entries[id];
+    const currentSlots = new Set(records.map(item => slot(item.key, data.locale)));
+    const rankedEntries = Object.entries(data.entries).sort(([idA, a], [idB, b]) =>
+      Number(currentSlots.has(idB)) - Number(currentSlots.has(idA))
+      || Number(b?.status === 'running' || b?.status === 'queued') - Number(a?.status === 'running' || a?.status === 'queued')
+      || String(b?.generated_at || '').localeCompare(String(a?.generated_at || '')));
+    data.entries = Object.fromEntries(rankedEntries.slice(0, MAX_REVIEW_ENTRIES));
+    data.jobs = data.jobs.slice(0, MAX_REVIEW_JOBS);
     if (retryKey || resume) data.paused = null;
     data.jobs.sort((a, b) => a.priority - b.priority || a.item_priority - b.item_priority || b.changed.localeCompare(a.changed));
     write(file, data);
@@ -222,7 +232,7 @@ export function createMyTasksReviews(root, { invoke, getItems = null, registry =
     } finally {
       active = false;
       try { fs.rmSync(lockFile, { force: true }); } catch { /* host shutdown */ }
-      if (!stopped) { const next = setTimeout(() => { void tick(); }, 0); next.unref?.(); }
+      if (!stopped) { const next = setTimeout(() => { void tick().catch(() => {}); }, 0); next.unref?.(); }
     }
   }
   return {
@@ -236,7 +246,7 @@ export function createMyTasksReviews(root, { invoke, getItems = null, registry =
       const overrides = Object.fromEntries(Object.entries(value.items).map(([key, list]) => [key, validateIds(list)]));
       write(bindingFile, { version: 1, rules, items: overrides }); ensure(); return bindings();
     },
-    start() { if (timer) return; stopped = false; ensure(); timer = setInterval(() => { try { ensure(); void tick(); } catch { /* next interval retries disk/context reads */ } }, intervalMs); timer.unref?.(); void tick(); },
+    start() { if (timer) return; stopped = false; try { ensure(); } catch { /* next interval retries disk/context reads */ } timer = setInterval(() => { try { ensure(); void tick().catch(() => {}); } catch { /* next interval retries disk/context reads */ } }, intervalMs); timer.unref?.(); void tick().catch(() => {}); },
     stop() { stopped = true; clearInterval(timer); timer = null; },
   };
 }

@@ -1,4 +1,5 @@
 import { App, PostMessageTransport } from '@modelcontextprotocol/ext-apps';
+import { createSnapshotPoller } from './snapshot-transport.mjs';
 
 const app = new App({ name: 'agent-trust-ladder', version: '1.0.0' }, { availableDisplayModes: ['inline', 'fullscreen'] });
 const status = document.querySelector('#atl-status');
@@ -10,21 +11,8 @@ const browserFetch = window.fetch.bind(window);
 // Keep the canonical client's live snapshot stream on the same MCP transport.
 class PanelEventSource extends EventTarget {
   readyState = 0;
-  constructor(url) { super(); this.url = url; this.poll(); }
-  close() { this.readyState = 2; clearTimeout(this.timer); }
-  async poll() {
-    try {
-      const response = await panelFetch(this.url);
-      if (!response.ok) throw new Error(`Snapshot stream failed (${response.status})`);
-      if (this.readyState === 2) return;
-      this.readyState = 1;
-      for (const block of (await response.text()).split('\n\n')) {
-        const lines = block.split('\n'), data = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
-        if (data) this.dispatchEvent(new MessageEvent(lines.find(line => line.startsWith('event:'))?.slice(6).trim() || 'message', { data }));
-      }
-      this.timer = setTimeout(() => this.poll(), 2000);
-    } catch (error) { if (this.readyState !== 2) { this.readyState = 0; this.onerror?.(error); } }
-  }
+  constructor(url) { super(); this.cursor = Number(new URL(url, `${origin}/`).searchParams.get('cursor') || 0); this.controller = new AbortController(); this.poller = createSnapshotPoller({ cursor: this.cursor, signal: this.controller.signal, request: async cursor => { const response = await panelFetch(`/api/snapshot?cursor=${cursor}`); if (!response.ok) throw new Error(`Snapshot poll failed (${response.status})`); return response.json(); }, onSnapshot: payload => { this.readyState = 1; this.dispatchEvent(new MessageEvent('snapshot', { data: JSON.stringify({ cursor: payload.cursor, snapshot: payload }) })); }, onUnchanged: () => { this.readyState = 1; this.dispatchEvent(new MessageEvent('unchanged', { data: '{}' })); }, onError: error => { this.readyState = 0; this.onerror?.(error); } }); }
+  close() { this.readyState = 2; this.poller.stop(); this.controller.abort(); }
 }
 async function panelFetch(input, init) {
   const request = new Request(new URL(typeof input === 'string' ? input : input.url, `${origin}/`), init);
@@ -38,9 +26,13 @@ async function connectPanel() { try {
   const applyTheme = () => {
     const context = app.getHostContext() || {};
     const light = context.theme === 'light';
+    const hostLocale = context.locale || context.language || 'en-US';
     // Drive the Control Plane's own theming mechanism (html.light), not just a data attribute.
     document.documentElement.dataset.theme = light ? 'light' : 'dark';
     document.documentElement.classList.toggle('light', light);
+    document.documentElement.lang = hostLocale;
+    document.documentElement.dataset.atlHostLocale = /^fa(?:-|$)/i.test(hostLocale) ? 'fa-IR' : 'en-US';
+    window.dispatchEvent(new CustomEvent('atl-host-locale', { detail: document.documentElement.dataset.atlHostLocale }));
     if (context.displayMode) document.documentElement.dataset.atlDisplay = context.displayMode;
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', light ? '#f2f5f9' : '#0b1018');

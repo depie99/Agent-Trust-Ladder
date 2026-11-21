@@ -142,13 +142,15 @@ await assert.rejects(() => runPlanProvider(root, "Add multi-queue overnight runs
 
 // ---------- provider registry contract: configured-only picker, refuse before spend
 const fakeRegistry = { providers: {} };
+for (const name of ["claude", "codex"]) fs.writeFileSync(path.join(root, `${name}.cmd`), "@echo off\n", "utf8");
+const providerEnv = { ...process.env, PATH: `${root}${path.delimiter}${process.env.PATH || ""}` };
 assert.throws(() => requireReadyProvider("zai", { registry: fakeRegistry }), /not configured/, "an unknown provider refuses before any model work");
 fakeRegistry.providers.zai = { id: "zai", label: "Z.ai", worker: "claude", base_url: "https://api.z.ai/api/anthropic", api_key: "sk-test", model: "glm-4.6" };
-const ready = requireReadyProvider("zai", { registry: fakeRegistry });
+const ready = requireReadyProvider("zai", { registry: fakeRegistry, env: providerEnv });
 assert.equal(ready.withModel("glm-4.5-air").model, "glm-4.5-air", "a model override is applied for the call");
 fakeRegistry.providers.broken = { id: "broken", label: "Broken", worker: "claude", base_url: "", api_key: "" };
-assert.throws(() => requireReadyProvider("broken", { registry: fakeRegistry }), /not ready/, "an unconfigured provider refuses with its problems");
-const choices = providerChoices(fakeRegistry);
+assert.throws(() => requireReadyProvider("broken", { registry: fakeRegistry, env: providerEnv }), /not ready/, "an unconfigured provider refuses with its problems");
+const choices = providerChoices(fakeRegistry, { env: providerEnv });
 assert.ok(choices.every((choice) => !("api_key" in choice)), "the picker never exposes API keys");
 assert.equal(choices.find((choice) => choice.id === "broken").ready, false, "an unready provider stays visible but marked");
 

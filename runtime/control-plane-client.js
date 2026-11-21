@@ -6,9 +6,15 @@
   // session itself is an HttpOnly cookie set when the live shell is served.
   const atlFetch = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
-    const method = String(init.method || "GET").toUpperCase();
-    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-      const headers = new Headers(init.headers || {});
+    const method = String(init.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
+    let apiRequest = false;
+    try {
+      const target = new URL(input instanceof Request ? input.url : String(input), location.href);
+      apiRequest = target.origin === location.origin && target.pathname.startsWith("/api/");
+    } catch { /* let fetch report malformed input */ }
+    if (apiRequest) {
+      const headers = new Headers(input instanceof Request ? input.headers : undefined);
+      new Headers(init.headers || {}).forEach((value, key) => headers.set(key, value));
       headers.set("x-atl-csrf", document.querySelector('meta[name="atl-csrf"]')?.content || "");
       init = { ...init, credentials: "same-origin", headers };
     }
@@ -140,6 +146,8 @@
   // Plugin presentation (ZCode native panel): plugins/panel-entry.mjs marks the
   // document before this client boots. The default browser page stays unmarked.
   const PLUGIN = document.documentElement.dataset.atlContext === "plugin";
+  const projectStorageScope = document.documentElement.dataset.atlProjectKey || "standalone";
+  const scopedStorageKey = key => `${key}:${projectStorageScope}`;
   const PLUGIN_NAV = [["tasks", "☷", "Tasks"], ["attention", "!", "Attention"], ["studio", "◇", "Plan Studio"], ["more", "⋯", "More"]];
   // Inline SVG line icons (24-grid, stroke 1.6) replacing the unicode nav
   // glyphs. The `routes`/`PLUGIN_NAV` glyph fields stay as fallbacks so the
@@ -196,12 +204,12 @@
   const workspaceViews = ["activity", "changes", "process"];
   const workspaceRestore = (() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("atl-cp-workspace") || "null");
+      const saved = JSON.parse(localStorage.getItem(scopedStorageKey("atl-cp-workspace")) || "null");
       if (saved && typeof saved === "object") {
         if (typeof saved.task === "string") workspaceTaskId = saved.task;
         if (workspaceViews.includes(saved.view)) workspaceView = saved.view;
       }
-      const ui = JSON.parse(sessionStorage.getItem("atl-cp-workspace-ui") || "null");
+      const ui = JSON.parse(sessionStorage.getItem(scopedStorageKey("atl-cp-workspace-ui")) || "null");
       if (ui && typeof ui === "object") {
         for (const [key, open] of Object.entries(ui.open || {})) workspaceOpen.set(key, Boolean(open));
         workspaceNarrowDetail = Boolean(ui.detail);
@@ -215,9 +223,9 @@
     try { if (workspaceTaskId && sessionStorage.getItem("atl-cp-page") === "task" && window.matchMedia("(max-width: 959px)").matches) page = "task"; } catch { /* storage may be unavailable */ }
   }
   const workspacePersist = () => {
-    try { localStorage.setItem("atl-cp-workspace", JSON.stringify({ task: workspaceTaskId, view: workspaceView })); } catch { /* private browsing */ }
+    try { localStorage.setItem(scopedStorageKey("atl-cp-workspace"), JSON.stringify({ task: workspaceTaskId, view: workspaceView })); } catch { /* private browsing */ }
     try {
-      sessionStorage.setItem("atl-cp-workspace-ui", JSON.stringify({
+      sessionStorage.setItem(scopedStorageKey("atl-cp-workspace-ui"), JSON.stringify({
         open: Object.fromEntries(workspaceOpen),
         detail: workspaceNarrowDetail,
       }));
@@ -273,7 +281,7 @@ let queueFilterTouched = false;
   // transcript should keep following the latest entry.
   let studioMobilePane = "conversation";
   let studioPlanTab = "overview";
-  let studioSplit = (() => { try { const value = Number(localStorage.getItem("atl-cp-studio-split")); return value >= 24 && value <= 72 ? value : 40; } catch { return 40; } })();
+  let studioSplit = (() => { try { const value = Number(localStorage.getItem(scopedStorageKey("atl-cp-studio-split"))); return value >= 24 && value <= 72 ? value : 40; } catch { return 40; } })();
   let studioSplitDragging = false;
   let studioComposerTarget = null;
   let studioTranscriptStick = true;
@@ -286,7 +294,8 @@ let queueFilterTouched = false;
   let studioOverviewQuestion = null;
   const studioOverviewReveals = { evidence: false, assumptions: false, request: false };
   let settingsSection = "resources";
-  let locale = (() => { try { return localStorage.getItem("atl-cp-lang") || localStorage.getItem("atl-locale") || "en-US"; } catch { return "en-US"; } })();
+  let locale = (() => { try { return PLUGIN ? (document.documentElement.dataset.atlHostLocale || (/^fa/i.test(document.documentElement.lang) ? "fa-IR" : "en-US")) : (localStorage.getItem(scopedStorageKey("atl-cp-lang")) || "en-US"); } catch { return "en-US"; } })();
+  window.addEventListener("atl-host-locale", event => { if (!PLUGIN) return; const next = event.detail === "fa-IR" ? "fa-IR" : "en-US"; if (locale !== next) { locale = next; render(); } });
   const selectedQueues = new Set();
   const selectedTasks = new Set();
   const selectedProjects = new Set();
@@ -345,18 +354,21 @@ let queueFilterTouched = false;
   let azureSprintsNotice = "";
   // Workflow runs (Batches page): the selected run is presentation state and
   // survives reloads; its step tree loads from /api/batch on selection.
-  let workflowSelected = (() => { try { return sessionStorage.getItem("atl-cp-batch") || null; } catch { return null; } })();
+  let workflowSelected = (() => { try { return sessionStorage.getItem(scopedStorageKey("atl-cp-batch")) || null; } catch { return null; } })();
   let workflowDetail = null;
+  let workflowRequest = 0;
   async function loadWorkflowDetail(id) {
+    const request = ++workflowRequest;
     workflowDetail = { loading: true };
     render();
     try {
       const response = await fetch(`/api/batch?id=${encodeURIComponent(id)}`, { cache: "no-store" });
       const result = await response.json();
       if (result.error) throw new Error(result.error);
+      if (request !== workflowRequest || workflowSelected !== id) return;
       workflowDetail = { summary: result.summary || null };
-    } catch (error) { workflowDetail = { error: error.message }; }
-    render();
+    } catch (error) { if (request !== workflowRequest || workflowSelected !== id) return; workflowDetail = { error: error.message }; }
+    if (request === workflowRequest && workflowSelected === id) render();
   }
   const sourceImportRepos = new Set();
   let accessSettings = null;
@@ -547,7 +559,7 @@ let queueFilterTouched = false;
   }
 
   function savedPlansPreview() {
-    return studioSavedDrafts.length ? `<details class="space" data-saved-plans ${studioSavedPlansOpen ? "open" : ""}><summary>Saved plans and responses (${studioSavedDrafts.length})</summary>${studioSavedDrafts.map((draft) => `<div class="actionrow">${btn(`${draft.stage === "repair" ? "Repair response" : "Open plan"}: ${draft.title}`, `plan-load:${draft.id}`, "sm")}<button type="button" class="btn sm danger plan-delete-icon" data-action="plan-archive-confirm:${escapeHtml(draft.id)}" aria-label="Delete draft ${escapeHtml(draft.title)}" title="Delete draft">✕</button></div>`).join("")}</details>` : "";
+    return studioSavedDrafts.length ? `<details class="space" data-saved-plans ${studioSavedPlansOpen ? "open" : ""}><summary>Saved plans and responses (${studioSavedDrafts.length})</summary>${studioSavedDrafts.map((draft) => `<div class="actionrow">${btn(`${draft.stage === "repair" ? "Repair response" : "Open plan"}: ${escapeHtml(draft.title)}`, `plan-load:${escapeHtml(draft.id)}`, "sm")}<button type="button" class="btn sm danger plan-delete-icon" data-action="plan-archive-confirm:${escapeHtml(draft.id)}" aria-label="Delete draft ${escapeHtml(draft.title)}" title="Delete draft">✕</button></div>`).join("")}</details>` : "";
   }
 
   async function loadNavigation() {
@@ -1096,7 +1108,7 @@ ${feedbackLine}
     if (!queue || !(queue.items || []).some((item) => (item.id || item.taskId) === task.id)) return null;
     return "queued";
   }
-  const taskRow = (task, selectedId = null) => { const outcome = taskOutcome(task); const isRunning = liveRunState(task) === "running"; const isBlocked = task.rawStatus === "blocked" || task.rawStatus === "escalated"; const isDone = task.rawStatus === "done"; const rowState = (isBlocked ? "is-blocked" : isRunning ? "is-running" : isDone ? "is-done" : "") + (selectedId === task.id ? " is-selected" : ""); const priorityTone = { Urgent: "red", High: "amber", Normal: "blue", Low: "" }[task.priority] || ""; const summaryText = task.lastCheckpoint?.note || task.desc || task.stage || statusLabel(task.rawStatus); return `<div class="tableitem task-row ${rowState}" data-task="${escapeHtml(task.id)}"><div class="task-main"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><button type="button" class="task-main-copy" data-action="task-detail:${escapeHtml(task.id)}" aria-label="Open task ${escapeHtml(task.id)}: ${escapeHtml(task.title)}"><div class="task-topline"><span class="task-id-badge">${isRunning ? '<span class="running-mark" aria-label="running"></span>' : isDone ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.id)}</span><span class="pill">${escapeHtml(task.queue)}</span>${task.repository_name ? `<span class="pill ghost task-repo-pill" title="Repository">⌂ ${escapeHtml(task.repository_name)}</span>` : ""}${task.priority && task.priority !== "Normal" ? `<span class="pill ${priorityTone}">${escapeHtml(task.priority)}</span>` : ""}${task.plan_review_required ? '<span class="pill amber">Plan review</span>' : ""}</div><b class="task-title-text truncate" dir="auto">${escapeHtml(task.title)}</b>${isBlocked && task.block ? `<div class="task-inline-blocker" title="${escapeHtml(task.block)}"><b>◈</b><span class="truncate">${escapeHtml(task.block)}</span></div>` : `<div class="task-subcopy truncate" dir="auto">${escapeHtml(summaryText)}</div>`}</button></div><div class="task-mid">${taskProgressMarkup(task)}${executionTokenBadge(task.executionReport)}<div class="task-progress-meta"><span>${isDone ? `Accomplished · ${outcome.passed}/${outcome.total} checks` : `Stage: ${escapeHtml(statusLabel(task.rawStatus))}`}</span><span>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</span></div></div><div class="task-controls"><div class="task-control-meta">${badge(task.status)}<span class="task-agent-chip" title="Assigned to ${escapeHtml(task.agent)}"><span class="task-agent-avatar">${escapeHtml((task.agent || "U")[0].toUpperCase())}</span><span class="task-owner-name">${escapeHtml(task.agent)}</span></span></div><div class="task-actions">${taskRowActions(task)}</div></div></div>`; };
+  const taskRow = (task, selectedId = null) => { const outcome = taskOutcome(task); const isRunning = liveRunState(task) === "running"; const isBlocked = task.rawStatus === "blocked" || task.rawStatus === "escalated"; const isDone = task.rawStatus === "done"; const rowState = (isBlocked ? "is-blocked" : isRunning ? "is-running" : isDone ? "is-done" : "") + (selectedId === task.id ? " is-selected" : ""); const priorityTone = { Urgent: "red", High: "amber", Normal: "blue", Low: "" }[task.priority] || ""; const summaryText = task.lastCheckpoint?.note || task.desc || task.stage || statusLabel(task.rawStatus); return `<div class="tableitem task-row ${rowState}" data-task="${escapeHtml(task.id)}"><div class="task-main"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><button type="button" class="task-main-copy" data-action="task-detail:${escapeHtml(task.id)}" aria-label="Open task ${escapeHtml(task.id)}: ${escapeHtml(task.title)}"><div class="task-topline"><span class="task-id-badge">${isRunning ? '<span class="running-mark" aria-label="running"></span>' : isDone ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.id)}</span><span class="pill">${escapeHtml(task.queue)}</span>${task.repository_name ? `<span class="pill ghost task-repo-pill" title="Repository">⌂ ${escapeHtml(task.repository_name)}</span>` : ""}${task.priority && task.priority !== "Normal" ? `<span class="pill ${priorityTone}">${escapeHtml(task.priority)}</span>` : ""}${task.plan_review_required ? '<span class="pill amber">Plan review</span>' : ""}</div><b class="task-title-text truncate" data-no-translate dir="auto">${escapeHtml(task.title)}</b>${isBlocked && task.block ? `<div class="task-inline-blocker" title="${escapeHtml(task.block)}"><b>◈</b><span class="truncate">${escapeHtml(task.block)}</span></div>` : `<div class="task-subcopy truncate" dir="auto">${escapeHtml(summaryText)}</div>`}</button></div><div class="task-mid">${taskProgressMarkup(task)}${executionTokenBadge(task.executionReport)}<div class="task-progress-meta"><span>${isDone ? `Accomplished · ${outcome.passed}/${outcome.total} checks` : `Stage: ${escapeHtml(statusLabel(task.rawStatus))}`}</span><span>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</span></div></div><div class="task-controls"><div class="task-control-meta">${badge(task.status)}<span class="task-agent-chip" title="Assigned to ${escapeHtml(task.agent)}"><span class="task-agent-avatar">${escapeHtml((task.agent || "U")[0].toUpperCase())}</span><span class="task-owner-name">${escapeHtml(task.agent)}</span></span></div><div class="task-actions">${taskRowActions(task)}</div></div></div>`; };
   const eventRow = (event) => `<div class="event"><span class="muted tiny" style="white-space:nowrap">${escapeHtml(event[0])}</span><div>${badge(event[1])} <span class="muted">${escapeHtml(event[2])}</span><div style="margin-top:5px">${escapeHtml(event[3])}</div></div></div>`;
   const stat = (name, value, detail) => `<div class="panel stat"><small>${name}</small><strong>${value}</strong><div class="muted tiny">${detail}</div></div>`;
 
@@ -1252,7 +1264,17 @@ ${feedbackLine}
   function setupProjectsHtml() {
     const listed = myTasksSetupProjects;
     if (!listed) return `<div class="bar" style="margin-top:10px">${btn("Load Azure project list", "mt-projects", "sm")}</div>`;
-    if (listed.error) return `<div class="notice" style="margin-top:10px"><b class="amber">Could not list projects</b><p class="sub">${escapeHtml(listed.error)}</p></div><div class="bar">${btn("Retry", "mt-projects", "sm")}</div>`;
+    if (listed.error) {
+      const authFailed = /\b(?:401|unauthori[sz]ed)\b/i.test(listed.error);
+      const connection = myTasksSettingsData?.connection;
+      const reconnect = authFailed && connection?.id
+        ? btn("Reconnect Azure", `mt-reconnect:${connection.id}`, "primary")
+        : "";
+      const guidance = authFailed
+        ? "Your Azure credential was rejected. Reconnect with a PAT that has Work Items: Read access, then retry."
+        : "Check the connection and try again.";
+      return `<div class="notice" style="margin-top:10px"><b class="amber">Could not list projects</b><p class="sub">${escapeHtml(listed.error)}</p><p class="muted tiny">${guidance}</p></div><div class="bar">${reconnect}${btn("Retry", "mt-projects", "sm")}</div>`;
+    }
     if (!listed.projects?.length) return '<p class="muted tiny">No accessible projects were returned for this account.</p>';
     if (!myTasksSettingsData) return '<p class="muted tiny">Saved settings are still loading - reopen this dialog if the list stays empty.</p>';
     const selected = [...new Set([...(myTasksSettingsData?.settings?.projects || []), ...myTasksSetupSelected])];
@@ -2124,12 +2146,12 @@ operations: () => {
   };
   panels.more = () => head("MORE", "More", "Screens grouped by workflow: plan and track daily work, bring work in, supervise runs, then audit and configure.")
     + `<div class="panel pad plugin-more-list">` + PLUGIN_MORE_GROUPS.map(([label, links]) => `<div class="plugin-more-group"><div class="plugin-more-group-label">${label}</div><div class="plugin-more-grid">${links.map(([id, label2, description]) => `<button class="lined plugin-more-link" data-page="${id}"><b>${label2}</b><span class="muted tiny">${description}</span></button>`).join("")}</div></div>`).join("")
-    + `<div class="plugin-more-grid"><button class="lined plugin-more-link" data-action="cli"><b>CLI console</b><span class="muted tiny">Run ATL commands directly</span></button></div></div>`;
+    + (PLUGIN ? "" : `<div class="plugin-more-grid"><button class="lined plugin-more-link" data-action="cli"><b>CLI console</b><span class="muted tiny">Run ATL commands directly</span></button></div>`) + `</div>`;
   panels.task = () => {
     const task = pluginTaskId ? derived().tasks.find((item) => item.id === pluginTaskId) : null;
     if (!task) return head("WORKSPACE / TASK", "Task details", "This task is no longer in the snapshot.")
       + `<div class="pad">${btn("← Back to tasks", "plugin-back")}</div>`;
-    return head("WORKSPACE / TASK", task.id, task.title, btn("← Back", "plugin-back") + btn("Ask ATL", `assistant-open:${task.id}`, "primary"))
+    return head("WORKSPACE / TASK", escapeHtml(task.id), `<span data-no-translate dir="auto">${escapeHtml(task.title)}</span>`, btn("← Back", "plugin-back") + btn("Ask ATL", `assistant-open:${escapeHtml(task.id)}`, "primary"))
       + `<div class="task-detail-screen">${taskWorkspaceBody(task, pluginDetailOpen)}</div>`;
   };
 
@@ -2308,7 +2330,10 @@ operations: () => {
     };
     rememberScroll(content, "content");
     try { sessionStorage.setItem("atl-cp-page", page); } catch { /* storage may be unavailable */ }
-    syncRunSnapshot(); if (PLUGIN) ensurePluginTopbar(); nav(); renderProviderStatus(); renderConnectionIndicator();
+    syncRunSnapshot();
+    const noticesButton = $("#noticesBtn"), unreadCount = Math.max(0, Number(snapshot.notifications?.unread || 0));
+    if (noticesButton) { noticesButton.innerHTML = unreadCount ? `◈ <span class="amber">${unreadCount}</span>` : "◈"; noticesButton.setAttribute("aria-label", `${unreadCount} unread notifications`); }
+    if (PLUGIN) ensurePluginTopbar(); nav(); renderProviderStatus(); renderConnectionIndicator();
     if (!(page === "studio" && document.activeElement?.id === "planRepairResponse")) {
       content.innerHTML = panels[page]?.() || panels.overview();
       const freshWorkspace = workspaceHost();
@@ -2416,7 +2441,7 @@ operations: () => {
   function showModal(title, body, actions = "", dialogClass = "") {
     if (!dialogOpen) modalReturnFocus = document.activeElement;
     dialogOpen = true;
-    $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog ${escapeHtml(dialogClass)}" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1"><div class="dialoghead"><h2 id="modalTitle">${title}</h2><button class="btn ghost dialog-close" type="button" data-action="close" aria-label="Close dialog">✕</button></div><div class="dialogbody">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`;
+    $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog ${escapeHtml(dialogClass)}" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1"><div class="dialoghead"><h2 id="modalTitle">${escapeHtml(title)}</h2><button class="btn ghost dialog-close" type="button" data-action="close" aria-label="Close dialog">✕</button></div><div class="dialogbody">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`;
     const dialog = $("#modal .dialog");
     const first = dialog.querySelector(".dialogbody input:not([disabled]), .dialogbody textarea:not([disabled]), .dialogbody select:not([disabled])");
     (first || dialog).focus({ preventScroll: true });
@@ -2526,7 +2551,9 @@ operations: () => {
         const loginUrl = worker.operation.url && /^https:\/\//i.test(worker.operation.url) ? `<a href="${escapeHtml(worker.operation.url)}" target="_blank" rel="noopener noreferrer">Open sign-in</a>` : "";
         connect = `<div class="notice" style="margin-top:9px;padding:9px"><b>${escapeHtml(worker.operation.message)}</b>${loginUrl ? `<p class="sub" style="margin-top:6px">${loginUrl}</p>` : ""}</div>`;
       } else if (!worker.installed) {
-        connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${escapeHtml(worker.label)} is not installed</b><p class="sub" style="margin:4px 0 8px">Install once for all projects.</p>${btn("Install", `pm-install-builtin:${escapeHtml(worker.id)}`, "sm primary")}</div>`;
+        connect = worker.id === "gapgpt"
+          ? `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${escapeHtml(worker.label)} is not installed</b><p class="sub" style="margin:4px 0 8px">No verified installer is available. Install from the provider's documented release process, then recheck.</p></div>`
+          : `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${escapeHtml(worker.label)} is not installed</b><p class="sub" style="margin:4px 0 8px">Install once for all projects.</p>${btn("Install", `pm-install-builtin:${escapeHtml(worker.id)}`, "sm primary")}</div>`;
       } else if (state.connected) {
         connect = `<p class="sub" style="margin-top:8px">${escapeHtml(worker.detail || "Connected via your subscription.")} Queue and task runs can use this CLI.</p>`;
       } else {
@@ -2586,7 +2613,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       // An unsubmitted draft survives panel reloads and harness tab switches via
       // session storage; it is restored whenever the blank form opens again.
       try {
-        const draft = JSON.parse(sessionStorage.getItem("atl-task-draft") || "null");
+        const draft = JSON.parse(sessionStorage.getItem(scopedStorageKey("atl-task-draft")) || "null");
         if (draft && typeof draft === "object") {
           if (draft.title) $("#fTitle").value = draft.title;
           if (draft.desc) $("#fDesc").value = draft.desc;
@@ -2594,7 +2621,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
           if (draft.priority) $("#fPriority").value = draft.priority;
         }
       } catch { /* corrupted draft is ignored */ }
-      const persistDraft = () => { try { sessionStorage.setItem("atl-task-draft", JSON.stringify({ title: $("#fTitle")?.value || "", desc: $("#fDesc")?.value || "", queue: $("#fQueue")?.value || "", priority: $("#fPriority")?.value || "" })); } catch { /* private browsing */ } };
+      const persistDraft = () => { try { sessionStorage.setItem(scopedStorageKey("atl-task-draft"), JSON.stringify({ title: $("#fTitle")?.value || "", desc: $("#fDesc")?.value || "", queue: $("#fQueue")?.value || "", priority: $("#fPriority")?.value || "" })); } catch { /* private browsing */ } };
       for (const field of ["fTitle", "fDesc", "fQueue", "fPriority"]) $("#" + field)?.addEventListener("input", persistDraft);
     }
     $("#fTitle")?.focus(); }
@@ -2914,7 +2941,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
             <button type="button" class="btn sm ghost task-workspace-back" data-action="workspace-back" aria-label="Back to task list">←</button>
             <div style="min-width:0">
               <div class="task-workspace-context"><span class="task-id-badge">${escapeHtml(task.id)}</span><span class="muted tiny">${task.repository_name ? `⌂ ${escapeHtml(task.repository_name)}` : "⌂ Repository not recorded"}${task.workspace ? ` · <code class="review-path" dir="ltr">${escapeHtml(task.workspace)}</code>` : ""}</span></div>
-              <h2 class="task-detail-title" dir="auto">${escapeHtml(task.title)}</h2>
+              <h2 class="task-detail-title" data-no-translate dir="auto">${escapeHtml(task.title)}</h2>
             </div>
           </div>
           ${runIndicator}
@@ -3053,7 +3080,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const progress = task.progressDetails || taskProgress(task);
     const checks = `<div class="progress-evidence">${progress.checks.map((item) => `<div class="row between"><span>${escapeHtml(item.check)}</span>${badge(item.result)}</div>`).join("")}${progress.reviewRequired ? `<div class="row between"><span>Required review</span>${badge(progress.reviewPassed ? "Approved" : "Pending")}</div>` : ""}<div class="row between"><span>Final completion</span>${badge(progress.finished ? "Done" : "Pending")}</div></div>`;
     const statusNote = task.rawStatus === "done" ? `<div class="notice"><b class="green">✓ Accomplished</b><p>${escapeHtml(outcome.summary)}</p></div>` : `<div class="notice"><b>${liveRunState(task) === "running" ? '<span class="running-mark"></span>Running now' : escapeHtml(task.status)}</b><p class="sub">${escapeHtml(task.stage)}</p></div>`;
-    const body = `<div class="task-inspector-layout"><div class="task-inspector-main"><div><div class="task-detail-meta">${badge(task.status)}${badge(task.priority)}<span class="pill">${escapeHtml(task.queue)}</span><span class="muted tiny">Packet rev #${escapeHtml(task.packet_revision || 1)}</span></div><h2 class="task-detail-title" dir="auto">${escapeHtml(task.title)}</h2></div>
+    const body = `<div class="task-inspector-layout"><div class="task-inspector-main"><div><div class="task-detail-meta">${badge(task.status)}${badge(task.priority)}<span class="pill">${escapeHtml(task.queue)}</span><span class="muted tiny">Packet rev #${escapeHtml(task.packet_revision || 1)}</span></div><h2 class="task-detail-title" data-no-translate dir="auto">${escapeHtml(task.title)}</h2></div>
       ${task.plan_review_required || task.block ? `<section aria-label="Attention required">${task.plan_review_required ? `<div class="notice"><b class="amber">Imported request · needs a plan</b><p>This is source material for planning. Create a plan, review it, then approve the executable tasks.</p>${btn('Create plan', `plan:${task.id}`, 'primary')}</div>` : ""}${task.block ? `<div class="notice" style="border-color:var(--red)"><div class="row between"><b class="red">◈ BLOCKER</b><span class="pill red">${escapeHtml(statusLabel(task.rawStatus))}</span></div><p dir="auto" style="margin:8px 0 10px">${escapeHtml(task.block)}</p><div class="bar">${btn("Unblock task", `unblock:${task.id}`, "sm primary")}${btn("Review recovery", `task-recovery:${task.id}`, "sm")}</div></div>` : ""}</section>` : ""}
       ${task.source && ['azure','github','jira'].includes(task.source.type) ? `<section class="task-sec-card" aria-label="Import provenance"><b>Imported from ${escapeHtml(task.source.type)} #${escapeHtml(task.source.remote_id)}</b><p>Revision ${escapeHtml(task.source.revision ?? 'unknown')} · ${escapeHtml(task.source.iteration || '')}</p><p>Imported: ${escapeHtml(task.imported_at || 'Not recorded by this older import')}</p>${/^https:\/\//i.test(task.source.url || '') ? `<a href="${escapeHtml(task.source.url)}" target="_blank" rel="noopener noreferrer">Open original work item</a>` : ''}<details${disclose("import")}${openAttr("import")}><summary>Original imported content</summary><p style="white-space:pre-wrap">${escapeHtml(task.intake_snapshot?.objective || task.desc || 'No description was returned. Refresh this item from Issue sources.')}</p><ul>${(task.intake_snapshot?.completion_checks || task.completion_checks).map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul></details></section>` : ''}
       <div><div class="task-sec-title"><span>Objective & specification</span></div><p class="task-detail-description" dir="auto">${escapeHtml(task.desc || "No objective recorded.")}</p></div>
@@ -3127,7 +3154,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const isDefault = queue.id === "default";
     popup(`${escapeHtml(queue.label)} / Queue actions`, `<p class="sub">${isDefault ? "Reset removes only membership from the default queue; it does not delete tasks." : "Administrative changes never start work."}</p>`, btn("Back", `queue-detail:${queue.id}`) + (queue.id === snapshot.queues?.active_queue ? "" : btn("Set active", `queue-use:${queue.id}`)) + btn(queue.status === "paused" ? "Resume queue" : "Pause queue", `queue-toggle:${queue.id}`) + btn(isDefault ? "Reset default queue" : "Clear queue", `queue-clear:${queue.id}`, "danger") + (isDefault ? "" : btn("Delete queue", `queue-delete:${queue.id}`, "danger")));
   }
-  function commandOptions(value = "") { return routes.map((route) => ["Go to " + route[2], "go:" + route[0]]).concat([["New task", "new"], ["Generate SDD/TDD plan", "go:studio"], ["Preview active queue", "run-preview"], ["Run active queue", "run-confirm"], ["Stop active run", "run-stop"], ["CLI console", "cli"], ["Refresh state", "refresh"]]).filter((item) => item[0].toLowerCase().includes(value.toLowerCase())).map((item) => `<button class="nav" data-action="${item[1]}">› ${item[0]}</button>`).join("") || '<p class="muted">No matching command</p>'; }
+  function commandOptions(value = "") { return routes.map((route) => ["Go to " + route[2], "go:" + route[0]]).concat([["New task", "new"], ["Generate SDD/TDD plan", "go:studio"], ["Preview active queue", "run-preview"], ["Run active queue", "run-confirm"], ["Stop active run", "run-stop"], ...(PLUGIN ? [] : [["CLI console", "cli"]]), ["Refresh state", "refresh"]]).filter((item) => item[0].toLowerCase().includes(value.toLowerCase())).map((item) => `<button class="nav" data-action="${item[1]}">› ${item[0]}</button>`).join("") || '<p class="muted">No matching command</p>'; }
   function palette() { popup('Command palette <span class="muted tiny">Ctrl K</span>', '<input class="input" id="paletteQ" placeholder="Find a page or action..."/><div id="paletteItems">' + commandOptions() + '</div>'); $("#paletteQ")?.focus(); }
   function cli() { popup("ATL CLI · live", `<div class="terminal">${escapeHtml(cliHistory.join("\n"))}</div><div class="row space"><span class="green">atl ›</span><input id="cliInput" class="input" style="flex:1" placeholder="help"></div>`, btn("Close", "close")); $("#cliInput")?.focus(); }
   async function runCommand(raw) {
@@ -3150,12 +3177,16 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (!response.ok || !result.ok) throw new Error(result.error || `command failed (${response.status})`);
     return result;
   }
+  let runRequest = 0;
   async function refreshRun(renderAfter = true) {
-    try { currentRun = await fetch("/api/run", { cache: "no-store" }).then((response) => response.json()); } catch { /* snapshot health reports connection loss */ }
+    const requestId = ++runRequest;
+    try { const value = await fetch("/api/run", { cache: "no-store" }).then((response) => response.json()); if (requestId === runRequest) currentRun = value; } catch { /* snapshot health reports connection loss */ }
     refreshTaskDetail();
     if (renderAfter && page === "queues") render();
   }
   let frameCursor = 0;
+  let snapshotRequest = 0;
+  let snapshotApplied = 0;
   let lastRefreshOk = 0;
   let shortcutOrder = [];   // presented sidebar order; digits follow it (#32)
   // While the user types or a dialog holds focus, full re-renders are
@@ -3191,15 +3222,24 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     // tiny response instead of a full snapshot re-download every cycle. Mutations
     // that bypass the state revision (config writes) pass forceFull so the
     // response cannot answer "unchanged" before the next server tick.
-    try { const response = await fetch(forceFull ? "/api/snapshot" : `/api/snapshot?cursor=${frameCursor}`, { cache: "no-store" }); if (!response.ok) throw new Error(`snapshot ${response.status}`); const payload = await response.json(); if (payload.unchanged && !forceFull) { lastRefreshOk = Date.now(); connected = true; renderConnectionIndicator(); syncOfflineActions(); return; } snapshot = payload; frameCursor = payload.cursor || 0; lastRefreshOk = Date.now(); connected = true; }
-    catch { connected = false; }
+    const requestId = ++snapshotRequest;
+    try { const response = await fetch(forceFull ? "/api/snapshot" : `/api/snapshot?cursor=${frameCursor}`, { cache: "no-store" }); if (!response.ok) throw new Error(`snapshot ${response.status}`); const payload = await response.json(); if (requestId < snapshotApplied) return; snapshotApplied = requestId; if (payload.unchanged && !forceFull) { lastRefreshOk = Date.now(); connected = true; renderConnectionIndicator(); syncOfflineActions(); return; } const cursor = Number(payload.cursor || 0); if (cursor >= frameCursor) { snapshot = payload; frameCursor = cursor; } lastRefreshOk = Date.now(); connected = true; }
+    catch { if (requestId < snapshotApplied) return; snapshotApplied = requestId; connected = false; }
     renderConnectionIndicator(); syncOfflineActions();
     refreshTaskDetail();
     const editing = dialogOpen || cardDraft || page === "sources" || document.activeElement?.matches("input, textarea, select");
     if (renderAfter && !editing) { discardPendingRender(); render(); }
     else if (renderAfter) queueSuppressedRender();
   }
-  function connectStream() { if (stream) stream.close(); stream = new EventSource(`/api/events?cursor=${streamCursor}`); stream.addEventListener("snapshot", (event) => { try { const payload = JSON.parse(event.data); streamCursor = payload.cursor || streamCursor; snapshot = payload.snapshot || snapshot; connected = true; lastRefreshOk = Date.now(); renderConnectionIndicator(); syncOfflineActions(); streamRetry = 1000; if (page !== "sources" && !dialogOpen && !cardDraft && !document.activeElement?.matches("input,textarea,select")) render(); } catch {} }); stream.addEventListener("unchanged", () => { const wasStale = !connected; connected = true; lastRefreshOk = Date.now(); renderConnectionIndicator(); syncOfflineActions(); streamRetry = 1000; if (wasStale && page !== "sources" && !dialogOpen && !cardDraft && !document.activeElement?.matches("input,textarea,select")) render(); }); stream.onerror = () => { connected = false; renderConnectionIndicator(); syncOfflineActions(); stream.close(); setTimeout(connectStream, streamRetry); streamRetry = Math.min(streamRetry * 2, 15000); if (page !== "sources") render(); }; }
+  async function pollSnapshot() {
+    if (document.hidden) { stream = null; return; }
+    await refresh(page !== "sources");
+    if (connected) { streamRetry = 1000; if (page !== "sources") await refreshRun(false); }
+    else streamRetry = Math.min(streamRetry * 2, 15000);
+    stream = setTimeout(pollSnapshot, connected ? 2000 : streamRetry);
+  }
+  function connectStream() { if (stream) clearTimeout(stream); if (!document.hidden) void pollSnapshot(); }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { if (stream) clearTimeout(stream); stream = null; } else connectStream(); });
   setInterval(() => { if (connected && lastRefreshOk && Date.now() - lastRefreshOk > 10000) { connected = false; renderConnectionIndicator(); syncOfflineActions(); if (page !== "sources") render(); } }, 1000);
   async function refreshProviderUsage() {
     usageNotice = "Refreshing configured provider telemetry…";
@@ -3208,7 +3248,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const response = await fetch("/api/usage/refresh", { method: "POST" });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || `usage refresh failed (${response.status})`);
-      if (result.snapshot) snapshot = result.snapshot;
+      if (result.snapshot && Number(result.snapshot.cursor || 0) >= frameCursor) { snapshot = result.snapshot; frameCursor = Number(result.snapshot.cursor || frameCursor); }
       connected = true;
       usageNotice = result.message || (result.refreshed?.length ? `Checked ${result.refreshed.length} configured provider${result.refreshed.length === 1 ? "" : "s"}.` : "No provider usage samples were returned.");
     } catch (error) { usageNotice = `Usage refresh failed: ${error.message}`; }
@@ -3397,7 +3437,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
   }
 
-  async function action(value) {
+  async function performAction(value) {
     if (value === "assistant-latest") { const pane = $("#assistantTranscript"); if (pane) { pane.dataset.followLatest = "true"; pane.scrollTop = pane.scrollHeight; $("#assistantLatest").hidden = true; } return; }
     if (value.startsWith("assistant-copy:")) {
       const key = value.slice(15);
@@ -3556,7 +3596,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
     if (value === "toggle-locale") {
       locale = locale === "fa-IR" ? "en-US" : "fa-IR";
-      try { localStorage.setItem("atl-cp-lang", locale); localStorage.removeItem("atl-locale"); } catch { /* private browsing */ }
+      try { localStorage.setItem(scopedStorageKey("atl-cp-lang"), locale); } catch { /* private browsing */ }
       try { await planApi('/api/my-tasks/reviews/ensure', { locale }); } catch { /* language switch still works if the review service is unavailable */ }
       window.location.reload();
       return;
@@ -3582,7 +3622,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value.startsWith("workflow-select:")) {
       const id = value.slice(16);
       workflowSelected = id;
-      try { sessionStorage.setItem("atl-cp-batch", id); } catch { /* storage may be unavailable */ }
+      try { sessionStorage.setItem(scopedStorageKey("atl-cp-batch"), id); } catch { /* storage may be unavailable */ }
       void loadWorkflowDetail(id);
       return;
     }
@@ -3705,6 +3745,20 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "memory-context") return previewMemoryContext();
     if (value === "mt-refresh") return void loadMyTasks();
     if (value === "mt-projects") return void loadMyTasksProjects();
+    if (value.startsWith("mt-reconnect:")) {
+      const id = value.slice("mt-reconnect:".length);
+      const connection = myTasksSettingsData?.connection;
+      if (!connection?.id || connection.id !== id) return;
+      if (!sourceConnections.some((item) => item.id === id)) {
+        await loadIssueSources().catch(() => {});
+      }
+      if (sourceConnections.some((item) => item.id === id)) {
+        return void action(`sources-credential:${id}`);
+      }
+      const projectListNode = $("#mtProjectList");
+      if (projectListNode) projectListNode.insertAdjacentHTML("beforeend", '<p class="source-form-error" role="alert">Could not open Azure credentials. Open Issue Sources and reconnect the saved Azure connection.</p>');
+      return;
+    }
     if (value === "mt-check") return void requestMyTasksCheck();
     if (value === "mt-settings" || value === "mt-enable") return void openMyTasksSettings();
     if (value === "mt-save") return void saveMyTasksSettings();
@@ -4714,6 +4768,16 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "export") { const blob = new Blob([(snapshot.state?.log_tail || []).map((item) => JSON.stringify(item)).join("\n")], { type: "application/jsonl" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "atl-activity.jsonl"; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); }
   }
 
+  const actionLocks = new Set();
+  async function action(value) {
+    const guarded = value === "assistant-confirm" || value === "batch-start-save" || value.startsWith("save:") || value.startsWith("direct-task-save:") || value.startsWith("pm-") || value.startsWith("sources-import-one:") || value === "sources-import" || value.startsWith("sources-toggle:") || value.startsWith("sources-delete:") || value.startsWith("sources-check:") || value === "sources-check-all" || value.startsWith("task-budget-save:") || value.startsWith("plan-queue:") || value.startsWith("plan-approve:") || value === "plan-publish-confirm";
+    if (guarded && actionLocks.has(value)) return;
+    if (guarded) actionLocks.add(value);
+    try { return await performAction(value); }
+    catch (error) { popup("Action failed", `<p class="red">${escapeHtml(error.message || error)}</p>`, btn("Close", "close")); }
+    finally { if (guarded) actionLocks.delete(value); }
+  }
+
   async function saveTask(id) {
     const title = $("#fTitle")?.value.trim();
     if (!title) return $("#fTitle")?.focus();
@@ -4721,7 +4785,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const priority = $("#fPriority")?.value || "normal";
     const queueId = $("#fQueue")?.value;
     const repositoryId = $("#fRepository")?.value || null;
-    if (!id) try { sessionStorage.removeItem("atl-task-draft"); } catch { /* private browsing */ }
     try {
       let taskId = id;
       if (taskId) {
@@ -4738,6 +4801,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         if (!response.ok) throw new Error(result.error || "Repository assignment was not saved");
       }
       if (queueId) await apiCommand(`queue add ${taskId} --queue ${queueId}`);
+      if (!id) try { sessionStorage.removeItem(scopedStorageKey("atl-task-draft")); } catch { /* private browsing */ }
       filter = "All"; query = ""; queueFilter = "All";
       close(); await refresh(false); page = "tasks"; render();
     } catch (error) {
@@ -5059,13 +5123,13 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   document.addEventListener("pointerup", () => {
     if (!studioSplitDragging) return;
     studioSplitDragging = false;
-    try { localStorage.setItem("atl-cp-studio-split", String(Math.round(studioSplit))); } catch { /* private browsing */ }
+    try { localStorage.setItem(scopedStorageKey("atl-cp-studio-split"), String(Math.round(studioSplit))); } catch { /* private browsing */ }
   });
   document.addEventListener("dblclick", (event) => {
     if (!event.target.closest?.(".studio-splitter")) return;
     studioSplit = 40;
     document.querySelector(".studio-workspace")?.style.setProperty("--studio-split", "40");
-    try { localStorage.setItem("atl-cp-studio-split", "40"); } catch { /* private browsing */ }
+    try { localStorage.setItem(scopedStorageKey("atl-cp-studio-split"), "40"); } catch { /* private browsing */ }
   });
   document.addEventListener("scroll", (event) => {
     if (event.target?.id === "studioTranscript") { const transcript = event.target; studioTranscriptStick = transcript.scrollTop + transcript.clientHeight >= transcript.scrollHeight - 48; }
@@ -5084,6 +5148,5 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     connectStream();
     if (page === 'sources' && sourceSelectedId && !sourcePreview) void browseCurrentDefaults();
     if (page === "mytasks" && !myTasksTimer) myTasksTimer = setInterval(() => { if (page === "mytasks") void loadMyTasks({ silent: true }); }, 5000);
-    setInterval(() => { if (page === "sources") void refresh(false); else { void refresh(); void refreshRun(); } }, 2000);
   });
 })();

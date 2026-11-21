@@ -75,12 +75,12 @@ export async function invokePlanningProvider(root, entry, { request, logPath, ti
   // the provider entry is missing its base URL, key, or worker.
   const credentials = entry.builtin?{worker:entry.worker,env:{}}:credentialContext(entry);
   const envPolicy = workerEnvPolicy(credentials.worker, entry.builtin?'subscription':"api");
+  // Planning is always advisory and must never inherit a worker's default
+  // write/execute permissions. Keep all planning roles under the same fence;
+  // review and triage are not the only paths that accept untrusted prompts.
   let invocation = credentials.worker === "claude"
-    ? { command: executable("claude"), args: ["-p", "--output-format", "text"], cwd: root }
-    : { command: executable("codex"), args: ["exec", "-"], cwd: root };
-  if (request?.my_tasks_review || request?.task_triage) invocation.args = credentials.worker === 'claude'
-    ? ['-p', '--output-format', 'text', '--permission-mode', 'plan']
-    : ['exec', ...executionPermissionArgs('codex', 'read-only'), '--ephemeral', '--skip-git-repo-check', '-'];
+    ? { command: executable("claude"), args: ["-p", "--output-format", "text", "--permission-mode", "plan"], cwd: root }
+    : { command: executable("codex"), args: ["exec", ...executionPermissionArgs("codex", "read-only"), "--ephemeral", "--skip-git-repo-check", "-"], cwd: root };
   if(entry.builtin) {
     const disc=discoverProvider(entry.worker,{command:entry.command});
     if(!disc.available)throw Error(disc.error);

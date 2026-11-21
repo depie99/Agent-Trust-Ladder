@@ -8,6 +8,7 @@
 // spawn time (see launch.mjs / credentialContext).
 
 import fs from "node:fs";
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -100,8 +101,17 @@ export function registryPath() {
 }
 
 export function loadUserProviders() {
+  const file = registryPath();
+  if (process.platform !== "win32") {
+    try {
+      const mode = fs.statSync(file).mode & 0o777;
+      if ((mode & 0o077) !== 0) fs.chmodSync(file, 0o600);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw new Error(`Could not secure provider registry permissions: ${error.message}`);
+    }
+  }
   try {
-    const parsed = JSON.parse(fs.readFileSync(registryPath(), "utf8"));
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
     const providers = parsed && typeof parsed === "object" && parsed.providers && typeof parsed.providers === "object"
       ? parsed.providers
       : {};
@@ -118,7 +128,10 @@ export function saveUserProviders(registry) {
   for (const [id, entry] of Object.entries(registry.providers || {})) {
     if (entry && typeof entry === "object") clean[id] = entry;
   }
-  fs.writeFileSync(file, `${JSON.stringify({ version: REGISTRY_VERSION, providers: clean }, null, 2)}\n`, "utf8");
+  const tmp = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify({ version: REGISTRY_VERSION, providers: clean }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  if (process.platform !== "win32") fs.chmodSync(tmp, 0o600);
+  fs.renameSync(tmp, file);
   return file;
 }
 
@@ -184,9 +197,9 @@ export function maskKey(key) {
 // The browser-facing picker shape: configured providers only, never keys.
 // `ready: false` entries stay visible with their problems so the manager can
 // see WHY a provider cannot plan yet instead of a silently empty dropdown.
-export function providerChoices(registry = loadUserProviders()) {
+export function providerChoices(registry = loadUserProviders(), { env = process.env, platform = process.platform } = {}) {
   return Object.values(registry.providers || {}).map((entry) => {
-    const problems = validateProviderEntry(entry);
+    const problems = validateProviderEntry(entry, { env, platform });
     return {
       id: entry.id,
       label: entry.label || entry.id,
@@ -206,7 +219,7 @@ export function providerChoices(registry = loadUserProviders()) {
 // Model work refuses BEFORE any spend when the provider is missing or
 // unconfigured. The registry is injectable so callers (and tests) can pin
 // exactly what is visible without touching the machine-wide ~/.atl state.
-export function requireReadyProvider(id, { registry = loadUserProviders() } = {}) {
+export function requireReadyProvider(id, { registry = loadUserProviders(), env = process.env, platform = process.platform } = {}) {
   const cleanId = String(id || "").trim().toLowerCase();
   if (!cleanId) throw new Error("a provider id is required for model generation");
   const entry = getProvider(registry, cleanId);
@@ -214,7 +227,7 @@ export function requireReadyProvider(id, { registry = loadUserProviders() } = {}
     const known = Object.keys(registry.providers || {});
     throw new Error(`provider "${cleanId}" is not configured — add it with 'atl provider add ${cleanId}' or the provider screen${known.length ? ` (configured: ${known.join(", ")})` : "; no providers are configured yet"}`);
   }
-  const problems = validateProviderEntry(entry);
+  const problems = validateProviderEntry(entry, { env, platform });
   if (problems.length) throw new Error(`provider "${cleanId}" is not ready to plan: ${problems.join("; ")}`);
   const resolved = { ...entry };
   return {
@@ -255,7 +268,15 @@ export function wireMismatches(worker, baseUrl) {
   return mismatches;
 }
 
-export function validateProviderEntry(entry) {
+function workerOnPath(worker, env = process.env, platform = process.platform) {
+  const dirs = String(env.PATH || env.Path || '').split(platform === 'win32' ? ';' : ':').filter(Boolean);
+  const names = platform === 'win32' ? [`${worker}.cmd`, `${worker}.exe`, `${worker}.bat`, worker] : [worker];
+  return dirs.some(dir => names.some(name => {
+    try { return fs.statSync(path.join(dir, name)).isFile(); } catch { return false; }
+  }));
+}
+
+export function validateProviderEntry(entry, { env = process.env, platform = process.platform } = {}) {
   const problems = [];
   if (!entry) problems.push("provider does not exist in ~/.atl/providers.json");
   else {
@@ -263,6 +284,8 @@ export function validateProviderEntry(entry) {
     if (!entry.api_key) problems.push(`no API key stored — set it with 'atl provider key ${entry.id} --key ...' or the TUI p screen`);
     if (!["claude", "codex"].includes(String(entry.worker || ""))) {
       problems.push(`worker "${entry.worker}" is not claude or codex`);
+    } else if (!workerOnPath(entry.worker, env, platform)) {
+      problems.push(`required CLI "${entry.worker}" was not found on PATH; install it or add its directory to PATH`);
     }
     if (!PROVIDER_PROTOCOLS.includes(String(entry.protocol || "custom").toLowerCase())) {
       problems.push(`protocol "${entry.protocol}" is not openai, anthropic, or custom`);

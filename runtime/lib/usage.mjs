@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { paths } from "./state.mjs";
 import { postNotification } from "./notifications.mjs";
 
@@ -46,8 +47,8 @@ export function recordUsage(root, snapshot) {
   current.updated_at = new Date().toISOString();
   const file = fileFor(root);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = file + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(current, null, 2) + "\n");
+  const tmp = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(current, null, 2) + "\n", { mode: 0o600 });
   fs.renameSync(tmp, file);
   return item;
 }

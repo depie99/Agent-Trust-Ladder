@@ -7,7 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { applyHostIntegrations, resolveProject, withHostJob, showStatus, createTask, approveTask } from "../plugins/deepseek-host.mjs";
+import { applyHostIntegrations, resolveProject, withHostJob, showStatus, createTask, approveTask, addRepository } from "../plugins/deepseek-host.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "atl-dsh-host-"));
@@ -30,13 +30,14 @@ function spyHost() {
 }
 
 function mockCtx({ registryRoot = project } = {}) {
-  const registered = { commands: [], sidebar: [] };
+  const registered = { commands: [] };
   const ctx = {
     commands: { register: (definition) => registered.commands.push(definition) },
-    sidebarRightTabs: { register: (tab) => registered.sidebar.push(tab) },
-    workspaceRegistry: { active: async () => registryRoot },
-    jobs: { run: async ({ run }) => run() },
-    actions: { propose: async () => { /* action card surfaced */ } },
+    workspaceRegistry: { list: async () => [{ path: registryRoot }], resolveByPath: async value => value === registryRoot ? { path: registryRoot } : null },
+    jobs: (() => { const jobs = new Map(); return { start: ({ kind, label, run }) => { assert.equal(kind, 'atl-command'); const id = 'job-1'; jobs.set(id, run({ id })); return id; }, wait: async (id) => { const value = await jobs.get(id).done; return { ...value, status: value.status }; } }; })(),
+    actionCards: { register: () => () => {} },
+    approval: { request: async () => 'allowed-once' },
+    directoryPicker: { capability: async () => ({ kind: 'native', pick: async () => null }) },
   };
   return { ctx, registered };
 }
@@ -47,8 +48,15 @@ try {
   const reportHost = spyHost();
   const report = applyHostIntegrations(full.ctx, reportHost);
   assert.deepEqual(report.commands.filter((name) => !name.includes(":")), ["atl", "atl-task", "atl-approve", "atl-add"], "the three issue-named slash commands plus /atl-add must register");
-  assert.equal(report.sidebar, true, "the right-sidebar board tab must register on a host that offers it");
-  assert.equal(full.registered.sidebar[0].id, "atl-board");
+  assert.equal(report.jobs, true, 'host jobs must be detected using start/wait');
+  assert.equal(report.actionCards, true, 'owner action cards must be detected');
+  assert.equal(report.directoryPicker, true, 'directory picker availability is reported honestly');
+  assert.equal(report.approval, true, 'approval capability is reported honestly');
+  assert.equal(report.actionCards, true, 'action-card capability is reported honestly');
+  const client = fs.readFileSync(path.join(repo, 'plugins/deepseek-client.mjs'), 'utf8');
+  assert.match(client, /sidebarRightTabs\.register/);
+  assert.match(client, /api\/atl\/request/);
+  assert.match(client, /setTimeout\(refresh, 5000\)/, 'the native task tab refreshes its live task list');
 
   // 2. Command handlers route through the shared bridge with the host registry
   //    as the project source — no second registry.
@@ -67,37 +75,47 @@ try {
 
   // 3. The bare slash-command surface (no args object) still parses the task id.
   const approve = full.registered.commands.find((definition) => definition.name === "atl-approve");
-  await approve.run("T-004 --note from host");
+  const outcome = await approve.handler({ rawInput: "T-004 --note from host" });
+  assert.equal(outcome.kind, 'success', 'commands return the host CommandResult contract');
   const approve3 = reportHost.calls.filter((call) => call.name === "atl_command").at(-1);
   assert.deepEqual(approve3.args.args, ["approve", "T-004", "--note", "from host"]);
 
-  // 4. Degradation: a host without any of these APIs stays tool-only.
+  // The picker capability owns pick(); a null choice is a true no-op.
+  let pickedPath = null, registeredPath = null, started = false;
+  const pickerCtx = {
+    directoryPicker: { capability: async () => ({ kind: 'native', pick: async () => pickedPath }) },
+    workspaceRegistry: { resolveByPath: async value => registeredPath === value ? { path: value } : null, create: async value => { registeredPath = value; return { path: value }; } },
+  };
+  assert.equal(await addRepository(pickerCtx, { call: async () => { started = true; return { url: 'http://127.0.0.1:1/', initialized: false }; } }), 'Cancelled; no project was opened.');
+  assert.equal(started, false, 'cancel never initializes the cwd or any other project');
+  pickedPath = project;
+  const added = await addRepository(pickerCtx, { call: async (name, args) => { started = true; assert.equal(name, 'atl_start'); assert.equal(args.project, project); return { url: 'http://127.0.0.1:1/', initialized: false }; } });
+  assert.equal(registeredPath, project, 'the host registry receives the picked directory');
+  assert.match(added, /initialized new ATL state/);
+
+  // 4. Degradation: a host without these APIs stays tool-only.
   const bare = applyHostIntegrations({}, spyHost());
   assert.deepEqual(bare.commands, [], "no commands may register without ctx.commands");
-  assert.equal(bare.sidebar, false, "no sidebar may register without ctx.sidebarRightTabs");
+  assert.equal(bare.jobs, false);
+  assert.equal(bare.actionCards, false);
+  assert.equal(bare.directoryPicker, false);
 
-  // 5. resolveProject falls back to the workspace record when no registry exists.
-  const recordRoot = path.join(scratch, "recorded");
-  fs.mkdirSync(recordRoot, { recursive: true });
-  fs.writeFileSync(path.join(process.env.ATL_HOME || path.join(os.homedir(), ".atl"), "workspace.json"), JSON.stringify({ project: recordRoot }));
-  try {
-    const resolved = await resolveProject({});
-    assert.equal(resolved, path.resolve(recordRoot), "the workspace record is the last-resort project source");
-  } finally {
-    fs.rmSync(path.join(process.env.ATL_HOME || path.join(os.homedir(), ".atl"), "workspace.json"), { force: true });
-  }
+  // 5. The host registry is the only project source.
+  await assert.rejects(() => resolveProject({}), /No ATL project is active/);
+  assert.equal(await resolveProject({ workspaceRegistry: { list: async () => [{ path: project }] } }), path.resolve(project));
 
   // 6. withHostJob uses dsh-jobs when present and runs directly otherwise.
   let jobTitle = null;
-  const viaJob = await withHostJob({ jobs: { run: async ({ title, run }) => { jobTitle = title; return run(); } } }, "long job", async () => "done");
-  assert.equal(viaJob, "done");
-  assert.equal(jobTitle, "long job");
+  const jobHooks = new Map();
+  const viaJob = await withHostJob({ jobs: { start: ({ kind, label, run }) => { assert.equal(kind, 'atl-command'); jobTitle = label; jobHooks.set('job-2', run({ id: 'job-2' })); return 'job-2'; }, wait: async id => jobHooks.get(id).done } }, "long job", async () => "done");
+  assert.equal(viaJob, 'done');
+  assert.equal(jobTitle, 'long job');
   assert.equal(await withHostJob({}, "ignored", async () => "direct"), "direct");
 
   // 7. A missing project fails with an instructive message, not a crash.
   await assert.rejects(() => resolveProject({ workspaceRegistry: { active: async () => null } }), /No ATL project is active/);
 
-  console.log("PASS: DeepSeek host-native UI registers slash commands, the board tab and the picker flow, degrades cleanly, and projects onto the host workspace registry");
+  console.log("PASS: DeepSeek host integrations use current command/job/action-card contracts, native task tab, and the host workspace registry");
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true });
 }

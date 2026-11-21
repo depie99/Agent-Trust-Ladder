@@ -27,7 +27,7 @@ import { approveClaim, registerRoutine, validateSkill } from "./governance.mjs";
 import { approvalSnapshot, authorizeAction, decideProposal, proposeAction, recordActionOutcome, revokeGrant } from "./approvals.mjs";
 import { registerProject, removeProject, setSupervisorDefaults, supervisorSnapshot } from "./supervisor.mjs";
 import { projectWorkMap } from "./project-map.mjs";
-import { createBackup, listBackups, previewRestore, restoreBackup } from "./backup.mjs";
+import { createBackup, listBackups, previewRestore, restoreBackup, scheduledBackup, pruneBackups } from "./backup.mjs";
 import { listRoutineRuns, recoverScheduler, runRoutine, schedulerStatus, schedulerTick } from "./routines.mjs";
 import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
@@ -59,7 +59,7 @@ import { azureIdentity, saveAzureConnection, readAzureConnection, forgetAzureCon
 import { createMyTasksEngine } from './my-tasks.mjs';
 import { createMyTasksReviews } from './my-tasks-reviews.mjs';
 import { acquireLease, releaseLease } from './leases.mjs';
-import { runtimeIdentity, canonicalRoot, daemonStatus, grantLeaseRecord, renewLeaseRecord, releaseLeaseRecord, readEmbedToken } from './daemon.mjs';
+import { runtimeIdentity, canonicalRoot, daemonStatus, grantLeaseRecord, renewLeaseRecord, releaseLeaseRecord, validEmbedToken } from './daemon.mjs';
 import { assertPreparationReady, addManualInvestigation, addPreparationQuestion, answerPreparationQuestion, beginDiscoveryRun, buildDiscoveryPrompt, finishDiscoveryRun, handoffPreparation, parseDiscoveryJson, preparationInventory, preparationSeedContext, preparationView, readPreparation, savePreparationBrief } from './task-preparation.mjs';
 
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -163,35 +163,74 @@ function isSameLoopbackOrigin(req, server) {
   } catch { return false; }
 }
 
+function hostHeaderForServer(server) {
+  const address = server.address();
+  if (!address || typeof address === "string" || !isLoopbackHost(address.address)) return null;
+  const hostname = address.address.includes(":") ? `[${address.address}]` : address.address;
+  return `${hostname}:${address.port}`;
+}
+
+function serverOrigin(server) {
+  const hostHeader = hostHeaderForServer(server);
+  if (!hostHeader) throw new Error("Control Plane must bind to a loopback address");
+  return `http://${hostHeader}`;
+}
+
+function hasOwnerSession(req, root) {
+  const token = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length) || "";
+  try { return validateOwnerSession(root, decodeURIComponent(token), String(req.headers["x-atl-csrf"] || "")); }
+  catch { return false; }
+}
+
 function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE), embedded = false) {
   const source = fs.readFileSync(path.join(assetRoot, "control-plane.html"), "utf8");
+  const replaceExactlyOnce = (text, search, replacement, label) => {
+    const first = text.indexOf(search);
+    if (first < 0 || text.indexOf(search, first + search.length) >= 0) throw new Error(`Control Plane artifact contract changed; expected one ${label} marker`);
+    return text.slice(0, first) + replacement + text.slice(first + search.length);
+  };
+  const replaceRegexExactlyOnce = (text, pattern, replacement, label) => {
+    const global = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+    const matches = [...text.matchAll(global)];
+    if (matches.length !== 1) throw new Error(`Control Plane artifact contract changed; expected one ${label} marker, found ${matches.length}`);
+    return text.replace(pattern, replacement);
+  };
   // The downloaded artifact contains its own demo controller. The live ATL
   // client is the single controller for the served surface; leaving both
   // document listeners active makes route clicks race and can make Tasks
   // appear to open another page. Keep the artifact's DOM/CSS intact while
   // removing only that stale inline controller at the HTTP boundary.
-  let bodyText = source.replace(/<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/, '<script src="./control-plane-i18n.js"></script><script src="./control-plane-client.js"></script>');
-  bodyText = bodyText.replace('<script src="./control-plane-client.js">', '<script src="./control-plane-changes.js"></script><script src="./control-plane-client.js">');
-  bodyText = bodyText.replace('<script src="./control-plane-client.js">', '<script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">');
+  const legacyController = /<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/;
+  if (!legacyController.test(source)) throw new Error('Control Plane artifact is missing the expected legacy-controller boundary');
+  let bodyText = source.replace(legacyController, '<script src="./control-plane-i18n.js"></script><script src="./control-plane-client.js"></script>');
+  bodyText = replaceExactlyOnce(bodyText, '<script src="./control-plane-client.js">', '<script src="./control-plane-changes.js"></script><script src="./control-plane-client.js">', 'client script');
+  bodyText = replaceExactlyOnce(bodyText, '<script src="./control-plane-client.js">', '<script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">', 'client script');
   // The checked-in standalone artifact predates the live client and places
   // the body inside the flex topbar. Close that shell boundary for the live
   // surface; otherwise the header's flex rules squeeze and center the page.
-  bodyText = bodyText.replace('<div id="mobile" class="mobile">', '</header><div id="mobile" class="mobile">');
+  bodyText = replaceExactlyOnce(bodyText, '<div id="mobile" class="mobile">', '</header><div id="mobile" class="mobile">', 'mobile shell');
+  bodyText = replaceExactlyOnce(bodyText, '<title>ATL — Developer Control Plane Prototype</title>', '<title>ATL — Developer Control Plane</title>', 'prototype title');
+  for (const [pattern, label] of [
+    [/<span>[^<]*Interactive mock[^<]*<\/span>/g, 'demo footer'],
+    [/<span class="pill hotkey">INTERACTIVE DEMO<\/span>/g, 'demo pill'],
+    [/<div class="workspace"><div class="row between"><strong>agent-trust-ladder<\/strong><span class="green">[^<]*<\/span><\/div><div class="muted tiny">main[^<]*<\/div><\/div>/g, 'demo workspace'],
+    [/<button id="noticesBtn" class="btn ghost">[^<]*<span class="amber">3<\/span><\/button>/g, 'demo unread badge'],
+  ]) {
+    const count = [...source.matchAll(pattern)].length;
+    if (count !== 1) throw new Error(`Control Plane artifact contract changed; expected one ${label} marker, found ${count}`);
+  }
   // The artifact's footer and topbar pill honestly describe its offline demo
   // mode. The served surface reads and drives the real workspace, so relabel
   // them here; the standalone file keeps its mock banner.
-  bodyText = bodyText
-    .replace("<span>● Interactive mock · No provider calls, skill execution or real ATL actions</span>", `<span>● Live · connected to ${escapeText(path.basename(root))}</span>`)
-    .replace('<span class="pill hotkey">INTERACTIVE DEMO</span>', '<span class="pill hotkey">LIVE</span>')
-    // The sidebar workspace card describes the served project, not the demo
-    // checkout (#32): every surface that reads it (plugin chip included) must
-    // show the real workspace.
-    .replace('<div class="workspace"><div class="row between"><strong>agent-trust-ladder</strong><span class="green">●</span></div><div class="muted tiny">main · control-plane / demo</div></div>', `<div class="workspace"><div class="row between"><strong>${escapeText(path.basename(root))}</strong><span class="green">●</span></div><div class="muted tiny">${escapeText(root)}</div></div>`);
-  // A browser surface opened by the plugin (valid panel capability) presents
-  // the compact plugin layout, exactly like the in-panel app does (#33).
-  if (embedded) bodyText = bodyText.replace('<html lang="en">', '<html lang="en" data-atl-context="plugin">');
+  bodyText = replaceRegexExactlyOnce(bodyText, /<span>[^<]*Interactive mock[^<]*<\/span>/, `<span>Live - connected to ${escapeText(path.basename(root))}</span>`, 'demo footer');
+  bodyText = replaceRegexExactlyOnce(bodyText, /<span class="pill hotkey">INTERACTIVE DEMO<\/span>/, '<span class="pill hotkey">LIVE</span>', 'demo pill');
+  bodyText = replaceRegexExactlyOnce(bodyText, /<div class="workspace"><div class="row between"><strong>agent-trust-ladder<\/strong><span class="green">[^<]*<\/span><\/div><div class="muted tiny">main[^<]*<\/div><\/div>/, `<div class="workspace"><div class="row between"><strong>${escapeText(path.basename(root))}</strong><span class="green">●</span></div><div class="muted tiny">${escapeText(root)}</div></div>`, 'demo workspace');
+  bodyText = replaceRegexExactlyOnce(bodyText, /<button id="noticesBtn" class="btn ghost">[^<]*<span class="amber">3<\/span><\/button>/, '<button id="noticesBtn" class="btn ghost" aria-label="Notifications">Notifications</button>', 'static unread badge');
+  if (embedded) bodyText = replaceRegexExactlyOnce(bodyText, /<div class="cliDock">[\s\S]*?<\/div>/, '', 'duplicate plugin console');
+  const projectKey = crypto.createHash("sha256").update(canonicalRoot(root)).digest("hex").slice(0, 16);
+  bodyText = replaceExactlyOnce(bodyText, '<html lang="en"', `<html lang="en" data-atl-project-key="${projectKey}"${embedded ? ' data-atl-context="plugin"' : ''}`, 'HTML root');
   const session = ensureOwnerSession(root);
-  bodyText = bodyText.replace("</head>", `<meta name="atl-csrf" content="${escapeText(session.csrf)}"></head>`);
+  bodyText = replaceExactlyOnce(bodyText, '</head>', `<meta name="atl-csrf" content="${escapeText(session.csrf)}"></head>`, 'head close');
   const body = Buffer.from(bodyText, "utf8");
   res.writeHead(200, {
     "content-type": "text/html; charset=utf-8",
@@ -927,7 +966,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
 // Spec 021 "My Tasks" endpoints. Reads serve the dashboard from the local
 // store; the manual check and the clock hook mirror /api/routines semantics.
 // The PAT never enters any response: it stays inside the engine's call scope.
-async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, reviews, triage, jira, seam) {
+async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, reviews, triage, jira, seam, origin) {
   const path = url.pathname;
   const fail = (error) => {
     // Preparation errors carry an explicit statusCode (409 conflict, 404 gone)
@@ -942,7 +981,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
       const payload = JSON.parse(await readBody(req) || '{}');
       if (path.endsWith('/settings')) { await triage.validateSettings(payload); triage.saveSettings(payload); }
       else triage.ensure(payload.key);
-      void triage.tick(); return json(res, 200, { ok: true, ...triage.status() });
+      void triage.tick().catch(() => {}); return json(res, 200, { ok: true, ...triage.status() });
     }
     if (path.startsWith('/api/my-tasks/jira/')) {
       const action = path.split('/').pop();
@@ -952,8 +991,8 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
         return json(res, 200, { ok: true, ...result });
       }
       const payload = JSON.parse(await readBody(req) || '{}'); let result;
-      if (action === 'authorize') result = await jira.authorize(`http://${req.headers.host}`);
-      else if (action === 'settings') { result = await jira.saveSettings(payload); void jira.sync(); }
+      if (action === 'authorize') result = await jira.authorize(origin);
+      else if (action === 'settings') { result = await jira.saveSettings(payload); void jira.sync().catch(() => {}); }
       else if (action === 'disconnect') { await jira.disconnect(); result = {}; }
       else if (action === 'sync') result = await jira.sync();
       else if (action === 'preview') result = await jira.preview(payload.operation, payload.issueKey, payload.changes);
@@ -969,7 +1008,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
     }
     if (req.method === 'POST' && path === '/api/my-tasks/repository-bindings') {
       const bindings = reviews.saveBindings(JSON.parse(await readBody(req) || '{}'));
-      void reviews.tick();
+      void reviews.tick().catch(() => {});
       return json(res, 200, { ok: true, bindings });
     }
     if (req.method === 'GET' && path === '/api/my-tasks/review') {
@@ -983,7 +1022,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
       if (payload.locale && !['fa-IR', 'en-US'].includes(payload.locale)) throw new Error('Unsupported review language.');
       if (path.endsWith('/retry') && !myTasks.item(payload.key)) throw new Error('Task is no longer assigned.');
       const status = reviews.ensure(payload.locale, { retryKey: path.endsWith('/retry') ? payload.key : null, resume: payload.resume === true });
-      void reviews.tick();
+      void reviews.tick().catch(() => {});
       return json(res, 200, { ok: true, ...status });
     }
     if (req.method === "GET" && path === "/api/my-tasks/projects") {
@@ -998,7 +1037,9 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
     if (req.method === "GET" && path === "/api/my-tasks/settings") {
       const tokenInfo = await azureToken();
       const cfg = readManagerConfig(root).intake?.azure || {};
-      json(res, 200, { ok: true, settings: myTasks.settings(), connection: { org_url: cfg.org_url || "", project: cfg.project || "", token_present: Boolean(tokenInfo), remember_supported: await dpapiSupported() } });
+      const connections = loadConnections(root, readManagerConfig(root).intake || {});
+      const connection = connections.connections.find(item => item.id === connections.defaults.azure) || connections.connections.find(item => item.provider === 'azure' && item.settings.org_url === cfg.org_url && item.settings.project === cfg.project);
+      json(res, 200, { ok: true, settings: myTasks.settings(), connection: { id: connection?.id || null, org_url: cfg.org_url || "", project: cfg.project || "", token_present: Boolean(tokenInfo), remember_supported: await dpapiSupported() } });
       return;
     }
     if (req.method === "POST" && path === "/api/my-tasks/settings") {
@@ -1176,9 +1217,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   const projectIdentity = canonicalRoot(root);
   const runtime = runtimeIdentity();
   let lastRequestAt = Date.now();
-  const ownerSession = rotateOwnerSession(root);
+  let ownerSession = ensureOwnerSession(root);
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters, egmRunner, azureFetch };
   const intakePreviews = new Map();
+  const pruneIntakePreviews = () => { const cutoff = Date.now() - 30 * 60_000; for (const [key, value] of intakePreviews) if (value.at < cutoff) intakePreviews.delete(key); while (intakePreviews.size > 128) intakePreviews.delete(intakePreviews.keys().next().value); };
   const azureConnectionTokens = new Map();
   const azureCredentialDir = id => path.join(root, '.trust', 'manager', 'credentials', id);
   // Warm the DPAPI capability probe so the first settings read does not pay
@@ -1234,7 +1276,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   // polling while the browser tab is closed and stops with the service.
   let reviews, triage;
   const jira = createJiraMcp(root, { transportCall: jiraTransportCall, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); } } });
-  const myTasks = createMyTasksEngine(root, { token: currentAzureToken, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); void reviews?.tick(); } }, ...(myTasksFetch ? { requestImpl: myTasksFetch } : {}) });
+      const myTasks = createMyTasksEngine(root, { token: currentAzureToken, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); void reviews?.tick().catch(() => {}); } }, ...(myTasksFetch ? { requestImpl: myTasksFetch } : {}) });
   const azureItems = myTasks.items.bind(myTasks), azureItem = myTasks.item.bind(myTasks);
   myTasks.items = () => { const data = azureItems(); return { ...data, items: [...data.items, ...(jira.config().enabled ? jira.items() : [])], jira: jira.status() }; };
   myTasks.item = key => azureItem(key) || (jira.config().enabled ? jira.items().find(i => i.key === key) : null);
@@ -1318,21 +1360,33 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   let cachedFrame = null; // { cursor, content, json } of the latest built snapshot
   let frameVersion = 0;
   let forceFullNextConnect = false; // set on any content change, even without version growth
-  const streamTimer = setInterval(() => {
+  function refreshCachedFrame({ broadcast = true } = {}) {
     let snapshot, content;
-    try { snapshot = createControlPlaneSnapshot(root); content = JSON.stringify(stableSnapshotFingerprint(snapshot)); } catch { return; }
-    if (cachedFrame && cachedFrame.content === content) return;
+    try { snapshot = createControlPlaneSnapshot(root); content = JSON.stringify(stableSnapshotFingerprint(snapshot)); } catch { return cachedFrame; }
+    if (cachedFrame && cachedFrame.content === content) return cachedFrame;
     frameVersion += 1;
     forceFullNextConnect = Boolean(cachedFrame); // a real change; the first cached build is not one
     cachedFrame = { cursor: frameVersion, content, json: JSON.stringify({ cursor: frameVersion, snapshot }) };
-    for (const stream of streams) { try { stream.res.write(`event: snapshot\ndata: ${cachedFrame.json}\n\n`); } catch { streams.delete(stream); } }
-  }, 2000);
+    if (broadcast) for (const stream of streams) { try { stream.res.write(`event: snapshot\ndata: ${cachedFrame.json}\n\n`); } catch { streams.delete(stream); } }
+    return cachedFrame;
+  }
+  const streamTimer = setInterval(() => { if (streams.size) refreshCachedFrame(); }, 2000);
   streamTimer.unref?.();
+  const maintenanceTimer = setInterval(() => { try { scheduledBackup(root, { intervalHours: 24, retention: 10 }); pruneBackups(root, 10); } catch { /* maintenance retries next pass */ } }, 60 * 60_000);
+  maintenanceTimer.unref?.();
+  try { scheduledBackup(root, { intervalHours: 24, retention: 10 }); pruneBackups(root, 10); } catch { /* maintenance retries next pass */ }
   const server = http.createServer(async (req, res) => {
     try {
-      lastRequestAt = Date.now();
-      const url = new URL(req.url || "/", `http://${host}`);
+      const url = new URL(req.url || "/", serverOrigin(server));
+      pruneIntakePreviews();
+      // Keepalive traffic must not keep an idle daemon alive forever.
+      if (!new Set(["/api/events", "/api/snapshot", "/api/health"]).has(url.pathname)) lastRequestAt = Date.now();
       let consumedRunPreview = null;
+      const boundHost = hostHeaderForServer(server);
+      if (!boundHost || req.headers.host !== boundHost) { json(res, 403, { ok: false, error: "request Host must match the bound loopback address and port" }); return; }
+      if ((url.pathname === "/api/snapshot" || url.pathname === "/api/task-recovery" || url.pathname.startsWith("/api/backups")) && req.method === "GET" && !hasOwnerSession(req, root)) {
+        json(res, 403, { ok: false, error: "An authenticated owner session is required for this read." }); return;
+      }
       if (readOnlyPreview && !["GET", "HEAD", "OPTIONS"].includes(req.method || "GET")) { json(res, 403, { ok: false, error: "Synthetic UI preview is read-only; live task actions are unavailable." }); return; }
       // A browser may only mutate this loopback service from its own origin.
       // Command-line clients have no Origin header and remain supported.
@@ -1345,11 +1399,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         // Panel capability (issue #34): direct servers keep the env token; a
         // reused project daemon takes the current session's token from the
         // owner record instead, because its env predates the session.
-        const embedToken = process.env.ATL_PLUGIN_EMBED_TOKEN || readEmbedToken(root);
         const supplied = url.searchParams.get('atl_embed');
         // A panel receives a process-local capability. Ordinary browser visits
         // retain strict owner cookies; arbitrary query strings cannot relax them.
-        const embedded = Boolean(embedToken && supplied && supplied === embedToken);
+        const embedded = Boolean(supplied && (supplied === process.env.ATL_PLUGIN_EMBED_TOKEN || validEmbedToken(root, supplied)));
         if (supplied && !embedded) { json(res, 403, { ok: false, error: 'invalid panel capability' }); return; }
         sendHtml(res, root, assetRoot, embedded);
         return;
@@ -1375,6 +1428,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       }
       if (req.method === "GET" && url.pathname === "/api/snapshot") {
         const cursor = Number(url.searchParams.get("cursor") || 0);
+        if (!streams.size) refreshCachedFrame({ broadcast: false });
         if (cachedFrame && !forceFullNextConnect && cursor > 0 && cursor === cachedFrame.cursor) {
           json(res, 200, { unchanged: true, cursor });
         } else {
@@ -1590,7 +1644,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       }
       if (req.method === "GET" && url.pathname === "/api/backups") { json(res, 200, { backups: listBackups(root) }); return; }
       if (req.method === "GET" && url.pathname === "/api/backups/preview") { json(res, 200, { ok: true, preview: previewRestore(root, String(url.searchParams.get("id") || "")) }); return; }
-      if (req.method === "POST" && url.pathname === "/api/backups") { const payload = JSON.parse(await readBody(req) || "{}"); const result = payload.action === "restore" ? restoreBackup(root, String(payload.id || payload.backup_id || "")) : createBackup(root, { label: String(payload.label || "manual") }); json(res, 200, { ok: true, result, backups: listBackups(root) }); return; }
+      if (req.method === "POST" && url.pathname === "/api/backups") { const payload = JSON.parse(await readBody(req) || "{}"); const result = payload.action === "restore" ? restoreBackup(root, String(payload.id || payload.backup_id || "")) : createBackup(root, { label: String(payload.label || "manual"), retention: 10 }); json(res, 200, { ok: true, result, backups: listBackups(root) }); return; }
       if (req.method === "GET" && url.pathname === "/api/delivery") { json(res, 200, { packets: listDeliveryPackets(root) }); return; }
       if (req.method === "POST" && url.pathname === "/api/delivery") { const payload = JSON.parse(await readBody(req) || "{}"); const result = payload.action === "approve-draft-pr" ? approveDraftPr(root, payload.packet_id, payload) : createDeliveryPacket(root, payload.task_id, payload); json(res, 200, { ok: true, result, packets: listDeliveryPackets(root) }); return; }
       if (req.method === "GET" && url.pathname === "/api/routines/runs") { json(res, 200, { runs: listRoutineRuns(root), scheduler: schedulerStatus(root) }); return; }
@@ -2007,7 +2061,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           if (source === 'jira' && connection && jiraConnectionTokens.has(connection.id)) adapters = { ...adapters, jira: cfg => seam.intakeAdapters.jira ? seam.intakeAdapters.jira(cfg, { token: jiraConnectionTokens.get(connection.id) }) : intakeFromJira(cfg, { token: jiraConnectionTokens.get(connection.id) }) };
           const results = await runIntake(config, source, adapters);
           const candidates = results.flatMap((entry) => entry.tasks);
-          const token = crypto.randomUUID(); intakePreviews.set(token, { source, connection_id: connection?.id || null, connection_identity: connection ? connectionIdentity(connection) : null, candidates, at: Date.now(), selection: { work_item: source === 'azure' ? String(payload.work_item || '') : '', iteration: config.intake[source]?.iteration_path || '', project: config.intake[source]?.project || '' } });
+          const token = crypto.randomUUID(); intakePreviews.set(token, { source, connection_id: connection?.id || null, connection_identity: connection ? connectionIdentity(connection) : null, candidates, at: Date.now(), selection: { work_item: source === 'azure' ? String(payload.work_item || '') : '', iteration: config.intake[source]?.iteration_path || '', project: config.intake[source]?.project || '' } }); pruneIntakePreviews();
           json(res, 200, { ok: true, token, candidates: candidates.map((item, index) => ({ index, title: item.title, objective_hint: item.objective_hint, source: item.source, priority: item.priority, labels: item.labels || [], state: item.state || item.source?.state || (source === 'azure' ? item.labels?.[0] : null) || "Open" })) });
         } catch (error) {
           let message = String(error?.message || "Issue search failed");
@@ -2449,7 +2503,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         }catch(error){return json(res,400,{ok:false,error:error.message});}
       }
       if (url.pathname === "/api/my-tasks" || url.pathname.startsWith("/api/my-tasks/")) {
-         await handleMyTasksEndpoint(root, res, url, req, myTasks, currentAzureToken, reviews, triage, jira, seam);
+         await handleMyTasksEndpoint(root, res, url, req, myTasks, currentAzureToken, reviews, triage, jira, seam, serverOrigin(server));
         return;
       }
       if (req.method === "POST" && url.pathname.startsWith("/api/plan/")) {
@@ -2462,12 +2516,13 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       else console.error("[control-plane] post-response error:", error && error.stack || error);
     }
   });
-  server.once("close", () => { myTasks.stop(); reviews.stop(); triage.stop(); void jira.stop(); clearOwnerSession(root, ownerSession.token); }); // schedulers and owner session die with the service
+  server.rotateOwnerSession = () => { ownerSession = rotateOwnerSession(root); return ownerSession; };
+  server.once("close", () => { clearInterval(streamTimer); clearInterval(maintenanceTimer); myTasks.stop(); reviews.stop(); triage.stop(); void jira.stop(); clearOwnerSession(root, ownerSession.token); }); // schedulers and owner session die with the service
   // Owner-lifecycle observability for the `ui` command's daemon loop
   // (heartbeat + idle exit). Reads live server state without HTTP.
   server.atlObservability = {
     lastRequestAt: () => lastRequestAt,
-    streamCount: () => streams.size + (programRunnerActive(root) ? 1 : 0),
+    streamCount: () => programRunnerActive(root) ? 1 : 0,
   };
   return server;
 }
@@ -2481,5 +2536,5 @@ export async function startControlPlaneServer(root, { host = "127.0.0.1", port =
   const address = server.address();
   const actualPort = typeof address === "object" && address ? address.port : port;
   void resumePersistedPrograms(root).catch(error => console.error('[program recovery]', error.message));
-  return { server, host, port: actualPort, url: `http://${host}:${actualPort}/` };
+  return { server, host, port: actualPort, url: `${serverOrigin(server)}/` };
 }

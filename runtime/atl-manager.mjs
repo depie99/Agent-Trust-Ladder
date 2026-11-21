@@ -195,6 +195,12 @@ async function waitUntilDaemonEnds(root) {
 // lingering forever.
 function runOwnerLifecycle(root, running) {
   process.once("exit", () => releaseOwnerRecord(root));
+  if (process.env.ATL_DAEMON_CHILD === "1") {
+    process.on("unhandledRejection", reason => {
+      const name = reason instanceof Error ? reason.name : typeof reason;
+      process.stderr.write(`[ATL daemon] unhandled background rejection (${String(name).slice(0, 80)}); daemon remains available\n`);
+    });
+  }
   const beat = setInterval(() => beatOwnerRecord(root), 30000);
   beat.unref?.();
   if (process.env.ATL_DAEMON_CHILD !== "1") return;
@@ -236,7 +242,8 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("capture") || eat("file") || eat("cursor") || eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims")) continue;
+  if (a.startsWith("--ttl=")) { flags.ttl = a.slice("--ttl=".length); continue; }
+  if (eat("capture") || eat("file") || eat("cursor") || eat("ttl") || eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -263,6 +270,7 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--json") { flags.json = true; continue; }
   if (a === "--expand") { flags.expand = true; continue; }
   if (a === "--mermaid") { flags.mermaid = true; continue; }
+  if (a.startsWith("--")) process.stderr.write(`Warning: unrecognized option ${a}; it is being preserved as a positional argument for compatibility.\n`);
   pos.push(a);
 }
 
@@ -1010,10 +1018,13 @@ async function promptSecret(prompt) {
       if (finished) return;
       finished = true;
       input.removeListener("keypress", onKey);
+      input.removeListener("end", onEof);
+      input.removeListener("close", onEof);
       try { input.setRawMode(false); } catch { /* stdin may already be closed */ }
       input.pause();
       process.stdout.write("\r\x1b[2K\n");
     };
+    const onEof = () => { cleanup(); reject(new StateError("Credential entry ended because stdin closed.")); };
     const onKey = (text, key = {}) => {
       if (key.ctrl && key.name === "c") { cleanup(); reject(new StateError("Credential entry cancelled.")); return; }
       if (key.ctrl && key.name === "r") { revealed = !revealed; draw(); return; }
@@ -1023,6 +1034,8 @@ async function promptSecret(prompt) {
     };
     process.stdout.write(`${prompt} (hidden; Ctrl+R shows/hides): `);
     input.on("keypress", onKey);
+    input.once("end", onEof);
+    input.once("close", onEof);
     input.setRawMode(true);
     input.resume();
   });
@@ -1264,12 +1277,12 @@ async function dispatch() {
         const worker = String(flags.worker || template.worker || "claude").toLowerCase();
         if (!["claude", "codex"].includes(worker)) throw new StateError("--worker must be claude or codex");
         const base = flags["base-url"] || template.baseUrl[worker] || "";
-        const key = flags.key !== undefined
-          ? String(flags.key)
-          : flags["key-env"]
+        if (flags.key !== undefined) throw new StateError("--key is not accepted because command arguments may be visible in process lists. Use --key-env VAR or the hidden prompt.");
+        const key = flags["key-env"]
             ? (process.env[String(flags["key-env"])] || "").trim()
             : await promptSecret("Provider API key / token");
         if (flags["key-env"] && !key) throw new StateError(`--key-env ${flags["key-env"]} is not set in this shell`);
+        if (!key) throw new StateError("No key entered. Use a non-empty key or --key-env VAR.");
         if (worker === "claude" && !base && !flags["base-url"]) {
           throw new StateError("a base URL is required for custom providers: --base-url https://your-endpoint/api/anthropic");
         }
@@ -1295,9 +1308,8 @@ async function dispatch() {
       } else if (sub === "key") {
         const id = pos[1];
         if (!id) throw new StateError("provider key needs a name: provider key <id> [--key-env VAR]");
-        const key = flags.key !== undefined
-          ? String(flags.key)
-          : flags["key-env"]
+        if (flags.key !== undefined) throw new StateError("--key is not accepted because command arguments may be visible in process lists. Use --key-env VAR or the hidden prompt.");
+        const key = flags["key-env"]
             ? (process.env[String(flags["key-env"])] || "").trim()
             : await promptSecret("Provider API key / token");
         if (flags["key-env"] && !key) throw new StateError(`--key-env ${flags["key-env"]} is not set in this shell`);
@@ -1739,6 +1751,10 @@ async function dispatch() {
       }
       try {
         claimOwnerRecord(ROOT, { port: running.port, url: running.url, runtime: runtimeIdentity(path.dirname(path.dirname(assetRoot || fileURLToPath(import.meta.url)))) });
+        // Rotate the browser owner session only after this process won the
+        // daemon ownership claim; a losing concurrent starter must not revoke
+        // the winning panel's cookie or CSRF token.
+        running.server.rotateOwnerSession?.();
       } catch (error) {
         running.server.close();
         if (error?.statusCode === 409) {
