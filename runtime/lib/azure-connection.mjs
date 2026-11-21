@@ -4,8 +4,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 // Windows DPAPI encrypts for the current OS user. No PAT is put in argv,
-// environment variables, project state, or the repository.
-const defaultDir = () => path.join(os.homedir(), '.atl', 'connections');
+// environment variables, project state, or the repository. The directory can
+// be redirected for tests and portable setups; production never sets it.
+const defaultDir = () => process.env.ATL_AZURE_CONNECTION_DIR || path.join(os.homedir(), '.atl', 'connections');
 export const azureIdentity = cfg => `${String(cfg?.org_url || '').replace(/\/$/, '').toLowerCase()}|${cfg?.project || ''}`;
 export function protect(value, decrypt = false) {
   return new Promise((resolve, reject) => {

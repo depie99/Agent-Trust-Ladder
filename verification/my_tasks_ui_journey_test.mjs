@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
+import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { readMyTasksStore } from "../runtime/lib/my-tasks.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 
@@ -49,6 +50,10 @@ const transport = async (url, options = {}) => {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-mytasks-ui-root-"));
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1, intake: { azure: { enabled: true, org_url: base, project: "Alpha", token_env: "AZDO_PAT", tls_allow_untrusted: true } } }));
+// A valid ATL project state keeps the snapshot endpoint healthy — without it
+// the client goes offline and disables every action button (pre-existing red
+// at base 939e1b2 once offline hardening landed).
+saveState(root, emptyState());
 
 const reviewCalls = [];
 const reviewInvoke = async packet => {
@@ -141,6 +146,7 @@ try {
   const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "atl-mytasks-ui-empty-"));
   fs.mkdirSync(path.join(emptyRoot, "config"), { recursive: true });
   fs.writeFileSync(path.join(emptyRoot, "config", "manager.json"), JSON.stringify({ version: 1, intake: { azure: { org_url: base, project: "Alpha", token_env: "AZDO_PAT" } } }));
+  saveState(emptyRoot, emptyState());
   const emptyServer = await startControlPlaneServer(emptyRoot, {
     myTasksFetch: async (url) => {
       if (url.endsWith("/_apis/ConnectionData")) return { data: { authenticatedUser: ME }, headers: {}, status: 200 };
@@ -171,6 +177,7 @@ try {
     const wipeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "atl-mytasks-ui-wipe-"));
     fs.mkdirSync(path.join(wipeRoot, "config"), { recursive: true });
     fs.writeFileSync(path.join(wipeRoot, "config", "manager.json"), JSON.stringify({ version: 1, intake: { azure: { org_url: base, project: "Alpha", token_env: "AZDO_PAT" } } }));
+    saveState(wipeRoot, emptyState());
     const wipeServer = await startControlPlaneServer(wipeRoot, {
       myTasksFetch: async (url) => {
         if (url.endsWith("/_apis/ConnectionData")) return { data: { authenticatedUser: ME }, headers: {}, status: 200 };
@@ -196,6 +203,52 @@ try {
       assert.equal(after.settings.enabled, true, "the save still applies the flag it did change");
       await page3.close();
     } finally { wipeServer.server.close(); wipeServer.server.closeAllConnections?.(); }
+  }
+
+  // 12. A rejected Azure credential (HTTP 401) must offer the fix inline, not
+  // a dead-end Retry: Re-authenticate opens the saved connection's credential
+  // entry, the save heals My Tasks' token seam, and the user lands back in
+  // setup where one Retry loads the project list.
+  {
+    const authRoot = fs.mkdtempSync(path.join(os.tmpdir(), "atl-mytasks-ui-auth-"));
+    fs.mkdirSync(path.join(authRoot, "config"), { recursive: true });
+    fs.writeFileSync(path.join(authRoot, "config", "manager.json"), JSON.stringify({ version: 1, intake: { azure: { org_url: base, project: "Alpha", token_env: "AZDO_PAT" } } }));
+    saveState(authRoot, emptyState());
+    let rejectProjects = true;
+    const authServer = await startControlPlaneServer(authRoot, {
+      myTasksFetch: async (url) => {
+        if (url.endsWith("/_apis/ConnectionData")) return { data: { authenticatedUser: ME }, headers: {}, status: 200 };
+        if (url.includes("/_apis/projects")) {
+          if (rejectProjects) { const error = new Error("HTTP 401 from devops.example.invalid: PAT rejected"); error.status = 401; throw error; }
+          return { data: { value: [{ id: "1", name: "Alpha", state: "wellFormed" }] }, headers: {}, status: 200 };
+        }
+        throw new Error(`unexpected call ${url}`);
+      },
+    });
+    try {
+      const page4 = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      await page4.goto(authServer.url, { waitUntil: "domcontentloaded" });
+      await page4.click('[data-page="mytasks"]');
+      await page4.waitForSelector('.mtr-status-group, .mtr-empty', { timeout: 20000 });
+      await page4.click('[data-action="mt-settings"]');
+      await page4.waitForSelector('.dialog:has-text("Could not list projects")', { timeout: 15000 });
+      assert.equal(await page4.locator('.dialog [data-action^="mt-reconnect:"]').count(), 1, "auth failure offers Re-authenticate exactly once");
+      assert.equal(await page4.locator('.dialog [data-action="mt-projects"]').count(), 1, "Retry is still offered");
+      assert.match(await page4.locator('.dialog').innerText(), /Re-authenticate with a PAT/);
+      await page4.click('.dialog [data-action^="mt-reconnect:"]');
+      await page4.waitForSelector('.dialog #sourceConnectionPat', { timeout: 15000 });
+      await page4.fill('#sourceConnectionPat', 'fresh-pat-value');
+      await page4.click('.dialogfoot [data-action^="sources-credential-save:"]');
+      await page4.waitForSelector('.dialog [data-mt-setup]', { timeout: 15000 });
+      const healed = await (await fetch(new URL("/api/my-tasks/settings", authServer.url))).json();
+      assert.equal(healed.connection.token_present, true, "credential save reaches the My Tasks token seam");
+      assert.ok(healed.connection.id, "settings expose the saved connection id");
+      // The fixture still rejects the first post-heal fetch; Retry now loads.
+      rejectProjects = false;
+      await page4.click('.dialog [data-action="mt-projects"]');
+      await page4.waitForSelector('.dialog [data-mt-project="Alpha"]', { timeout: 15000 });
+      await page4.close();
+    } finally { authServer.server.close(); authServer.server.closeAllConnections?.(); }
   }
 
   console.log("PASS: My Tasks UI journey — setup, three status groups, persistent list/kanban and filters, pre-generated tabbed reviews, sanitized originals, real Mermaid, keyboard/focus, language regeneration, mobile and project-list outage recovery");
