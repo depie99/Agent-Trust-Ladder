@@ -870,7 +870,7 @@
 </tr>
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/change-review-store.mjs">runtime/lib/change-review-store.mjs</a></td>
-<td>change review store: runtime implementation; inspect exports and matching verification.</td>
+<td>Review notes are separate from immutable capture manifests. Anchors always</td>
 </tr>
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/codex-bridge.mjs">runtime/lib/codex-bridge.mjs</a></td>
@@ -929,6 +929,10 @@
 <td>A single permission contract for Ask ATL and built-in queue workers.</td>
 </tr>
 <tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/execution-backend.mjs">runtime/lib/execution-backend.mjs</a></td>
+<td>Remote implementations must preserve these semantics, never impersonate local paths.</td>
+</tr>
+<tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/execution-projection.mjs">runtime/lib/execution-projection.mjs</a></td>
 <td>Read-only execution projection: joins what ATL already recorded (state</td>
 </tr>
@@ -945,6 +949,10 @@
 <td>Durable human feedback for bounded provider sessions.</td>
 </tr>
 <tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/file-transaction.mjs">runtime/lib/file-transaction.mjs</a></td>
+<td>Synchronous transactions only: never hold this lock across provider calls.</td>
+</tr>
+<tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/governance.mjs">runtime/lib/governance.mjs</a></td>
 <td>governance: runtime implementation; inspect exports and matching verification.</td>
 </tr>
@@ -955,6 +963,10 @@
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/harness-catalog.mjs">runtime/lib/harness-catalog.mjs</a></td>
 <td>Connection profiles only; worker-provider capability is a separate contract.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/harness-planning.mjs">runtime/lib/harness-planning.mjs</a></td>
+<td>Establish an initial revision without staging or committing developer files.</td>
 </tr>
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/history.mjs">runtime/lib/history.mjs</a></td>
@@ -1045,6 +1057,14 @@
 <td>One content identity for the Control Plane and every harness distribution.</td>
 </tr>
 <tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/program-runner.mjs">runtime/lib/program-runner.mjs</a></td>
+<td>program runner: runtime implementation; inspect exports and matching verification.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/programs.mjs">runtime/lib/programs.mjs</a></td>
+<td>Charged before provider spawn. A crash retains the charge rather than refunding unknown work.</td>
+</tr>
+<tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/project-map.mjs">runtime/lib/project-map.mjs</a></td>
 <td>Projects work map: how imported requests, plans, plan queues and executable</td>
 </tr>
@@ -1095,6 +1115,10 @@
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/routines.mjs">runtime/lib/routines.mjs</a></td>
 <td>Durable routine scheduler. It only creates internal ATL run records;</td>
+</tr>
+<tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/run-authorization.mjs">runtime/lib/run-authorization.mjs</a></td>
+<td>run authorization: runtime implementation; inspect exports and matching verification.</td>
 </tr>
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/runtime/lib/session-auth.mjs">runtime/lib/session-auth.mjs</a></td>
@@ -1342,7 +1366,7 @@
 </tr>
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/scripts/docs-reference.mjs">scripts/docs-reference.mjs</a></td>
-<td>Regenerate source-derived references before building the public website.</td>
+<td>docs reference: source/configuration for its containing feature.</td>
 </tr>
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/scripts/install-atl.cmd">scripts/install-atl.cmd</a></td>
@@ -2537,6 +2561,14 @@
 <td>Executable regression check for governance.</td>
 </tr>
 <tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/verification/harness_api_test.mjs">verification/harness_api_test.mjs</a></td>
+<td>Executable regression check for harness api.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/verification/harness_planning_test.mjs">verification/harness_planning_test.mjs</a></td>
+<td>Executable regression check for harness planning.</td>
+</tr>
+<tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/verification/history_test.mjs">verification/history_test.mjs</a></td>
 <td>Executable regression check for history.</td>
 </tr>
@@ -2807,6 +2839,10 @@
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/verification/portable_overnight_batch_test.mjs">verification/portable_overnight_batch_test.mjs</a></td>
 <td>Executable regression check for portable overnight batch.</td>
+</tr>
+<tr>
+<td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/verification/program_orchestration_test.mjs">verification/program_orchestration_test.mjs</a></td>
+<td>Executable regression check for program orchestration.</td>
 </tr>
 <tr>
 <td><a href="https://github.com/depie99/Agent-Trust-Ladder/blob/main/verification/project_readiness_verifier_test.mjs">verification/project_readiness_verifier_test.mjs</a></td>

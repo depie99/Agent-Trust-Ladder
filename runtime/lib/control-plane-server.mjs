@@ -1,3 +1,9 @@
+import { saveProgram, listPrograms, getProgram, approveProgram, bindProgramMilestone, programReport, beginProgramRun, stopProgramRun, linkProgramTasks, resolveProgramInterruption } from './programs.mjs';
+import { driveProgram, programRunnerActive, resumePersistedPrograms } from './program-runner.mjs';
+import { readOvernightRun } from './launch.mjs';
+import { Readable } from 'node:stream';
+import { harnessPlanContext, saveHarnessPlan, answerHarnessPlan, assertHarnessRevision, repositoryContext, bootstrapRepository, claimPlanApproval } from './harness-planning.mjs';
+import { createRunPreview, consumeRunPreview, markRunPreviewStarted } from './run-authorization.mjs';
 import http from "node:http";
 import { createTaskTriage } from './task-triage.mjs';
 import { createJiraMcp } from './jira-mcp.mjs';
@@ -31,7 +37,7 @@ import { clearOwnerSession, ensureOwnerSession, ownerSessionCookie, rotateOwnerS
 import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDeliveryReceiptFromRecord } from "./delivery.mjs";
 import { inspectHandoffChain } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
-import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview } from "./change-review-store.mjs";
+import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview, readTaskReviewState, writeTaskReviewState } from "./change-review-store.mjs";
 import { buildExecutionProjection } from "./execution-projection.mjs";
 import { taskStatechart } from "./task-statechart.mjs";
 import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
@@ -867,7 +873,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
         const reviewed = draft.review?.source_revision || draft.artifact.review?.source_revision;
         if (!reviewed?.current || current.remote_id !== reviewed.remote_id || current.revision !== reviewed.revision) throw new Error("Imported source revision changed after review; reconcile the task and review the plan again");
       }
-      const approved = approvePlanDraft(root, draft, { sourceRevisionCurrent: Boolean(draft.source_task_id) });
+      const approved = approvePlanDraft(root, draft, { sourceRevisionCurrent: Boolean(draft.source_task_id), expectedRevision: payload.expectedRevision });
       return json(res, 200, { ok: true, approved: { queueId: approved.queueId, taskIds: approved.taskIds, created: approved.created, draft: draftResponse(approved.draft, root) } });
     } catch (error) { return json(res, 409, { ok: false, error: error.message }); }
   }
@@ -1326,6 +1332,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     try {
       lastRequestAt = Date.now();
       const url = new URL(req.url || "/", `http://${host}`);
+      let consumedRunPreview = null;
       if (readOnlyPreview && !["GET", "HEAD", "OPTIONS"].includes(req.method || "GET")) { json(res, 403, { ok: false, error: "Synthetic UI preview is read-only; live task actions are unavailable." }); return; }
       // A browser may only mutate this loopback service from its own origin.
       // Command-line clients have no Origin header and remain supported.
@@ -1397,13 +1404,25 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         });
         return;
       }
-      if (["/api/task-changes", "/api/task-change-diff", "/api/task-changes/capture"].includes(url.pathname)) {
+      if (["/api/task-changes", "/api/task-change-diff", "/api/task-changes/capture", "/api/task-review-state"].includes(url.pathname)) {
         // Source previews require the owner session even on GET, including a
         // CSRF header a cross-origin page cannot obtain through a simple request.
         const token = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length);
         if (!validateOwnerSession(root, decodeURIComponent(token || ""), String(req.headers["x-atl-csrf"] || ""))) { json(res, 403, { error: "Owner session is required for source inspection", availability: "forbidden" }); return; }
         try {
           const capture = url.pathname.endsWith("/capture");
+          if (url.pathname === "/api/task-review-state") {
+            if (!(["GET", "PUT"].includes(req.method))) { json(res, 405, { error: "Method not allowed" }); return; }
+            const payload = req.method === "PUT" ? JSON.parse(await readBody(req) || "{}") : null;
+            const taskId = req.method === "PUT" ? payload.task_id : url.searchParams.get("taskId");
+            const state = loadState(root), task = state.tasks[taskId];
+            if (!task) { json(res, 404, { error: "Task not found" }); return; }
+            try {
+              const value = req.method === "GET" ? readTaskReviewState(root, task) : writeTaskReviewState(root, task, payload);
+              json(res, 200, { ok: true, ...value });
+            } catch (error) { json(res, error instanceof ChangeReviewError ? error.status : 409, { ok: false, error: error.message, availability: error.code || "review_state_unavailable" }); }
+            return;
+          }
           if (req.method !== (capture ? "POST" : "GET")) { json(res, 405, { error: "Method not allowed" }); return; }
           const payload = capture ? JSON.parse(await readBody(req) || "{}") : null;
           const taskState = loadState(root);
@@ -2202,6 +2221,68 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         json(res, 200, { ok: true, budget });
         return;
       }
+      if (req.method === "POST" && url.pathname.startsWith("/api/harness/")) {
+        const payload = JSON.parse(await readBody(req) || "{}");
+        const operation = url.pathname.slice('/api/harness/'.length);
+        try {
+          if (operation === 'project/bootstrap') return json(res, 200, { ok: true, repository: bootstrapRepository(root, payload) });
+          if (operation === 'program/save') return json(res, 200, { ok: true, program: saveProgram(root, payload) });
+          if (operation === 'program/status') return json(res, 200, { ok: true, program: payload.programId ? programReport(root, payload.programId) : listPrograms(root) });
+          if (operation === 'program/approve') return json(res, 200, { ok: true, program: approveProgram(root, payload) });
+          if (operation === 'program/reconcile') return json(res, 200, { ok: true, program: resolveProgramInterruption(root, payload.programId, payload) });
+          if (operation === 'program/link') return json(res, 200, { ok: true, ...linkProgramTasks(root, payload) });
+          if (operation === 'program/bind') {
+            const program = await bindProgramMilestone(root, payload, { link: async (target, linkPayload) => {
+              if (canonicalRoot(target) === canonicalRoot(root)) return linkProgramTasks(root, linkPayload);
+              const { ensureDaemon } = await import('./daemon.mjs');
+              const daemon = await ensureDaemon(target);
+              const response = await fetch(new URL('/api/harness/program/link', daemon.url), {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(linkPayload)});
+              const result = await response.json(); if(!response.ok || result.ok === false) throw new Error(result.error || 'Project binding failed');
+              return result;
+            } });
+            return json(res, 200, { ok: true, program });
+          }
+          if (operation === 'program/start') {
+            const program = beginProgramRun(root, payload);
+            void driveProgram(root, program.id).catch(error => console.error('[program]', error.message));
+            return json(res, 202, { ok: true, program });
+          }
+          if (operation === 'program/stop') return json(res, 200, { ok: true, program: stopProgramRun(root, payload.programId) });
+          if (operation === 'plan/context') return json(res, 200, { ok: true, ...harnessPlanContext(root, payload) });
+          if (operation === 'plan/save') return json(res, 200, { ok: true, draft: saveHarnessPlan(root, payload) });
+          if (operation === 'plan/answer') return json(res, 200, { ok: true, draft: answerHarnessPlan(root, payload) });
+          if (operation === 'plan/review' || operation === 'plan/approve') {
+            assertHarnessRevision(root, payload);
+            if (operation === 'plan/review' && payload.confirm !== true) throw new Error('Review provider spend requires explicit confirmation');
+            if (operation === 'plan/approve' && (payload.confirm !== true || !payload.idempotencyKey)) throw new Error('Plan approval needs explicit confirmation and an idempotency key');
+            if (operation === 'plan/approve') claimPlanApproval(root, payload);
+            const adapted = Readable.from([JSON.stringify(payload)]);
+            adapted.headers = req.headers;
+            adapted.method = 'POST';
+            return await handlePlanEndpoint(root, res, `/api/${operation}`, adapted, seam);
+          }
+          if (operation === 'run/preview') {
+            const options = { queueId: payload.queueId || null, taskIds: payload.taskIds || null, maxMinutes: payload.maxMinutes, maxSessions: payload.maxSessions };
+            const preview = resolvePreviewSafe(root, options);
+            if (preview.error) throw new Error(preview.error);
+            return json(res, 200, { ok: true, ...createRunPreview(root, options, preview.preview), lines: previewLines(preview.preview) });
+          }
+          if (operation === 'run/start') {
+            const options = consumeRunPreview(root, payload);
+            if (options.replay) return json(res, 200, { ok: true, replayed: true, accepted: true, runId: options.run_id || null, next_actions: ['run/status'] });
+            consumedRunPreview = payload.previewToken;
+            const adapted = Readable.from([JSON.stringify({ ...options, confirm: true })]);
+            adapted.headers = req.headers;
+            adapted.method = 'POST';
+            req = adapted;
+            url.pathname = '/api/run';
+          } else if (operation === 'run/stop') {
+            url.pathname = '/api/run/stop';
+          } else if (operation === 'run/status') {
+            return json(res, 200, { ok: true, run, durable: readOvernightRun(root) });
+          } else throw new Error('Unknown harness operation');
+        } catch (error) { return json(res, error.statusCode || 400, { ok: false, error: error.message, next_actions: ['reload_context'] }); }
+      }
       if (req.method === "POST" && url.pathname === "/api/run/preview") {
         const payload = JSON.parse(await readBody(req) || "{}");
         const resolved = resolvePreviewSafe(root, {
@@ -2266,7 +2347,9 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         // A queue owns its complete bounded relay; multi-queue runs share one
         // budget across their selected queues.
         const defaultSessions = 8;
-        Object.assign(run, { status: "running", queueId: runQueueLabel, taskIds, queueIds, startedAt: new Date().toISOString(), finishedAt: null, progress: [], results: [], error: null, reason: null });
+        const runId=crypto.randomUUID();
+        if(consumedRunPreview)markRunPreviewStarted(root,consumedRunPreview,runId);
+        Object.assign(run, { status: "running", runId, queueId: runQueueLabel, taskIds, queueIds, startedAt: new Date().toISOString(), finishedAt: null, progress: [], results: [], error: null, reason: null });
         executeLaunchQueue(root, {
           confirm: true,
           queueId: taskIds || queueIds ? null : (payload.queueId || null),
@@ -2286,6 +2369,8 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/run/stop") {
+        const payload = JSON.parse(await readBody(req) || "{}");
+        if (payload.runId && payload.runId !== run.runId) { json(res, 409, { ok: false, error: "The active run changed; refusing to stop another run.", run }); return; }
         if (run.status !== "running") {
           json(res, 409, { ok: false, error: "no queue run is active", run });
           return;
@@ -2379,7 +2464,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   // (heartbeat + idle exit). Reads live server state without HTTP.
   server.atlObservability = {
     lastRequestAt: () => lastRequestAt,
-    streamCount: () => streams.size,
+    streamCount: () => streams.size + (programRunnerActive(root) ? 1 : 0),
   };
   return server;
 }
@@ -2392,5 +2477,6 @@ export async function startControlPlaneServer(root, { host = "127.0.0.1", port =
   });
   const address = server.address();
   const actualPort = typeof address === "object" && address ? address.port : port;
+  void resumePersistedPrograms(root).catch(error => console.error('[program recovery]', error.message));
   return { server, host, port: actualPort, url: `http://${host}:${actualPort}/` };
 }

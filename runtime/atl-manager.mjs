@@ -26,6 +26,7 @@ import { WorkspaceError, ensureWorkspace } from "./lib/workspace.mjs";
 import { renderBrief, renderTask, wakeActions, saveBrief, activeTasks } from "./lib/render.mjs";
 import { post as feedPost, renderFeed, renderRoster } from "./lib/feed.mjs";
 import { runDashboard } from "./lib/dashboard.mjs";
+import { taskReviewReport } from "./lib/command-console.mjs";
 import { buildShowMe, saveShowMe } from "./lib/show-me.mjs";
 import { saveVisualPrDescription } from "./lib/visual-pr.mjs";
 import { memoryStatus, safeRecall, safeRemember } from "./lib/memory.mjs";
@@ -260,6 +261,7 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--no-open") { flags.noOpen = true; continue; }
   if (a === "--fresh") { flags.fresh = true; continue; }
   if (a === "--json") { flags.json = true; continue; }
+  if (a === "--mermaid") { flags.mermaid = true; continue; }
   pos.push(a);
 }
 
@@ -397,6 +399,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                 persist the default or per-role provider/model selection
   provider clear --role role    remove a per-role provider override
   show [task-id]                portfolio or one task
+  review <task-id> [--mermaid|--json]  inspect captured diffs and execution impact
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
@@ -416,6 +419,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   run <task-id> --worker <provider-id> [--model model] [--auth subscription|api] [--confirm]
                                 run one bounded role session
   overnight [<task-id> | --all] --worker <provider-id> [--model model] [--auth subscription|api] --confirm
+  harness <operation> [file]    harness planning/program/run API with a JSON request file
   overnight status              inspect the durable overnight ledger; starts nothing
   overnight recover --confirm   resume only untouched tasks after an interrupted runner
                                 run bounded role sessions until a gate or budget stops it;
@@ -1036,6 +1040,17 @@ async function dispatch() {
       if (identity.commit) bits.push(`(${String(identity.commit).slice(0, 7)})`);
       if (identity.manifestVersion) bits.push(`manifest ${identity.manifestVersion}`);
       console.log(bits.join(" "));
+      return;
+    }
+    case "harness": {
+      const operation = pos[0];
+      if (!/^(plan\/(context|save|answer|review|approve)|run\/(preview|start|status|stop)|program\/(save|status|approve|reconcile|bind|start|stop)|project\/bootstrap)$/.test(operation || '')) throw new StateError('Use: atl harness <operation> [request.json]');
+      const payload = pos[1] ? JSON.parse(fs.readFileSync(path.resolve(pos[1]), 'utf8')) : {};
+      const daemon = await ensureDaemon(ROOT);
+      const response = await fetch(new URL(`/api/harness/${operation}`, daemon.url), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await response.json();
+      console.log(JSON.stringify(result, null, 2));
+      if (!response.ok || result.ok === false) process.exitCode = 1;
       return;
     }
     case "init": {
@@ -1766,6 +1781,12 @@ async function dispatch() {
       throw new StateError(`unknown daemon command "${sub}" (status | start | stop)`);
     }
 
+    case "review": {
+      const taskId = pos[0];
+      if (!taskId) throw new StateError("review needs a task id: atl review T-001 [--mermaid|--json]");
+      console.log(taskReviewReport(ROOT, taskId, flags.mermaid ? "mermaid" : flags.json ? "json" : "text"));
+      return;
+    }
     case "show": {
       const state = loadState(ROOT);
       if (flags.json) {

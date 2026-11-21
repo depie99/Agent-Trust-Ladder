@@ -1,3 +1,5 @@
+import { withFileLock } from './file-transaction.mjs';
+import { programTaskReady, admitProgramSession, settleProgramSession } from './programs.mjs';
 // Bounded launch engine for the interactive task control room (spec 014).
 //
 // Ownership: this is the ONLY module that starts provider processes. Both the
@@ -412,7 +414,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     if (budget.taskSessions) budget.taskSessions.set(taskId, taskSessions() + 1);
     const logPath = path.join(runDir, `session-${String(budget.sessions).padStart(2, "0")}-${role}-${Date.now()}.log`);
     const remainingMs = Math.max(1000, budget.deadline - Date.now());
-    const timeoutMs = remainingMs;
+    let timeoutMs = remainingMs;
     report(`[${taskId}] session ${budget.sessions}/${budget.maxSessions} · ${role} · ${useWorker} · ${useProvider.model || "provider default"}`);
     report(`  workspace: ${invocation.cwd}`);
     report(`  transcript: ${logPath}`);
@@ -431,6 +433,8 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     let result;
     try {
       if (role === "rowan" && task.integration_inputs?.status === "required") task.integration_inputs.sessions = (task.integration_inputs.sessions || 0) + 1;
+      const programAdmission = admitProgramSession(task, `${path.resolve(root)}:${executionId}`);
+      if (programAdmission) timeoutMs = Math.min(timeoutMs, Math.max(1, programAdmission.deadline - Date.now()));
       task.execution_budget.used += 1;
       recordExecution(root,{...executionStart,budget:{...task.execution_budget}});
       writeRunMeta(root, { phase: "provider-session" });
@@ -447,6 +451,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
         stdinText: invocation.prompt,
         echo,
       });
+      settleProgramSession(task, `${path.resolve(root)}:${executionId}`, { code: result.code, timedOut: result.timedOut });
       for (const item of feedback) markFeedback(root, item.id, "applied", `session ${budget.sessions} started for ${role}`);
     } catch (error) {
       for (const item of feedback) markFeedback(root, item.id, "pending", `provider start failed: ${error.message}`);
@@ -592,6 +597,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
     const resolvedSpec = spec ? { ...spec, model: resolvedProvider.model } : spec;
     const disc = role ? discover(provider.worker, { command: spec.command }) : null;
     const blockers = [];
+    if (!programTaskReady(task)) blockers.push("program milestone dependencies or authorization are not ready");
     if(provider.decision.blocked)blockers.push(provider.decision.blocked);
     if (task.plan_review_required) blockers.push("external GitHub/Azure task needs an approved Plan Studio accuracy review before execution");
     if (task.intake_only) blockers.push('imported request is source context; run the executable tasks created by its approved plan');
@@ -674,6 +680,9 @@ export function globalMaxConcurrent(root) {
 }
 
 export function beginQueueRun(root, queueId = null) {
+  return withFileLock(runLockPath(root), () => beginQueueRunLocked(root, queueId));
+}
+function beginQueueRunLocked(root, queueId = null) {
   const lock = readRunLock(root);
   const limit = globalMaxConcurrent(root);
   if (lock && pidAlive(lock.pid)) {
@@ -691,6 +700,9 @@ export function beginQueueRun(root, queueId = null) {
 }
 
 export function endQueueRun(root, runId) {
+  return withFileLock(runLockPath(root), () => endQueueRunLocked(root, runId));
+}
+function endQueueRunLocked(root, runId) {
   const lock = readRunLock(root);
   if (lock && lock.runId === runId) {
     try { fs.rmSync(runLockPath(root), { force: true }); } catch { /* a stuck lease file is removable by hand; it never blocks a live run forever */ }

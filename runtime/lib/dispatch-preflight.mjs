@@ -1,3 +1,4 @@
+import { programTaskReady } from './programs.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -10,6 +11,7 @@ function inside(workspace, relative) {
   return file;
 }
 export function dispatchPreflight(root, task, tasks, { providerReady = true, provisionLocal = false, execute = spawnSync, allowIntegration = false } = {}) {
+  if (!programTaskReady(task)) return { ready: false, cause: "program-dependency", recovery_owner: "owner", reason: "program milestone prerequisites are not verified or authorization is paused" };
   if (!providerReady) return { ready: false, cause: "provider-unavailable", recovery_owner: "owner", reason: "provider executable or credentials unavailable" };
   if (!task.workspace || !fs.existsSync(task.workspace)) return { ready: false, cause: "workspace", reason: "isolated workspace unavailable" };
   const verifierPath = task.verifier_manifest || ".atl-verifier.json";

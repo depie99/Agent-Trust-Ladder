@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { loadState } from "./state.mjs";
 import { executionRecords } from "./execution-report.mjs";
 import { listChangeReviews, readChangeReview } from "./change-review-store.mjs";
-import { compareSnapshots } from "./task-changes.mjs";
+import { compareSnapshots, fileDiff } from "./task-changes.mjs";
 
 // Read-only execution projection: joins what ATL already recorded (state
 // events, execution ledger, overnight session summaries, captured change
@@ -87,10 +88,12 @@ export function buildExecutionProjection(root, taskId, options = {}) {
   try { currentCaptureId = readChangeReview(root, task, null)?.id || null; } catch { currentCaptureId = null; }
 
   let files = options.files !== undefined ? options.files.slice() : [];
+  const captureRecords = new Map();
   if (options.files === undefined) {
     try {
       const current = readChangeReview(root, task, null);
       if (current) {
+        captureRecords.set(current.id, current);
         const page = truncated(compareSnapshots(current.baseline, current.output), LIMITS.files);
         files = page.items.map((file) => ({ id: file.id, path: file.path, kind: file.kind, capture_id: current.id }));
       }
@@ -217,6 +220,11 @@ export function buildExecutionProjection(root, taskId, options = {}) {
   }
 
   const stageList = [...stages.values()].filter((stage) => stage.attempts.length > 0 || stage.capture_ids.length > 0);
+  const checks = (() => {
+    const rows = taskEvidence.map((entry, index) => ({ entry, index })).filter(({ entry }) => entry.kind === "check" && entry.check).sort((a, b) => String(a.entry.at || "").localeCompare(String(b.entry.at || "")) || a.index - b.index);
+    const page = truncated(rows, LIMITS.checks);
+    return { items: page.items.map(({ entry, index }) => ({ id: `check-${createHash("sha256").update(JSON.stringify([index, entry.kind, entry.check, entry.at, entry.session_id, entry.command, entry.result])).digest("hex").slice(0, 20)}`, check: entry.check, result: entry.result || null, at: entry.at || null, coverage: entry.coverage || null, command: entry.command || null, actor: entry.actor || null, session_id: entry.session_id || null })), truncated: page.truncated };
+  })();
 
   const runningSession = sessions.find((session) => !session.finishedAt) || null;
   return {
@@ -240,16 +248,53 @@ export function buildExecutionProjection(root, taskId, options = {}) {
     captures: captures.slice(0, 20).map((capture) => ({ ...capture, current: capture.id === currentCaptureId })),
     current_capture_id: currentCaptureId,
     files,
-    checks: (() => {
-      const latest = new Map();
-      for (const entry of taskEvidence) {
-        if (entry.kind !== "check" || !entry.check) continue;
-        const prior = latest.get(entry.check);
-        if (!prior || String(entry.at || "").localeCompare(String(prior.at || "")) > 0) latest.set(entry.check, entry);
+    checks,
+    graph: (() => {
+      const nodes = [{ id: `task:${taskId}`, kind: "objective", label: task.objective_hint || task.objective || task.title || taskId, capture_id: null }];
+      const edges = [];
+      let hunkFilesProcessed = 0, hunkCount = 0, hunksTruncated = false;
+      for (const stage of stageList) for (const attempt of stage.attempts) {
+        const id = `attempt:${stage.key}:${attempt.attempt}`;
+        nodes.push({ id, kind: "attempt", label: `${stage.label} · ${attempt.actor || "recorded events"} · ${attempt.outcome || "recorded"}`, stage: stage.key, attempt: attempt.attempt, session_id: attempt.session_id || null });
+        edges.push({ from: `task:${taskId}`, to: id, provenance: "recorded", label: "task execution" });
       }
-      const rows = [...latest.values()].sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")));
-      const page = truncated(rows, LIMITS.checks);
-      return { items: page.items.map((entry) => ({ check: entry.check, result: entry.result || null, at: entry.at || null, coverage: entry.coverage || null, command: entry.command || null, actor: entry.actor || null })), truncated: page.truncated };
+      for (const capture of captures.slice(0, 20)) nodes.push({ id: `capture:${capture.id}`, kind: "capture", label: `Capture ${capture.id.slice(0, 8)} · ${capture.current ? "current" : "historical"}`, capture_id: capture.id });
+      for (const file of files) {
+        const id = `file:${file.capture_id}:${file.id}`;
+        nodes.push({ id, kind: "file", label: file.path, file_id: file.id, capture_id: file.capture_id });
+        if (file.capture_id) {
+          edges.push({ from: `capture:${file.capture_id}`, to: id, provenance: "recorded", label: "captured change" });
+          const linkedStage = stageList.find((stage) => stage.capture_ids.includes(file.capture_id));
+          const linkedAttempt = linkedStage?.attempts.find((attempt) => attempt.session_id);
+          if (linkedAttempt) edges.push({ from: `attempt:${linkedStage.key}:${linkedAttempt.attempt}`, to: id, provenance: "recorded", label: "packet-linked capture" });
+          const capture = captureRecords.get(file.capture_id);
+          if (capture && hunkFilesProcessed < 24 && hunkCount < 250) {
+            hunkFilesProcessed++;
+            const diff = fileDiff(root, capture, file.id, { milliseconds: 100 });
+            const patch = diff.patch || "";
+            if (diff.availability !== "available" || diff.truncated) hunksTruncated = true;
+            const headers = [...patch.matchAll(/^@@[^\n]*/gm)];
+            const remainingHunks = 250 - hunkCount;
+            if (headers.length > remainingHunks) hunksTruncated = true;
+            headers.slice(0, remainingHunks).forEach((match, index) => {
+              const hunkId = `hunk:${file.capture_id}:${file.id}:${match[0]}`;
+              nodes.push({ id: hunkId, kind: "hunk", label: `${file.path} · ${match[0]}`, file_id: file.id, capture_id: file.capture_id, hunk_index: index, header: match[0] });
+              edges.push({ from: id, to: hunkId, provenance: "recorded", label: "patch hunk" });
+              hunkCount++;
+            });
+          } else if (capture) hunksTruncated = true;
+        }
+      }
+      for (const check of checks.items) {
+        const id = `check:${check.id}`;
+        nodes.push({ id, kind: "check", label: `${check.check} · ${check.result || "unknown"}`, check_id: check.id, check: check.check, result: check.result, at: check.at, coverage: check.coverage, command: check.command, actor: check.actor, session_id: check.session_id });
+        const attempt = stageList.flatMap((stage) => stage.attempts.map((item) => ({ stage, item }))).find(({ item }) => check.session_id && item.session_id === check.session_id);
+        if (attempt) edges.push({ from: `attempt:${attempt.stage.key}:${attempt.item.attempt}`, to: id, provenance: "recorded", label: "session-linked evidence" });
+      }
+      for (const file of files) for (const check of checks.items) edges.push({ from: `file:${file.capture_id}:${file.id}`, to: `check:${check.id}`, provenance: "unknown", label: "file coverage not recorded" });
+      nodes.push({ id: `outcome:${taskId}`, kind: "outcome", label: `Task outcome · ${task.status || "unknown"}` });
+      edges.push({ from: `task:${taskId}`, to: `outcome:${taskId}`, provenance: "recorded", label: "recorded status" });
+      return { version: 1, nodes, edges, hunk_files_processed: hunkFilesProcessed, hunks_truncated: hunksTruncated };
     })(),
     counts: { sessions: sessions.length, events: events.length, captures: captures.length, evidence: taskEvidence.length, files: files.length },
   };
