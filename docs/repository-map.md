@@ -126,6 +126,9 @@ Developer guides, generated website, visual sources, and historical evidence.
 | [docs/diagrams/issue-sources-v2.after.page.png](../docs/diagrams/issue-sources-v2.after.page.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/issue-sources-v2.before.add-source.png](../docs/diagrams/issue-sources-v2.before.add-source.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/issue-sources-v2.before.page.png](../docs/diagrams/issue-sources-v2.before.page.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/my-tasks-auth-recovery.after.credential-modal.png](../docs/diagrams/my-tasks-auth-recovery.after.credential-modal.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/my-tasks-auth-recovery.after.setup-401.png](../docs/diagrams/my-tasks-auth-recovery.after.setup-401.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/my-tasks-auth-recovery.before.setup-401.png](../docs/diagrams/my-tasks-auth-recovery.before.setup-401.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-compose.svg](../docs/diagrams/tui-compose.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-dashboard.svg](../docs/diagrams/tui-dashboard.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-launch.svg](../docs/diagrams/tui-launch.svg) | Visual source or retained historical capture; see the diagram library. |
@@ -682,6 +685,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/import_plan_revision_journey_test.mjs](../verification/import_plan_revision_journey_test.mjs) | Executable regression check for import plan revision journey. |
 | [verification/install_test.mjs](../verification/install_test.mjs) | Executable regression check for install. |
 | [verification/intake_azure_iterations_test.mjs](../verification/intake_azure_iterations_test.mjs) | Executable regression check for intake azure iterations. |
+| [verification/intake_connect_cli_test.mjs](../verification/intake_connect_cli_test.mjs) | Executable regression check for intake connect cli. |
 | [verification/intake_test.mjs](../verification/intake_test.mjs) | Executable regression check for intake. |
 | [verification/issue_connections_test.mjs](../verification/issue_connections_test.mjs) | Executable regression check for issue connections. |
 | [verification/issue_source_browse_test.mjs](../verification/issue_source_browse_test.mjs) | Executable regression check for issue source browse. |

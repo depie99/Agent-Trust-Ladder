@@ -312,6 +312,7 @@ let queueFilterTouched = false;
   let resourceNotice = '';
   let sourceSettings = null, sourcePreview = null, sourceNotice = "";
   let sourceConnections = [], sourceConnectionRevision = 0, sourceSelectedId = null;
+  let mtReconnectReturn = false; // a credential save from a My Tasks recovery flow reopens the setup dialog
   let sourcePreviewSequence = 0;
   let sourceIteration = '', sourceWorkItem = '', sourceSearchTerm = '', sourceBrowseLoading = false;
   let sourceStateFilter = 'All states', sourceLabelFilter = '';
@@ -1231,9 +1232,13 @@ ${feedbackLine}
     try {
       const response = await fetch("/api/my-tasks/projects", { cache: "no-store" });
       const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || "Could not list Azure projects");
+      if (!response.ok || !result.ok) {
+        const failure = new Error(result.error || "Could not list Azure projects");
+        failure.code = result.code || null;
+        throw failure;
+      }
       myTasksSetupProjects = result;
-    } catch (error) { myTasksSetupProjects = { error: error.message }; }
+    } catch (error) { myTasksSetupProjects = { error: error.message, code: error.code || null }; }
     // If the settings dialog is open, patch its list in place — a full render
     // cannot touch #modal, and rebuilding the dialog would drop in-progress edits.
     const projectListNode = $("#mtProjectList");
@@ -1252,7 +1257,24 @@ ${feedbackLine}
   function setupProjectsHtml() {
     const listed = myTasksSetupProjects;
     if (!listed) return `<div class="bar" style="margin-top:10px">${btn("Load Azure project list", "mt-projects", "sm")}</div>`;
-    if (listed.error) return `<div class="notice" style="margin-top:10px"><b class="amber">Could not list projects</b><p class="sub">${escapeHtml(listed.error)}</p></div><div class="bar">${btn("Retry", "mt-projects", "sm")}</div>`;
+    if (listed.error) {
+      // Auth failures must offer the fix, not just another attempt: route the
+      // user straight into the saved connection's credential entry (owner
+      // report 2026-11-21 — a bare Retry is a dead end after a PAT expires).
+      const raw = String(listed.error);
+      const rejected = listed.code === "ATL_MYTASKS_AUTH" || /\b(?:401|203)\b|unauthori[sz]ed/i.test(raw);
+      const forbidden = listed.code === "ATL_MYTASKS_FORBIDDEN" || /\b403\b|forbidden/i.test(raw);
+      const connectionId = myTasksSettingsData?.connection?.id;
+      const reconnect = connectionId
+        ? btn("Re-authenticate", `mt-reconnect:${connectionId}`, "primary")
+        : btn("Open Issue sources", "go:sources", "primary");
+      const guidance = rejected
+        ? "The Azure credential was rejected or is missing. Re-authenticate with a PAT that has Work Items: Read access, then retry."
+        : forbidden
+          ? "The saved PAT lacks access to this project. Re-authenticate with a PAT that includes Work Items: Read, or ask the project admin for access."
+          : "Check the connection and try again.";
+      return `<div class="notice" style="margin-top:10px"><b class="amber">Could not list projects</b><p class="sub">${escapeHtml(raw)}</p><p class="muted tiny">${guidance}</p></div><div class="bar">${reconnect}${btn("Retry", "mt-projects", "sm")}</div>`;
+    }
     if (!listed.projects?.length) return '<p class="muted tiny">No accessible projects were returned for this account.</p>';
     if (!myTasksSettingsData) return '<p class="muted tiny">Saved settings are still loading - reopen this dialog if the list stays empty.</p>';
     const selected = [...new Set([...(myTasksSettingsData?.settings?.projects || []), ...myTasksSetupSelected])];
@@ -1278,7 +1300,7 @@ ${feedbackLine}
     showModal("Set up My Tasks",
       `<div class="mt-setup" data-mt-setup>${connected
         ? `<p class="sub">Using the saved Azure connection for <b dir="ltr">${escapeHtml(connection.org_url || "")}</b><span id="mtIdentityLine">${identityNameLine(myTasksSetupProjects?.identity) || identityNameLine(myTasksStatus)}</span>.<br><span class="muted tiny">Reads only — ATL never writes to Azure and never creates tasks from this page.</span></p>`
-        : `<p class="sub">Connect Azure Boards first from <button class="btn sm" data-action="go:sources">Issue sources</button> (PAT with Work Items: Read). This dialog reuses that saved connection.</p>`}<div id="mtProjectList">${setupProjectsHtml()}</div>${setupScheduleHtml(myTasksSettingsData?.settings)}</div>`,
+        : `<p class="sub">This dialog reuses the saved Azure connection (PAT with Work Items: Read).</p><p class="sub">${connection?.id ? "No credential is available for this session." : "Connect Azure Boards first."}</p><div class="bar" style="margin-top:8px">${connection?.id ? btn("Re-authenticate", `mt-reconnect:${connection.id}`, "sm primary") : ""}<button class="btn sm" data-action="go:sources">Issue sources</button></div>`}<div id="mtProjectList">${setupProjectsHtml()}</div>${setupScheduleHtml(myTasksSettingsData?.settings)}</div>`,
       `${btn("Save settings", "mt-save", "primary")}<button type="button" class="btn" data-mtr-action="analysis-settings">${locale === "fa-IR" ? "\u062a\u062d\u0644\u06cc\u0644 \u0648 Jira" : "Analysis & Jira"}</button><button type="button" class="btn" data-mtr-action="bindings">${locale === "fa-IR" ? "اتصال مخزن‌ها" : "Repository connections"}</button>${btn("Close", "close", "ghost")}`);
   }
   async function saveMyTasksSettings() {
@@ -3705,6 +3727,21 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "memory-context") return previewMemoryContext();
     if (value === "mt-refresh") return void loadMyTasks();
     if (value === "mt-projects") return void loadMyTasksProjects();
+    if (value.startsWith("mt-reconnect:")) {
+      // Auth recovery from the My Tasks surfaces: open the saved connection's
+      // credential entry (the same modal the Issue sources card uses) and
+      // return to the setup dialog afterwards so the retry is one click.
+      const id = value.slice("mt-reconnect:".length);
+      if (myTasksSettingsData?.connection?.id !== id) return;
+      if (!sourceConnections.some((item) => item.id === id)) await loadIssueSources().catch(() => {});
+      if (!sourceConnections.some((item) => item.id === id)) {
+        const projectListNode = $("#mtProjectList");
+        if (projectListNode) projectListNode.insertAdjacentHTML("beforeend", '<p class="source-form-error" role="alert">Could not open the saved connection. Open Issue sources and re-authenticate it there.</p>');
+        return;
+      }
+      mtReconnectReturn = true;
+      return void action(`sources-credential:${id}`);
+    }
     if (value === "mt-check") return void requestMyTasksCheck();
     if (value === "mt-settings" || value === "mt-enable") return void openMyTasksSettings();
     if (value === "mt-save") return void saveMyTasksSettings();
@@ -3766,7 +3803,18 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       try {
         const response = await fetch(`/api/intake/connections/${encodeURIComponent(id)}/credential`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ revision: sourceConnectionRevision, action: disconnect ? 'disconnect' : 'connect', token: disconnect ? '' : $('#sourceConnectionPat')?.value, remember: Boolean($('#sourceConnectionRemember')?.checked) }) });
         const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Credential could not be saved');
-        close(); await loadIssueSources(); sourceConnectionNotice = disconnect ? `${credentialConnection?.provider === 'jira' ? 'Jira' : 'Azure'} credential disconnected.` : `${credentialConnection?.provider === 'jira' ? 'Jira' : 'Azure'} credential saved. Check access to verify it.`; render();
+        close(); await loadIssueSources();
+        if (!disconnect && mtReconnectReturn) {
+          // My Tasks recovery flow: land back in the setup dialog with the
+          // healed credential; the project list reloads on its own because
+          // myTasksSetupProjects was cleared.
+          mtReconnectReturn = false;
+          myTasksSetupProjects = null;
+          await openMyTasksSettings().catch(() => {});
+          return;
+        }
+        mtReconnectReturn = false;
+        sourceConnectionNotice = disconnect ? `${credentialConnection?.provider === 'jira' ? 'Jira' : 'Azure'} credential disconnected.` : `${credentialConnection?.provider === 'jira' ? 'Jira' : 'Azure'} credential saved. Check access to verify it.`; render();
       } catch (error) { const node = $('#sourceCredentialError'); if (node) node.textContent = error.message; if (button) button.disabled = false; }
       return;
     }

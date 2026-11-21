@@ -106,6 +106,18 @@
     "Could not list projects": "دریافت فهرست پروژه‌ها ناموفق بود",
     "Retry": "تلاش دوباره",
     "No accessible projects were returned for this account.": "هیچ پروژهٔ در دسترسی برای این حساب برگردانده نشد.",
+    // 2026-11-21 auth-recovery UX: a rejected credential offers the fix
+    // (Re-authenticate opens the saved connection's credential entry).
+    "Open Issue sources": "باز کردن منابع مسئله",
+    "Replace PAT": "تعویض PAT",
+    "Replace token": "تعویض توکن",
+    "The Azure credential was rejected or is missing. Re-authenticate with a PAT that has Work Items: Read access, then retry.": "اعتبار آژور رد شد یا موجود نیست. با PAT دارای دسترسی Work Items: Read دوباره احراز هویت کنید و دوباره تلاش کنید.",
+    "The saved PAT lacks access to this project. Re-authenticate with a PAT that includes Work Items: Read, or ask the project admin for access.": "PAT ذخیره‌شده به این پروژه دسترسی ندارد. با PAT دارای Work Items: Read دوباره احراز هویت کنید یا از مدیر پروژه دسترسی بخواهید.",
+    "Check the connection and try again.": "اتصال را بررسی کنید و دوباره تلاش کنید.",
+    "Could not open the saved connection. Open Issue sources and re-authenticate it there.": "باز کردن اتصال ذخیره‌شده ممکن نشد. «منابع مسئله» را باز کنید و همان‌جا دوباره احراز هویت کنید.",
+    "This dialog reuses the saved Azure connection (PAT with Work Items: Read).": "این پنجره از اتصال ذخیره‌شدهٔ آژور استفاده می‌کند (PAT با دسترسی Work Items: Read).",
+    "No credential is available for this session.": "برای این نشست اعتباری موجود نیست.",
+    "Connect Azure Boards first.": "ابتدا Azure Boards را متصل کنید.",
     "Check interval": "فاصلهٔ بررسی",
     "Every 5 minutes": "هر ۵ دقیقه",
     "Every 15 minutes": "هر ۱۵ دقیقه",
