@@ -204,6 +204,7 @@ export function providerChoices(registry = loadUserProviders(), { env = process.
       id: entry.id,
       label: entry.label || entry.id,
       worker: entry.worker,
+      planning_only: entry.worker === "openai-http",
       protocol: entry.protocol || "custom",
       base_url: entry.base_url || "",
       model: entry.model || "",
@@ -282,8 +283,18 @@ export function validateProviderEntry(entry, { env = process.env, platform = pro
   else {
     if (!entry.base_url) problems.push(`no base URL stored — set it with 'atl provider add ${entry.id} --base-url ...' or the TUI p screen`);
     if (!entry.api_key) problems.push(`no API key stored — set it with 'atl provider key ${entry.id} --key ...' or the TUI p screen`);
-    if (!["claude", "codex"].includes(String(entry.worker || ""))) {
-      problems.push(`worker "${entry.worker}" is not claude or codex`);
+    if (!["claude", "codex", "openai-http"].includes(String(entry.worker || ""))) {
+      problems.push(`worker "${entry.worker}" is not claude, codex, or openai-http`);
+    } else if (entry.worker === "openai-http") {
+      try {
+        const endpoint = new URL(entry.base_url);
+        const loopback = ["localhost", "127.0.0.1", "::1"].includes(endpoint.hostname.replace(/^\[|\]$/g, "").toLowerCase());
+        if (endpoint.username || endpoint.password) problems.push("base URL must not contain credentials");
+        if (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && loopback)) problems.push("openai-http requires HTTPS, or HTTP on localhost/loopback");
+        if (endpoint.search || endpoint.hash) problems.push("base URL must not contain a query or fragment");
+      } catch { problems.push("base URL must be a valid HTTP(S) URL"); }
+      if (String(entry.protocol || "").toLowerCase() !== "openai") problems.push("openai-http requires protocol=openai");
+      if (!entry.model) problems.push("no model stored; set a model before planning");
     } else if (!workerOnPath(entry.worker, env, platform)) {
       problems.push(`required CLI "${entry.worker}" was not found on PATH; install it or add its directory to PATH`);
     }
@@ -305,6 +316,7 @@ export function credentialContext(entry) {
   const problems = validateProviderEntry(entry);
   if (problems.length) throw new Error(problems.join("; "));
   const model = entry.model || "";
+  if (entry.worker === "openai-http") return { worker: "openai-http", env: {} };
   if (entry.worker === "claude") {
     return {
       worker: "claude",

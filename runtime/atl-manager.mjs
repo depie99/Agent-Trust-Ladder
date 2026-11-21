@@ -396,7 +396,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                  add --pause-after-bot to stop after each completed provider session
   providers                     providers, keys (masked), and per-role mapping
   provider templates            pre-filled endpoint presets (zai, bigmodel, custom)
-  provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url]
+  provider add <id> [--template t] [--worker claude|codex|openai-http] [--protocol openai|anthropic|custom] [--base-url url]
                 [--key-env VAR] [--model model] [--thinking-level level]
                                 store an API provider once per machine in ~/.atl/providers.json
                                 (key is prompted without echo; Ctrl+R shows/hides)
@@ -1384,10 +1384,10 @@ async function dispatch() {
         console.log("\nUse one: atl provider add zai --model glm-5.3 --thinking-level medium   (key is prompted without echo)");
       } else if (sub === "add") {
         const id = pos[1];
-        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url] [--key-env VAR] [--model model] [--thinking-level level]");
+        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex|openai-http] [--protocol openai|anthropic|custom] [--base-url url] [--key-env VAR] [--model model] [--thinking-level level]");
         const template = templateById(flags.template || (templateById(id) ? id : "custom"));
         const worker = String(flags.worker || template.worker || "claude").toLowerCase();
-        if (!["claude", "codex"].includes(worker)) throw new StateError("--worker must be claude or codex");
+        if (!["claude", "codex", "openai-http"].includes(worker)) throw new StateError("--worker must be claude, codex, or openai-http");
         const base = flags["base-url"] || template.baseUrl[worker] || "";
         if (flags.key !== undefined) throw new StateError("--key is not accepted because command arguments may be visible in process lists. Use --key-env VAR or the hidden prompt.");
         const key = flags["key-env"]
