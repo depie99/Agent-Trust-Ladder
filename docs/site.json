@@ -74,7 +74,7 @@
     "url": "ask-atl.html",
     "title": "Ask ATL",
     "group": "Workflows",
-    "description": "1. Open a task and choose Ask ATL, or open the project conversation from navigation. 2. Inspect the suggested focus and its evidence source. Use it as a starting hypothes"
+    "description": "Ask ATL is the Control Plane conversation page: attach imported tasks, plans or the project digest as context, pick Ask, Diagnose or Fix in workspace, and read replies with"
   },
   {
     "source": "docs/task-change-review.md",
