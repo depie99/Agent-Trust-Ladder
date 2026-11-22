@@ -16,7 +16,7 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-egm-journey-home-"));
 const oldHome = process.env.USERPROFILE; const oldHomePosix = process.env.HOME;
 process.env.USERPROFILE = home; process.env.HOME = home;
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
-fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "claude", base_url: "https://example.test", api_key: "test-key", model: "test-model" } } }));
+fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "openai-http", protocol: "openai", base_url: "https://example.test/v1", api_key: "test-key", model: "test-model" } } }));
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1, egmReview: { enabled: true, backend: "glm-goldfish", versionSha: "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24", maxReviewsPerDay: 10 } }));
 saveState(root, emptyState());

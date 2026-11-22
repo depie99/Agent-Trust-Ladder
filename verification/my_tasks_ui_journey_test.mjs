@@ -177,10 +177,14 @@ try {
     const wipeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "atl-mytasks-ui-wipe-"));
     fs.mkdirSync(path.join(wipeRoot, "config"), { recursive: true });
     fs.writeFileSync(path.join(wipeRoot, "config", "manager.json"), JSON.stringify({ version: 1, intake: { azure: { org_url: base, project: "Alpha", token_env: "AZDO_PAT" } } }));
+    let authRejected = false;
     saveState(wipeRoot, emptyState());
     const wipeServer = await startControlPlaneServer(wipeRoot, {
       myTasksFetch: async (url) => {
-        if (url.endsWith("/_apis/ConnectionData")) return { data: { authenticatedUser: ME }, headers: {}, status: 200 };
+        if (url.endsWith("/_apis/ConnectionData")) {
+          if (authRejected) { const error = new Error("HTTP 401 Unauthorized"); error.status = 401; throw error; }
+          return { data: { authenticatedUser: ME }, headers: {}, status: 200 };
+        }
         if (url.includes("/_apis/projects")) { const error = new Error("HTTP 500 project list outage"); error.status = 500; throw error; }
         throw new Error(`unexpected call ${url}`);
       },
@@ -195,6 +199,14 @@ try {
       await page3.waitForSelector('.dialog [data-mt-setup]', { timeout: 15000 });
       await page3.waitForSelector('.dialog:has-text("Could not list projects")', { timeout: 15000 });
       assert.equal(await page3.locator('.dialog [data-mt-project]').count(), 0, "no checkboxes when the project list failed to load");
+      authRejected = true;
+      await page3.click('[data-action="mt-projects"]');
+      await page3.waitForSelector('.dialog:has-text("Reconnect with a PAT")', { timeout: 15000 });
+      assert.equal(await page3.locator('.dialog [data-action^="mt-reconnect:"]').count(), 1, "auth failure offers one direct reconnect action");
+      await page3.click('.dialog [data-action^="mt-reconnect:"]');
+      await page3.waitForSelector('.dialog #sourceConnectionPat', { timeout: 15000 });
+      assert.match(await page3.locator('.dialog').innerText(), /Personal access token/, "reconnect opens the saved Azure credential editor");
+      await page3.click('.dialog [data-action="close"]');
       await page3.click('[data-action="mt-save"]');
       await page3.waitForFunction(() => !document.querySelector(".dialog"), { timeout: 15000 });
       const after = await wipeGet("/api/my-tasks/settings");

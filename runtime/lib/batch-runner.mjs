@@ -14,7 +14,12 @@ import { renderDeliveryReceipt } from "../../skills/atl/scripts/developer-delive
 
 const TERMINAL_TASK = new Set(["done", "rejected", "archived"]);
 const directory = (root) => path.join(root, ".trust", "manager", "batches");
-const checkpointFile = (root, id) => path.join(directory(root), `${id}.json`);
+const SAFE_BATCH_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const checkpointFile = (root, id) => {
+  const value = String(id || "");
+  if (!SAFE_BATCH_ID.test(value)) throw new Error("batch id must be 1-64 safe characters");
+  return path.join(directory(root), `${value}.json`);
+};
 
 export function readBatch(root, id) {
   try { return JSON.parse(fs.readFileSync(checkpointFile(root, id), "utf8")); } catch { return null; }
@@ -189,6 +194,7 @@ export async function runBatch(root, id, { launch = executeLaunchQueue, onProgre
 }
 
 export function batchMorningSummary(root, id) {
+  checkpointFile(root, id);
   let batch = readBatch(root, id);
   if (!batch) throw new Error(`unknown batch ${id}`);
   const check = validateBatch(batch);

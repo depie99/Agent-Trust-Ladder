@@ -1,6 +1,6 @@
 // Runs inside the same-origin DSH frame; all ATL traffic uses the authenticated
 // host connection route, including snapshots and dynamically loaded diagrams.
-export async function frameBootstrap({ id, theme }) {
+export async function frameBootstrap({ id, theme }, createSnapshotPoller) {
   const nativeFetch = window.fetch.bind(window);
   const endpoint = new URL('api/atl/request', parent.document.baseURI).href;
   const asset = path => new URL(`api/atl/asset?id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`, parent.document.baseURI).href;
@@ -14,37 +14,20 @@ export async function frameBootstrap({ id, theme }) {
   }
   class PanelEventSource extends EventTarget {
     readyState = 0;
-    constructor(url) { super(); this.sourceUrl = url; this.cursor = Number(new URL(url, 'http://atl.invalid/').searchParams.get('cursor') || 0); this.controller = new AbortController(); this.poll(); }
-    close() { this.readyState = 2; clearTimeout(this.timer); this.controller.abort(); }
-    // Each poll carries the newest cursor, so an unchanged workspace costs a tiny
-    // liveness block instead of a full snapshot re-download every two seconds.
-    eventsUrl() { return `${this.sourceUrl.split('?')[0]}?cursor=${this.cursor}`; }
-    async poll() {
-      try {
-        const response = await panelFetch(this.eventsUrl(), { signal: this.controller.signal });
-        if (!response.ok) throw new Error(`Snapshot failed (${response.status})`);
-        if (this.readyState === 2) return;
-        this.readyState = 1;
-        for (const block of (await response.text()).split('\n\n')) {
-          const lines = block.split('\n');
-          const data = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
-          if (data) {
-            try { const parsedCursor = Number(JSON.parse(data).cursor); if (Number.isFinite(parsedCursor) && parsedCursor !== this.cursor) this.cursor = parsedCursor; } catch { /* blocks without a cursor keep the current one */ }
-            this.dispatchEvent(new MessageEvent(lines.find(line => line.startsWith('event:'))?.slice(6).trim() || 'message', { data }));
-          }
-        }
-        this.timer = setTimeout(() => this.poll(), 2000);
-      } catch (error) { if (this.readyState !== 2) { this.readyState = 0; this.onerror?.(error); } }
-    }
+    constructor(url) { super(); this.cursor = Number(new URL(url, 'http://atl.invalid/').searchParams.get('cursor') || 0); this.controller = new AbortController(); this.poller = createSnapshotPoller({ cursor: this.cursor, signal: this.controller.signal, request: async cursor => { const response = await panelFetch(`/api/snapshot?cursor=${cursor}`, { signal: this.controller.signal }); if (!response.ok) throw new Error(`Snapshot failed (${response.status})`); return response.json(); }, onSnapshot: payload => { this.readyState = 1; this.dispatchEvent(new MessageEvent('snapshot', { data: JSON.stringify({ cursor: payload.cursor, snapshot: payload }) })); }, onUnchanged: () => { this.readyState = 1; this.dispatchEvent(new MessageEvent('unchanged', { data: '{}' })); }, onError: error => { this.readyState = 0; this.onerror?.(error); } }); }
+    close() { this.readyState = 2; this.poller.stop(); this.controller.abort(); }
   }
   try {
     document.documentElement.dataset.atlContext = 'plugin';
-    localStorage.setItem('atl-cp-theme', theme);
+    document.documentElement.classList.toggle('light', theme === 'light');
     window.fetch = panelFetch;
     window.EventSource = PanelEventSource;
     const response = await panelFetch('/');
     if (!response.ok) throw new Error(`ATL page failed (${response.status})`);
     const source = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const hostLocale = parent.document.documentElement.lang || 'en-US';
+    source.documentElement.lang = hostLocale;
+    source.documentElement.dataset.atlHostLocale = /^fa(?:-|$)/i.test(hostLocale) ? 'fa-IR' : 'en-US';
     const scripts = [...source.querySelectorAll('script')];
     scripts.forEach(script => script.remove());
     source.querySelectorAll('[src],link[href]').forEach(el => {
@@ -68,10 +51,14 @@ export async function frameBootstrap({ id, theme }) {
     const syncTheme = () => {
       const light = parent.document.documentElement.classList.contains('light') || parent.document.documentElement.dataset.theme === 'light' || getComputedStyle(parent.document.documentElement).colorScheme === 'light';
       document.documentElement.classList.toggle('light', light);
+      const nextLocale = parent.document.documentElement.lang || 'en-US';
+      document.documentElement.lang = nextLocale;
+      document.documentElement.dataset.atlHostLocale = /^fa(?:-|$)/i.test(nextLocale) ? 'fa-IR' : 'en-US';
+      window.dispatchEvent(new CustomEvent('atl-host-locale', { detail: document.documentElement.dataset.atlHostLocale }));
     };
     syncTheme();
     const observer = new MutationObserver(syncTheme);
-    observer.observe(parent.document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme', 'style'] });
+    observer.observe(parent.document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme', 'style', 'lang'] });
     addEventListener('pagehide', () => observer.disconnect(), { once: true });
   } catch (error) {
     document.body.textContent = "";

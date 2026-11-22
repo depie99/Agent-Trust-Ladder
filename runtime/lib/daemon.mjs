@@ -140,7 +140,32 @@ function withLock(lock, fn) {
 }
 
 const withRecordLock = (root, fn) => withLock(`${daemonFile(root)}.lock`, fn);
-const withStartLock = (root, fn) => withLock(`${daemonFile(root)}.start.lock`, fn);
+
+async function withAsyncLock(lock, fn) {
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  const deadline = Date.now() + 60000;
+  let fd;
+  while (fd === undefined) {
+    try {
+      fd = fs.openSync(lock, "wx", 0o600);
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, created_at: Date.now() }));
+    } catch (error) {
+      if (error.code !== "EEXIST" && error.code !== "EPERM") throw error;
+      try {
+        const owner = JSON.parse(fs.readFileSync(lock, "utf8"));
+        let alive = true;
+        try { process.kill(owner.pid, 0); } catch (probe) { alive = probe.code === "EPERM"; }
+        if (!alive && Date.now() - Number(owner.created_at || 0) > 1000) fs.rmSync(lock, { force: true });
+      } catch { /* owner metadata may still be written */ }
+      if (Date.now() >= deadline) throw new Error(`Timed out waiting for lock ${lock}`);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+    }
+  }
+  try { return await fn(); }
+  finally { fs.closeSync(fd); releaseLock(lock); }
+}
+
+const withStartLock = (root, fn) => withAsyncLock(`${daemonFile(root)}.start.lock`, fn);
 
 // Mutate the record under the record lock. fn receives the current record (or
 // null) and returns the next record; returning null removes the file.
@@ -236,22 +261,26 @@ function maskLease(lease) {
 // lock helper is not reentrant.
 export async function daemonStatus(root, { locked = false } = {}) {
   const canonical = canonicalRoot(root);
-  const clearRecord = () => {
-    if (locked) fs.rmSync(daemonFile(root), { force: true });
-    else withRecordLock(root, () => { fs.rmSync(daemonFile(root), { force: true }); });
+  const clearRecord = (expected) => {
+    const removeIfCurrent = () => {
+      const current = readRecord(root);
+      if (current?.pid === expected.pid && current?.started_at === expected.started_at) fs.rmSync(daemonFile(root), { force: true });
+    };
+    if (locked) removeIfCurrent();
+    else withRecordLock(root, removeIfCurrent);
   };
   const record = readRecord(root);
   if (!record) return { alive: false, record: null, project: canonical };
   const pid = Number(record.pid || 0);
   if (!pid || !pidAlive(pid)) {
-    clearRecord();
+    clearRecord(record);
     return { alive: false, record: null, project: canonical };
   }
   const health = await probeHealth(`http://127.0.0.1:${record.port}/`, { project: canonical });
-  if (health.alive && health.projectMatch === false) {
+  if (health.alive && (health.projectMatch === false || (health.pid && health.pid !== pid))) {
     // The recorded pid was reused by another process, or the port now serves a
     // different project: the record is stale either way.
-    clearRecord();
+    clearRecord(record);
     return { alive: false, record: null, project: canonical };
   }
   if (health.alive && !heartbeatFresh(record)) {
@@ -260,13 +289,17 @@ export async function daemonStatus(root, { locked = false } = {}) {
     try { updateRecord(root, (current) => (current && current.pid === record.pid ? { ...current, heartbeat_at: Date.now() } : current)); }
     catch { /* someone else holds the record lock; their write wins */ }
   }
+  const identityMatches = !health.pid || health.pid === pid;
+  const responsive = health.alive === true && health.projectMatch !== false && identityMatches;
   return {
-    alive: true,
-    record: { ...record, lease: maskLease(record.lease) },
+    alive: responsive,
+    pid_alive: true,
+    responsive,
+    record: { ...record, runtime: health.runtime || record.runtime || null, lease: maskLease(record.lease) },
     health,
     project: canonical,
     url: `http://127.0.0.1:${record.port}/`,
-    runtime: record.runtime || health.runtime || null,
+    runtime: health.runtime || record.runtime || null,
   };
 }
 
@@ -299,8 +332,34 @@ function adoptRecord(root, health, canonical, url) {
 // process env, which cannot work for a reused daemon — the current session's
 // token lives in the owner record instead. Direct (non-daemon) servers still
 // honor the env var for compatibility.
-export function readEmbedToken(root) {
-  try { return JSON.parse(fs.readFileSync(daemonFile(root), "utf8"))?.embed_token || null; } catch { return null; }
+export function validEmbedToken(root, token, { now = Date.now() } = {}) {
+  if (!token) return false;
+  try {
+    const record = readRecord(root);
+    const candidates = [
+      ...(Array.isArray(record?.embed_tokens) ? record.embed_tokens : []),
+      ...(record?.embed_token ? [{ token: record.embed_token, expires_at: Infinity }] : []),
+    ];
+    return candidates.some((entry) => entry?.token === token && (!Number.isFinite(Number(entry.expires_at)) || Number(entry.expires_at) > now));
+  } catch { return false; }
+}
+
+export function revokeEmbedToken(root, token) {
+  if (!token) return false;
+  try {
+    let removed = false;
+    updateRecord(root, (record) => {
+      if (!record) return record;
+      const tokens = (Array.isArray(record.embed_tokens) ? record.embed_tokens : []).filter((entry) => {
+        if (entry?.token === token) { removed = true; return false; }
+        return true;
+      });
+      const next = { ...record, embed_tokens: tokens };
+      if (record.embed_token === token) { delete next.embed_token; removed = true; }
+      return next;
+    });
+    return removed;
+  } catch { return false; }
 }
 
 // Start or reuse the per-project owner. Deterministic port first; if the port
@@ -310,6 +369,7 @@ export async function ensureDaemon(root, { port = null, host = "127.0.0.1", wait
   const canonical = canonicalRoot(root);
   const existing = await daemonStatus(root);
   if (existing.alive) return finishWithEmbedToken({ ...existing, reused: true }, embedToken, root);
+  if (existing.pid_alive) throw new Error("The project daemon process is alive but its health endpoint is not responding; refusing to start a second owner.");
 
   const preferredPort = port ?? deterministicPort(canonical);
   const squatter = await healthForPort(preferredPort, canonical);
@@ -322,6 +382,7 @@ export async function ensureDaemon(root, { port = null, host = "127.0.0.1", wait
     // Another process may have started the owner while we waited on the lock.
     const raced = await daemonStatus(root, { locked: false });
     if (raced.alive) return finishWithEmbedToken(raced, embedToken, root);
+    if (raced.pid_alive) throw new Error("The project daemon process is alive but its health endpoint is not responding; refusing to start a second owner.");
     // Re-check adoption: a sibling ensureDaemon may have adopted or spawned.
     if (squatter.alive && squatter.projectMatch === true && (await adoptRecord(root, squatter, canonical, `http://127.0.0.1:${preferredPort}/`))) {
       return finishWithEmbedToken({ ...await daemonStatus(root, { locked: false }), reused: true, adopted: true }, embedToken, root);
@@ -348,7 +409,14 @@ export async function ensureDaemon(root, { port = null, host = "127.0.0.1", wait
 
 function finishWithEmbedToken(status, embedToken, root) {
   if (embedToken) {
-    try { updateRecord(root, (record) => (record ? { ...record, embed_token: embedToken } : record)); }
+    try { updateRecord(root, (record) => {
+      if (!record) return record;
+      const now = Date.now();
+      const active = (Array.isArray(record.embed_tokens) ? record.embed_tokens : [])
+        .filter((entry) => entry?.token && Number(entry.expires_at) > now && entry.token !== embedToken);
+      active.push({ token: embedToken, created_at: now, expires_at: now + 12 * 60 * 60 * 1000 });
+      return { ...record, embed_tokens: active.slice(-32), embed_token: undefined };
+    }); }
     catch { /* panel embedding falls back to the previous token or cookies */ }
   }
   return status;
@@ -360,10 +428,15 @@ export async function stopDaemon(root) {
   if (!record) return { stopped: false, wasAlive: false };
   const pid = Number(record.pid || 0);
   const health = await probeHealth(`http://127.0.0.1:${record.port}/`, { project: canonical });
-  if (!pid || !pidAlive(pid) || (health.alive && health.projectMatch === false)) {
-    withRecordLock(root, () => { fs.rmSync(daemonFile(root), { force: true }); });
+  if (!pid || !pidAlive(pid)) {
+    withRecordLock(root, () => { const current = readRecord(root); if (current?.pid === record.pid && current?.started_at === record.started_at) fs.rmSync(daemonFile(root), { force: true }); });
     return { stopped: false, wasAlive: Boolean(pid && pidAlive(pid)) };
   }
+  if (health.alive && (health.projectMatch === false || (health.pid && health.pid !== pid))) {
+    withRecordLock(root, () => { const current = readRecord(root); if (current?.pid === record.pid && current?.started_at === record.started_at) fs.rmSync(daemonFile(root), { force: true }); });
+    return { stopped: false, wasAlive: true, identityMismatch: true };
+  }
+  if (!health.alive || health.projectMatch !== true || (health.pid && health.pid !== pid)) return { stopped: false, wasAlive: true, responsive: false };
   if (health.alive && health.projectMatch === true) {
     // Ask politely first so the owner can flush and clear its own record.
     try {
@@ -373,11 +446,17 @@ export async function stopDaemon(root) {
       clearTimeout(timer);
     } catch { /* fall through to signal */ }
   }
-  try { process.kill(pid); } catch { /* already gone */ }
+  // A health response tied this pid to this project. Reconfirm before any OS
+  // signal; a stale record or unresponsive daemon is never enough to kill a pid.
+  const confirmed = await probeHealth(`http://127.0.0.1:${record.port}/`, { project: canonical });
+  if (confirmed.alive && confirmed.projectMatch === true && (!confirmed.pid || confirmed.pid === pid) && pidAlive(pid)) {
+    try { process.kill(pid); } catch { /* already gone */ }
+  }
   const deadline = Date.now() + 5000;
   while (pidAlive(pid) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
-  withRecordLock(root, () => { fs.rmSync(daemonFile(root), { force: true }); });
-  return { stopped: true, wasAlive: true };
+  const stopped = !pidAlive(pid);
+  if (stopped) withRecordLock(root, () => { const current = readRecord(root); if (current?.pid === record.pid && current?.started_at === record.started_at) fs.rmSync(daemonFile(root), { force: true }); });
+  return { stopped, wasAlive: true, responsive: true };
 }
 
 // ---- Writer lease (exclusive, TTL-renewed, inherited by the holder's children) ----

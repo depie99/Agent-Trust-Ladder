@@ -23,7 +23,7 @@ try{
  fs.mkdirSync(path.join(root,'verification'));fs.writeFileSync(path.join(root,'verification','check.mjs'),`import assert from 'node:assert/strict';import fs from 'node:fs';assert.match(fs.readFileSync('client.html','utf8'),/id="fixed"/);assert.match(fs.readFileSync('client.html','utf8'),/onclick=/);\n`);
  assert.throws(()=>execFileSync(process.execPath,['verification/check.mjs'],{cwd:root,stdio:'pipe'}),'baseline must reproduce the broken fixture');
  git(['add','.']);git(['commit','-qm','baseline']);const main=git(['rev-parse','HEAD']);
- fs.mkdirSync(path.join(home,'.atl'),{recursive:true});fs.writeFileSync(path.join(home,'.atl','providers.json'),JSON.stringify({providers:{test:{id:'test',label:'Test',worker:'claude',base_url:'https://example.invalid',api_key:'synthetic',model:'test-model'}}}));
+ fs.mkdirSync(path.join(home,'.atl'),{recursive:true});fs.writeFileSync(path.join(home,'.atl','providers.json'),JSON.stringify({providers:{test:{id:'test',label:'Test',worker:'openai-http',protocol:'openai',base_url:'https://example.invalid/v1',api_key:'synthetic',model:'test-model'}}}));
  fs.mkdirSync(path.join(root,'config'),{recursive:true});
  const worker=fileURLToPath(new URL('./fixtures/issue-journey-worker.mjs',import.meta.url));
  fs.writeFileSync(path.join(root,'config','manager.json'),JSON.stringify({version:1,providers:{default:'fixture',catalog:{fixture:{command:process.execPath,args:[worker,'{root}','{task}','{role}'],model:'fixture-model'}}},intake:{jira:{enabled:true,base_url:'https://jira.example.invalid',projects:['IT'],token_env:'JIRA_TOKEN'},github:{enabled:true,repos:['example/demo']}}}));

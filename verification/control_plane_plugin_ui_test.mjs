@@ -16,7 +16,8 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plugin-ui-"));
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1 }));
 const state = emptyState();
-state.tasks["T-101"] = { id: "T-101", title: "Plugin running task", status: "in_progress", priority: "high", completion_checks: [], evidence: [] };
+const hostileTaskTitle = '<img src=x onerror="window.__atlTitleXss=true"> Plugin running task';
+state.tasks["T-101"] = { id: "T-101", title: hostileTaskTitle, status: "in_progress", priority: "high", completion_checks: [], evidence: [] };
 state.tasks["T-102"] = { id: "T-102", title: "Plugin queued task", status: "new", priority: "normal", completion_checks: [], evidence: [] };
 state.tasks["T-103"] = { id: "T-103", title: "Plugin blocked task", status: "blocked", priority: "normal", blocker: { reason: "Waiting on owner decision" }, completion_checks: [], evidence: [] };
 state.tasks["T-104"] = { id: "T-104", title: "Plugin done task " + "with a deliberately long title ".repeat(5), status: "done", priority: "low", completion_checks: [], evidence: [] };
@@ -41,7 +42,8 @@ const openPluginPage = async (options = {}) => {
   const documentUrl = new URL(running.url).pathname === "/" ? running.url : `${running.url}/`;
   await context.route(documentUrl, async route => {
     const response = await route.fetch();
-    const body = (await response.text()).replace("<html", '<html data-atl-context="plugin"');
+    const locale = options.locale || "en-US";
+    const body = (await response.text()).replace("<html", `<html data-atl-context="plugin" data-atl-host-locale="${locale}"`);
     await route.fulfill({ response, body });
   });
   await page.goto(running.url);
@@ -74,10 +76,8 @@ try {
     // More links keep every specialist screen reachable; the CLI dock is hidden.
     await page.locator('#mobile [data-page="more"]').click();
     for (const label of ["Plan Studio", "Queues", "Knowledge", "Settings"]) await page.getByRole("button", { name: new RegExp(label, "i") }).first().waitFor();
-    await page.getByRole("button", { name: /CLI console/i }).click();
-    await page.locator("#cliInput").waitFor();
+    assert.equal(await page.getByRole("button", { name: /CLI console/i }).count(), 0, "plugin does not expose a duplicate CLI console");
     assert.equal(await page.locator(".cliDock").evaluate(el => getComputedStyle(el).display), "none", "plugin hides the persistent CLI dock");
-    await page.getByRole("button", { name: "Close", exact: true }).click();
     // Keyboard: plugin destinations answer to number keys.
     await page.keyboard.press("1");
     await page.locator('[data-task="T-101"]').waitFor();
@@ -112,6 +112,9 @@ try {
     assert.equal(await page.locator('[data-action="tasks-select-visible"]:visible').count(), 1, "selection action is not duplicated");
     await page.locator('[data-task="T-101"] .task-main-copy').click();
     await page.locator(".task-detail-screen").waitFor();
+    assert.equal(await page.locator(".task-detail-title").textContent(), hostileTaskTitle, "hostile imported title is rendered as text");
+    assert.equal(await page.locator(".task-detail-title img").count(), 0, "hostile imported title cannot create markup");
+    assert.equal(await page.evaluate(() => window.__atlTitleXss || false), false, "hostile imported title cannot execute event handlers");
     await page.getByRole("button", { name: "← Back" }).waitFor();
     // Progressive disclosure survives leaving and re-entering the screen.
     const disclosure = page.locator(".task-detail-screen details").first();
@@ -155,10 +158,12 @@ try {
     await page.locator("#plugin-topbar").getByText("● offline").waitFor({ timeout: 15000 });
     await page.getByRole("button", { name: "Retry" }).waitFor();
     await page.locator('[data-task="T-102"]').waitFor({ state: "visible" });
-    await page.getByRole("button", { name: "Retry" }).click();
     await context.unroute("**/api/events*");
     await context.unroute("**/api/snapshot*");
-    await page.locator("#plugin-topbar").getByText("● live").waitFor({ timeout: 15000 });
+    const recoveredSnapshot = await page.evaluate(async () => { const response = await fetch("/api/snapshot", { cache: "no-store" }); return { status: response.status, body: await response.text() }; });
+    assert.equal(recoveredSnapshot.status, 200, `snapshot transport recovers after removing the network fault: ${recoveredSnapshot.body}`);
+    await page.getByRole("button", { name: "Retry" }).click();
+    await page.waitForFunction(() => document.querySelector("#plugin-topbar")?.textContent.includes("live"), null, { timeout: 15000 }).catch(async () => { throw new Error(`Plugin poll did not recover: ${await page.locator("#plugin-topbar").innerText()}\\n${allPageErrors.flat().join("\\n")}`); });
     await context.close();
   }
 

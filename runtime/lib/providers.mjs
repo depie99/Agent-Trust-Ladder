@@ -4,6 +4,7 @@
 // has been found here; a missing one produces an actionable blocker instead.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { loadUserProviders } from "./userProviders.mjs";
 
@@ -15,6 +16,7 @@ const CODEX_MODEL_RE = /^\s*model\s*=\s*["']([^"']+)["']\s*$/m;
 // model before a request starts. Keep the exception here (rather than in the
 // Plan Studio UI) so generate, regenerate, and review share the same gate.
 const CODEX_CHATGPT_UNSUPPORTED_MODELS = new Set(["gpt-6.1-terra"]);
+const CLAUDE_MODELS = ["sonnet", "opus", "haiku", "claude-sonnet-4-6", "claude-opus-4-6"];
 
 const INSTALL_HINTS = {
   codex: "npm install -g @openai/codex  (then run: codex login)",
@@ -30,6 +32,7 @@ function codexHome(env = process.env) {
   return env.CODEX_HOME
     || (process.platform === "win32" ? env.USERPROFILE && path.join(env.USERPROFILE, ".codex") : null)
     || (env.HOME && path.join(env.HOME, ".codex"))
+    || path.join(os.homedir(), ".codex")
     || null;
 }
 
@@ -50,6 +53,7 @@ export function localDefaultModel(name, { env = process.env } = {}) {
 
 export function providerModels(name, { env = process.env } = {}) {
   const clean = String(name || "").toLowerCase();
+  if (clean === "claude") return CLAUDE_MODELS;
   if (!["codex", "gapgpt"].includes(clean)) return [];
   const home = clean === "codex"
     ? codexHome(env)
@@ -141,7 +145,7 @@ export function builtinAuthStatus(name, { env = process.env } = {}) {
   if (!home) return signedOut;
   try {
     if (clean === "codex") {
-      const auth = JSON.parse(fs.readFileSync(path.join(home, ".codex", "auth.json"), "utf8"));
+      const auth = JSON.parse(fs.readFileSync(path.join(env.CODEX_HOME || path.join(home, ".codex"), "auth.json"), "utf8"));
       if (auth && typeof auth === "object") {
         if (auth.OPENAI_API_KEY) {
           return { signedIn: true, method: "api-key", detail: "signed in with an API key — rerun codex login and pick Sign in with ChatGPT to use your plan instead" };
@@ -194,6 +198,7 @@ export function builtinProviderStatus(config = {}, { env = process.env } = {}) {
       auth: spec.auth || "subscription",
       installed: discovered.available,
       signedIn: auth.signedIn,
+      ready: Boolean(discovered.available && auth.signedIn && (spec.model || providerModels(name, { env }).length)),
       method: auth.method,
       detail: auth.detail,
       defaultModel: ((profile.use || profile.defaultWorker) === name ? profile.raw?.model : null) || spec.model || localDefaultModel(name, { env }),

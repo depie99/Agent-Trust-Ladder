@@ -28,7 +28,7 @@ fs.mkdirSync(path.join(root, "verification"), { recursive: true });
 fs.writeFileSync(path.join(root, "verification", "fixture.mjs"), "// evidence v1\n");
 saveState(root, emptyState());
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
-fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "claude", base_url: "https://example.test", api_key: "fixture", model: "fixture" } } }));
+fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "openai-http", protocol: "openai", base_url: "https://example.test/v1", api_key: "fixture", model: "fixture" } } }));
 
 const CONSOLIDATED = "# Consolidated EGM Review Report\n\n## Verdict\n\nnot ready for implementation.\n\n## Action items by priority\n\n### 🔴 Blockers\n\n#### A1 — Bound the scope\n\nState the out-of-scope surface.\n";
 

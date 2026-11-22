@@ -18,7 +18,7 @@ process.env.ATL_HOME = path.join(fakeHome, ".atl");
 process.env.AZDO_PAT = "synthetic-ui-token";
 fs.mkdirSync(process.env.ATL_HOME, { recursive: true });
 fs.writeFileSync(path.join(process.env.ATL_HOME, "providers.json"), JSON.stringify({
-  providers: { testprov: { id: "testprov", label: "Test Provider", worker: "claude", base_url: "https://example.test/api", api_key: "sk-secret-value", model: "m-1", models: ["m-1"] } },
+  providers: { testprov: { id: "testprov", label: "Test Provider", worker: "openai-http", protocol: "openai", base_url: "https://example.test/api", api_key: "sk-secret-value", model: "m-1", models: ["m-1"] } },
 }, null, 2));
 
 const CONNECTION = "https://devops.example.invalid/Collection";

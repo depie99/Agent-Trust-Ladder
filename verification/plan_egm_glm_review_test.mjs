@@ -75,7 +75,7 @@ fs.mkdirSync(path.join(root, "verification"), { recursive: true });
 fs.writeFileSync(path.join(root, "verification", "fixture.mjs"), "// evidence v1\n");
 saveState(root, emptyState());
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
-fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { gapgpt: { id: "gapgpt", label: "GLM fixture", worker: "claude", base_url: "https://example.test", api_key: "fixture", model: "glm-fake" } } }));
+fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { gapgpt: { id: "gapgpt", label: "GLM fixture", worker: "openai-http", protocol: "openai", base_url: "https://example.test/v1", api_key: "fixture", model: "glm-fake" } } }));
 
 // Fake planning seam: resolves each stage by looking at the request.
 const calls = [];

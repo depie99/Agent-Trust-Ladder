@@ -6,6 +6,7 @@ import * as portable from "../skills/atl/scripts/outcome-economics.mjs";
 import * as runtime from "../runtime/lib/outcome-economics.mjs";
 import { recordExecution, unknownTokens } from "../runtime/lib/execution-report.mjs";
 import { emptyState, loadState, saveState } from "../runtime/lib/state.mjs";
+import { ownerFetch, ownerJson } from "./helpers/owner-http.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-outcome-economics-"));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
@@ -121,7 +122,7 @@ try {
   const running = await startControlPlaneServer(root);
   let browser;
   try {
-    const snapshotResponse = await fetch(new URL("/api/snapshot", running.url));
+    const snapshotResponse = await ownerFetch(new URL("/api/snapshot", running.url));
     const snapshot = await snapshotResponse.json();
     assert.equal(snapshotResponse.status, 200, `snapshot responds: ${JSON.stringify(snapshot).slice(0, 200)}`);
     assert.equal(snapshot.usage.economics.summary.denominators.attempts, 2, "the snapshot reports the same attempt denominator");
@@ -140,7 +141,7 @@ try {
     }
     saveState(root,measuredState);
     fs.writeFileSync(path.join(root,".trust","manager","delivery-packets.json"),JSON.stringify({packets:Array.from({length:20},(_,index)=>({task_id:`R-${String(index+1).padStart(3,"0")}`,verdict:"verified-local"}))}));
-    const measured=(await (await fetch(new URL("/api/snapshot",running.url))).json()).usage.reliability;
+    const measured=(await ownerJson(new URL("/api/snapshot",running.url))).usage.reliability;
     assert.equal(measured.counts.session_exit,19);
     assert.equal(measured.denominators.session_exit,20);
     assert.equal(measured.rates.session_exit,0.95);

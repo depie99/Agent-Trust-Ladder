@@ -1,36 +1,27 @@
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { createPanelGateway } from '../runtime/lib/plugin-panel.mjs';
 import { frameBootstrap } from './deepseek-frame.mjs';
+import { createSnapshotPoller } from './snapshot-transport.mjs';
 
-const homeDir = () => process.env.ATL_HOME || path.join(os.homedir(), '.atl');
-const workspaceRecord = () => path.join(homeDir(), 'workspace.json');
-// First launch opens without asking for a directory: the last workspace opened
-// by this machine's plugin (survives harness restarts and profile wipes), or a
-// dedicated home workspace under ATL_HOME. A subdir — not ~/.atl itself — so
-// the runtime home is never re-initialized as a project (its runtime/ copy must
-// not be mistaken for the project's control-plane runtime).
-function defaultProject() {
-  try {
-    const stored = JSON.parse(fs.readFileSync(workspaceRecord(), 'utf8')).project;
-    if (typeof stored === 'string' && stored.trim() && fs.existsSync(stored.trim())) return stored.trim();
-  } catch { /* no record yet: first ever launch */ }
-  const homeWorkspace = path.join(homeDir(), 'workspace');
-  fs.mkdirSync(homeWorkspace, { recursive: true });
-  return homeWorkspace;
-}
-function rememberProject(project) {
-  try {
-    fs.mkdirSync(homeDir(), { recursive: true });
-    fs.writeFileSync(workspaceRecord(), JSON.stringify({ project, updated_at: new Date().toISOString() }, null, 2) + '\n');
-  } catch { /* advisory only: the client keeps its own copy */ }
+const projectRecords = new WeakMap();
+async function defaultProject(ctx) {
+  const registry = ctx?.workspaceRegistry;
+  const list = typeof registry?.list === 'function' ? await registry.list() : [];
+  const recent = projectRecords.get(ctx);
+  if (recent) {
+    const resolved = await registry?.resolveByPath?.(recent);
+    if (resolved?.path) return resolved.path;
+    const existing = (Array.isArray(list) ? list : []).find(item => item?.path === recent);
+    if (existing) return existing.path;
+  }
+  const first = (Array.isArray(list) ? list : []).find(item => typeof item?.path === 'string');
+  if (first) return first.path;
+  throw new Error('No host workspace is registered. Add a workspace in the host, then open ATL again.');
 }
 
 // Connection's exact Fetch routes enforce host trust, browser authentication,
 // and owner-only access before calling these handlers.
-export function registerDeepSeekPanel(ctx, host) {
+export function registerDeepSeekPanel(ctx, host, workspaceContext = ctx, integrationReport = {}) {
   const panels = new Map();
   const json = (value, status = 200) => Response.json(value, { status, headers: { 'cache-control': 'no-store' } });
   function panelFor(id) { const entry = panels.get(id); if (!entry) throw new Error('Panel expired. Open the project again.'); return entry.gateway; }
@@ -40,11 +31,13 @@ export function registerDeepSeekPanel(ctx, host) {
   register('/api/atl/open', ['POST'], async request => {
     const body = await request.json().catch(() => ({}));
     const requested = typeof body?.project === 'string' ? body.project.trim() : '';
-    // No directory given: automatic workspace opening (first launch, fresh
-    // profile or harness restart) resolves the machine's default workspace.
-    // openPanel validates the project path and starts no workers.
-    const panel = await host.openPanel(requested || defaultProject());
-    rememberProject(panel.project);
+    const project = requested || await defaultProject(workspaceContext);
+    const registered = await workspaceContext?.workspaceRegistry?.resolveByPath?.(project);
+    if (!registered?.path) throw new Error('Choose a project registered in the host workspace list.');
+    // The host registry owns project identity; ATL only initializes the selected
+    // directory's task state and never creates another workspace record.
+    const panel = await host.openPanel(registered.path);
+    if (workspaceContext && typeof workspaceContext === 'object') projectRecords.set(workspaceContext, panel.project);
     const generation = host.serverGeneration;
     let reuse = null;
     for (const [id, entry] of panels) {
@@ -59,6 +52,12 @@ export function registerDeepSeekPanel(ctx, host) {
     panels.set(id, { gateway: await createPanelGateway(panel), generation });
     return json({ id, project: panel.project });
   });
+  register('/api/atl/workspaces', ['GET'], async () => {
+    const registry = workspaceContext?.workspaceRegistry;
+    const rows = typeof registry?.list === 'function' ? await registry.list() : [];
+    return json({ workspaces: (Array.isArray(rows) ? rows : []).filter(row => typeof row?.path === 'string').map(row => ({ id: row.id || row.path, title: row.title || row.name || row.path.split(/[\\/]/).filter(Boolean).at(-1) || row.path, path: row.path })) });
+  });
+  register('/api/atl/integrations', ['GET'], async () => json(integrationReport));
   register('/api/atl/request', ['POST'], async request => {
     const { id, ...input } = await request.json();
     if (typeof input.path !== 'string' || !input.path.startsWith('/') || input.path.startsWith('//')) throw new Error('Invalid panel path.');
@@ -76,7 +75,7 @@ export function registerDeepSeekPanel(ctx, host) {
     const url = new URL(request.url), id = url.searchParams.get('id');
     panelFor(id);
     const args = JSON.stringify({ id, theme: url.searchParams.get('theme') === 'light' ? 'light' : 'dark' }).replaceAll('<', '\\u003c');
-    return new Response(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>Loading ATL…<script>(${frameBootstrap.toString()})(${args})</script></body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': "frame-ancestors 'self'; object-src 'none'", 'referrer-policy': 'no-referrer' } });
+    return new Response(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>Loading ATL…<script>(${frameBootstrap.toString()})(${args},(${createSnapshotPoller.toString()}))</script></body></html>`, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': "frame-ancestors 'self'; object-src 'none'", 'referrer-policy': 'no-referrer' } });
   });
   ctx.effect(() => () => panels.clear());
 }

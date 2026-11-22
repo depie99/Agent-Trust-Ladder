@@ -124,7 +124,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                  add --pause-after-bot to stop after each completed provider session
   providers                     providers, keys (masked), and per-role mapping
   provider templates            pre-filled endpoint presets (zai, bigmodel, custom)
-  provider add &lt;id&gt; [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url]
+  provider add &lt;id&gt; [--template t] [--worker claude|codex|openai-http] [--protocol openai|anthropic|custom] [--base-url url]
                 [--key-env VAR] [--model model] [--thinking-level level]
                                 store an API provider once per machine in ~/.atl/providers.json
                                 (key is prompted without echo; Ctrl+R shows/hides)

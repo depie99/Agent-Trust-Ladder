@@ -64,8 +64,13 @@ try {
     await page.locator('.mtr-root').waitFor();
   } finally { await browser.close(); }
 
-  const snapshot = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
-  assert.ok(snapshot.batches.some((batch) => batch.id === "pilot"), "the live snapshot carries the batch scope");
+  const unauthenticatedSnapshot = await fetch(`${running.url}api/snapshot`);
+  assert.equal(unauthenticatedSnapshot.status, 403, "snapshot reads require an authenticated owner session");
+  const rootResponse = await fetch(running.url);
+  const ownerCookie = rootResponse.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
+  const csrf = (await rootResponse.text()).match(/<meta name="atl-csrf" content="([^"]+)"/)?.[1] || "";
+  const snapshot = await fetch(`${running.url}api/snapshot`, { headers: { cookie: ownerCookie, "x-atl-csrf": csrf } }).then((response) => response.json());
+  assert.ok(Array.isArray(snapshot.batches) && snapshot.batches.some((batch) => batch.id === "pilot"), "the live snapshot carries the batch scope");
 
   const client = await fetch(`${running.url}control-plane-client.js`).then((response) => response.text());
   assert.match(client, /OPERATIONS \/ BATCHES/);

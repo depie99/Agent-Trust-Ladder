@@ -32,11 +32,12 @@ Harness adapters and full-runtime distribution contracts.
 | [plugins/deepseek-client.mjs](../plugins/deepseek-client.mjs) | dsh unmounts the keyed main slot on every tab switch and remounts it on return, |
 | [plugins/deepseek-frame.mjs](../plugins/deepseek-frame.mjs) | Runs inside the same-origin DSH frame; all ATL traffic uses the authenticated |
 | [plugins/deepseek-host.mjs](../plugins/deepseek-host.mjs) | Host-native UI for DeepSeek Harness (issue #34): reuse the host's own |
-| [plugins/deepseek-panel.mjs](../plugins/deepseek-panel.mjs) | First launch opens without asking for a directory: the last workspace opened |
+| [plugins/deepseek-panel.mjs](../plugins/deepseek-panel.mjs) | Connection's exact Fetch routes enforce host trust, browser authentication, |
 | [plugins/deepseek.mjs](../plugins/deepseek.mjs) | Native Cordis contribution: tools use the same bridge as the MCP plugins. |
 | [plugins/panel-entry.mjs](../plugins/panel-entry.mjs) | Marks the plugin presentation for the Control Plane client (default browser stays unmarked). |
 | [plugins/panel-template.html](../plugins/panel-template.html) | panel template: source/configuration for its containing feature. |
 | [plugins/README.md](../plugins/README.md) | ATL harness distribution. |
+| [plugins/snapshot-transport.mjs](../plugins/snapshot-transport.mjs) | Cursor-based polling shared by plugin presentation adapters. It has one |
 
 ## config
 
@@ -681,6 +682,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/governance_test.mjs](../verification/governance_test.mjs) | Executable regression check for governance. |
 | [verification/harness_api_test.mjs](../verification/harness_api_test.mjs) | Executable regression check for harness api. |
 | [verification/harness_planning_test.mjs](../verification/harness_planning_test.mjs) | Executable regression check for harness planning. |
+| [verification/helpers/owner-http.mjs](../verification/helpers/owner-http.mjs) | Read Control Plane owner-only endpoints with the same cookie + CSRF pair |
 | [verification/history_test.mjs](../verification/history_test.mjs) | Executable regression check for history. |
 | [verification/import_plan_revision_journey_test.mjs](../verification/import_plan_revision_journey_test.mjs) | Executable regression check for import plan revision journey. |
 | [verification/install_test.mjs](../verification/install_test.mjs) | Executable regression check for install. |
@@ -753,6 +755,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/program_orchestration_test.mjs](../verification/program_orchestration_test.mjs) | Executable regression check for program orchestration. |
 | [verification/project_readiness_verifier_test.mjs](../verification/project_readiness_verifier_test.mjs) | Executable regression check for project readiness verifier. |
 | [verification/project_workmap_ui_test.mjs](../verification/project_workmap_ui_test.mjs) | Executable regression check for project workmap ui. |
+| [verification/provider_openai_http_test.mjs](../verification/provider_openai_http_test.mjs) | Executable regression check for provider openai http. |
 | [verification/provider_quota_failover_test.mjs](../verification/provider_quota_failover_test.mjs) | Executable regression check for provider quota failover. |
 | [verification/provider_registry_test.mjs](../verification/provider_registry_test.mjs) | Executable regression check for provider registry. |
 | [verification/providers_home_test.mjs](../verification/providers_home_test.mjs) | Executable regression check for providers home. |

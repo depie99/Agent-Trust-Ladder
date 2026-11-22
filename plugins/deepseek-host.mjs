@@ -9,46 +9,60 @@
 // never breaks tool loading. `applyHostIntegrations` returns a report of what
 // actually registered, so tests and diagnostics see the truth.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
-const homeDir = () => process.env.ATL_HOME || path.join(os.homedir(), '.atl');
-const workspaceRecord = () => path.join(homeDir(), 'workspace.json');
+const normalized = value => typeof value === 'string' ? value : value?.path;
+const projectRecords = new WeakMap();
 
 // One project model (issue #34): inside a host with its own project list,
 // the host registry is the source of truth and ATL projects itself onto it —
 // no second registry maintained by the plugin.
 export async function resolveProject(ctx) {
   const registry = ctx?.workspaceRegistry;
-  for (const getter of ['active', 'current', 'getActive']) {
-    if (typeof registry?.[getter] === 'function') {
-      const workspace = await registry[getter]();
-      if (typeof workspace === 'string' && workspace.trim()) return path.resolve(workspace.trim());
-      if (typeof workspace?.root === 'string' && workspace.root.trim()) return path.resolve(workspace.root.trim());
-    }
-  }
   if (typeof registry?.list === 'function') {
     const list = await registry.list();
-    const first = Array.isArray(list) ? list[0] : null;
-    if (typeof first === 'string' && first.trim()) return path.resolve(first.trim());
-    if (typeof first?.root === 'string' && first.root.trim()) return path.resolve(first.root.trim());
+    const rows = Array.isArray(list) ? list : [];
+    const recent = projectRecords.get(ctx);
+    if (recent) {
+      const record = rows.find(row => normalized(row) && path.resolve(normalized(row)) === recent);
+      if (record) return path.resolve(normalized(record));
+      if (typeof registry.resolveByPath === 'function') {
+        const resolved = await registry.resolveByPath(recent);
+        if (resolved && normalized(resolved)) return path.resolve(normalized(resolved));
+      }
+    }
+    const first = rows.find(row => normalized(row)?.trim());
+    if (first) return path.resolve(normalized(first).trim());
   }
-  try {
-    const stored = JSON.parse(fs.readFileSync(workspaceRecord(), 'utf8')).project;
-    if (typeof stored === 'string' && stored.trim() && fs.existsSync(stored.trim())) return path.resolve(stored.trim());
-  } catch { /* no record yet */ }
   throw new Error('No ATL project is active. Add one with /atl-add (folder picker) or open a workspace first.');
 }
 
 // Long commands live in the host when dsh-jobs is available, so progress and
 // cancel survive reloads; otherwise they run directly as before.
-export async function withHostJob(ctx, title, work) {
-  if (typeof ctx?.jobs?.run === 'function') return ctx.jobs.run({ title, run: work });
+export async function withHostJob(ctx, title, work, callerSignal = undefined) {
+  if (typeof ctx?.jobs?.start === 'function' && typeof ctx?.jobs?.wait === 'function') {
+    const controller = new AbortController();
+    const signal = callerSignal ? AbortSignal.any([controller.signal, callerSignal]) : controller.signal;
+    let value, failure;
+    const id = ctx.jobs.start({ kind: 'atl-command', label: title, run: () => {
+      const done = Promise.resolve().then(() => work(signal)).then(result => {
+        value = result;
+        return { status: 'completed', ...(typeof result === 'string' ? { result } : {}) };
+      }, error => {
+        failure = error;
+        return { status: 'failed', detail: 'ATL command failed.' };
+      });
+      return { cancel: reason => controller.abort(reason), done };
+    } });
+    const settled = await ctx.jobs.wait(id, 10 * 60 * 1000, undefined, callerSignal);
+    if (settled.status !== 'completed') throw failure || new Error(settled.status === 'killed' ? 'ATL command was cancelled.' : 'ATL command failed.');
+    return value;
+  }
   return work();
 }
 
-async function callCommand(host, project, args, ctx, { title = 'ATL command' } = {}) {
-  return withHostJob(ctx, title, () => host.call('atl_command', { project, args }));
+async function callCommand(host, project, args, ctx, { title = 'ATL command', signal: callerSignal } = {}) {
+  return withHostJob(ctx, title, signal => host.call('atl_command', { project, args }, { signal }), callerSignal);
 }
 
 function consoleResultText(result, { fallback = 'done' } = {}) {
@@ -57,54 +71,48 @@ function consoleResultText(result, { fallback = 'done' } = {}) {
   return (result.stdout || fallback).slice(0, 4000);
 }
 
-export async function showStatus(ctx, host) {
+export async function showStatus(ctx, host, signal) {
   const project = await resolveProject(ctx);
-  const result = await callCommand(host, project, ['show'], ctx, { title: 'ATL status' });
+  const result = await callCommand(host, project, ['show'], ctx, { title: 'ATL status', signal });
   return consoleResultText(result, { fallback: 'no tasks yet' });
 }
 
-export async function createTask(ctx, host, title) {
+export async function createTask(ctx, host, title, signal) {
   if (!String(title || '').trim()) throw new Error('usage: /atl-task <title>');
   const project = await resolveProject(ctx);
-  const result = await callCommand(host, project, ['compose', '--title', String(title).trim()], ctx, { title: `ATL compose: ${String(title).trim()}` });
+  const result = await callCommand(host, project, ['compose', '--title', String(title).trim()], ctx, { title: `ATL compose: ${String(title).trim()}`, signal });
   return consoleResultText(result, { fallback: 'task composed' });
 }
 
-export async function approveTask(ctx, host, taskId, note) {
+export async function approveTask(ctx, host, taskId, note, signal) {
   if (!String(taskId || '').trim()) throw new Error('usage: /atl-approve <task-id> [--note text]');
   const project = await resolveProject(ctx);
   const args = ['approve', String(taskId).trim()];
   if (String(note || '').trim()) args.push('--note', String(note).trim());
   // The owner approval gate surfaces as an action card when the host provides
   // one, so the decision is visible in the host UI, not just tool output.
-  if (typeof ctx?.actions?.propose === 'function') {
-    try {
-      await ctx.actions.propose({
-        title: `ATL approve ${String(taskId).trim()}`,
-        description: 'Records owner approval and queues the task for bounded execution.',
-        actions: [{ label: 'Approve', command: `/atl-approve ${String(taskId).trim()}` }],
-      });
-    } catch { /* the approval itself still runs through ATL's own gates */ }
-  }
-  const result = await callCommand(host, project, args, ctx, { title: `ATL approve ${String(taskId).trim()}` });
+  const result = await callCommand(host, project, args, ctx, { title: `ATL approve ${String(taskId).trim()}`, signal });
   return consoleResultText(result, { fallback: 'approved' });
 }
 
 // Adding a repository uses the host folder picker (OS chooser locally, or an
 // in-app browser for remote sessions) and registers the workspace with the
 // host's own registry before ATL initializes it.
-export async function addRepository(ctx, host) {
-  const picker = await import('@deepseek-ai/dsh-host-directory-picker').catch(() => null);
-  const pick = picker?.pick || picker?.default?.pick || ctx?.directoryPicker?.pick;
-  if (typeof pick !== 'function') throw new Error('This host does not expose a directory picker; add the repository from the ATL connection assistant instead.');
-  const chosen = await pick({ title: 'Choose the application folder to manage with ATL' });
-  const project = path.resolve(String(chosen || ''));
+export async function addRepository(ctx, host, signal) {
+  const capability = await ctx?.directoryPicker?.capability?.();
+  if (capability?.kind !== 'native' || typeof capability.pick !== 'function') throw new Error('This host does not expose a native directory picker.');
+  const chosen = await capability.pick(signal);
+  if (chosen == null || !String(chosen).trim()) return 'Cancelled; no project was opened.';
+  const project = path.resolve(String(chosen).trim());
   if (!path.isAbsolute(project)) throw new Error('The picker returned a non-absolute path; ATL projects must be absolute.');
   if (!fs.existsSync(project) || !fs.statSync(project).isDirectory()) throw new Error(`Not a directory: ${project}`);
-  if (typeof ctx?.workspaceRegistry?.create === 'function') {
-    try { await ctx.workspaceRegistry.create(project, path.basename(project) || project); }
-    catch { /* already registered in the host, or the host rejects duplicates */ }
+  const registry = ctx?.workspaceRegistry;
+  const registered = typeof registry?.resolveByPath === 'function' ? await registry.resolveByPath(project) : null;
+  if (!registered) {
+    if (typeof registry?.create !== 'function') throw new Error('The host workspace registry cannot add directories in this version. Add the folder in the host, then run /atl.');
+    await registry.create(project, path.basename(project));
   }
+  if (ctx && typeof ctx === 'object') projectRecords.set(ctx, project);
   const started = await host.call('atl_start', { project });
   return `ATL is managing ${project}\n${started.url}${started.initialized === false ? '\n(initialized new ATL state)' : ''}`;
 }
@@ -134,28 +142,25 @@ function escapeHtml(value) {
 }
 
 export function applyHostIntegrations(ctx, host) {
-  const report = { commands: [], sidebar: false };
+  const report = { commands: [], actionCards: typeof ctx?.actionCards?.register === 'function', approval: typeof ctx?.approval?.request === 'function', directoryPicker: typeof ctx?.directoryPicker?.capability === 'function', jobs: typeof ctx?.jobs?.start === 'function' && typeof ctx?.jobs?.wait === 'function' };
   // Slash commands: /atl (status), /atl-task (compose), /atl-approve (owner gate).
   if (typeof ctx?.commands?.register === 'function') {
     const register = (definition) => {
       try { ctx.commands.register(definition); report.commands.push(definition.name); }
       catch (error) { report.commands.push(`${definition.name}:unavailable (${error.message})`); }
     };
-    register({ name: 'atl', description: 'Show ATL task status for the active workspace', run: () => showStatus(ctx, host) });
-    register({ name: 'atl-task', description: 'Compose a new ATL task (/atl-task <title>)', run: (args) => createTask(ctx, host, typeof args === 'string' ? args : args?.title || '') });
-    register({ name: 'atl-approve', description: 'Approve an ATL task (/atl-approve <task-id> [--note text])', run: (args) => {
-      const text = typeof args === 'string' ? args : `${args?.task_id || ''} ${args?.note ? `--note ${args.note}` : ''}`;
+    const command = work => async invocation => {
+      try { return { kind: 'success', text: await work(invocation) }; }
+      catch (error) { return { kind: 'error', text: error.message || 'ATL command failed.' }; }
+    };
+    register({ name: 'atl', description: 'Show ATL task status for the active workspace', handler: command(invocation => showStatus(ctx, host, invocation?.signal)) });
+    register({ name: 'atl-task', description: 'Compose a new ATL task (/atl-task <title>)', input: { hint: 'Task title' }, handler: command(invocation => createTask(ctx, host, invocation?.rawInput || '', invocation?.signal)) });
+    register({ name: 'atl-approve', description: 'Approve an ATL task (/atl-approve <task-id> [--note text])', input: { hint: 'T-001 --note reason' }, handler: command(async invocation => {
+      const text = invocation?.rawInput || '';
       const match = /^(T-\d+)\s*(?:--note\s+(.*))?$/.exec(text.trim());
-      return approveTask(ctx, host, match?.[1] || '', match?.[2] || '');
-    } });
-    register({ name: 'atl-add', description: 'Add a repository with the folder picker and start ATL for it', run: () => addRepository(ctx, host) });
-  }
-  // Right-sidebar task board tab.
-  if (typeof ctx?.sidebarRightTabs?.register === 'function') {
-    try {
-      ctx.sidebarRightTabs.register({ id: 'atl-board', title: 'ATL Tasks', render: () => renderBoard(ctx, host) });
-      report.sidebar = true;
-    } catch { report.sidebar = false; }
+      return approveTask(ctx, host, match?.[1] || '', match?.[2] || '', invocation?.signal);
+    }) });
+    register({ name: 'atl-add', description: 'Add a repository with the folder picker and start ATL for it', handler: command(invocation => addRepository(ctx, host, invocation?.signal)) });
   }
   return report;
 }

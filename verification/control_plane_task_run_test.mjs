@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { emptyState, loadState, saveState } from "../runtime/lib/state.mjs";
+import { ownerJson } from "./helpers/owner-http.mjs";
 import { queueAdd } from "../runtime/lib/queue.mjs";
 import { executeLaunchQueue, readRunLock } from "../runtime/lib/launch.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
@@ -115,7 +116,7 @@ function makeProject(label) {
     }
     assert.notEqual(finished.status, "running", "the per-task run settles");
     assert.ok((finished.results || []).every((row) => row.id === "T-001"), "settled results cover only the requested task");
-    const after = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
+    const after = await ownerJson(new URL("api/snapshot", running.url));
     assert.equal(after.state.tasks["T-002"].status, "assigned", "the queued sibling survives a browser task run");
   } finally {
     await new Promise((resolve) => running.server.close(resolve));

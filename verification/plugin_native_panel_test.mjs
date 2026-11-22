@@ -32,6 +32,17 @@ try {
   const origin = content._meta.ui.csp.resourceDomains[0];
   const url = content.text.match(/data-url="([^"]+)"/)?.[1].replaceAll('&amp;', '&');
   assert.ok(url?.startsWith(origin));
+  async function readOwnerSnapshot() {
+    const root = await fetch(url, { redirect: 'error' });
+    assert.equal(root.status, 200, 'valid embedded entry opens an owner session');
+    const cookie = root.headers.getSetCookie().map(value => value.split(';', 1)[0]).join('; ');
+    const html = await root.text();
+    const csrf = html.match(/<meta\s+name="atl-csrf"\s+content="([^"]+)"/i)?.[1];
+    assert.ok(cookie && csrf, 'embedded entry provides owner cookie and CSRF token');
+    const response = await fetch(`${origin}/api/snapshot`, { headers: { cookie, 'x-atl-csrf': csrf } });
+    assert.equal(response.status, 200, 'owner session may read the live snapshot');
+    return response.json();
+  }
   assert.ok(content.text.includes('ATL Control Plane'));
   const panelScript = content.text.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(panelScript, 'panel resource must contain its bundled script');
@@ -88,7 +99,7 @@ try {
     return { status: response.status, body: await response.json() };
   });
   assert.equal(result.status, 200, JSON.stringify(result.body));
-  const snapshot = await fetch(`${origin}/api/snapshot`).then(response => response.json());
+  const snapshot = await readOwnerSnapshot();
   assert.ok(snapshot.queues?.some?.(queue => queue.id === 'native-panel-test') || JSON.stringify(snapshot).includes('native-panel-test'));
   // Plugin presentation contract: the packaged panel marks its context, uses
   // compact navigation, keeps detail navigation working and follows host theme.
