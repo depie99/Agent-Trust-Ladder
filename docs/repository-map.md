@@ -77,6 +77,13 @@ Developer guides, generated website, visual sources, and historical evidence.
 | [docs/development.md](../docs/development.md) | Development and verification. |
 | [docs/diagrams.html](../docs/diagrams.html) | Generated public route; edit its Markdown source in docs/site.json. |
 | [docs/diagrams.md](../docs/diagrams.md) | Diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.context-picker.png](../docs/diagrams/ask-atl-redesign.after.context-picker.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.conversation-light.png](../docs/diagrams/ask-atl-redesign.after.conversation-light.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.conversation-mobile.png](../docs/diagrams/ask-atl-redesign.after.conversation-mobile.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.conversation-rtl.png](../docs/diagrams/ask-atl-redesign.after.conversation-rtl.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.conversation.png](../docs/diagrams/ask-atl-redesign.after.conversation.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.landing.png](../docs/diagrams/ask-atl-redesign.after.landing.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.before.page.png](../docs/diagrams/ask-atl-redesign.before.page.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/atl-architecture.light.svg](../docs/diagrams/atl-architecture.light.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/atl-architecture.svg](../docs/diagrams/atl-architecture.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/atl-control-plane-real.png](../docs/diagrams/atl-control-plane-real.png) | Visual source or retained historical capture; see the diagram library. |
@@ -249,7 +256,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/codex-bridge.mjs](../runtime/lib/codex-bridge.mjs) | Optional bridge from ATL's durable team state into a persistent Codex thread. |
 | [runtime/lib/command-console.mjs](../runtime/lib/command-console.mjs) | command console: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/composer.mjs](../runtime/lib/composer.mjs) | The control room's composition path: free text or imported candidates in, |
-| [runtime/lib/control-assistant.mjs](../runtime/lib/control-assistant.mjs) | control assistant: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/control-assistant.mjs](../runtime/lib/control-assistant.mjs) | Ask ATL page conversations live in their own directory; the embedded |
 | [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | Batch ids with a runner active in this process. The checkpoint lease remains |
 | [runtime/lib/control-plane.mjs](../runtime/lib/control-plane.mjs) | Inventory only: installed skill metadata is not promotion evidence. |
 | [runtime/lib/daemon.mjs](../runtime/lib/daemon.mjs) | One state owner per project (issue #34). |
@@ -342,6 +349,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/prompts/sage.md](../runtime/prompts/sage.md) | Role prompt defining responsibilities and evidence requirements. |
 | [runtime/README.md](../runtime/README.md) | ATL runtime. |
 | [runtime/scss/_app.scss](../runtime/scss/_app.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_ask-atl.scss](../runtime/scss/_ask-atl.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_my-tasks.scss](../runtime/scss/_my-tasks.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_plugin.scss](../runtime/scss/_plugin.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_source-design.scss](../runtime/scss/_source-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
@@ -596,6 +604,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | File | Purpose |
 |---|---|
 | [verification/approval_test.mjs](../verification/approval_test.mjs) | Executable regression check for approval. |
+| [verification/ask_atl_conversations_test.mjs](../verification/ask_atl_conversations_test.mjs) | Executable regression check for ask atl conversations. |
 | [verification/atl_lazy_pipeline_test.py](../verification/atl_lazy_pipeline_test.py) | atl lazy pipeline test: source/configuration for its containing feature. |
 | [verification/atl_lifecycle_model.py](../verification/atl_lifecycle_model.py) | atl lifecycle model: source/configuration for its containing feature. |
 | [verification/atl_manager_lifecycle_model.py](../verification/atl_manager_lifecycle_model.py) | atl manager lifecycle model: source/configuration for its containing feature. |
