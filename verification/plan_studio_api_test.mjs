@@ -216,7 +216,7 @@ try {
   process.env.USERPROFILE = fakeHome;
 process.env.HOME = fakeHome;
   fs.mkdirSync(path.join(fakeHome, ".atl"), { recursive: true });
-  fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({ providers: { testprov: { id: "testprov", label: "T", worker: "claude", base_url: "https://example.test", api_key: "sk", model: "m" } } }));
+  fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({ providers: { testprov: { id: "testprov", label: "T", worker: "openai-http", protocol: "openai", base_url: "https://example.test", api_key: "sk", model: "m" } } }));
   let calls = 0;
   let answer = JSON.stringify(validPlan);
   const server = await startControlPlaneServer(root2, { planningInvoke: async ({ logPath }) => {
@@ -270,8 +270,8 @@ process.env.HOME = fakeHome;
   process.env.USERPROFILE = fakeHome;
 process.env.HOME = fakeHome;
   fs.mkdirSync(path.join(fakeHome, ".atl"), { recursive: true });
-  fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({ providers: { testprov: { id: "testprov", label: "T", worker: "claude", protocol: "anthropic", base_url: "https://example.test", api_key: "sk", model: "m" } } }));
-  // a throwaway endpoint that answers the anthropic model-list shape
+  fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({ providers: { testprov: { id: "testprov", label: "T", worker: "openai-http", protocol: "openai", base_url: "https://example.test", api_key: "sk", model: "m" } } }));
+  // A throwaway endpoint that answers the OpenAI-compatible model-list shape.
   const { createServer: createHttpServer } = await import("node:http");
   const endpoint = createHttpServer((request, response) => {
     response.writeHead(200, { "content-type": "application/json" });
