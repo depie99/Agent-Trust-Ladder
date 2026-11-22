@@ -1864,7 +1864,11 @@ ${feedbackLine}
     const body = askCurrent
       ? `<div class="ask-transcript" id="askTranscript" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Ask ATL conversation" tabindex="0">${askTranscript()}</div>${askComposer()}`
       : `${askLanding()}${askComposer({ landing: true })}`;
-    return `<section class="ask-page" aria-label="Ask ATL">${askRail()}<button type="button" class="ask-scrim" data-action="ask-toggle-rail" aria-label="Close chats" tabindex="-1"></button><section class="ask-main">${askHead()}${askNotice ? `<div class="notice" role="alert">${escapeHtml(askNotice)}</div>` : ""}<div class="ask-body">${body}</div></section></section>`;
+    // The notice nests with .ask-body inside .ask-sub so the grid keeps its
+    // fixed two-row shape (head / flexible content) even when a notice is
+    // showing; an implicit third row would hand the flexible row to the
+    // notice and push the composer off-screen.
+    return `<section class="ask-page" aria-label="Ask ATL">${askRail()}<button type="button" class="ask-scrim" data-action="ask-toggle-rail" aria-label="Close chats" tabindex="-1"></button><section class="ask-main">${askHead()}<div class="ask-sub">${askNotice ? `<div class="notice" role="alert">${escapeHtml(askNotice)}</div>` : ""}<div class="ask-body">${body}</div></div></section></section>`;
   }
   async function loadAskPage() {
     try {

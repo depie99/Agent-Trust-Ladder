@@ -11291,6 +11291,18 @@ html:not(.light) .source-design .source-advanced {
   background: var(--bg);
 }
 
+.ask-sub {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.ask-sub > .notice {
+  margin: 10px 18px 0;
+}
+
 .ask-head {
   display: flex;
   align-items: center;
@@ -11907,7 +11919,8 @@ html:not(.light) .source-design .source-advanced {
   }
   .ask-page {
     grid-template-columns: minmax(0, 1fr);
-    height: calc(100dvh - 128px);
+    height: calc(100dvh - 195px);
+    min-height: 430px;
     margin: -8px -8px -12px;
     border-radius: 10px;
     position: relative;

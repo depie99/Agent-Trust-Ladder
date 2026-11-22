@@ -134,8 +134,18 @@ try {
     assert.ok(await page.locator('[data-action="ask-mode:fix"]').isDisabled(), "fix stays disabled without a workspace-capable task context");
     await page.locator('[data-action="ask-mode:diagnose"]').click();
     assert.match(await page.locator(".ask-seg.on").textContent(), /Diagnose/, "mode switches update the segmented control");
-    const composerBounds = await page.locator(".ask-composer").boundingBox();
-    assert.ok(composerBounds.y >= 0 && composerBounds.y + composerBounds.height <= viewport.height + 1, "the Ask ATL composer fits the viewport");
+    // Measure after scroll-reset and two stable frames so a racing snapshot
+    // repaint cannot skew the box (CI runners repaint later than locals).
+    const composerFit = await page.evaluate(() => new Promise((resolve) => {
+      window.scrollTo(0, 0);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const node = document.querySelector(".ask-composer");
+        if (!node) return resolve(false);
+        const rect = node.getBoundingClientRect();
+        resolve(rect.top >= 0 && rect.bottom <= window.innerHeight + 2);
+      }));
+    }));
+    assert.ok(composerFit, "the Ask ATL composer fits the viewport");
     if (process.env.ATL_ASSISTANT_SCREENSHOT && viewport.width === 390) await page.locator(".ask-page").screenshot({ path: process.env.ATL_ASSISTANT_SCREENSHOT });
     await page.locator('[data-page="settings"]:visible').first().click();
     await page.locator("#browserAccessDefault").waitFor();
