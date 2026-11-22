@@ -19,7 +19,7 @@ import { dispatchTuiCommand } from "./command-console.mjs";
 import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, reconcileOvernightRun, readRunLock, requestRunAbort } from "./launch.mjs";
 import { addProposal, addProposalFeedback, editProposal, generateLocalPlan, savePlanDraft, normalizeProposals, loadPlanDraft, listPlanDrafts, archivePlanDraft, repairPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider, reviewPlanArtifact, answerPlanQuestion, answerCandidateQuestion, applyPlanCandidate, discardPlanCandidate, refinePlanDraft, planningEvidence, approvePlanDraft, validatePlanArtifact, validatePlanGrounding, resolvePlanRepository, repositoryStamp, planDraftIndex, requestRepositoryIds } from "./plan-studio.mjs";
 import { invokePlanningProvider } from "./plan-model.mjs";
-import { builtinProviderStatus, discoverProvider, providerProfile, providerNames, resolvePlanningModel } from "./providers.mjs";
+import { builtinProviderStatus, discoverProvider, logoutBuiltin, providerProfile, providerNames, resolvePlanningModel } from "./providers.mjs";
 import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLATES, providerChoices, removeProvider, requireReadyProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
 import { paths, loadState, saveState, logEvent, createTask } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
@@ -510,6 +510,12 @@ async function handleProvidersEndpoint(root, res, req) {
       const id = String(payload.id || "").trim().toLowerCase();
       startBuiltinOperation(id, action === "builtin-login" ? "login" : "install", providerConfig(root));
       return json(res, 200, { ok: true, ...providerView(root) });
+    }
+    if (action === "builtin-logout") {
+      const id = String(payload.id || "").trim().toLowerCase();
+      if (!["codex", "claude", "gapgpt"].includes(id)) return json(res, 400, { ok: false, error: "Unknown built-in provider" });
+      const result = logoutBuiltin(id);
+      return json(res, 200, { ok: true, detail: result.detail, ...providerView(root) });
     }
     if (action === "add") {
       const id = String(payload.id || "").trim();

@@ -107,4 +107,23 @@ try {
   process.env.USERPROFILE = realHome;
 }
 
+// Sign-out removes exactly the filesystem evidence the status reads.
+import { logoutBuiltin } from "../runtime/lib/providers.mjs";
+writeHome(".codex/auth.json", { auth_mode: "chatgpt", tokens: { id_token: "x" } });
+writeHome(".claude/.credentials.json", { claudeAiOauth: { accessToken: "x" } });
+writeHome(".claude.json", { oauthAccount: { email: "x@example.com" }, theme: "dark" });
+writeHome(".gapcode/auth.json", { tokens: { access_token: "x" } });
+logoutBuiltin("codex", { env });
+logoutBuiltin("claude", { env });
+logoutBuiltin("gapgpt", { env });
+assert.equal(builtinAuthStatus("codex", { env }).signedIn, false, "codex reads signed out after logout");
+assert.ok(!fs.existsSync(path.join(fakeHome, ".claude", ".credentials.json")), "claude credential file is removed");
+const claudeConfig = JSON.parse(fs.readFileSync(path.join(fakeHome, ".claude.json"), "utf8"));
+assert.equal(claudeConfig.oauthAccount, undefined, "claude oauth account is stripped from the main config");
+assert.equal(claudeConfig.theme, "dark", "claude logout preserves unrelated settings");
+assert.equal(builtinAuthStatus("claude", { env }).signedIn, false, "claude reads signed out after logout");
+assert.equal(builtinAuthStatus("gapgpt", { env }).signedIn, false, "gapgpt reads signed out after logout");
+assert.throws(() => logoutBuiltin("codex", { env }), /not storing a sign-in/, "logging out again names the absent credential");
+assert.throws(() => logoutBuiltin("other", { env }), /Unknown built-in/, "unknown built-ins are refused");
+
 console.log("builtin_provider_status_test: all assertions passed");

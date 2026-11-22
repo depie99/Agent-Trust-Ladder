@@ -212,6 +212,52 @@ export function builtinProviderStatus(config = {}, { env = process.env } = {}) {
   });
 }
 
+// Sign a built-in worker out by removing the same filesystem evidence
+// builtinAuthStatus reads — the files the CLIs' own logout commands delete.
+// No subprocess, no keychain access: on a macOS keychain-backed Claude
+// credential this reports the limitation instead of pretending.
+export function logoutBuiltin(name, { env = process.env } = {}) {
+  const clean = String(name || "").toLowerCase();
+  const home = userHome(env);
+  if (!home) throw new Error("No home directory is known, so no stored sign-in can be removed.");
+  const removeQuietly = (file) => { try { fs.rmSync(file, { force: true }); } catch { /* already gone */ } };
+  if (clean === "codex") {
+    const authFile = path.join(env.CODEX_HOME || path.join(home, ".codex"), "auth.json");
+    if (!fs.existsSync(authFile)) throw new Error("Codex is not storing a sign-in on this machine.");
+    removeQuietly(authFile);
+    return { ok: true, detail: "Removed the Codex credential. Run \"codex login\" to connect again." };
+  }
+  if (clean === "claude") {
+    const credFile = path.join(home, ".claude", ".credentials.json");
+    const configFile = path.join(home, ".claude.json");
+    const hasCred = fs.existsSync(credFile);
+    let hasOauth = false;
+    try {
+      const main = JSON.parse(fs.readFileSync(configFile, "utf8"));
+      if (main?.oauthAccount) {
+        hasOauth = true;
+        delete main.oauthAccount;
+        const tmp = `${configFile}.${process.pid}.tmp`;
+        fs.writeFileSync(tmp, `${JSON.stringify(main, null, 2)}\n`, "utf8");
+        fs.renameSync(tmp, configFile);
+      }
+    } catch { /* unreadable or absent: nothing to strip */ }
+    if (process.platform === "darwin" && !hasCred && !hasOauth) {
+      throw new Error("Claude stores its macOS credential in the system keychain; ATL does not touch the keychain. Run \"claude /logout\" inside the Claude CLI.");
+    }
+    removeQuietly(credFile);
+    if (!hasCred && !hasOauth) throw new Error("Claude is not storing a sign-in on this machine.");
+    return { ok: true, detail: "Removed the Claude credential. Run \"claude auth login\" to connect again." };
+  }
+  if (clean === "gapgpt") {
+    const authFile = path.join(env.GAPCODE_HOME || path.join(home, ".gapcode"), "auth.json");
+    if (!fs.existsSync(authFile)) throw new Error("GapGPT is not storing a sign-in on this machine.");
+    removeQuietly(authFile);
+    return { ok: true, detail: "Removed the GapGPT credential. Run \"gapcode login\" to connect again." };
+  }
+  throw new Error(`Unknown built-in provider "${name}"`);
+}
+
 // Scan PATH for the provider executable. Returns { available, path, error }.
 export function discoverProvider(name, { env = process.env, platform = process.platform, cwd = process.cwd(), command: configuredCommand = null } = {}) {
   const command = configuredCommand || (name === "gapgpt" ? "gapcode" : name);

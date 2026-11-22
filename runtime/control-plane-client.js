@@ -2848,7 +2848,7 @@ operations: () => {
           ? `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${escapeHtml(worker.label)} is not installed</b><p class="sub" style="margin:4px 0 8px">No verified installer is available. Install from the provider's documented release process, then recheck.</p></div>`
           : `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">${escapeHtml(worker.label)} is not installed</b><p class="sub" style="margin:4px 0 8px">Install once for all projects.</p>${btn("Install", `pm-install-builtin:${escapeHtml(worker.id)}`, "sm primary")}</div>`;
       } else if (state.connected) {
-        connect = `<p class="sub" style="margin-top:8px">${escapeHtml(worker.detail || "Connected via your subscription.")} Queue and task runs can use this CLI.</p>`;
+        connect = `<div class="bar" style="margin-top:8px;justify-content:flex-start"><span class="sub" style="margin:0">${escapeHtml(worker.detail || "Connected via your subscription.")} Queue and task runs can use this CLI.</span>${btn("Sign out", `pm-logout-builtin:${escapeHtml(worker.id)}`, "sm")}</div>`;
       } else {
         connect = `<div class="notice" style="margin-top:9px;padding:9px"><b class="amber">Connect ${escapeHtml(worker.label)}</b><p class="sub" style="margin:4px 0 8px">Sign in once for all projects.</p>${btn("Sign in", `pm-login-builtin:${escapeHtml(worker.id)}`, "sm primary")}</div>`;
       }
@@ -4639,6 +4639,24 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
           if (builtinWorkers.find((worker) => worker.id === id)?.operation?.status === "running") setTimeout(poll, 2000);
         };
         setTimeout(poll, 2000);
+      } catch (error) { providerManagerModal({ ok: false, text: error.message }); }
+      return;
+    }
+    if (value.startsWith("pm-logout-builtin:")) {
+      const id = value.slice("pm-logout-builtin:".length);
+      const label = builtinWorkers.find((worker) => worker.id === id)?.label || id;
+      popup(`Sign out of ${escapeHtml(label)}`, `<p class="sub">ATL removes the credential this machine stores for ${escapeHtml(label)} — the same evidence its own logout command deletes. Nothing is sent to the provider; run its sign-in command to connect again.</p>`, btn("Cancel", "close") + btn(`Sign out`, `pm-logout-builtin-confirm:${id}`, "danger"));
+      return;
+    }
+    if (value.startsWith("pm-logout-builtin-confirm:")) {
+      const id = value.slice("pm-logout-builtin-confirm:".length);
+      const button = document.querySelector(`[data-action="${value}"]`);
+      if (button) button.disabled = true;
+      try {
+        const result = await planApi("/api/providers", { action: "builtin-logout", id });
+        builtinWorkers = result.builtin || [];
+        close();
+        providerManagerModal({ ok: true, text: result.detail || "Signed out." });
       } catch (error) { providerManagerModal({ ok: false, text: error.message }); }
       return;
     }
