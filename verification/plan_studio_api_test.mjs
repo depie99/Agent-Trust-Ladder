@@ -97,13 +97,16 @@ try {
   assert.ok(providers.templates.some((template) => template.id === "zai"), "the endpoint presets ship to the browser");
 
   // browser provider management: add → key → use → remove; keys never echo
-  const addedProvider = await post("/api/providers", { action: "add", id: "webprov", template: "zai", model: "glm-4.6" });
+  const addedProvider = await post("/api/providers", {
+    action: "add", id: "webprov", worker: "openai-http", protocol: "openai",
+    base_url: "https://example.test/v1", model: "glm-4.6",
+  });
   assert.equal(addedProvider.status, 200, "a provider can be added from the browser");
   assert.ok(addedProvider.body.providers.some((provider) => provider.id === "webprov"), "the added provider appears in the list");
   const webEntry = addedProvider.body.providers.find((provider) => provider.id === "webprov");
   assert.equal(webEntry.ready, false, "a newly added provider is not ready yet");
   assert.ok(webEntry.problems.some((problem) => /API key/.test(problem)), "the added provider waits for its key");
-  assert.ok(!webEntry.problems.some((problem) => /base URL/.test(problem)), "the zai template prefilled the endpoint");
+  assert.ok(!webEntry.problems.some((problem) => /base URL/.test(problem)), "the configured HTTP worker has an endpoint");
   const keyed = await post("/api/providers", { action: "key", id: "webprov", key: "sk-web-secret-value" });
   assert.equal(keyed.body.providers.find((provider) => provider.id === "webprov").ready, true, "storing the key readies the provider");
   assert.ok(!JSON.stringify(keyed.body).includes("sk-web-secret-value"), "the raw key is never echoed back");
