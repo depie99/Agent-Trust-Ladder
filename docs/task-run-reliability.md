@@ -82,7 +82,7 @@ an unavailable browser connection.
   server code instead of pairing newer assets with installed API routes.
 
 The handoff and UI-refresh regressions are included in the runtime CI matrix
-for Windows and Linux. T-022's later October 28 recovery is recorded in
+for Windows, Linux, and macOS. T-022's later October 28 recovery is recorded in
 [the blocker ledger](../problems/enhancements/t022-ask-atl-recovery.md).
 Fresh CSS and real Chrome observations now satisfy its two completion checks
 at the current revision. Independent review and final completion remain

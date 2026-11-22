@@ -19,11 +19,11 @@ Read the generated [lifecycle reference](state-contract.md) for exact statuses, 
 
 ## Configure intake
 
-Use environment variable names such as `JIRA_TOKEN` and `AZDO_PAT`; set values in the server environment. Enter connector base URLs rather than issue/taskboard browser URLs. See [issue sources](issue-sources.md).
+Use environment variable names such as `JIRA_TOKEN` and `AZDO_PAT` and set their values in the server environment, or save a credential once through the UI: issue-source connections accept a session token held in server memory, and on Windows an Azure personal access token can be remembered securely with DPAPI so it survives restarts. Tokens are never returned to the browser — only presence and source are reported. Enter connector base URLs rather than issue/taskboard browser URLs. See [issue sources](issue-sources.md).
 
 ## Configure resources
 
-Open **Settings → Autonomous resources** and inspect enablement, allowances, caps, model tiers, and cost order. Saving policy does not start execution. Active-run restrictions can block changes. Preview afterward to verify the effective route.
+Open **Settings → Resources & budgets** and inspect enablement, allowances, caps, model tiers, and cost order. Saving policy does not start execution. Active-run restrictions can block changes. Preview afterward to verify the effective route.
 
 See [resource policy](resource-policy.md) and [providers](providers.md) for semantics.
 

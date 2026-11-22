@@ -16,7 +16,7 @@ Bundles are published to the public marketplace [depie99/atl-marketplace](https:
 npm run plugins:build
 ```
 
-This creates `dist/plugins/codex`, `claude`, `cursor`, `deepseek`, `gemini`, and `universal`. Use a fresh output directory when rebuilding: `npm run plugins:build -- --out dist/plugins-next`. The builder refuses existing target directories so it cannot overwrite user files. Building needs no runtime dependency installation. All targets use `runtime/lib/plugin-host.mjs`; the adapter changes the host registration rather than forking ATL.
+This creates `dist/plugins/codex`, `claude`, `cursor`, `deepseek`, `gemini`, `zcode`, and `universal`. Use a fresh output directory when rebuilding: `npm run plugins:build -- --out dist/plugins-next`. The builder refuses existing target directories so it cannot overwrite user files. Building needs no runtime dependency installation. All targets use `runtime/lib/plugin-host.mjs`; the adapter changes the host registration rather than forking ATL.
 
 **Start with ATL Connect.** Every generated bundle contains `start.cmd` for Windows and `start.sh` for macOS/Linux (`sh start.sh`). Run it and open the printed local URL. Alternatively, run `node runtime/atl-connect.mjs` from the bundle directory. Keep that terminal open during use. Inside an already connected harness, ask the agent to call `atl_connect` for the same assistant.
 
@@ -109,4 +109,4 @@ Expected result: an explicit task packet and queue membership precede execution.
 
 ## Recover setup problems
 
-If `atl` is missing, open a new terminal or use the installer-created shim. If the port is occupied, choose another port. Fix provider installation/authentication before repeating preview. See [troubleshooting](troubleshooting.md) and [providers](providers.md).
+If `atl` is missing, open a new terminal or use the installer-created shim. If the port is occupied, choose another port. If the interface stops responding after an interrupted session, run `atl daemon stop` and reopen it — the Control Plane runs as a per-project state-owner daemon recorded in `.atl/daemon.json`. Fix provider installation/authentication before repeating preview. See [troubleshooting](troubleshooting.md) and [providers](providers.md).

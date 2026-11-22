@@ -1,6 +1,6 @@
 # Adaptive task resources
 
-Settings → Autonomous resources controls the project-local `resource_policy`
+Settings → Resources & budgets controls the project-local `resource_policy`
 in `config/manager.json`. Save does not start a provider or queue. Existing
 projects retain their old behavior until the policy is enabled. Policy changes
 wait for an active queue to finish; restarting a server is not a way to change
