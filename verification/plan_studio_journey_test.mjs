@@ -10,7 +10,7 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-plan-home-"));
 const oldHome = process.env.USERPROFILE; const oldHomePosix = process.env.HOME; process.env.USERPROFILE = home; process.env.HOME = home;
 const oldGithub = process.env.GITHUB_TOKEN; process.env.GITHUB_TOKEN = "test-github-token";
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
-fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id:"test", label:"Test", worker:"claude", base_url:"https://example.test", api_key:"test-key", model:"test-model" } } }));
+fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id:"test", label:"Test", worker:"openai-http", protocol:"openai", base_url:"https://example.test/v1", api_key:"test-key", model:"test-model" } } }));
 fs.mkdirSync(path.join(root, "config"), {recursive:true}); fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({version:1}));
 const initialState = emptyState();
 const imported = createTask(initialState, { title: "Bug 6341: S2H - Top sales issue", source: { type: "azure", project: "example-project", remote_id: 6341, revision: 5, repository: null }, intake_key: "azure:6341", plan_review_required: true });
