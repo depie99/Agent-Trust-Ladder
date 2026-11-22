@@ -134,8 +134,17 @@ try {
     assert.equal(await dialog.count(), 0, "the picker closes on apply");
     assert.ok(await page.locator(".ask-composer-chips .ask-chip").count() >= 1, "applied context appears as a composer chip");
     assert.ok(await page.locator('[data-action="ask-mode:fix"]').isDisabled(), "fix stays disabled without a workspace-capable task context");
-    await page.locator('[data-action="ask-mode:diagnose"]').click();
-    assert.match(await page.locator(".ask-seg.on").textContent(), /Diagnose/, "mode switches update the segmented control");
+    assert.ok(await page.locator(".ask-attach").count() === 1, "the composer carries the square attach button");
+    if (viewport.width === 390) {
+      // Narrow screens collapse the segmented pills into the mode select.
+      assert.equal(await page.locator("#askModeSelect").count(), 1, "the mobile mode pill renders");
+      assert.ok(await page.locator('#askModeSelect option[value="fix"]').isDisabled(), "fix stays disabled in the mobile mode pill");
+      await page.locator("#askModeSelect").selectOption("diagnose");
+      assert.equal(await page.locator("#askModeSelect").inputValue(), "diagnose", "the mobile mode pill switches mode");
+    } else {
+      await page.locator('[data-action="ask-mode:diagnose"]').click();
+      assert.match(await page.locator(".ask-seg.on").textContent(), /Diagnose/, "mode switches update the segmented control");
+    }
     // Measure after scroll-reset and two stable frames so a racing snapshot
     // repaint cannot skew the box (CI runners repaint later than locals).
     const composerFit = await page.evaluate(() => new Promise((resolve) => {

@@ -1814,7 +1814,16 @@ ${feedbackLine}
     const fixReason = askFixBlockedReason();
     const context = askCurrent ? (askSession?.context || {}) : (askContextDraft || {});
     const running = askSession?.status === "running";
-    return `<div class="ask-composer"><div class="ask-composer-chips">${askChips(context)}<button type="button" class="ask-add-context" data-action="ask-picker">+ Add context</button></div><label class="sr-only" for="askInput">Message</label><textarea class="input" id="askInput" dir="auto" rows="2" placeholder="${landing ? "Ask anything about this project…" : "Ask a follow-up…"}">${escapeHtml(draft.message || "")}</textarea><div class="ask-composer-bar"><div class="ask-segmented" role="group" aria-label="Mode">${[["ask", "Ask"], ["diagnose", "Diagnose"], ["fix", "Fix in workspace"]].map(([value, label]) => `<button type="button" class="ask-seg ${mode === value ? "on" : ""}" data-action="ask-mode:${value}"${value === "fix" && fixReason ? ` disabled title="${escapeHtml(fixReason)}" aria-disabled="true"` : ""}>${label}</button>`).join("")}</div><select class="ask-provider-pill" id="askProvider" aria-label="Provider and model">${options}</select><button type="button" class="btn primary ask-send" data-action="ask-send"${running ? " disabled" : ""}>Send</button></div><div class="ask-hints"><span class="muted tiny">Ctrl/Cmd+Enter sends · Enter adds a line · @ adds context · Provider usage may apply</span><span class="muted tiny"><b>Ask</b> reads and answers · <b>Diagnose</b> inspects, read-only · <b>Fix in workspace</b> proposes edits for your approval</span></div></div>`;
+    const modes = [["ask", "Ask"], ["diagnose", "Diagnose"], ["fix", "Fix in workspace"]];
+    const segmented = modes.map(([value, label]) => `<button type="button" class="ask-seg ${mode === value ? "on" : ""}" data-action="ask-mode:${value}"${value === "fix" && fixReason ? ` disabled title="${escapeHtml(fixReason)}" aria-disabled="true"` : ""}>${label}</button>`).join("");
+    const modeSelect = modes.map(([value, label]) => `<option value="${value}"${mode === value ? " selected" : ""}${value === "fix" && fixReason ? " disabled" : ""}>${label}</option>`).join("");
+    return `<div class="ask-composer"><div class="ask-composer-chips">${askChips(context)}<button type="button" class="ask-add-context" data-action="ask-picker">+ Add context</button></div><div class="ask-composer-bar"><div class="ask-segmented" role="group" aria-label="Mode">${segmented}</div><label class="sr-only" for="askModeSelect">Mode</label><select class="ask-mode-pill" id="askModeSelect">${modeSelect}</select><label class="sr-only" for="askProvider">Provider and model</label><select class="ask-provider-pill" id="askProvider" aria-label="Provider and model">${options}</select></div><button type="button" class="ask-attach" data-action="ask-picker" aria-label="Add context" title="Add context">+</button><label class="sr-only" for="askInput">Message</label><textarea class="input" id="askInput" dir="auto" rows="2" placeholder="${landing ? "Ask anything about this project…" : "Ask a follow-up…"}">${escapeHtml(draft.message || "")}</textarea><button type="button" class="btn primary ask-send" data-action="ask-send" aria-label="Send"${running ? " disabled" : ""}><span class="ask-send-icon" aria-hidden="true">➤</span><span class="ask-send-label">Send</span></button><div class="ask-hints"><span class="muted tiny">Ctrl/Cmd+Enter sends · Enter adds a line · @ adds context · Provider usage may apply</span><span class="muted tiny"><b>Ask</b> reads and answers · <b>Diagnose</b> inspects, read-only · <b>Fix in workspace</b> proposes edits for your approval</span></div></div>`;
+  }
+  // The mobile mode select and the desktop segmented pills mirror each
+  // other; sync the pill highlight in place instead of repainting the
+  // composer (which would drop the select's focus mid-change).
+  function renderAskComposerMode(mode) {
+    for (const seg of document.querySelectorAll(".ask-composer .ask-seg")) seg.classList.toggle("on", seg.dataset.action === `ask-mode:${mode}`);
   }
   function askBubble(message, index, { last = false } = {}) {
     if (message.role === "user") return `<article class="ask-msg ask-msg-user" aria-label="Your message"><div class="ask-msg-content" dir="auto" data-no-translate>${escapeHtml(message.text)}</div></article>`;
@@ -1826,7 +1835,7 @@ ${feedbackLine}
     const session = askSession;
     if (!session || session.status !== "awaiting-review" || askDismissedReviews.has(session.scope)) return "";
     const task = session.fix_task || (session.context?.tasks || [])[0]?.id || null;
-    return `<section class="ask-proposal" role="status"><div class="ask-proposal-head"><b>Proposed workspace fix</b><span class="pill amber">Needs approval</span></div><p class="ask-proposal-note">The provider edited this task's workspace. Nothing is accepted until you review the changes, and the result is reviewed independently.</p><div class="bar">${task && globalThis.ATL_CHANGE_REVIEW ? btn("Review changes", `task-changes:${task}`, "primary") : task ? btn("Open task", `task-detail:${task}`, "primary") : btn("Open approvals", "go:approvals", "primary")}${btn("Dismiss", "ask-dismiss-review", "ghost")}</div></section>`;
+    return `<section class="ask-proposal" role="status"><div class="ask-proposal-head"><b>Proposed fix</b><span class="pill amber">Needs approval</span></div><p class="ask-proposal-note">The provider edited this task's workspace. Nothing is accepted until you review the changes, and the result is reviewed independently.</p><div class="bar">${task && globalThis.ATL_CHANGE_REVIEW ? btn("Review changes", `task-changes:${task}`, "primary") : task ? btn("Open task", `task-detail:${task}`, "primary") : btn("Open approvals", "go:approvals", "primary")}${btn("Dismiss", "ask-dismiss-review", "ghost")}</div></section>`;
   }
   function askFailureCard() {
     const session = askSession;
@@ -1855,7 +1864,7 @@ ${feedbackLine}
   }
   function askHead() {
     if (!askCurrent) return `<header class="ask-head"><button type="button" class="ask-burger" data-action="ask-toggle-rail" aria-label="Show chats" aria-expanded="false">☰</button><div class="ask-title"><h1>Ask ATL</h1><p class="muted tiny">Discuss findings, then turn decisions into better task work or plans.</p></div></header>`;
-    return `<header class="ask-head"><button type="button" class="ask-burger" data-action="ask-toggle-rail" aria-label="Show chats" aria-expanded="false">☰</button><div class="ask-title"><h1>${escapeHtml(askSession?.title || "Ask ATL")}</h1></div><div class="ask-head-ctx"><span class="muted tiny ask-ctx-label">Context:</span>${askChips(askSession?.context || {})}</div><button type="button" class="ask-more" data-action="ask-menu" aria-label="Chat options">…</button></header>`;
+    return `<header class="ask-head"><button type="button" class="ask-burger" data-action="ask-toggle-rail" aria-label="Show chats" aria-expanded="false">☰</button><div class="ask-title"><h1>${escapeHtml(askSession?.title || "Ask ATL")}</h1></div><div class="ask-head-ctx" aria-label="Conversation context">${askChips(askSession?.context || {})}</div><button type="button" class="ask-more" data-action="ask-menu" aria-label="Chat options">…</button></header>`;
   }
   function askLanding() {
     return `<div class="ask-landing"><h2>What are we working on?</h2><p class="muted">Pick what ATL should know, then ask, diagnose or request a fix.</p><div class="ask-cards"><button type="button" class="ask-card" data-action="ask-card:tasks"><b>Why is a task blocked?</b><span>Add a task, ask what stops it.</span></button><button type="button" class="ask-card" data-action="ask-card:plans"><b>Review this plan</b><span>Find gaps before you queue it.</span></button><button type="button" class="ask-card" data-action="ask-card:project"><b>Find where it's handled</b><span>Ask about code in this project.</span></button></div></div>`;
@@ -1868,7 +1877,7 @@ ${feedbackLine}
     // fixed two-row shape (head / flexible content) even when a notice is
     // showing; an implicit third row would hand the flexible row to the
     // notice and push the composer off-screen.
-    return `<section class="ask-page" aria-label="Ask ATL">${askRail()}<button type="button" class="ask-scrim" data-action="ask-toggle-rail" aria-label="Close chats" tabindex="-1"></button><section class="ask-main">${askHead()}<div class="ask-sub">${askNotice ? `<div class="notice" role="alert">${escapeHtml(askNotice)}</div>` : ""}<div class="ask-body">${body}</div></div></section></section>`;
+    return `<section class="ask-page${askCurrent ? " has-chat" : ""}" aria-label="Ask ATL">${askRail()}<button type="button" class="ask-scrim" data-action="ask-toggle-rail" aria-label="Close chats" tabindex="-1"></button><section class="ask-main">${askHead()}<div class="ask-sub">${askNotice ? `<div class="notice" role="alert">${escapeHtml(askNotice)}</div>` : ""}<div class="ask-body">${body}</div></div></section></section>`;
   }
   async function loadAskPage() {
     try {
@@ -1958,7 +1967,7 @@ ${feedbackLine}
         .map((task) => {
           const needsYou = task.rawStatus === "blocked" || task.rawStatus === "escalated";
           const subtitle = needsYou ? "Needs you" : `${task.status}${task.progress !== null && task.progress !== undefined ? ` · ${task.progress}%` : ""}`;
-          return `<label class="ask-picker-row"><input type="checkbox" data-ask-task="${escapeHtml(task.id)}" ${askPicker.tasks.has(task.id) ? "checked" : ""}><span class="ask-picker-row-text"><b>${escapeHtml(task.title || task.id)}</b><span class="muted tiny">${escapeHtml(task.id)} · ${escapeHtml(subtitle)}</span></span></label>`;
+          return `<label class="ask-picker-row"><input type="checkbox" data-ask-task="${escapeHtml(task.id)}" ${askPicker.tasks.has(task.id) ? "checked" : ""}><span class="ask-picker-row-text"><b>${escapeHtml(task.id)} · ${escapeHtml(task.title || task.id)}</b><span class="muted tiny">${escapeHtml(subtitle)} · ${escapeHtml(task.queue || "Unqueued")}</span></span></label>`;
         }).join("");
       const includeRows = [...askPicker.tasks].map((id) => {
         const include = askPicker.include.get(id) || ASK_INCLUDE_DEFAULT;
@@ -1977,7 +1986,7 @@ ${feedbackLine}
       body = `<label class="ask-picker-row"><input type="checkbox" id="askPickerProject" ${askPicker.project ? "checked" : ""}><span class="ask-picker-row-text"><b>This project</b><span class="muted tiny">Manager queue digest and suggested focus</span></span></label>`;
     }
     const count = askPicker.tasks.size + askPicker.plans.size + (askPicker.project ? 1 : 0);
-    popupWide("Add context", `<div class="ask-picker"><label class="sr-only" for="askPickerSearch">Search context</label><input class="input" id="askPickerSearch" placeholder="Search tasks, plans…" value="${escapeHtml(askPicker.query)}"><div class="ask-picker-tabs">${tabs}</div><div class="ask-picker-body">${body}</div></div>`, `<span class="muted tiny">${count} selected</span>${btn("Cancel", "close", "ghost")}${btn("Add to chat", "ask-picker-apply", "primary")}`, "ask-picker-dialog");
+    popupWide("Add context", `<div class="ask-picker"><label class="sr-only" for="askPickerSearch">Search context</label><input class="input" id="askPickerSearch" placeholder="Search tasks, plans, files…" value="${escapeHtml(askPicker.query)}"><div class="ask-picker-tabs">${tabs}</div><div class="ask-picker-body">${body}</div></div>`, `<span class="muted tiny">${count} selected</span>${btn("Cancel", "close", "ghost")}${btn("Add to chat", "ask-picker-apply", "primary")}`, "ask-picker-dialog");
     if (refocusSearch) { const search = $("#askPickerSearch"); if (search) { search.focus(); const end = search.value.length; try { search.setSelectionRange(end, end); } catch { /* not a text input */ } } askPicker.queryFocus = false; }
     applyLocale();
   }
@@ -3910,6 +3919,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const draft = assistantDrafts.get(askDraftKey()) || {};
       assistantDrafts.set(askDraftKey(), { ...draft, mode });
       render();
+      const modeSelect = $("#askModeSelect");
+      if (modeSelect) modeSelect.value = mode;
       $("#askInput")?.focus();
       return;
     }
@@ -5481,6 +5492,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   document.addEventListener("input", (event) => {
     if (event.target.id === "askInput") { const draft = assistantDrafts.get(askDraftKey()) || {}; assistantDrafts.set(askDraftKey(), { ...draft, message: event.target.value }); }
     else if (event.target.id === "askProvider") { const draft = assistantDrafts.get(askDraftKey()) || {}; assistantDrafts.set(askDraftKey(), { ...draft, provider: event.target.value }); }
+    else if (event.target.id === "askModeSelect") { const draft = assistantDrafts.get(askDraftKey()) || {}; assistantDrafts.set(askDraftKey(), { ...draft, mode: event.target.value }); renderAskComposerMode(event.target.value); }
     else if (event.target.id === "askSearch") {
       // Filter the rail in place: a full re-render per keystroke is wasteful
       // and would fight the caret restore.

@@ -110,6 +110,9 @@ try {
   assert.match(client, /ASK_IMPORTED_SOURCES = \["github", "azure", "jira"\]/, "the context picker is imported-tasks-only");
   assert.match(client, /ask-picker-apply/, "the picker exposes the Add-to-chat action");
   assert.match(client, /ask-mode:/, "the composer exposes the segmented Ask/Diagnose/Fix control");
+  assert.match(client, /ask-attach/, "the composer carries the square attach button");
+  assert.match(client, /askModeSelect/, "the narrow-screen mode select ships in the client");
+  assert.match(client, /Search tasks, plans, files…/, "the picker search placeholder matches the reference");
   const html = await fetch(`${running.url}`).then((response) => response.text());
   assert.match(html, /\.ask-page\s*\{/, "the compiled Ask ATL stylesheet is inlined into the served artifact");
   assert.match(html, /ask-rail-open/, "the mobile rail drawer wiring ships in the artifact");
