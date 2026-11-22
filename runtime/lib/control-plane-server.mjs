@@ -1221,7 +1221,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   const projectIdentity = canonicalRoot(root);
   const runtime = runtimeIdentity();
   let lastRequestAt = Date.now();
-  let ownerSession = ensureOwnerSession(root);
+  // A newly created server represents a fresh owner lifetime. Rotate any
+  // persisted token so a process crash cannot leave an old browser session
+  // valid across restart.
+  let ownerSession = rotateOwnerSession(root);
   const seam = { planningInvoke, planningRoot: planningRoot || root, usageFetch, publishFetch, intakeAdapters, egmRunner, azureFetch };
   const intakePreviews = new Map();
   const pruneIntakePreviews = () => { const cutoff = Date.now() - 30 * 60_000; for (const [key, value] of intakePreviews) if (value.at < cutoff) intakePreviews.delete(key); while (intakePreviews.size > 128) intakePreviews.delete(intakePreviews.keys().next().value); };
