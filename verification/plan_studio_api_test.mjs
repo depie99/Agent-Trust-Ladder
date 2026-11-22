@@ -52,6 +52,16 @@ const fakeInvoke = async ({ request }) => {
 
 const running = await startControlPlaneServer(root, { planningInvoke: fakeInvoke });
 const post = async (pathname, body) => fetch(`${running.url}${pathname.replace(/^\//, "")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(async (response) => ({ status: response.status, body: await response.json() }));
+const readSnapshot = async () => {
+  const shell = await fetch(running.url);
+  const cookie = shell.headers.getSetCookie().map(value => value.split(';', 1)[0]).join('; ');
+  const html = await shell.text();
+  const csrf = html.match(/<meta\s+name="atl-csrf"\s+content="([^"]+)"/i)?.[1];
+  assert.ok(cookie && csrf, 'Control Plane shell provides owner read credentials');
+  const response = await fetch(`${running.url}api/snapshot`, { headers: { cookie, 'x-atl-csrf': csrf } });
+  assert.equal(response.status, 200);
+  return response.json();
+};
 const command = (text) => post("/api/command", { command: text });
 
 try {
@@ -177,7 +187,7 @@ try {
   assert.equal(tmpQueue.body.ok, true, "a disposable queue can be created");
   const deleted = await command("queue archive deleteme");
   assert.equal(deleted.body.ok, true, "queue delete works through the command bridge");
-  const afterDelete = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
+  const afterDelete = await readSnapshot();
   assert.ok(!afterDelete.queues.items.some((queue) => queue.id === "deleteme"), "a deleted queue leaves the board");
   const delDefault = await command("queue archive default");
   assert.equal(delDefault.body.ok, false, "the default queue refuses deletion");

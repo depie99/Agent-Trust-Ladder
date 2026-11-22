@@ -18,15 +18,21 @@ export async function createPanelGateway(panel) {
     const target = new URL(input.path, panel.origin);
     if (target.origin !== panel.origin || target.username || target.password || !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(input.method || "GET")) throw new Error("Invalid Control Plane request");
     const method = input.method || "GET";
+    const safeRead = method === "GET" || method === "HEAD";
+    const callerSuppliedCsrf = Object.entries(input.headers || {}).some(([name, value]) => name.toLowerCase() === "x-atl-csrf" && String(value).length > 0);
     if (target.pathname === "/" && method === "GET") return { status: 200, headers: { "content-type": "text/html; charset=utf-8" }, body: Buffer.from(auth.html).toString("base64") };
     const send = (csrf) => {
       const headers = { cookie: auth.cookie, origin: panel.origin };
       for (const [name, value] of Object.entries(input.headers || {})) if (["content-type", "x-atl-csrf"].includes(name.toLowerCase())) headers[name.toLowerCase()] = String(value);
       if (csrf) headers["x-atl-csrf"] = csrf;
+      else if (safeRead) headers["x-atl-csrf"] = auth.csrf;
       return fetch(target, { method, headers, redirect: "error", signal, ...(!["GET", "HEAD"].includes(method) && input.body != null ? { body: input.body } : {}) });
     };
     let response = await send("");
-    if (response.status === 403) {
+    // Refresh an expired session only when the caller demonstrated the CSRF
+    // token it received from the authenticated panel shell. Safe reads attach
+    // the gateway's own token; a tokenless mutation must remain forbidden.
+    if (response.status === 403 && (safeRead || callerSuppliedCsrf)) {
       await response.arrayBuffer();
       auth = await readPanelRoot(panel);
       response = await send(auth.csrf);

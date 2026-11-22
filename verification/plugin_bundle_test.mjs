@@ -77,6 +77,18 @@ async function finish(api, value) {
   return value;
 }
 
+async function readSnapshot(baseUrl) {
+  const root = await fetch(baseUrl, { redirect: 'error' });
+  assert.equal(root.status, 200, 'Control Plane root exposes an owner session');
+  const cookie = root.headers.getSetCookie().map(value => value.split(';', 1)[0]).join('; ');
+  const html = await root.text();
+  const csrf = html.match(/<meta\s+name="atl-csrf"\s+content="([^"]+)"/i)?.[1];
+  assert.ok(cookie && csrf, 'Control Plane root provides the owner cookie and CSRF token');
+  const response = await fetch(new URL('/api/snapshot', baseUrl), { headers: { cookie, 'x-atl-csrf': csrf } });
+  assert.equal(response.status, 200, 'authenticated owner can read the project snapshot');
+  return response.json();
+}
+
 try {
   const bundles = buildPlugins({ out: path.join(scratch, 'bundles') });
   assert.throws(() => buildPlugins({ out: path.join(scratch, 'bundles') }), /Output exists/);
@@ -175,12 +187,12 @@ try {
       await finish(api, await api.tool('atl_command', { project: otherProject, args: ['init'] }));
       otherUi = await api.tool('atl_control_plane', { project: otherProject });
       assert.notEqual(otherUi.url, ui.url, 'projects have separate Control Plane listeners');
-      const otherState = await fetch(`${otherUi.url}api/snapshot`).then(r => r.json());
+      const otherState = await readSnapshot(otherUi.url);
       assert.equal(Object.keys(otherState.state.tasks).length, 0, 'the other project does not inherit tasks');
     }
     const html = await fetch(ui.url).then(r => r.text());
     assert.match(html, /Control Plane/);
-    const snapshot = await fetch(`${ui.url}api/snapshot`).then(r => r.json());
+    const snapshot = await readSnapshot(ui.url);
     assert.equal(snapshot.state.tasks[task.id].title, title);
     // A real spawned worker proves the CLI and UI share the execution engine.
     // Synthetic node fixture: no credentials, paid model, or external writes.
@@ -221,7 +233,7 @@ try {
       const resumed = await compatibility.tool('atl_start', { project });
       assert.equal(resumed.initialized, false);
       assert.equal(fs.readFileSync(stateFile, 'utf8'), persisted, 'restart preserves project data');
-      assert.equal((await fetch(`${resumed.url}api/snapshot`).then(r => r.json())).state.tasks[task.id].title, title);
+      assert.equal((await readSnapshot(resumed.url)).state.tasks[task.id].title, title);
       await compatibility.close();
     }
     // Issue #34: daemons stop explicitly, never by unloading the host session.
