@@ -52,7 +52,7 @@ import { resourcePolicy, resourceView, saveResourcePolicy, taskResourcePreview, 
 import {recordExecution,publishPlanningExecution} from './execution-report.mjs';
 import {recordQuotaFailure, quotaStatus} from './provider-quota.mjs';
 import { resolveTaskRef, qualifyTaskId } from './task-refs.mjs';
-import { runIntake, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub, intakeFromJira, requestJson } from './intake.mjs';
+import { runIntake, ghCliAuthenticated, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub, intakeFromJira, requestJson } from './intake.mjs';
 import { loadConnections, saveConnections, validateConnection, sameConnection, connectionIdentity } from './issue-connections.mjs';
 import { importCandidates } from './composer.mjs';
 import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
@@ -1268,7 +1268,12 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   let azureUiToken = null;
   let azureTokenIdentity = null, azureLoadedIdentity = null, azureRemembered = false;
   let azureVaultReprobeAt = 0;
-  let githubUiToken = null; // session-scoped token from the UI; GITHUB_TOKEN stays untouched
+  let githubUiToken = null;
+  const githubAccess = async () => {
+    const gh = await ghCliAuthenticated();
+    const source = gh ? "gh-cli" : githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none";
+    return { token_present: source !== "none", credential_source: source, session_token_present: Boolean(githubUiToken), auth_probe: "gh auth status --hostname github.com" };
+  }; // session-scoped token from the UI; GITHUB_TOKEN stays untouched
   const jiraConnectionTokens = new Map(); // session credentials are scoped to saved connections
   async function currentAzureToken() {
     const cfg = readManagerConfig(root).intake?.azure || {}, identity = azureIdentity(cfg);
@@ -1817,7 +1822,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const id = parts[4];
           const index = id ? data.connections.findIndex(c => c.id === id) : -1;
           if (id && index < 0) { json(res, 404, { ok: false, error: 'Connection not found.' }); return; }
-          if (req.method === 'GET') { json(res, 200, { ok: true, ...data, connections: data.connections.map(c => ({ ...c, token_present: c.provider === 'github' ? Boolean(githubUiToken || process.env.GITHUB_TOKEN) : c.provider === 'jira' ? Boolean(jiraConnectionTokens.has(c.id) || process.env[c.settings.token_env]) : Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
+          if (req.method === 'GET') { const github = data.connections.some(c => c.provider === 'github') ? await githubAccess() : null; json(res, 200, { ok: true, ...data, connections: data.connections.map(c => (c.provider === 'github' ? { ...c, ...github } : { ...c, token_present: c.provider === 'jira' ? Boolean(jiraConnectionTokens.has(c.id) || process.env[c.settings.token_env]) : Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
           if (run.status === 'running' || planningRunActive(root)) { json(res, 409, { ok: false, error: 'Wait for the active run before changing issue sources.' }); return; }
           payload = JSON.parse(await readBody(req) || '{}');
           if (payload.revision !== data.revision) { json(res, 409, { ok: false, error: 'Connections changed. Refresh and try again.' }); return; }
@@ -1975,7 +1980,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           }
           const intake = readManagerConfig(root).intake || {};
           await currentAzureToken();
-          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [], token_present: Boolean(githubUiToken || process.env.GITHUB_TOKEN), credential_source: githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none" }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(azureUiToken || process.env[intake.azure?.token_env || "AZDO_PAT"]), remember_supported: await dpapiSupported(), credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : process.env[intake.azure?.token_env || "AZDO_PAT"] ? "environment" : "none" } } });
+          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [], ...await githubAccess() }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(azureUiToken || process.env[intake.azure?.token_env || "AZDO_PAT"]), remember_supported: await dpapiSupported(), credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : process.env[intake.azure?.token_env || "AZDO_PAT"] ? "environment" : "none" } } });
         } catch (error) { json(res, 400, { ok: false, error: error.message }); }
         return;
       }
@@ -2022,7 +2027,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             if (!token || token.length > 255 || /[\r\n]/.test(token)) throw new Error("Enter a valid GitHub token.");
             githubUiToken = token;
           }
-          json(res, 200, { ok: true, token_present: Boolean(githubUiToken || process.env.GITHUB_TOKEN), credential_source: githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none" });
+          json(res, 200, { ok: true, ...await githubAccess() });
         } catch (error) { json(res, 400, { ok: false, error: error.message }); }
         return;
       }

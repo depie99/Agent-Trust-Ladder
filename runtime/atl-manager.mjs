@@ -237,6 +237,7 @@ const flags = { set: {}, check: [], pass: [], fail: [], note: [], review: [] };
 const pos = [];
 for (let i = 1; i < argv.length; i++) {
   const a = argv[i];
+  if (a === "--") { pos.push(...argv.slice(i + 1)); break; }
   const eat = (name) => {
     if (a === `--${name}`) {
       const next = argv[i + 1];
@@ -245,8 +246,9 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
+  if (a.startsWith("--key=")) { flags.key = true; continue; }
   if (a.startsWith("--ttl=")) { flags.ttl = a.slice("--ttl=".length); continue; }
-  if (eat("capture") || eat("file") || eat("cursor") || eat("ttl") || eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims") || eat("url") || eat("project") || eat("iteration") || eat("token-env") || eat("name") || eat("token")) continue;
+  if (eat("capture") || eat("file") || eat("cursor") || eat("ttl") || eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("status") || eat("objective") || eat("protocol") || eat("roster") || eat("thinking") || eat("thinking-level") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims") || eat("url") || eat("project") || eat("iteration") || eat("token-env") || eat("name") || eat("token")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -273,7 +275,13 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--json") { flags.json = true; continue; }
   if (a === "--expand") { flags.expand = true; continue; }
   if (a === "--mermaid") { flags.mermaid = true; continue; }
-  if (a.startsWith("--")) process.stderr.write(`Warning: unrecognized option ${a}; it is being preserved as a positional argument for compatibility.\n`);
+  if (a.startsWith("--")) {
+    const [option] = a.split("=", 1);
+    const hasValue = !a.includes("=") && argv[i + 1] !== undefined && !argv[i + 1].startsWith("--");
+    process.stderr.write(`Warning: unrecognized option ${option} ignored${hasValue ? " along with its following value" : ""}.\n`);
+    if (hasValue) i++;
+    continue;
+  }
   pos.push(a);
 }
 
@@ -1130,6 +1138,7 @@ async function promptSecret(prompt) {
     const onEof = () => { cleanup(); reject(new StateError("Credential entry ended because stdin closed.")); };
     const onKey = (text, key = {}) => {
       if (key.ctrl && key.name === "c") { cleanup(); reject(new StateError("Credential entry cancelled.")); return; }
+      if (key.ctrl && key.name === "d") { onEof(); return; }
       if (key.ctrl && key.name === "r") { revealed = !revealed; draw(); return; }
       if (key.name === "return" || key.name === "enter") { cleanup(); resolve(value); return; }
       if (key.name === "backspace" || key.name === "delete") { value = [...value].slice(0, -1).join(""); draw(); return; }
@@ -1661,9 +1670,9 @@ async function dispatch() {
         const role = actorOf();
         if (role === "manager") throw new StateError("the manager acts as the owner and needs no session credential");
         const { state, task } = need(taskId);
-        const ttlText = typeof flags.ttl === "string" && flags.ttl.trim() ? flags.ttl.trim() : "2h";
+        const ttlText = flags.ttl === undefined ? "2h" : typeof flags.ttl === "string" ? flags.ttl.trim() : "";
         const ttlMatch = ttlText.match(/^(\d+)(s|m|h|d)?$/i);
-        if (!ttlMatch) throw new StateError(`--ttl must look like 30m, 2h or 3600 (got "${ttlText}")`);
+        if (!ttlMatch) throw new StateError(`--ttl requires a duration such as 30m, 2h or 3600`);
         const unitSeconds = { s: 1, m: 60, h: 3600, d: 86400 }[(ttlMatch[2] || "s").toLowerCase()];
         const ttlSeconds = Number(ttlMatch[1]) * unitSeconds;
         if (ttlSeconds < 60 || ttlSeconds > 24 * 3600) throw new StateError("--ttl must be between 1 minute and 24 hours");

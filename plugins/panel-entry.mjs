@@ -11,13 +11,13 @@ const browserFetch = window.fetch.bind(window);
 // Keep the canonical client's live snapshot stream on the same MCP transport.
 class PanelEventSource extends EventTarget {
   readyState = 0;
-  constructor(url) { super(); this.cursor = Number(new URL(url, `${origin}/`).searchParams.get('cursor') || 0); this.controller = new AbortController(); this.poller = createSnapshotPoller({ cursor: this.cursor, signal: this.controller.signal, request: async cursor => { const response = await panelFetch(`/api/snapshot?cursor=${cursor}`); if (!response.ok) throw new Error(`Snapshot poll failed (${response.status})`); return response.json(); }, onSnapshot: payload => { this.readyState = 1; this.dispatchEvent(new MessageEvent('snapshot', { data: JSON.stringify({ cursor: payload.cursor, snapshot: payload }) })); }, onUnchanged: () => { this.readyState = 1; this.dispatchEvent(new MessageEvent('unchanged', { data: '{}' })); }, onError: error => { this.readyState = 0; this.onerror?.(error); } }); }
+  constructor(url) { super(); this.cursor = Number(new URL(url, `${origin}/`).searchParams.get('cursor') || 0); this.controller = new AbortController(); this.poller = createSnapshotPoller({ cursor: this.cursor, signal: this.controller.signal, request: async cursor => { const response = await panelFetch(`/api/snapshot?cursor=${cursor}`, { signal: this.controller.signal }); if (!response.ok) throw new Error(`Snapshot poll failed (${response.status})`); return response.json(); }, onSnapshot: payload => { this.readyState = 1; this.dispatchEvent(new MessageEvent('snapshot', { data: JSON.stringify({ cursor: payload.cursor, snapshot: payload }) })); }, onUnchanged: () => { this.readyState = 1; this.dispatchEvent(new MessageEvent('unchanged', { data: '{}' })); }, onError: error => { this.readyState = 0; this.onerror?.(error); } }); }
   close() { this.readyState = 2; this.poller.stop(); this.controller.abort(); }
 }
 async function panelFetch(input, init) {
   const request = new Request(new URL(typeof input === 'string' ? input : input.url, `${origin}/`), init);
   if (new URL(request.url).origin !== origin) return browserFetch(input, init);
-  const result = await app.callServerTool({ name: 'atl_panel_request', arguments: { path: request.url, method: request.method, headers: Object.fromEntries(request.headers), ...(!['GET', 'HEAD'].includes(request.method) ? { body: await request.text() } : {}) } });
+  const result = await app.callServerTool({ name: 'atl_panel_request', arguments: { path: request.url, method: request.method, headers: Object.fromEntries(request.headers), ...(!['GET', 'HEAD'].includes(request.method) ? { body: await request.text() } : {}) } }, { signal: request.signal });
   if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text || 'Control Plane request failed');
   const value = JSON.parse(result.content.find(item => item.type === 'text').text);
   return new Response(value.status === 204 || request.method === 'HEAD' ? null : Uint8Array.from(atob(value.body), c => c.charCodeAt(0)), { status: value.status, headers: value.headers });

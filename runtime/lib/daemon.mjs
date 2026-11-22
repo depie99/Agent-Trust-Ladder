@@ -372,21 +372,16 @@ export async function ensureDaemon(root, { port = null, host = "127.0.0.1", wait
   if (existing.pid_alive) throw new Error("The project daemon process is alive but its health endpoint is not responding; refusing to start a second owner.");
 
   const preferredPort = port ?? deterministicPort(canonical);
-  const squatter = await healthForPort(preferredPort, canonical);
-  if (squatter.alive && squatter.projectMatch === true && (await adoptRecord(root, squatter, canonical, `http://127.0.0.1:${preferredPort}/`))) {
-    return { ...await daemonStatus(root), reused: true, adopted: true };
-  }
-  const childPort = squatter.alive && squatter.projectMatch === false ? 0 : preferredPort;
-
   return withStartLock(root, async () => {
     // Another process may have started the owner while we waited on the lock.
     const raced = await daemonStatus(root, { locked: false });
     if (raced.alive) return finishWithEmbedToken(raced, embedToken, root);
     if (raced.pid_alive) throw new Error("The project daemon process is alive but its health endpoint is not responding; refusing to start a second owner.");
-    // Re-check adoption: a sibling ensureDaemon may have adopted or spawned.
-    if (squatter.alive && squatter.projectMatch === true && (await adoptRecord(root, squatter, canonical, `http://127.0.0.1:${preferredPort}/`))) {
+    const squatter = preferredPort === 0 ? { alive: false } : await healthForPort(preferredPort, canonical);
+    if (squatter.alive && squatter.projectMatch === true && adoptRecord(root, squatter, canonical, `http://127.0.0.1:${preferredPort}/`)) {
       return finishWithEmbedToken({ ...await daemonStatus(root, { locked: false }), reused: true, adopted: true }, embedToken, root);
     }
+    const childPort = squatter.alive ? 0 : preferredPort;
 
     const child = spawn(process.execPath, [path.join(RUNTIME_DIR, "atl-manager.mjs"), "ui", "--no-open", "--host", host, "--port", String(childPort)], {
       cwd: canonical,
@@ -436,7 +431,7 @@ export async function stopDaemon(root) {
     withRecordLock(root, () => { const current = readRecord(root); if (current?.pid === record.pid && current?.started_at === record.started_at) fs.rmSync(daemonFile(root), { force: true }); });
     return { stopped: false, wasAlive: true, identityMismatch: true };
   }
-  if (!health.alive || health.projectMatch !== true || (health.pid && health.pid !== pid)) return { stopped: false, wasAlive: true, responsive: false };
+  if (!health.alive || health.projectMatch !== true || health.pid !== pid) return { stopped: false, wasAlive: true, responsive: false };
   if (health.alive && health.projectMatch === true) {
     // Ask politely first so the owner can flush and clear its own record.
     try {
@@ -449,7 +444,7 @@ export async function stopDaemon(root) {
   // A health response tied this pid to this project. Reconfirm before any OS
   // signal; a stale record or unresponsive daemon is never enough to kill a pid.
   const confirmed = await probeHealth(`http://127.0.0.1:${record.port}/`, { project: canonical });
-  if (confirmed.alive && confirmed.projectMatch === true && (!confirmed.pid || confirmed.pid === pid) && pidAlive(pid)) {
+  if (confirmed.alive && confirmed.projectMatch === true && confirmed.pid === pid && pidAlive(pid)) {
     try { process.kill(pid); } catch { /* already gone */ }
   }
   const deadline = Date.now() + 5000;

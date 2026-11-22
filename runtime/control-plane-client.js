@@ -3525,16 +3525,36 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (renderAfter && !editing) { discardPendingRender(); render(); }
     else if (renderAfter) queueSuppressedRender();
   }
+  let snapshotPollActive = false;
   async function pollSnapshot() {
-    if (document.hidden) { stream = null; return; }
-    await refresh(page !== "sources");
-    if (connected) { streamRetry = 1000; if (page !== "sources") await refreshRun(false); }
-    else streamRetry = Math.min(streamRetry * 2, 15000);
-    stream = setTimeout(pollSnapshot, connected ? 2000 : streamRetry);
+    stream = null;
+    if (document.hidden || snapshotPollActive) return;
+    snapshotPollActive = true;
+    try {
+      await refresh(page !== "sources");
+      if (connected) {
+        streamRetry = 1000;
+        if (!document.hidden && page !== "sources") await refreshRun(false);
+      } else {
+        streamRetry = Math.min(streamRetry * 2, 15000);
+      }
+    } finally {
+      snapshotPollActive = false;
+      if (!document.hidden) stream = setTimeout(pollSnapshot, connected ? 2000 : streamRetry);
+    }
   }
-  function connectStream() { if (stream) clearTimeout(stream); if (!document.hidden) void pollSnapshot(); }
-  document.addEventListener("visibilitychange", () => { if (document.hidden) { if (stream) clearTimeout(stream); stream = null; } else connectStream(); });
-  setInterval(() => { if (connected && lastRefreshOk && Date.now() - lastRefreshOk > 10000) { connected = false; renderConnectionIndicator(); syncOfflineActions(); if (page !== "sources") render(); } }, 1000);
+  function connectStream() {
+    clearTimeout(stream);
+    stream = null;
+    if (!document.hidden && !snapshotPollActive) void pollSnapshot();
+  }
+  document.addEventListener("visibilitychange", connectStream);
+  setInterval(() => {
+    if (document.hidden || !connected || !lastRefreshOk || Date.now() - lastRefreshOk <= 10000) return;
+    connected = false;
+    renderConnectionIndicator();
+    syncOfflineActions();
+  }, 1000);
   async function refreshProviderUsage() {
     usageNotice = "Refreshing configured provider telemetry…";
     render();
@@ -4238,7 +4258,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         // token is held in server memory for this session only — nothing is
         // written to disk. The persistent paths stay "gh auth login" and the
         // GITHUB_TOKEN variable.
-        popup(`GitHub access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a token with read access to the repository. It is held by this local server for this session only — nothing is written to disk; "gh auth login" or GITHUB_TOKEN persists access.</p><label class="source-field"><span class="label">GitHub token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste token"></label><p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
+        popup(`GitHub access · ${escapeHtml(c.name)}`, `<p class="sub">Enter a token with read access to the repository. It is held by this local server for this session only — nothing is written to disk; "gh auth login" or GITHUB_TOKEN persists access.</p><label class="source-field"><span class="label">GitHub token</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste token"></label><p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.session_token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
         return;
       }
       popup(`${c.provider === 'jira' ? 'Jira' : 'Azure'} access - ${escapeHtml(c.name)}`, `<p class="sub">${c.provider === 'jira' ? 'Enter a Jira token for this server session.' : 'Enter a PAT with Work Items: Read access. The token is sent only to this local server.'}</p><label class="source-field"><span class="label">${c.provider === 'jira' ? 'Jira token' : 'Personal access token'}</span><input class="input" id="sourceConnectionPat" type="password" autocomplete="new-password" placeholder="Paste token"></label>${c.provider === 'azure' && sourceSettings?.azure?.remember_supported ? '<label class="source-enable"><input id="sourceConnectionRemember" type="checkbox" checked> Remember securely on this Windows account</label>' : '<p class="source-hint">Session credential; reconnect after restarting the server.</p>'}<p id="sourceCredentialError" class="source-form-error" role="alert"></p>`, btn('Cancel', 'close') + (c.token_present ? btn('Disconnect', `sources-credential-disconnect:${c.id}`, 'danger') : '') + btn('Save credential', `sources-credential-save:${c.id}`, 'primary'));
@@ -4257,7 +4277,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
           const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Credential could not be saved');
           close(); await loadIssueSources();
           sourceConnectionNotice = disconnect
-            ? (result.token_present ? 'Session token disconnected. GITHUB_TOKEN from the server environment is still available.' : 'GitHub token disconnected; anonymous public-repository access only.')
+            ? (result.token_present ? 'Session token disconnected. GitHub access is still available through gh or the server environment.' : 'GitHub token disconnected; anonymous public-repository access only.')
             : result.credential_source === 'ui-memory' ? 'GitHub token connected for this session only. Check access to verify it.' : 'GitHub connection kept on GITHUB_TOKEN. Check access to verify it.';
           render();
         } catch (error) { const node = $('#sourceCredentialError'); if (node) node.textContent = error.message; if (button) button.disabled = false; }
