@@ -142,7 +142,10 @@ await assert.rejects(() => runPlanProvider(root, "Add multi-queue overnight runs
 
 // ---------- provider registry contract: configured-only picker, refuse before spend
 const fakeRegistry = { providers: {} };
-for (const name of ["claude", "codex"]) fs.writeFileSync(path.join(root, `${name}.cmd`), "@echo off\n", "utf8");
+for (const name of ["claude", "codex"]) {
+  const executable = process.platform === "win32" ? `${name}.cmd` : name;
+  fs.writeFileSync(path.join(root, executable), process.platform === "win32" ? "@echo off\n" : "#!/bin/sh\nexit 0\n", "utf8");
+}
 const providerEnv = { ...process.env, PATH: `${root}${path.delimiter}${process.env.PATH || ""}` };
 assert.throws(() => requireReadyProvider("zai", { registry: fakeRegistry }), /not configured/, "an unknown provider refuses before any model work");
 fakeRegistry.providers.zai = { id: "zai", label: "Z.ai", worker: "claude", base_url: "https://api.z.ai/api/anthropic", api_key: "sk-test", model: "glm-4.6" };
