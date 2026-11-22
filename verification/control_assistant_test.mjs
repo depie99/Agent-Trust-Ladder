@@ -8,6 +8,7 @@ import { createAssistant, assistantContext, assistantGuidance, assistantWorkspac
 import { emptyState, saveState, loadState } from "../runtime/lib/state.mjs";
 import { inspectHandoffChain } from "../runtime/lib/handoffs.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
+import { ownerJson } from "./helpers/owner-http.mjs";
 import { readRunLock } from "../runtime/lib/launch.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-assistant-"));
@@ -77,7 +78,7 @@ try {
     assert.equal(diagnosis.recovery.task_id, "T-002");
     assert.equal(diagnosis.recovery.retry_ready, false);
     assert.equal(diagnosis.guidance.kind, "budget", "guidance reflects the latest persisted task budget");
-    const recovery = await fetch(`${running.url}api/task-recovery?taskId=T-002`).then((response) => response.json());
+    const recovery = await ownerJson(`${running.url}api/task-recovery?taskId=T-002`);
     assert.equal(recovery.proposal.items[0].handoff, "legacy");
     const response = await fetch(`${running.url}api/assistant`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "send", scope: "T-002", provider: "codex", model: "model-1", message: "Diagnose this task" }) });
     const pending = await response.json();
