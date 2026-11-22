@@ -96,6 +96,7 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 10;
+  background: var(--panel);
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
