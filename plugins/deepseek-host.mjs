@@ -141,6 +141,54 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 }
 
+// Host model routing as a first-class provider (issue #56): the host already
+// owns an OpenAI-compatible relay and model list, so ATL registers it as an
+// "openai-http" provider named "host" and planning works with no local CLI.
+// Detection is feature-first — a ctx.modelRouting/.models surface with
+// { endpoint, models } — with the documented env contract (ATL_HOST_RELAY_URL,
+// ATL_HOST_RELAY_KEY, ATL_HOST_RELAY_MODELS) as the fallback. The credential
+// never travels argv: registration passes --key-env so the daemon reads the
+// variable from its own environment.
+export function detectHostRelay(ctx, env = process.env) {
+  for (const surface of [ctx?.modelRouting, ctx?.models]) {
+    if (surface && typeof surface.list === 'function') {
+      try {
+        const route = surface.list();
+        const endpoint = typeof route?.endpoint === 'string' ? route.endpoint.trim() : '';
+        if (endpoint) return { endpoint, models: Array.isArray(route.models) ? route.models.map(model => String(model)).filter(Boolean) : [], source: 'host' };
+      } catch { /* a throwing surface falls through to env */ }
+    }
+  }
+  const endpoint = String(env.ATL_HOST_RELAY_URL || '').trim();
+  if (endpoint) {
+    return { endpoint, models: String(env.ATL_HOST_RELAY_MODELS || '').split(',').map(model => model.trim()).filter(Boolean), source: 'env' };
+  }
+  return null;
+}
+
+export async function ensureHostProvider(ctx, host, { env = process.env } = {}) {
+  const relay = detectHostRelay(ctx, env);
+  if (!relay) return { hostProvider: 'unavailable (no host model-routing surface and ATL_HOST_RELAY_URL is not set)' };
+  if (!env.ATL_HOST_RELAY_KEY && relay.source === 'env') return { hostProvider: 'unavailable (ATL_HOST_RELAY_URL is set but ATL_HOST_RELAY_KEY is not)' };
+  try {
+    const project = await resolveProject(ctx);
+    const listed = await callCommand(host, project, ['provider', 'list', '--json'], ctx, { title: 'ATL provider inventory' });
+    let providers = [];
+    try { providers = JSON.parse(consoleResultText(listed, { fallback: '{}' }) || '{}').providers || []; }
+    catch { /* unparseable output is treated as an empty registry */ }
+    const existing = providers.find(provider => provider.id === 'host');
+    if (existing) return { hostProvider: existing.base_url === relay.endpoint ? 'registered' : `registered (different endpoint: ${existing.base_url || 'none'})` };
+    const args = ['provider', 'add', 'host', '--worker', 'openai-http', '--base-url', relay.endpoint];
+    if (relay.models.length) args.push('--model', relay.models[0]);
+    if (relay.source === 'env') args.push('--key-env', 'ATL_HOST_RELAY_KEY');
+    else return { hostProvider: 'unavailable (the host model-routing surface exposes no credential ATL can store; set ATL_HOST_RELAY_KEY)' };
+    await callCommand(host, project, args, ctx, { title: 'ATL host provider registration' });
+    return { hostProvider: 'registered' };
+  } catch (error) {
+    return { hostProvider: `unavailable (${error.message})` };
+  }
+}
+
 export function applyHostIntegrations(ctx, host) {
   const report = { commands: [], actionCards: typeof ctx?.actionCards?.register === 'function', approval: typeof ctx?.approval?.request === 'function', directoryPicker: typeof ctx?.directoryPicker?.capability === 'function', jobs: typeof ctx?.jobs?.start === 'function' && typeof ctx?.jobs?.wait === 'function' };
   // Slash commands: /atl (status), /atl-task (compose), /atl-approve (owner gate).

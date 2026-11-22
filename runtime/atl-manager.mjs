@@ -801,6 +801,12 @@ function printProviders(cfg) {
   const profile = providerProfile(cfg);
   const registry = profile.userProviders || {};
   const registryIds = Object.keys(registry);
+  if (flags.json) {
+    // Machine-readable view for plugin/automation callers: ids with their
+    // worker, endpoint and readiness problems (never the key material).
+    console.log(JSON.stringify({ providers: registryIds.map((id) => { const entry = registry[id]; return { id, worker: entry.worker, base_url: entry.base_url || "", model: entry.model || "", ready: validateProviderEntry(entry).length === 0 }; }) }, null, 2));
+    return;
+  }
   console.log("Your providers (~/.atl/providers.json — API keys stored outside every repo):");
   if (!registryIds.length) {
     console.log("  (none yet — add one: atl provider add zai --model glm-4.6, then enter the key at the hidden prompt)");

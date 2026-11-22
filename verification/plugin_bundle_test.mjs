@@ -256,7 +256,9 @@ try {
   assert.ok(!files.some(file => file.startsWith('.trust/') || file.startsWith('node_modules/playwright/')));
   const extracted = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-plugin-extracted-'));
   cleanup.unshift(() => { fs.rmSync(extracted, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); });
-  execFileSync('tar', ['-xf', path.join(scratch, packed[0].filename), '-C', extracted]);
+  // Git-Bash's GNU tar reads "D:\…" as a remote host; the Windows system bsdtar does not.
+  const tar = process.platform === 'win32' ? `${process.env.SystemRoot || 'C:\\Windows'}\\System32\\tar.exe` : 'tar';
+  execFileSync(tar, ['-xf', path.join(scratch, packed[0].filename), '-C', extracted]);
   const installed = path.join(extracted, 'package');
   verifyPluginRelease(installed, expected);
   const planning = execFileSync(process.execPath, ['verification/plan_studio_api_test.mjs'], { cwd: installed, encoding: 'utf8', timeout: 120000, windowsHide: true });

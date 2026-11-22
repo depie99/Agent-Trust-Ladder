@@ -50,6 +50,13 @@ export function registerDeepSeekPanel(ctx, host, workspaceContext = ctx, integra
     if (reuse) return json({ id: reuse, project: panel.project });
     const id = randomUUID();
     panels.set(id, { gateway: await createPanelGateway(panel), generation });
+    // First open of a project is the moment the host relay can be registered
+    // as the "host" provider (#56): the project is known and the registry is
+    // writable. Failures land in the integration report, never in the open.
+    try {
+      const { ensureHostProvider } = await import('./deepseek-host.mjs');
+      Object.assign(integrationReport, await ensureHostProvider(workspaceContext, host));
+    } catch (error) { integrationReport.hostProvider = `unavailable (${error.message})`; }
     return json({ id, project: panel.project });
   });
   register('/api/atl/workspaces', ['GET'], async () => {

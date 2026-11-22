@@ -97,6 +97,7 @@ function AtlConfig(ctx) {
     ['Jobs', report.jobs ? 'Available' : 'Unavailable'],
     ['Action cards', report.actionCards ? 'Available' : 'Unavailable'],
     ['Approval service', report.approval ? 'Available' : 'Unavailable'],
+    ...(typeof report.hostProvider === 'string' ? [['Host provider', report.hostProvider]] : []),
   ] : [];
   return h('section', { style: { padding: 20, color: 'inherit' } },
     h('h2', null, 'ATL Control Plane'),
