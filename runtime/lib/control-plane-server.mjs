@@ -987,7 +987,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
       const payload = JSON.parse(await readBody(req) || '{}');
       if (path.endsWith('/settings')) { await triage.validateSettings(payload); triage.saveSettings(payload); }
       else triage.ensure(payload.key);
-      void triage.tick().catch(() => {}); return json(res, 200, { ok: true, ...triage.status() });
+      void triage.tick().catch((error) => process.stderr.write(`[ATL triage tick] ${error?.message || error}\n`)); return json(res, 200, { ok: true, ...triage.status() });
     }
     if (path.startsWith('/api/my-tasks/jira/')) {
       const action = path.split('/').pop();
@@ -1014,7 +1014,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
     }
     if (req.method === 'POST' && path === '/api/my-tasks/repository-bindings') {
       const bindings = reviews.saveBindings(JSON.parse(await readBody(req) || '{}'));
-      void reviews.tick().catch(() => {});
+      void reviews.tick().catch((error) => process.stderr.write(`[ATL reviews tick] ${error?.message || error}\n`));
       return json(res, 200, { ok: true, bindings });
     }
     if (req.method === 'GET' && path === '/api/my-tasks/review') {
@@ -1028,7 +1028,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
       if (payload.locale && !['fa-IR', 'en-US'].includes(payload.locale)) throw new Error('Unsupported review language.');
       if (path.endsWith('/retry') && !myTasks.item(payload.key)) throw new Error('Task is no longer assigned.');
       const status = reviews.ensure(payload.locale, { retryKey: path.endsWith('/retry') ? payload.key : null, resume: payload.resume === true });
-      void reviews.tick().catch(() => {});
+      void reviews.tick().catch((error) => process.stderr.write(`[ATL reviews tick] ${error?.message || error}\n`));
       return json(res, 200, { ok: true, ...status });
     }
     if (req.method === "GET" && path === "/api/my-tasks/projects") {
@@ -1210,7 +1210,8 @@ export function buildWindowsMyTasksStartupScript({ nodePath, runtimeEntry, proje
 // must not make an unchanged dashboard look changed to delta clients.
 // observed_at is derived (newest evidence stamp, falling back to the volatile
 // state.updated_at), so scheduler rewrites would otherwise dirty every tick.
-const VOLATILE_SNAPSHOT_KEYS = ['captured_at', 'checked_at', 'created_at', 'updated_at', 'observed_at'];
+// state.revision is a save stamp (every saveState bumps it), not content.
+const VOLATILE_SNAPSHOT_KEYS = ['captured_at', 'checked_at', 'created_at', 'updated_at', 'observed_at', 'revision'];
 const stableSnapshotFingerprint = value => {
   if (Array.isArray(value)) return value.map(stableSnapshotFingerprint);
   if (value && typeof value === 'object') {
@@ -1304,7 +1305,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   // polling while the browser tab is closed and stops with the service.
   let reviews, triage;
   const jira = createJiraMcp(root, { transportCall: jiraTransportCall, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); } } });
-      const myTasks = createMyTasksEngine(root, { token: currentAzureToken, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); void reviews?.tick().catch(() => {}); } }, ...(myTasksFetch ? { requestImpl: myTasksFetch } : {}) });
+      const myTasks = createMyTasksEngine(root, { token: currentAzureToken, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); void reviews?.tick().catch((error) => process.stderr.write(`[ATL reviews tick] ${error?.message || error}\n`)); } }, ...(myTasksFetch ? { requestImpl: myTasksFetch } : {}) });
   const azureItems = myTasks.items.bind(myTasks), azureItem = myTasks.item.bind(myTasks);
   myTasks.items = () => { const data = azureItems(); return { ...data, items: [...data.items, ...(jira.config().enabled ? jira.items() : [])], jira: jira.status() }; };
   myTasks.item = key => azureItem(key) || (jira.config().enabled ? jira.items().find(i => i.key === key) : null);
@@ -1612,6 +1613,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       if (req.method === "GET" && url.pathname === "/api/events") {
         res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache", connection: "keep-alive" });
         const cursor = Number(url.searchParams.get("cursor") || 0);
+        // With no live streams the 2 s build tick is paused, so the cached
+        // frame may predate recent mutations — rebuild before the cursor
+        // comparison or a changed state would be answered "unchanged".
+        if (!streams.size) refreshCachedFrame({ broadcast: false });
         // A reconnecting client that already holds the current frame gets a tiny
         // liveness block; anything else (fresh client, drifted cursor, content
         // that changed after its last poll) receives the full snapshot.
