@@ -1,26 +1,117 @@
-/* Documentation shell. Keep selectors independent of Control Plane styles. */
 :root {
   color-scheme: light;
-  --bg:#fff;
-  --panel:#f7f9fc;
-  --text:#15243b;
-  --muted:#52637a;
-  --line:#dde5ef;
-  --accent:#16634f;
-  --code:#f0f4f8;
-  --shadow:0 20px 70px #0a18302b;
+  --bg: #f4f3f7;
+  --panel: #ffffff;
+  --panel2: #f0eff5;
+  --inset: #f1f0f7;
+  --kbd: #e9e8f1;
+  --hover: #ebe9f3;
+  --btn-ghost: #e3e1ee;
+  --result-bg: #f2f1f9;
+  --ink: #191726;
+  --muted: #5d5b72;
+  --faint: #8a889e;
+  --crumb: #b1afbf;
+  --code-ink: #514d82;
+  --quote-ink: #4f4b85;
+  --msg-ink: #4a4680;
+  --on-accent: #ffffff;
+  --on-mint: #04261e;
+  --line: #dedde6;
+  --line-strong: #c7c4d6;
+  --edge-callout: #d9d3f2;
+  --edge-violet: #c3b9f2;
+  --edge-mint: #a3d6c6;
+  --edge-amber: #e3c48f;
+  --edge-coral: #eaa99c;
+  --flow-border: #b7abf0;
+  --preview-edge: #cbc9da;
+  --terminal-edge: #dfdde8;
+  --violet: #6753e8;
+  --mint: #0a7d66;
+  --amber: #7d5509;
+  --coral: #bb4534;
+  --tint-violet: #e9e4fc;
+  --chip-violet: #ece8fd;
+  --node-violet: #e8e2fb;
+  --callout-violet: #efecfb;
+  --grad-soft: #f0edfd;
+  --grad-tilt: #f4f1fd;
+  --grad-deep: #fbfbfe;
+  --flow-glow: #eeebfa;
+  --msg-context: #f1eefb;
+  --tint-mint: #d9f2ea;
+  --chip-mint: #def4ec;
+  --node-mint: #d9f2ea;
+  --check-mint: #d4f0e6;
+  --callout-mint: #e3f6ef;
+  --msg-mint: #e3f6ef;
+  --tint-amber: #f8eed7;
+  --chip-amber: #f8edd4;
+  --callout-amber: #fdf3dd;
+  --warn-amber: #fcf3dc;
+  --tint-coral: #fbe8e3;
+  --shadow: rgba(30, 26, 58, 0.22);
+  --backdrop: rgba(28, 25, 54, 0.42);
+  --preview-shadow: rgba(30, 26, 58, 0.28);
 }
 
 :root[data-theme=dark] {
   color-scheme: dark;
-  --bg:#111820;
-  --panel:#17212c;
-  --text:#e5edf7;
-  --muted:#a0afc3;
-  --line:#2c3c4e;
-  --accent:#7bdec0;
-  --code:#1b2938;
-  --shadow:0 20px 70px #0008;
+  --bg: #0b0b10;
+  --panel: #12131a;
+  --panel2: #171821;
+  --inset: #0d0e14;
+  --kbd: #1d1e27;
+  --hover: #191922;
+  --btn-ghost: #242432;
+  --result-bg: #121321;
+  --ink: #f5f5f7;
+  --muted: #9698a8;
+  --faint: #6f7181;
+  --crumb: #454755;
+  --code-ink: #c9c5ed;
+  --quote-ink: #d4d1f1;
+  --msg-ink: #d8d4f5;
+  --on-accent: #0b0b10;
+  --on-mint: #07120f;
+  --line: #242530;
+  --line-strong: #56596c;
+  --edge-callout: #3b3563;
+  --edge-violet: #4c467a;
+  --edge-mint: #477f73;
+  --edge-amber: #80633a;
+  --edge-coral: #76524c;
+  --flow-border: #554e89;
+  --preview-edge: #3a3b48;
+  --terminal-edge: #26273a;
+  --violet: #9b8cff;
+  --mint: #5fe0c2;
+  --amber: #f4c67e;
+  --coral: #fa8f83;
+  --tint-violet: #262142;
+  --chip-violet: #1c1930;
+  --node-violet: #1a1830;
+  --callout-violet: #181530;
+  --grad-soft: #1b1930;
+  --grad-tilt: #17152a;
+  --grad-deep: #101016;
+  --flow-glow: #1c1b2d;
+  --msg-context: #15132a;
+  --tint-mint: #12342e;
+  --chip-mint: #102724;
+  --node-mint: #112622;
+  --check-mint: #153a32;
+  --callout-mint: #0f2621;
+  --msg-mint: #10201d;
+  --tint-amber: #392c18;
+  --chip-amber: #2b2115;
+  --callout-amber: #211b12;
+  --warn-amber: #241c10;
+  --tint-coral: #3b211f;
+  --shadow: #000;
+  --backdrop: rgba(0, 0, 0, 0.7333333333333333);
+  --preview-shadow: rgba(0, 0, 0, 0.3333333333333333);
 }
 
 * {
@@ -29,17 +120,19 @@
 
 html {
   scroll-padding-top: 85px;
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
   font: 16px/1.7 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 a {
-  color: var(--accent);
+  color: var(--violet);
   text-underline-offset: 3px;
 }
 
@@ -49,20 +142,31 @@ button, input {
 
 button {
   cursor: pointer;
-  background: var(--panel);
-  color: var(--text);
+  background: var(--btn-ghost);
+  color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 6px 12px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-button:hover, a:hover {
-  filter: brightness(0.9);
+button:hover {
+  background: var(--hover);
+  border-color: var(--line-strong);
+}
+
+a:hover {
+  color: var(--violet);
+  text-decoration: underline;
 }
 
 :focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--tint-violet);
 }
 
 .site-header {
@@ -70,7 +174,8 @@ button:hover, a:hover {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -79,10 +184,22 @@ button:hover, a:hover {
   gap: 16px;
 }
 
+.site-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--violet), var(--mint) 55%, var(--amber));
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .brand {
   font-weight: 750;
   text-decoration: none;
-  color: var(--text);
+  color: var(--ink);
   display: flex;
   gap: 12px;
   align-items: center;
@@ -95,10 +212,11 @@ button:hover, a:hover {
 }
 
 .brand-mark {
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--violet);
+  color: var(--on-accent);
   border-radius: 8px;
   padding: 1px 11px;
+  font-weight: 800;
 }
 
 .header-actions {
@@ -110,12 +228,21 @@ button:hover, a:hover {
 
 .header-actions a {
   text-decoration: none;
+  color: var(--muted);
+}
+
+.header-actions a:hover {
+  color: var(--violet);
 }
 
 kbd {
   font-size: 11px;
+  font-family: inherit;
   color: var(--muted);
-  padding-left: 14px;
+  background: var(--kbd);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
 }
 
 .docs-layout {
@@ -135,14 +262,14 @@ kbd {
 }
 
 .nav-group {
-  margin-bottom: 24px;
+  margin-bottom: 26px;
 }
 
 .nav-group h2, .page-toc h2 {
   font-size: 11px;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--faint);
   margin: 0 0 9px;
 }
 
@@ -153,18 +280,26 @@ kbd {
   padding: 6px 10px;
   color: var(--muted);
   text-decoration: none;
-  border-radius: 5px;
+  border-radius: 6px;
+  border-left: 2px solid transparent;
+}
+
+.nav-group a:hover {
+  color: var(--ink);
+  background: var(--hover);
+  text-decoration: none;
 }
 
 .nav-group a[aria-current=page] {
-  color: var(--accent);
-  background: var(--code);
+  color: var(--violet);
+  background: var(--chip-violet);
+  border-left-color: var(--violet);
   font-weight: 650;
 }
 
 .version {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--faint);
   border-top: 1px solid var(--line);
   padding-top: 16px;
 }
@@ -176,7 +311,7 @@ main {
 
 .breadcrumbs {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--crumb);
   margin-bottom: 26px;
 }
 
@@ -186,7 +321,7 @@ main {
 
 h1 {
   font-size: clamp(30px, 3vw, 44px);
-  line-height: 1.18;
+  line-height: 1.16;
   letter-spacing: -0.035em;
   margin: 0 0 24px;
 }
@@ -195,11 +330,14 @@ h2 {
   font-size: 25px;
   line-height: 1.3;
   letter-spacing: -0.02em;
-  margin: 46px 0 18px;
+  margin: 52px 0 18px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
 }
 
 h3 {
   font-size: 19px;
+  letter-spacing: -0.01em;
   margin: 28px 0 12px;
 }
 
@@ -221,20 +359,28 @@ li > p {
   margin-bottom: 8px;
 }
 
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 36px 0;
+}
+
 code {
   font: 13px/1.6 Consolas, "SFMono-Regular", monospace;
   overflow-wrap: anywhere;
-  background: var(--code);
-  padding: 2px 5px;
-  border-radius: 4px;
+  color: var(--code-ink);
+  background: var(--inset);
+  border: 1px solid var(--line);
+  padding: 1px 5px;
+  border-radius: 5px;
 }
 
 pre {
   overflow: auto;
-  background: var(--code);
+  background: var(--inset);
   border: 1px solid var(--line);
   padding: 22px;
-  border-radius: 9px;
+  border-radius: 10px;
   line-height: 1.6;
   font-size: 13px;
 }
@@ -242,6 +388,8 @@ pre {
 pre code {
   padding: 0;
   background: none;
+  border: 0;
+  color: inherit;
   overflow-wrap: normal;
 }
 
@@ -254,7 +402,10 @@ pre code {
   right: 8px;
   top: 8px;
   font-size: 11px;
-  padding: 3px 7px;
+  padding: 3px 8px;
+  background: var(--chip-violet);
+  border-color: var(--line);
+  color: var(--violet);
 }
 
 .code-block pre {
@@ -280,16 +431,22 @@ th, td {
 }
 
 th {
-  background: var(--panel);
+  background: var(--panel2);
   font-weight: 650;
+  color: var(--ink);
+}
+
+tbody tr:hover td {
+  background: var(--hover);
 }
 
 blockquote {
   margin: 24px 0;
-  border-left: 3px solid var(--accent);
-  background: var(--panel);
+  border-left: 3px solid var(--violet);
+  background: var(--callout-violet);
   padding: 16px 20px;
-  color: var(--muted);
+  border-radius: 0 10px 10px 0;
+  color: var(--quote-ink);
 }
 
 blockquote p:last-child {
@@ -300,7 +457,8 @@ img {
   max-width: 100%;
   height: auto;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 10px;
+  background: var(--panel);
 }
 
 figure {
@@ -315,11 +473,13 @@ figcaption {
 
 .diagram {
   overflow: auto;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   padding: 18px;
-  border-radius: 9px;
-  background: #fff;
-  color: #15243b;
+  border-radius: 10px;
+  /* Fixed light canvas: Mermaid renders with a fixed neutral theme, so the
+     artwork keeps one readable surface in both document themes. */
+  background: #ffffff;
+  color: #191726;
 }
 
 .diagram pre {
@@ -336,7 +496,7 @@ figcaption {
 }
 
 .diagram figcaption {
-  color: #52637a;
+  color: #5d5b72;
 }
 
 .page-toc {
@@ -356,6 +516,10 @@ figcaption {
   margin-bottom: 10px;
 }
 
+.page-toc a:hover {
+  color: var(--violet);
+}
+
 .page-toc .h3 {
   padding-left: 12px;
 }
@@ -364,7 +528,6 @@ figcaption {
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  border-top: 1px solid var(--line);
   margin-top: 48px;
   padding-top: 24px;
 }
@@ -373,11 +536,26 @@ figcaption {
   max-width: 48%;
   font-size: 14px;
   text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--panel);
+}
+
+.adjacent a:hover {
+  border-color: var(--violet);
+  background: var(--hover);
+  text-decoration: none;
 }
 
 .adjacent small {
   display: block;
-  color: var(--muted);
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  margin-bottom: 4px;
 }
 
 footer {
@@ -385,18 +563,24 @@ footer {
   flex-wrap: wrap;
   gap: 18px;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--faint);
   border-top: 1px solid var(--line);
   margin-top: 32px;
   padding-top: 20px;
+}
+
+footer a {
+  color: var(--muted);
 }
 
 .skip-link {
   position: fixed;
   top: -100px;
   z-index: 30;
-  background: var(--bg);
+  background: var(--panel);
+  color: var(--ink);
   padding: 10px;
+  border-radius: 0 0 8px 0;
 }
 
 .skip-link:focus {
@@ -410,16 +594,16 @@ footer {
 dialog {
   width: min(680px, 94vw);
   max-height: 80vh;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
   border-radius: 14px;
   padding: 22px;
   box-shadow: var(--shadow);
 }
 
 dialog::backdrop {
-  background: rgba(16, 32, 48, 0.4392156863);
+  background: var(--backdrop);
 }
 
 .search-heading {
@@ -432,11 +616,15 @@ dialog::backdrop {
 
 #search-input {
   width: 100%;
-  background: var(--panel);
-  color: var(--text);
+  background: var(--inset);
+  color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 12px;
+}
+
+#search-input:focus-visible {
+  outline-offset: 0;
 }
 
 #search-results {
@@ -449,6 +637,16 @@ dialog::backdrop {
   border-bottom: 1px solid var(--line);
   text-decoration: none;
   font-size: 14px;
+  color: var(--ink);
+  border-radius: 8px;
+}
+
+#search-results a:hover {
+  background: var(--hover);
+}
+
+#search-results strong {
+  color: var(--violet);
 }
 
 #search-results span {
@@ -465,6 +663,10 @@ details {
 summary {
   cursor: pointer;
   font-weight: 600;
+}
+
+summary:hover {
+  color: var(--violet);
 }
 
 @media (min-width: 1600px) {
@@ -551,6 +753,9 @@ summary {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  body, button {
+    transition: none;
   }
 }
 @media print {

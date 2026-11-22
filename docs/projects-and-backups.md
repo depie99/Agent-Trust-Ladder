@@ -21,9 +21,10 @@ Open **Approvals**, inspect scope and effects, then approve or reject the exact 
 ```sh
 atl backup create --label before-maintenance
 atl backup list
+atl backup restore <id>
 ```
 
-Choose a known snapshot and inspect restore preview in **Operations**. Restore changes persisted state and requires no active run. A backup is not source control or remote delivery evidence.
+Choose a known snapshot and inspect restore preview in **Operations**, or restore directly with `atl backup restore <id>`. Restore changes persisted state and requires no active run. A backup is not source control or remote delivery evidence.
 
 ## Inspect routines
 

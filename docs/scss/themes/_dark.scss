@@ -1,6 +1,7 @@
-// Historical illustration palette; current site styles live in ../styles.scss.
-// Dark theme (default). Every value is the exact color the docs site shipped
-// with, so dark rendering is byte-for-byte preserved from styles.css v6.
+// Dark theme map for the documentation site — the Control Plane's dark
+// palette, mirrored for docs. styles.scss emits both maps as CSS custom
+// properties and checks key parity at build time; light counterpart:
+// _light.scss (same 54 keys).
 //
 // Token groups:
 //   surfaces  — page, cards, raised panels, code insets, chips, hover fills

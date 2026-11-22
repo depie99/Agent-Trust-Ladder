@@ -25,4 +25,4 @@ Lifecycle models summarize workflow rather than literal status values. ER models
 
 ## Update a model
 
-Edit its Markdown source, trace relationships to modules, run `npm run docs:build` and `npm run docs:check`, then inspect desktop/mobile rendering. Split dense models into focused diagrams and include explanatory prose that works without an image.
+Edit its Markdown source, trace relationships to modules, run `npm run docs:build`, `npm run docs:check`, and `npm run docs:diagrams:check` (regenerates and validates the light `.light.svg` variants), then inspect desktop/mobile rendering. Split dense models into focused diagrams and include explanatory prose that works without an image.

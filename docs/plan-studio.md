@@ -4,7 +4,7 @@ Use Plan Studio when a request describes an outcome but lacks independently exec
 
 The Studio is a conversational workspace: the **conversation** on the left drives generation and revisions, the **plan** on the right (Overview / Tasks / Review tabs) always shows the saved artifact. Nothing queues or executes from this page.
 
-In a connected developer harness, use the current harness assistant as the primary planning conversation. `atl_plan_context` gathers repository and issue context, and `atl_plan_save` writes revisioned drafts to this same Studio. Ask once whether the developer prefers every uncertainty, only consequential questions (default), or broad defaults. Keep the questions and answers in harness chat; save meaningful changes as they happen. Do not invoke a separate planning provider unless the developer asks. The browser remains available to inspect and revise the identical artifact.
+In a connected developer harness, use the current harness assistant as the primary planning conversation. `atl_plan_context` gathers repository and issue context, `atl_plan_save` writes revisioned drafts to this same Studio, `atl_plan_answer` records decisions, and `atl_plan_review`/`atl_plan_approve` gate execution behind a reviewed draft. Ask once whether the developer prefers every uncertainty, only consequential questions (default), or broad defaults. Keep the questions and answers in harness chat; save meaningful changes as they happen. Do not invoke a separate planning provider unless the developer asks. The browser remains available to inspect and revise the identical artifact.
 
 ## Prepare the request
 
@@ -41,6 +41,10 @@ The backend is selected in `config/manager.json` under `egmReview`:
 - `"backend": "codex"` (default) — the real EGM plugin through a dedicated CODEX_HOME: `codexHome`, `model`, pinned `versionSha`, the plugin installed, and `codex login` completed for that home.
 
 A missing or unusable configuration is refused explicitly before any spend. Every finding is bound to the reviewed artifact and evidence snapshot: a plan or evidence change invalidates the review, and a blocked or stale deep review keeps the approval gate shut — the same contract as the accuracy review. Failed, timed out, or incomplete deep reviews are recorded as failures with their raw run preserved beside the draft, never as a clean pass.
+
+Deep reviews run with operational guardrails: a cross-process review lock per draft prevents two simultaneous reviews (a conflict answers `409` with the holding pid); a daily budget caps started reviews (default 3, `egmReview.maxReviewsPerDay`, counted in `.trust/manager/plan-review-usage.json`); stage progress is exposed while a review runs, and the owner can cancel between stages — the raw run is preserved and no review is recorded.
+
+A policy can require a deep review before approval: set `egmReview.policy` in `config/manager.json` (`requireDeepReview`, `minComplexity`, `maxTaskProposals`, `touchGlobs`). Approval of a matching plan is refused until a fresh EGM review has passed, and the Studio surfaces **Run deep review** / **Deep review required by policy** instead of a bare approval button.
 
 ## Resolve an approval block
 

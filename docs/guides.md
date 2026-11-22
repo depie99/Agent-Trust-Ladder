@@ -8,11 +8,15 @@ Find the reader procedure, implementing boundary, and verification entry point f
 |---|---|---|---|
 | Install and initialize | [Guide](getting-started.md) | `runtime/atl-manager.mjs` | `package_smoke_test.mjs` |
 | Plugin installation per harness | [Guide](plugin-install.md) | `scripts/build-plugins.mjs, runtime/lib/plugin-release.mjs` | `plugin_bundle_test.mjs, plugin_connect_test.mjs` |
+| Harness planning and programs | [Guide](plugin-install.md) | `runtime/lib/plugin-host.mjs` | `harness_api_test.mjs` |
 | Browser and terminal | [Guide](control-room.md) | `runtime/control-plane-client.js` | `control_plane_server_test.mjs` |
 | Jira, GitHub, Azure and files | [Guide](issue-sources.md) | `intake.mjs, composer.mjs` | `issue_source_ui_journey_test.mjs` |
+| Assigned issues and preparation | [Guide](task-preparation.md) | `my-tasks.mjs, task-preparation.mjs, runtime/control-plane-my-tasks.js` | `my_tasks_fetch_test.mjs, task_preparation_api_test.mjs` |
 | Plans, clarification and publishing | [Guide](plan-studio.md) | `plan-studio.mjs, plan-publish.mjs` | `plan_contract_test.mjs, plan_publish_test.mjs` |
 | Task contracts and named queues | [Guide](tasks-and-queues.md) | `state.mjs, queue.mjs` | `task_dependency_contract_test.mjs` |
 | Bounded execution and supervisor | [Guide](overnight-runs.md) | `launch.mjs, supervisor-runner.mjs` | `overnight_issue_e2e_test.mjs` |
+| Workflow runs and batches | [Guide](overnight-runs.md) | `runtime/control-plane-client.js` | `overnight_issue_e2e_test.mjs` |
+| One state owner, daemon and leases | [Guide](architecture.md) | `daemon.mjs, session-auth.mjs, leases.mjs` | `daemon_test.mjs, state_concurrency_test.mjs` |
 | Recovery and interruptions | [Guide](queue-recovery.md) | `queue-recovery.mjs, worker.mjs` | `worker_windows_timeout_test.mjs` |
 | Contextual discussion and fixes | [Guide](ask-atl.md) | `control-assistant.mjs` | `control_assistant_test.mjs` |
 | Captured changes and relationships | [Guide](task-change-review.md) | `task-changes.mjs, change-review-store.mjs` | `task_changes_ui_test.mjs` |

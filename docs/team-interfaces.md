@@ -8,23 +8,27 @@ Use the browser for daily ownership, the CLI for precise automation, and the ter
 | Surface | Purpose | How-to |
 |---|---|---|
 | Overview | Portfolio health and pending decisions | [Control Plane](control-room.md) |
-| Issue sources | Configure, preview, import issues | [Issue sources](issue-sources.md) |
 | Tasks | Packets, evidence, prerequisites | [Tasks and queues](tasks-and-queues.md) |
+| Shipped | Completed-task archive | [Tasks and queues](tasks-and-queues.md) |
+| Issue sources | Configure, preview, import issues | [Issue sources](issue-sources.md) |
+| My Tasks | Assigned issues, preparation, kanban board | [Task preparation](task-preparation.md) |
+| Ask ATL | Discuss or authorize a bounded fix | [Ask ATL](ask-atl.md) |
 | Plan Studio | Decompose and review a request | [Plan Studio](plan-studio.md) |
 | Queues | Named work sets and bounded launch | [Overnight runs](overnight-runs.md) |
+| Workflow runs | Plan chains as checked steps per task | [Overnight runs](overnight-runs.md) |
 | Agent Team | Responsibilities and handoffs | [Team](team.md) |
-| Activity & Logs | Decisions and sessions | [Recovery](queue-recovery.md) |
-| Usage & Limits | Observed tokens and sessions | [Reports](execution-reports.md) |
 | Projects | Register and supervise repositories | [Projects](projects-and-backups.md) |
 | Approvals | Owner proposals and grants | [Approvals](projects-and-backups.md) |
 | Operations | Routines, backup, restore | [Operations](projects-and-backups.md) |
+| Batches | Run list, detail, and recipes | [Overnight runs](overnight-runs.md) |
 | Knowledge | Source-backed claims and memory | [Knowledge](brain.md) |
-| Settings | Providers, models, access | [Providers](providers.md) |
-| Task: Ask ATL | Discuss or authorize a bounded fix | [Ask ATL](ask-atl.md) |
-| Task: Review changes | Captured source/output differences | [Change review](task-change-review.md) |
-| Task: Diagram | Dependencies and relationships | [Resource model](resource-model.md) |
+| Activity & Logs | Decisions and sessions | [Recovery](queue-recovery.md) |
+| Usage & Limits | Observed tokens, sessions, reliability | [Reports](execution-reports.md) |
+| Settings | Providers, models, connections, budgets | [Providers](providers.md) |
+| Task workspace: Review changes | Captured source/output differences | [Change review](task-change-review.md) |
+| Task workspace: Process | Execution detail and code-impact graph | [Tasks and queues](tasks-and-queues.md) |
 
-Scroll the sidebar or open its responsive menu when secondary navigation is hidden.
+Scroll the sidebar, press **1–9** to jump to one of the first nine pages, or open the responsive menu when secondary navigation is hidden.
 
 <a id="terminal-menus"></a>
 ## Use the terminal

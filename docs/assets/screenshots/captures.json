@@ -1,50 +1,50 @@
 {
-  "captured": "2026-10-29",
+  "captured": "2026-11-22",
   "fixture": "scripts/docs-preview.mjs",
   "mode": "isolated read-only synthetic project",
-  "browser": "Chrome through the installed browser skill",
+  "browser": "Playwright chromium, light Control Plane theme, 1561px viewport",
   "images": [
     {
       "file": "overview.jpg",
       "width": 1561,
-      "height": 1332,
-      "sha256": "685767cf1d8e0f196cb7f41f5e0ef6b7cc2c26bfd348c28ea9ac39ec2a641002"
+      "height": 1202,
+      "sha256": "a6920671d0525d2ba81ec84df9ba5ff3fc01f2d2e32b3914c5281fd64a89f7ad"
     },
     {
       "file": "tasks.jpg",
       "width": 1561,
       "height": 1202,
-      "sha256": "0749f0d8c8b25e30e08c2dd6c27db27f4f26c54b0f62102dc3656f7ca92e5850"
+      "sha256": "91f013827dd1728a0f575526d5c3b2c3802834067d220683ab0b91aecd4d5876"
     },
     {
       "file": "sources.jpg",
       "width": 1561,
       "height": 1202,
-      "sha256": "3a0dc4c5931e65f35d4fbe37b7b29d8f49b8f1875d89adb395b829195467e390"
+      "sha256": "94dc092b051d9549c1b79128c539ce719f35b311919ebb4f4a1a30fe2b4b01f4"
     },
     {
       "file": "studio.jpg",
       "width": 1561,
-      "height": 1307,
-      "sha256": "f5c58692d995de0163a70359761ab76b1216d0322c97d2f23ed5ab868f745296"
+      "height": 1202,
+      "sha256": "96b97f787d13eaa1ded62a747839ce74f200ffec0b94c9eaa1754622da61ea7a"
     },
     {
       "file": "queues.jpg",
       "width": 1561,
       "height": 1202,
-      "sha256": "88cea5bc67e9c061f27bae2ff32d2e8e64a4b4ae1567a5c6bf6108aa3f9f151e"
+      "sha256": "c7b262e6f1d2000199720e836c39b893a5ce6fa05e160171e361007988b95c09"
     },
     {
       "file": "team.jpg",
       "width": 1561,
       "height": 1202,
-      "sha256": "b1bb8f66dca0a1d0312536c7b7dd42a768f560869959203c02f6d7655bdbcbcc"
+      "sha256": "ed8ad1864808f6d33870264b26754f9027daea1d8d73f60f899ad092373c7a8a"
     },
     {
       "file": "ask-atl.jpg",
       "width": 1561,
       "height": 1202,
-      "sha256": "6a885f1272a80ab6b6930be9969e901a53023f8bb58dad75a65a7e78a491dece"
+      "sha256": "a0fbc93207e774ed361baf152a80610d919987a11660ed6ac92814786978f0ef"
     }
   ]
 }
