@@ -71,7 +71,7 @@ ${JSON.stringify(payload, null, 2)}
 ${BOUNDARY}`;
 }
 
-function openAiChatEndpoint(baseUrl) {
+export function openAiChatEndpoint(baseUrl) {
   const endpoint = new URL(baseUrl);
   const pathname = endpoint.pathname.replace(/\/+$/, "");
   endpoint.pathname = pathname.endsWith("/chat/completions") ? pathname : `${pathname}/chat/completions`;

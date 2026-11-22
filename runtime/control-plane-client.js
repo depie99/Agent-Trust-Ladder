@@ -251,6 +251,20 @@ let queueFilterTouched = false;
   let assistantScope = "global";
   let assistantPending = null;
   let assistantPoll = null;
+  // Ask ATL page state: conversation rail, current chat, context picker.
+  // Conversations persist server-side under .trust/manager/assistant/conversations/.
+  let askConversations = [];
+  let askProviders = [];
+  let askSession = null;
+  let askCurrent = (() => { try { return localStorage.getItem(scopedStorageKey("atl-ask-conversation")) || null; } catch { return null; } })();
+  let askFilter = "";
+  let askContextDraft = null;
+  let askNotice = "";
+  let askPoll = null;
+  let askSessionFingerprint = "";
+  let askLoaded = false;
+  let askPicker = null;
+  const askDismissedReviews = new Set();
   let activityFilter = "";
   let studioGoal = "";
   let studioRevisionFindings = [];
@@ -1741,10 +1755,260 @@ ${feedbackLine}
   }
 
 
+  // --- Ask ATL page -----------------------------------------------------------
+  // Redesigned surface: chat rail (TODAY/EARLIER), landing hero with suggestion
+  // cards, an Add-context picker (imported tasks / plans / project) and a
+  // composer with Ask / Diagnose / Fix in workspace modes. Conversations live
+  // server-side under .trust/manager/assistant/conversations/ (local project).
+  const ASK_INCLUDE_DEFAULT = ["brief", "blocker", "prerequisites"];
+  const ASK_IMPORTED_SOURCES = ["github", "azure", "jira"];
+  const askPersistCurrent = () => { try { if (askCurrent) localStorage.setItem(scopedStorageKey("atl-ask-conversation"), askCurrent); else localStorage.removeItem(scopedStorageKey("atl-ask-conversation")); } catch { /* private browsing */ } };
+  const askDraftKey = () => askCurrent || "new";
+  const askComposerFocused = () => Boolean(document.activeElement?.closest?.(".ask-composer, .ask-rail, #modal"));
+  function askConversationSubtitle(conversation) {
+    const context = conversation.context || {};
+    const bits = [];
+    if (context.tasks?.length) bits.push(context.tasks.length === 1 ? context.tasks[0].id : `${context.tasks.length} tasks`);
+    if (context.plans?.length) bits.push(`Plan${context.plans.length === 1 ? "" : "s"}`);
+    if (context.project) bits.push("Project");
+    const modeLabel = { ask: "Ask", diagnose: "Diagnose", fix: "Fix" }[conversation.mode] || "Ask";
+    return `${bits.join(" + ") || "Project"} · ${modeLabel}`;
+  }
+  function askGroupLabel(conversation) {
+    const time = Date.parse(conversation.updated_at || conversation.created_at || "");
+    if (!Number.isFinite(time)) return "EARLIER";
+    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    return time >= startOfDay.getTime() ? "TODAY" : "EARLIER";
+  }
+  function askChipEntries(context) {
+    const entries = [];
+    for (const task of context.tasks || []) entries.push({ type: "task", id: task.id, label: task.id });
+    for (const plan of context.plans || []) entries.push({ type: "plan", id: plan.id, label: plan.title ? `Plan: ${plan.title}` : `Plan: ${plan.id}` });
+    if (context.project) entries.push({ type: "project", id: "project", label: "Project" });
+    return entries;
+  }
+  function askChips(context) {
+    return askChipEntries(context).map((entry) => `<span class="ask-chip">${escapeHtml(entry.label)}<button type="button" class="ask-chip-x" data-action="ask-remove-context:${entry.type}:${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.label)} from context">×</button></span>`).join("");
+  }
+  function askSelectedProviderId() {
+    return String(assistantDrafts.get(askDraftKey())?.provider || $("#askProvider")?.value || "").split("|")[0];
+  }
+  function askFixBlockedReason() {
+    const context = askCurrent ? (askSession?.context || {}) : (askContextDraft || {});
+    const tasks = context.tasks || [];
+    if (tasks.length !== 1) return "Fix in workspace needs exactly one task in the conversation context.";
+    const task = derived().tasks.find((item) => item.id === tasks[0].id);
+    if (!task?.workspace) return "Fix in workspace needs a task with an isolated workspace.";
+    const provider = askProviders.find((item) => item.id === askSelectedProviderId());
+    if (provider && provider.kind !== "cli") return "Fix in workspace needs a CLI provider (Codex CLI or GapCode). HTTP providers answer Ask and Diagnose questions only.";
+    return "";
+  }
+  function askComposer({ landing = false } = {}) {
+    const draft = assistantDrafts.get(askDraftKey()) || {};
+    const mode = draft.mode || (askCurrent ? (askSession?.mode || "ask") : "ask");
+    const preferred = draft.provider || (askSession?.provider ? `${askSession.provider}|${askSession.model || ""}` : "");
+    const options = askProviders.flatMap((provider) => {
+      const models = provider.models?.length ? provider.models : (provider.defaultModel ? [{ id: provider.defaultModel, label: provider.defaultModel }] : [{ id: "", label: "default" }]);
+      return models.map((model) => `<option value="${escapeHtml(`${provider.id}|${model.id}`)}" ${`${provider.id}|${model.id}` === preferred ? "selected" : ""} ${!provider.ready ? "disabled" : ""}>${escapeHtml(provider.label)} · ${escapeHtml(model.label || model.id)}${provider.ready ? "" : ` · ${escapeHtml(provider.reason || "unavailable")}`}</option>`);
+    }).join("");
+    const fixReason = askFixBlockedReason();
+    const context = askCurrent ? (askSession?.context || {}) : (askContextDraft || {});
+    const running = askSession?.status === "running";
+    return `<div class="ask-composer"><div class="ask-composer-chips">${askChips(context)}<button type="button" class="ask-add-context" data-action="ask-picker">+ Add context</button></div><label class="sr-only" for="askInput">Message</label><textarea class="input" id="askInput" dir="auto" rows="2" placeholder="${landing ? "Ask anything about this project…" : "Ask a follow-up…"}">${escapeHtml(draft.message || "")}</textarea><div class="ask-composer-bar"><div class="ask-segmented" role="group" aria-label="Mode">${[["ask", "Ask"], ["diagnose", "Diagnose"], ["fix", "Fix in workspace"]].map(([value, label]) => `<button type="button" class="ask-seg ${mode === value ? "on" : ""}" data-action="ask-mode:${value}"${value === "fix" && fixReason ? ` disabled title="${escapeHtml(fixReason)}" aria-disabled="true"` : ""}>${label}</button>`).join("")}</div><select class="ask-provider-pill" id="askProvider" aria-label="Provider and model">${options}</select><button type="button" class="btn primary ask-send" data-action="ask-send"${running ? " disabled" : ""}>Send</button></div><div class="ask-hints"><span class="muted tiny">Ctrl/Cmd+Enter sends · Enter adds a line · @ adds context · Provider usage may apply</span><span class="muted tiny"><b>Ask</b> reads and answers · <b>Diagnose</b> inspects, read-only · <b>Fix in workspace</b> proposes edits for your approval</span></div></div>`;
+  }
+  function askBubble(message, index, { last = false } = {}) {
+    if (message.role === "user") return `<article class="ask-msg ask-msg-user" aria-label="Your message"><div class="ask-msg-content" dir="auto" data-no-translate>${escapeHtml(message.text)}</div></article>`;
+    const used = Array.isArray(message.context_used) && message.context_used.length ? `<div class="ask-used"><span class="ask-used-label">Used:</span>${message.context_used.map((label) => `<span class="ask-used-chip" data-no-translate>${escapeHtml(label)}</span>`).join("")}</div>` : "";
+    const actions = last && askSession?.status !== "running" ? `<div class="ask-actions">${btn("Copy", `ask-copy:${index}`, "sm")}${btn("Retry", "ask-retry", "sm")}${btn("Create task from this", "ask-create-task", "sm")}${btn("Save to Knowledge", "ask-save-knowledge", "sm")}</div>` : "";
+    return `<article class="ask-msg ask-msg-ai" aria-label="ATL reply"><div class="ask-avatar" aria-hidden="true">A</div><div class="ask-msg-body"><div class="ask-msg-content" dir="auto" data-no-translate>${assistantMarkdown(message.text)}</div>${used}${actions}</div></article>`;
+  }
+  function askProposalCard() {
+    const session = askSession;
+    if (!session || session.status !== "awaiting-review" || askDismissedReviews.has(session.scope)) return "";
+    const task = session.fix_task || (session.context?.tasks || [])[0]?.id || null;
+    return `<section class="ask-proposal" role="status"><div class="ask-proposal-head"><b>Proposed workspace fix</b><span class="pill amber">Needs approval</span></div><p class="ask-proposal-note">The provider edited this task's workspace. Nothing is accepted until you review the changes, and the result is reviewed independently.</p><div class="bar">${task && globalThis.ATL_CHANGE_REVIEW ? btn("Review changes", `task-changes:${task}`, "primary") : task ? btn("Open task", `task-detail:${task}`, "primary") : btn("Open approvals", "go:approvals", "primary")}${btn("Dismiss", "ask-dismiss-review", "ghost")}</div></section>`;
+  }
+  function askFailureCard() {
+    const session = askSession;
+    if (session?.status !== "failed") return "";
+    const failure = assistantFailure(session);
+    return `<section class="assistant-failure" role="alert"><b>${escapeHtml(failure.title)}</b><p>${escapeHtml(failure.reason)}</p><p>${escapeHtml(failure.next)}</p><div class="bar">${btn("Prepare retry", "ask-retry", "sm")}${session.diagnostic ? btn("Copy error", "ask-copy:error", "sm ghost") : ""}</div></section>`;
+  }
+  function askTranscript() {
+    const session = askSession;
+    if (!session) return "";
+    const messages = session.messages || [];
+    let lastAi = -1;
+    messages.forEach((message, index) => { if (message.role === "assistant") lastAi = index; });
+    const body = messages.map((message, index) => askBubble(message, index, { last: index === lastAi })).join("");
+    const running = session.status === "running" ? `<article class="ask-msg ask-msg-ai" aria-label="ATL is working"><div class="ask-avatar" aria-hidden="true">A</div><div class="ask-msg-body"><b class="ask-running"><span class="running-mark"></span> ATL is ${session.mode === "fix" ? "proposing a fix" : session.mode === "diagnose" ? "inspecting" : "answering"}…</b><div class="ask-msg-content" dir="auto" data-no-translate>${session.output ? assistantMarkdown(session.output) : ""}</div></div></article>` : "";
+    const empty = !messages.length && session.status !== "running" ? '<div class="assistant-empty"><b>What can I help with?</b><p>Ask about this project, investigate a blocker, or work through a task together.</p></div>' : "";
+    return `${empty}${body}${running}${askProposalCard()}${askFailureCard()}`;
+  }
+  function askRail() {
+    const filter = askFilter.trim().toLowerCase();
+    const items = askConversations.filter((conversation) => !filter || `${conversation.title} ${askConversationSubtitle(conversation)}`.toLowerCase().includes(filter));
+    const today = items.filter((conversation) => askGroupLabel(conversation) === "TODAY");
+    const earlier = items.filter((conversation) => askGroupLabel(conversation) !== "TODAY");
+    const row = (conversation) => `<button type="button" class="ask-history-item ${askCurrent === conversation.id ? "selected" : ""}" data-action="ask-open:${escapeHtml(conversation.id)}"><b>${escapeHtml(conversation.title || "Untitled chat")}</b><span>${escapeHtml(askConversationSubtitle(conversation))}</span></button>`;
+    return `<aside class="ask-rail" data-ask-rail><button type="button" class="btn primary ask-new" data-action="ask-new">+ New chat</button><label class="sr-only" for="askSearch">Search chats</label><input class="input" id="askSearch" placeholder="Search chats" value="${escapeHtml(askFilter)}"><div class="ask-rail-groups">${today.length ? `<div class="eyebrow">TODAY</div>${today.map(row).join("")}` : ""}${earlier.length ? `<div class="eyebrow">EARLIER</div>${earlier.map(row).join("")}` : ""}${items.length ? "" : '<p class="muted tiny ask-rail-empty">No chats yet.<br>Start one with + New chat.</p>'}</div></aside>`;
+  }
+  function askHead() {
+    if (!askCurrent) return `<header class="ask-head"><button type="button" class="ask-burger" data-action="ask-toggle-rail" aria-label="Show chats" aria-expanded="false">☰</button><div class="ask-title"><h1>Ask ATL</h1><p class="muted tiny">Discuss findings, then turn decisions into better task work or plans.</p></div></header>`;
+    return `<header class="ask-head"><button type="button" class="ask-burger" data-action="ask-toggle-rail" aria-label="Show chats" aria-expanded="false">☰</button><div class="ask-title"><h1>${escapeHtml(askSession?.title || "Ask ATL")}</h1></div><div class="ask-head-ctx"><span class="muted tiny ask-ctx-label">Context:</span>${askChips(askSession?.context || {})}</div><button type="button" class="ask-more" data-action="ask-menu" aria-label="Chat options">…</button></header>`;
+  }
+  function askLanding() {
+    return `<div class="ask-landing"><h2>What are we working on?</h2><p class="muted">Pick what ATL should know, then ask, diagnose or request a fix.</p><div class="ask-cards"><button type="button" class="ask-card" data-action="ask-card:tasks"><b>Why is a task blocked?</b><span>Add a task, ask what stops it.</span></button><button type="button" class="ask-card" data-action="ask-card:plans"><b>Review this plan</b><span>Find gaps before you queue it.</span></button><button type="button" class="ask-card" data-action="ask-card:project"><b>Find where it's handled</b><span>Ask about code in this project.</span></button></div></div>`;
+  }
+  function askPage() {
+    const body = askCurrent
+      ? `<div class="ask-transcript" id="askTranscript" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Ask ATL conversation" tabindex="0">${askTranscript()}</div>${askComposer()}`
+      : `${askLanding()}${askComposer({ landing: true })}`;
+    return `<section class="ask-page" aria-label="Ask ATL">${askRail()}<button type="button" class="ask-scrim" data-action="ask-toggle-rail" aria-label="Close chats" tabindex="-1"></button><section class="ask-main">${askHead()}${askNotice ? `<div class="notice" role="alert">${escapeHtml(askNotice)}</div>` : ""}<div class="ask-body">${body}</div></section></section>`;
+  }
+  async function loadAskPage() {
+    try {
+      const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "conversations" }) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Ask ATL is unavailable");
+      askConversations = result.conversations || [];
+      askProviders = result.providers || [];
+      askNotice = "";
+      askLoaded = true;
+      if (askCurrent && !askConversations.some((conversation) => conversation.id === askCurrent)) { askCurrent = null; askSession = null; askPersistCurrent(); }
+      render();
+      if (askCurrent) await loadAskConversation(askCurrent, { silent: true });
+    } catch (error) { askNotice = error.message; askLoaded = true; render(); }
+  }
+  async function loadAskConversation(id, { silent = false } = {}) {
+    clearInterval(askPoll);
+    askCurrent = id;
+    askSession = null;
+    askSessionFingerprint = "";
+    askPersistCurrent();
+    render();
+    try {
+      const result = await assistantRead(id);
+      if (askCurrent !== id) return;
+      askSession = result.session;
+      askSessionFingerprint = JSON.stringify(result.session);
+      if (result.providers?.length) askProviders = result.providers;
+      render();
+      scheduleAskPoll(id);
+    } catch (error) {
+      if (!silent) popup("Ask ATL unavailable", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close"));
+    }
+  }
+  function scheduleAskPoll(id) {
+    clearInterval(askPoll);
+    askPoll = setInterval(async () => {
+      if (page !== "assistant" || !askCurrent || askCurrent !== id || document.hidden || assistantPending || document.querySelector("#modal .overlay")) return;
+      try {
+        const result = await assistantRead(id);
+        const fingerprint = JSON.stringify(result.session);
+        if (fingerprint !== askSessionFingerprint) {
+          askSession = result.session;
+          askSessionFingerprint = fingerprint;
+          if (!askComposerFocused()) render();
+        }
+      } catch { /* transient poll errors surface through send/load paths */ }
+    }, 1500);
+  }
+  // Entering Ask ATL from a task (task detail, agent pod, workspace invite):
+  // reopen that task's single-task conversation, or seed a new chat draft with
+  // the task as context.
+  async function openAskForTask(scope) {
+    if (!askLoaded) await loadAskPage();
+    page = "assistant";
+    const existing = askConversations.find((conversation) => (conversation.context?.tasks || []).length === 1 && conversation.context.tasks[0].id === scope);
+    if (existing) return loadAskConversation(existing.id);
+    const draft = assistantDrafts.get("new") || {};
+    assistantDrafts.set("new", { ...draft, mode: "diagnose" });
+    askContextDraft = { tasks: [{ id: scope, include: ASK_INCLUDE_DEFAULT }], plans: [], project: false };
+    askCurrent = null;
+    askSession = null;
+    askPersistCurrent();
+    render();
+  }
+  function openAskPicker(tab = "tasks") {
+    if (!askPicker) askPicker = { tab, query: "", queryFocus: false, tasks: new Set(), plans: new Set(), project: false, include: new Map(), drafts: null, loading: false, editsConversation: Boolean(askCurrent) };
+    askPicker.tab = tab;
+    askPicker.editsConversation = Boolean(askCurrent);
+    renderAskPicker();
+  }
+  function askPickerSelection() {
+    return {
+      tasks: [...askPicker.tasks].map((id) => ({ id, include: [...(askPicker.include.get(id) || ASK_INCLUDE_DEFAULT)] })),
+      plans: [...askPicker.plans].map((id) => ({ id, title: (askPicker.drafts || []).find((item) => item.id === id)?.title || "" })),
+      project: askPicker.project,
+    };
+  }
+  function renderAskPicker(refocusSearch = false) {
+    const query = askPicker.query.trim().toLowerCase();
+    const tabs = [["tasks", "Tasks"], ["plans", "Plans"], ["project", "Project"]].map(([value, label]) => `<button type="button" class="ask-picker-tab ${askPicker.tab === value ? "on" : ""}" data-action="ask-picker-tab:${value}" aria-pressed="${askPicker.tab === value}">${label}</button>`).join("");
+    let body = "";
+    if (askPicker.tab === "tasks") {
+      const rows = derived().tasks
+        .filter((task) => ASK_IMPORTED_SOURCES.includes(task.source?.type) && !task.archived)
+        .filter((task) => !query || `${task.title} ${task.id}`.toLowerCase().includes(query))
+        .map((task) => {
+          const needsYou = task.rawStatus === "blocked" || task.rawStatus === "escalated";
+          const subtitle = needsYou ? "Needs you" : `${task.status}${task.progress !== null && task.progress !== undefined ? ` · ${task.progress}%` : ""}`;
+          return `<label class="ask-picker-row"><input type="checkbox" data-ask-task="${escapeHtml(task.id)}" ${askPicker.tasks.has(task.id) ? "checked" : ""}><span class="ask-picker-row-text"><b>${escapeHtml(task.title || task.id)}</b><span class="muted tiny">${escapeHtml(task.id)} · ${escapeHtml(subtitle)}</span></span></label>`;
+        }).join("");
+      const includeRows = [...askPicker.tasks].map((id) => {
+        const include = askPicker.include.get(id) || ASK_INCLUDE_DEFAULT;
+        const chips = [["brief", "Brief"], ["blocker", "Blocker"], ["prerequisites", "Prerequisites"], ["acceptance", "Acceptance"], ["runlog", "Run log"]].map(([key, label]) => `<button type="button" class="ask-include-chip ${include.includes(key) ? "on" : ""}" data-action="ask-include:${escapeHtml(id)}:${key}" aria-pressed="${include.includes(key)}">${include.includes(key) ? "☑" : "☐"} ${label}</button>`).join("");
+        return `<div class="ask-include-row"><span class="muted tiny">Include from ${escapeHtml(id)}</span><div class="ask-include-chips">${chips}</div></div>`;
+      }).join("");
+      body = `${rows || '<p class="muted tiny">No imported tasks yet. Import issues from an issue source to ask about them here.</p>'}${includeRows}`;
+    } else if (askPicker.tab === "plans") {
+      if (!askPicker.drafts && !askPicker.loading) {
+        askPicker.loading = true;
+        fetch("/api/plan/drafts", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then((response) => response.json()).then((result) => { if (!askPicker) return; askPicker.loading = false; askPicker.drafts = result.drafts || []; if (document.querySelector(".ask-picker-dialog")) renderAskPicker(); }).catch(() => { if (!askPicker) return; askPicker.loading = false; askPicker.drafts = []; });
+      }
+      const rows = (askPicker.drafts || []).filter((draft) => !query || `${draft.title} ${draft.stage}`.toLowerCase().includes(query)).map((draft) => `<label class="ask-picker-row"><input type="checkbox" data-ask-plan="${escapeHtml(draft.id)}" ${askPicker.plans.has(draft.id) ? "checked" : ""}><span class="ask-picker-row-text"><b>${escapeHtml(draft.title || "Untitled plan")}</b><span class="muted tiny">Plan · ${escapeHtml(draft.stage || "draft")}</span></span></label>`).join("");
+      body = askPicker.loading && !askPicker.drafts ? '<p class="muted tiny">Loading plans…</p>' : `${rows || '<p class="muted tiny">No saved plan drafts yet.</p>'}`;
+    } else {
+      body = `<label class="ask-picker-row"><input type="checkbox" id="askPickerProject" ${askPicker.project ? "checked" : ""}><span class="ask-picker-row-text"><b>This project</b><span class="muted tiny">Manager queue digest and suggested focus</span></span></label>`;
+    }
+    const count = askPicker.tasks.size + askPicker.plans.size + (askPicker.project ? 1 : 0);
+    popupWide("Add context", `<div class="ask-picker"><label class="sr-only" for="askPickerSearch">Search context</label><input class="input" id="askPickerSearch" placeholder="Search tasks, plans…" value="${escapeHtml(askPicker.query)}"><div class="ask-picker-tabs">${tabs}</div><div class="ask-picker-body">${body}</div></div>`, `<span class="muted tiny">${count} selected</span>${btn("Cancel", "close", "ghost")}${btn("Add to chat", "ask-picker-apply", "primary")}`, "ask-picker-dialog");
+    if (refocusSearch) { const search = $("#askPickerSearch"); if (search) { search.focus(); const end = search.value.length; try { search.setSelectionRange(end, end); } catch { /* not a text input */ } } askPicker.queryFocus = false; }
+    applyLocale();
+  }
+  async function askApplyPicker() {
+    const selection = askPickerSelection();
+    const editsConversation = askPicker.editsConversation;
+    askPicker = null;
+    close();
+    if (editsConversation && askCurrent) {
+      try {
+        const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "conversation-update", scope: askCurrent, context: selection }) });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "The context could not be updated");
+        if (askSession) askSession.context = result.conversation.context;
+      } catch (error) { popup("Context update failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+    } else {
+      askContextDraft = selection;
+    }
+    render();
+  }
+  async function askSend() {
+    if (askSession?.status === "running") return;
+    const message = $("#askInput")?.value || "";
+    const [provider, model] = String($("#askProvider")?.value || "").split("|");
+    if (!provider) { askNotice = "Choose a provider and model first."; render(); return; }
+    if (!message.trim()) { $("#askInput")?.focus(); return; }
+    const mode = assistantDrafts.get(askDraftKey())?.mode || "ask";
+    assistantPending = { scope: askCurrent, provider, model: model || "", message, mode, context: askCurrent ? null : (askContextDraft || { tasks: [], plans: [], project: false }), newChat: !askCurrent };
+    await action("ask-confirm");
+  }
+
   const panels = {
     sources: issueSourcesPanel,
     runs: runsPanel,
-    assistant: () => head("WORKSPACE / ASSISTANT", "Ask ATL", "Discuss this project or fix a task in its workspace.", btn("Open assistant", "assistant-open:global", "primary")) + `<div class="notice"><b>Project conversation</b><p>Open Ask ATL from a task to include its brief, blocker, and prerequisites, or request an approved workspace fix.</p></div>`,
+    assistant: () => askPage(),
     overview: () => {
       const { tasks, events } = derived();
       const shippedIds = shippedTaskIds(tasks);
@@ -3068,6 +3332,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
   async function openAssistantScoped(scope) {
     if (assistantWantsInline(scope)) await mountAssistantInline(scope);
+    else if (!PLUGIN) await openAskForTask(scope);
     else await openAssistant(scope);
   }
   // Crossing the narrow threshold re-evaluates the one-pane-at-a-time state.
@@ -3599,6 +3864,155 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
     if (value === "assistant-confirm") { if (!assistantPending) return; try { const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "send", ...assistantPending }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, "assistant-confirm"); if (!response.ok) throw new Error(result.error || "Assistant could not start"); const scope = assistantPending.scope; const draft = assistantDrafts.get(scope); if (draft) draft.message = ""; assistantPending = null; await openAssistantScoped(scope); } catch (error) { popup("Assistant could not start", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Back", `assistant-open:${assistantScope}`)); } return; }
     if (value === "assistant-cancel") { try { const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "cancel", scope: assistantScope }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "No session to stop"); await openAssistantScoped(assistantScope); } catch (error) { popup("Cannot stop session", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Back", `assistant-open:${assistantScope}`)); } return; }
+    if (value === "ask-new") { clearInterval(askPoll); askCurrent = null; askSession = null; askSessionFingerprint = ""; askContextDraft = null; askPersistCurrent(); render(); $("#askInput")?.focus(); return; }
+    if (value.startsWith("ask-open:")) { const id = value.slice(9); if (id && id !== askCurrent) await loadAskConversation(id); return; }
+    if (value === "ask-toggle-rail") { document.querySelector(".ask-page")?.classList.toggle("ask-rail-open"); const burger = document.querySelector(".ask-burger"); if (burger) burger.setAttribute("aria-expanded", document.querySelector(".ask-page")?.classList.contains("ask-rail-open") ? "true" : "false"); return; }
+    if (value.startsWith("ask-card:")) {
+      const card = value.slice(9);
+      if (card === "tasks" || card === "plans") openAskPicker(card);
+      else if (card === "project") { askContextDraft = { tasks: [], plans: [], project: true }; render(); $("#askInput")?.focus(); }
+      return;
+    }
+    if (value === "ask-picker") { openAskPicker("tasks"); return; }
+    if (value.startsWith("ask-picker-tab:")) { if (askPicker) { askPicker.tab = value.slice(15); renderAskPicker(); } return; }
+    if (value.startsWith("ask-include:")) {
+      if (!askPicker) return;
+      const [, taskId, key] = value.split(":");
+      const current = askPicker.include.get(taskId) || ASK_INCLUDE_DEFAULT;
+      const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+      askPicker.include.set(taskId, next);
+      renderAskPicker();
+      return;
+    }
+    if (value === "ask-picker-apply") { if (askPicker) await askApplyPicker(); return; }
+    if (value.startsWith("ask-remove-context:")) {
+      const [, type, id] = value.split(":");
+      const context = askCurrent ? (askSession?.context || {}) : (askContextDraft || {});
+      const next = { tasks: (context.tasks || []).filter((task) => !(type === "task" && task.id === id)), plans: (context.plans || []).filter((plan) => !(type === "plan" && plan.id === id)), project: type === "project" ? false : Boolean(context.project) };
+      if (askCurrent) {
+        try {
+          const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "conversation-update", scope: askCurrent, context: next }) });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "The context could not be updated");
+          if (askSession) askSession.context = result.conversation.context;
+        } catch (error) { popup("Context update failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      } else askContextDraft = next;
+      render();
+      return;
+    }
+    if (value.startsWith("ask-mode:")) {
+      const mode = value.slice(9);
+      if (!["ask", "diagnose", "fix"].includes(mode)) return;
+      const draft = assistantDrafts.get(askDraftKey()) || {};
+      assistantDrafts.set(askDraftKey(), { ...draft, mode });
+      render();
+      $("#askInput")?.focus();
+      return;
+    }
+    if (value === "ask-send") { await askSend(); return; }
+    if (value === "ask-confirm") {
+      if (!assistantPending) return;
+      try {
+        if (assistantPending.newChat) {
+          const createResponse = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "conversation-create", context: assistantPending.context || {}, mode: assistantPending.mode, provider: assistantPending.provider, model: assistantPending.model }) });
+          const created = await createResponse.json();
+          if (!createResponse.ok || !created.ok) throw new Error(created.error || "The chat could not be created");
+          assistantPending.scope = created.conversation.id;
+          assistantPending.newChat = false;
+          askCurrent = created.conversation.id;
+          askSession = created.conversation;
+          askPersistCurrent();
+          // Carry the composer's provider/mode choice into the conversation
+          // draft and clear the typed message from the landing draft so a
+          // later "+ New chat" starts empty.
+          assistantDrafts.set(askCurrent, { message: "", mode: assistantPending.mode, provider: `${assistantPending.provider}|${assistantPending.model || ""}` });
+          const landingDraft = assistantDrafts.get("new");
+          if (landingDraft) landingDraft.message = "";
+        }
+        const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "send", scope: assistantPending.scope, provider: assistantPending.provider, model: assistantPending.model, message: assistantPending.message, mode: assistantPending.mode, context: assistantPending.context }) });
+        const result = await response.json();
+        if (result.approvalRequired) return showRunApproval(result.proposal, "ask-confirm");
+        if (!response.ok) throw new Error(result.error || "Assistant could not start");
+        const draft = assistantDrafts.get(askCurrent);
+        if (draft) draft.message = "";
+        assistantPending = null;
+        await loadAskConversation(askCurrent);
+      } catch (error) { popup("Assistant could not start", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Back", "ask-new")); }
+      return;
+    }
+    if (value === "ask-stop") { try { const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "cancel", scope: askCurrent }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "No session to stop"); await loadAskConversation(askCurrent); } catch (error) { popup("Cannot stop session", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
+    if (value === "ask-menu") {
+      popup(`Chat options`, `<p class="sub">${escapeHtml(askSession?.title || "Untitled chat")} · ${escapeHtml(askConversations.find((conversation) => conversation.id === askCurrent) ? askConversationSubtitle(askConversations.find((conversation) => conversation.id === askCurrent)) : "")}</p>`, `${btn("Rename chat", "ask-rename", "primary")}${btn("Copy conversation", "ask-copy:all", "sm")}${btn("Delete chat", "ask-delete", "danger")}${btn("Close", "close", "ghost")}`);
+      return;
+    }
+    if (value === "ask-rename") {
+      popup("Rename chat", `<div class="field"><label class="label" for="askRenameInput">Chat name</label><input class="input" id="askRenameInput" value="${escapeHtml(askSession?.title || "")}" maxlength="120"></div>`, `${btn("Cancel", "close", "ghost")}${btn("Save name", "ask-rename-save", "primary")}`);
+      $("#askRenameInput")?.focus();
+      return;
+    }
+    if (value === "ask-rename-save") {
+      const title = $("#askRenameInput")?.value || "";
+      try {
+        const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "conversation-rename", scope: askCurrent, title }) });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "The chat could not be renamed");
+        if (askSession) askSession.title = result.conversation.title;
+        close(); render();
+      } catch (error) { popup("Rename failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value === "ask-delete") {
+      popup("Delete this chat?", `<p>The conversation and its history on this machine will be removed. Task state and evidence are untouched.</p>`, `${btn("Cancel", "close", "ghost")}${btn("Delete chat", "ask-delete-confirm", "danger")}`);
+      return;
+    }
+    if (value === "ask-delete-confirm") {
+      try {
+        const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "conversation-delete", scope: askCurrent }) });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "The chat could not be deleted");
+        close();
+        askCurrent = null; askSession = null; askPersistCurrent();
+        await loadAskPage();
+      } catch (error) { popup("Delete failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value.startsWith("ask-copy:")) {
+      const key = value.slice(9);
+      const text = key === "all" ? (askSession?.messages || []).map((message) => `${message.role === "user" ? "You" : "ATL"}\n${message.text}`).join("\n\n")
+        : key === "error" ? [askSession?.failure?.summary || askSession?.error, askSession?.failure?.next_action].filter(Boolean).join("\n\n")
+        : askSession?.messages?.[Number(key)]?.text || "";
+      void navigator.clipboard?.writeText(text).catch(() => {});
+      if (key !== "all") { const buttons = document.querySelectorAll(`[data-action="ask-copy:${CSS.escape(key)}"]`); for (const button of buttons) { button.textContent = "Copied"; setTimeout(() => { button.textContent = key === "error" ? "Copy error" : "Copy"; }, 1200); } }
+      return;
+    }
+    if (value === "ask-retry") {
+      const lastUser = [...(askSession?.messages || [])].reverse().find((message) => message.role === "user")?.text || "";
+      const draft = assistantDrafts.get(askDraftKey()) || {};
+      assistantDrafts.set(askDraftKey(), { ...draft, message: lastUser });
+      render();
+      $("#askInput")?.focus();
+      return;
+    }
+    if (value === "ask-create-task") {
+      const lastAssistant = [...(askSession?.messages || [])].reverse().find((message) => message.role === "assistant")?.text || "";
+      // taskForm restores any stale session-storage draft over the prefill;
+      // clear it so this reply's title/objective actually land in the form.
+      try { sessionStorage.removeItem(scopedStorageKey("atl-task-draft")); } catch { /* storage may be unavailable */ }
+      taskForm({ title: askSession?.title || "From Ask ATL", desc: lastAssistant.slice(0, 4000) });
+      return;
+    }
+    if (value === "ask-save-knowledge") {
+      const lastAssistant = [...(askSession?.messages || [])].reverse().find((message) => message.role === "assistant")?.text || "";
+      if (!lastAssistant.trim()) { popup("Nothing to save", "<p>No ATL reply in this conversation yet.</p>", btn("Close", "close")); return; }
+      try {
+        const response = await fetch("/api/brain", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "add-claim", text: lastAssistant.slice(0, 8000), source_id: "ask-atl", source_uri: `ask-atl://${askCurrent}`, subject: askSession?.title || null }) });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "Knowledge save failed");
+        popup("Saved to Knowledge", `<p>The reply is stored as an unverified claim. Approve it on the Knowledge page once you have checked it.</p><p class="muted tiny" dir="ltr" data-no-translate>${escapeHtml(result.result?.claim?.claim_id || "")}</p>`, btn("Open Knowledge", "go:brain", "primary") + btn("Close", "close", "ghost"));
+      } catch (error) { popup("Knowledge save failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value === "ask-dismiss-review") { if (askCurrent) askDismissedReviews.add(askCurrent); render(); return; }
     if (value.startsWith("task-recovery:")) {
       const id = value.slice(14);
       try {
@@ -3780,7 +4194,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "mt-settings" || value === "mt-enable") return void openMyTasksSettings();
     if (value === "mt-save") return void saveMyTasksSettings();
     if (value.startsWith("mt-row:")) return myTasksDetail(decodeURIComponent(value.slice(7)));
-    if (value.startsWith("go:")) { close(); page = value.slice(3); render(); if (page === "sources") { render(); void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { if (page === "sources") render(); }); } if (page === "projects" || page === "sources") void loadProjectMap(); if (page === "mytasks") { void loadMyTasks().then(() => { const loaded = myTasksSettingsData; if (loaded && (!loaded.connection?.token_present || !loaded.settings?.enabled)) void loadMyTasksProjects(); }); if (!myTasksTimer) myTasksTimer = setInterval(() => { if (page !== "mytasks") { clearInterval(myTasksTimer); myTasksTimer = null; return; } void loadMyTasks({ silent: true }); }, 5000); } return; }
+    if (value.startsWith("go:")) { close(); page = value.slice(3); render(); if (page === "assistant") void loadAskPage(); if (page === "sources") { render(); void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { if (page === "sources") render(); }); } if (page === "projects" || page === "sources") void loadProjectMap(); if (page === "mytasks") { void loadMyTasks().then(() => { const loaded = myTasksSettingsData; if (loaded && (!loaded.connection?.token_present || !loaded.settings?.enabled)) void loadMyTasksProjects(); }); if (!myTasksTimer) myTasksTimer = setInterval(() => { if (page !== "mytasks") { clearInterval(myTasksTimer); myTasksTimer = null; return; } void loadMyTasks({ silent: true }); }, 5000); } return; }
     if (value.startsWith("filter:")) { filter = value.slice(7); page = "tasks"; render(); return; }
     if (value === "blockers") { filter = "Blocked"; queueFilter = "All"; page = "tasks"; render(); return; }
     if (value.startsWith("edit:")) return taskForm(derived().tasks.find((task) => task.id === value.slice(5)));
@@ -4843,6 +5257,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     pluginOverflowOpen = false;
     render();
     // The Settings page renders live provider state — refresh it on arrival.
+    if (next === "assistant") void loadAskPage();
+    else clearInterval(askPoll);
     if (next === "sources") void loadIssueSources().then(() => { if (page === 'sources') { render(); if (sourceSelectedId && !sourcePreview) void browseCurrentDefaults(); } }).catch((error) => { sourceNotice = error.message; if (page === 'sources') render(); });
     if (next === "sources") void loadProjectMap();
     if (next === "projects") void loadProjectMap();
@@ -5056,9 +5472,36 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   enhanceSecretInputs();
   document.addEventListener("input", saveAssistantDraft);
   document.addEventListener("change", saveAssistantDraft);
+  // Ask ATL composer mirror: keep message + provider in the draft map so the
+  // snapshot repaint never eats typed text; rail search filters in place.
+  document.addEventListener("input", (event) => {
+    if (event.target.id === "askInput") { const draft = assistantDrafts.get(askDraftKey()) || {}; assistantDrafts.set(askDraftKey(), { ...draft, message: event.target.value }); }
+    else if (event.target.id === "askProvider") { const draft = assistantDrafts.get(askDraftKey()) || {}; assistantDrafts.set(askDraftKey(), { ...draft, provider: event.target.value }); }
+    else if (event.target.id === "askSearch") {
+      // Filter the rail in place: a full re-render per keystroke is wasteful
+      // and would fight the caret restore.
+      askFilter = event.target.value;
+      const filter = askFilter.trim().toLowerCase();
+      for (const item of document.querySelectorAll(".ask-history-item")) {
+        const text = `${item.querySelector("b")?.textContent || ""} ${item.querySelector("span")?.textContent || ""}`.toLowerCase();
+        item.hidden = Boolean(filter) && !text.includes(filter);
+      }
+    }
+    else if (event.target.id === "askPickerSearch" && askPicker) { askPicker.query = event.target.value; renderAskPicker(true); }
+  });
+  // Add-context picker checkboxes live in #modal (not wiped by render()).
+  document.addEventListener("change", (event) => {
+    if (!askPicker) return;
+    if (event.target?.dataset?.askTask) { if (event.target.checked) askPicker.tasks.add(event.target.dataset.askTask); else askPicker.tasks.delete(event.target.dataset.askTask); renderAskPicker(); }
+    else if (event.target?.dataset?.askPlan) { if (event.target.checked) askPicker.plans.add(event.target.dataset.askPlan); else askPicker.plans.delete(event.target.dataset.askPlan); renderAskPicker(); }
+    else if (event.target?.id === "askPickerProject") { askPicker.project = event.target.checked; renderAskPicker(); }
+  });
   document.addEventListener("keydown", (event) => {
     if (PLUGIN && pluginOverflowOpen && event.key === "Escape" && !dialogOpen) { event.preventDefault(); closePluginOverflow(); document.querySelector('[data-action="plugin-overflow"]')?.focus(); return; }
     if (event.target.id === "assistantMessage" && event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); void action("assistant-send"); return; }
+    // Ask ATL composer: Ctrl/Cmd+Enter sends, Enter adds a line, @ opens the context picker.
+    if (event.target.id === "askInput" && event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); void action("ask-send"); return; }
+    if (event.target.id === "askInput" && event.key === "@" && !event.isComposing) { event.preventDefault(); void action("ask-picker"); return; }
     // Studio composer: Enter inserts a newline; Ctrl/Cmd+Enter sends — the
     // initial generation or, once a draft exists, one bounded refinement call.
     if (event.target.id === "goal" && event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); void action(currentDraft && currentDraft.stage !== "repair" ? "refine-submit" : "generate"); return; }
@@ -5174,6 +5617,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   void Promise.all([refresh(false), refreshRun(false), loadProviders(true), loadSavedPlans(), ...(page === "sources" ? [loadIssueSources()] : []), ...(page === "projects" ? [loadProjectMap()] : []), ...(page === "mytasks" ? [loadMyTasks()] : []), ...(page === "settings" ? [loadNavigation(), loadAccess(), loadResources()] : [])]).then(() => {
     render();
     connectStream();
+    if (page === "assistant") void loadAskPage();
     if (page === 'sources' && sourceSelectedId && !sourcePreview) void browseCurrentDefaults();
     if (page === "mytasks" && !myTasksTimer) myTasksTimer = setInterval(() => { if (page === "mytasks") void loadMyTasks({ silent: true }); }, 5000);
   });

@@ -1,0 +1,137 @@
+// Ask ATL page — chat rail, landing hero, conversation transcript, composer
+// and the Add-context picker. All color comes from theme tokens so dark,
+// light and RTL come along for free; layout uses logical properties.
+// Compiled into control-plane.html by scripts/build-control-plane-css.mjs.
+
+.ask-page{display:grid;grid-template-columns:250px minmax(0,1fr);height:calc(100dvh - 150px);min-height:480px;margin:-10px -10px -15px;border:1px solid var(--border);border-radius:12px;background:var(--bg);overflow:hidden}
+
+// --- Chat rail ---------------------------------------------------------------
+.ask-rail{min-width:0;display:flex;flex-direction:column;gap:10px;padding:14px 12px;border-inline-end:1px solid var(--border);background:var(--side);overflow:hidden}
+.ask-rail .ask-new{width:100%;flex:none}
+.ask-rail>.input{width:100%;flex:none}
+.ask-rail-groups{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--btn-edge) transparent}
+.ask-rail .eyebrow{margin:10px 4px 4px}
+.ask-history-item{width:100%;display:flex;flex-direction:column;gap:2px;text-align:start;padding:9px 10px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text);cursor:pointer}
+.ask-history-item:hover{background:var(--row-hover)}
+.ask-history-item.selected{background:var(--accent-bg);border-color:var(--accent-edge)}
+.ask-history-item b{font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ask-history-item span{font-size:10.5px;color:var(--muted)}
+.ask-rail-empty{padding:10px 6px;line-height:1.6}
+
+// --- Main column -------------------------------------------------------------
+.ask-main{min-width:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);background:var(--bg)}
+.ask-head{display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--border);background:var(--bg)}
+.ask-burger{display:none;flex:none;width:32px;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--pane);color:var(--text);cursor:pointer;font-size:14px}
+.ask-title{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.ask-title h1{font-size:16px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ask-title p{margin:0}
+.ask-head-ctx{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;min-width:0}
+.ask-ctx-label{flex:none}
+.ask-more{flex:none;width:30px;height:30px;border:1px solid var(--border);border-radius:8px;background:var(--pane);color:var(--text);cursor:pointer;font-size:13px}
+.ask-more:hover,.ask-burger:hover{background:var(--row-hover)}
+.ask-body{min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+
+// --- Landing -----------------------------------------------------------------
+.ask-landing{height:100%;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:28px 20px 10px;text-align:center}
+.ask-landing h2{font-size:26px;margin:0;letter-spacing:-0.2px}
+.ask-landing p{margin:0 0 14px}
+.ask-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:min(880px,100%)}
+.ask-card{display:flex;flex-direction:column;gap:4px;text-align:start;padding:16px;border:1px solid var(--border);border-radius:14px;background:var(--pane);color:var(--text);cursor:pointer}
+.ask-card:hover{background:var(--row-hover);border-color:var(--btn-edge-hover)}
+.ask-card b{font-size:14px}
+.ask-card span{font-size:12px;color:var(--muted)}
+
+// --- Transcript --------------------------------------------------------------
+.ask-transcript{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 18px 8px;scrollbar-width:thin;scrollbar-color:var(--btn-edge) transparent}
+.ask-transcript::before{content:"";display:block;height:12px}
+.ask-msg{max-width:min(760px,94%);margin:0 auto 14px;display:flex;gap:10px;align-items:flex-start}
+.ask-msg-user{justify-content:flex-end}
+.ask-msg-user .ask-msg-content{max-width:78%;background:var(--accent-bg);border:1px solid var(--accent-edge);color:var(--text);border-radius:14px;border-end-end-radius:4px;padding:9px 14px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.ask-avatar{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-strong);color:var(--on-accent);display:grid;place-items:center;font-size:12px;font-weight:700;margin-top:2px}
+.ask-msg-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:8px;font-size:13.5px;line-height:1.65}
+.ask-msg-content{min-width:0;overflow-wrap:anywhere}
+.ask-msg-content p{margin:6px 0}
+.ask-msg-content p:first-child{margin-top:0}
+.ask-msg-content ul,.ask-msg-content ol{margin:6px 0;padding-inline-start:22px}
+.ask-msg-content code{font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;background:var(--chip);border:1px solid var(--term-edge);border-radius:5px;padding:1px 5px;unicode-bidi:isolate}
+.ask-msg-content pre.assistant-code{background:var(--term-bg);border:1px solid var(--term-edge);color:var(--term-ink);border-radius:10px;padding:12px 14px;overflow-x:auto;font-size:12px;line-height:1.6;margin:8px 0}
+.ask-running{font-size:12.5px;color:var(--muted);font-weight:600}
+.ask-used{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ask-used-label{font-size:11px;color:var(--muted)}
+.ask-used-chip{font-size:10.5px;color:var(--muted);background:var(--chip);border:1px solid var(--border);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.ask-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.ask-actions .btn{padding:5px 10px;font-size:11px}
+
+// Proposed workspace fix / failure cards
+.ask-proposal{max-width:min(760px,94%);margin:2px auto 16px;border:1px solid var(--border);border-radius:12px;background:var(--pane);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.ask-proposal-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ask-proposal-head b{font-size:13.5px}
+.ask-proposal-note{margin:0;font-size:11.5px;color:var(--muted);line-height:1.6}
+.ask-proposal .bar{gap:8px;flex-wrap:wrap}
+
+// --- Composer ----------------------------------------------------------------
+.ask-composer{flex:none;width:min(940px,calc(100% - 36px));margin:0 auto 12px;border:1px solid var(--border);border-radius:16px;background:var(--pane);padding:10px 12px 8px;display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 12px var(--dialog-shadow)}
+.ask-composer:focus-within{border-color:var(--accent-edge)}
+.ask-composer-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ask-composer-chips:empty{display:none}
+.ask-chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent-bg);border:1px solid var(--accent-edge);color:var(--text);border-radius:999px;padding:3px 5px 3px 10px;font-size:11.5px;font-weight:600}
+.ask-chip-x{width:16px;height:16px;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;font-size:11px;line-height:1;display:grid;place-items:center;padding:0}
+.ask-chip-x:hover{color:var(--red)}
+.ask-add-context{border:1px dashed var(--btn-edge);background:transparent;color:var(--muted);border-radius:999px;padding:3px 11px;font-size:11.5px;cursor:pointer}
+.ask-add-context:hover{color:var(--text);border-color:var(--accent-edge)}
+.ask-composer #askInput{width:100%;min-height:44px;max-height:22dvh;resize:vertical;font:inherit;font-size:13.5px;line-height:1.55;background:transparent;border:0;padding:2px 4px;box-shadow:none}
+.ask-composer #askInput:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.ask-composer-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ask-segmented{display:inline-flex;border:1px solid var(--border);border-radius:10px;background:var(--chip);overflow:hidden}
+.ask-seg{border:0;background:transparent;color:var(--muted);padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;border-inline-end:1px solid var(--border)}
+.ask-seg:last-child{border-inline-end:0}
+.ask-seg:hover:not(:disabled){color:var(--text);background:var(--row-hover)}
+.ask-seg.on{background:var(--accent-bg);color:var(--text);box-shadow:inset 0 0 0 1px var(--accent-edge)}
+.ask-seg:disabled{opacity:0.45;cursor:not-allowed}
+.ask-provider-pill{flex:none;max-width:220px;border:1px solid var(--border);border-radius:999px;background:var(--chip);color:var(--text);padding:6px 12px;font-size:11.5px;font-weight:600;text-overflow:ellipsis}
+.ask-send{flex:none;margin-inline-start:auto;border-radius:999px;padding:7px 20px}
+.ask-hints{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.ask-hints .muted.tiny{line-height:1.5}
+
+// --- Add-context picker ------------------------------------------------------
+.ask-picker{display:flex;flex-direction:column;gap:10px}
+.ask-picker>.input{width:100%}
+.ask-picker-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border)}
+.ask-picker-tab{border:0;background:transparent;color:var(--muted);padding:8px 14px;font-size:12.5px;font-weight:650;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.ask-picker-tab:hover{color:var(--text)}
+.ask-picker-tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.ask-picker-body{max-height:min(52dvh,480px);overflow-y:auto;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:var(--btn-edge) transparent}
+.ask-picker-row{display:flex;align-items:flex-start;gap:10px;padding:9px 8px;border-radius:9px;cursor:pointer}
+.ask-picker-row:hover{background:var(--row-hover)}
+.ask-picker-row input{margin-top:2px;accent-color:var(--accent-strong)}
+.ask-picker-row-text{min-width:0;display:flex;flex-direction:column;gap:2px}
+.ask-picker-row-text b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ask-include-row{border-top:1px solid var(--row-line);padding:10px 8px 6px;display:flex;flex-direction:column;gap:6px}
+.ask-include-chips{display:flex;gap:6px;flex-wrap:wrap}
+.ask-include-chip{border:1px solid var(--border);background:var(--chip);color:var(--muted);border-radius:999px;padding:4px 11px;font-size:11.5px;cursor:pointer}
+.ask-include-chip.on{background:var(--accent-bg);border-color:var(--accent-edge);color:var(--text);font-weight:600}
+
+// --- Narrow screens ----------------------------------------------------------
+.ask-scrim{display:none}
+@media(max-width:800px){
+  .ask-page.ask-rail-open .ask-scrim{display:block;position:absolute;inset:0;background:var(--backdrop);border:0;padding:0;cursor:pointer;z-index:4}
+  .ask-page{grid-template-columns:minmax(0,1fr);height:calc(100dvh - 128px);margin:-8px -8px -12px;border-radius:10px;position:relative}
+  .ask-rail{position:absolute;inset-block:0;inset-inline-start:0;width:min(78vw,300px);z-index:5;transform:translateX(calc(var(--ask-rail-dir,-1) * 105%));transition:transform 0.18s ease;border-inline-end:1px solid var(--border);box-shadow:8px 0 24px var(--dialog-shadow)}
+  html[dir="rtl"] .ask-rail{--ask-rail-dir:1}
+  .ask-page.ask-rail-open .ask-rail{transform:none}
+  .ask-burger{display:block}
+  .ask-head{padding:9px 12px;gap:8px;flex-wrap:wrap}
+  .ask-head-ctx{justify-content:flex-start}
+  .ask-landing{justify-content:flex-start;padding-top:34px}
+  .ask-landing h2{font-size:22px}
+  .ask-cards{grid-template-columns:minmax(0,1fr);gap:9px}
+  .ask-composer{width:calc(100% - 16px);padding:8px 10px 6px;border-radius:13px}
+  .ask-composer-bar{gap:6px}
+  .ask-seg{padding:6px 9px;font-size:11px}
+  .ask-provider-pill{max-width:150px;font-size:10.5px}
+  .ask-send{padding:7px 14px}
+  .ask-hints{display:none}
+  .ask-msg-user .ask-msg-content{max-width:88%}
+  .ask-transcript{padding:12px 10px 6px}
+}
+@media(prefers-reduced-motion:reduce){.ask-rail{transition:none}}

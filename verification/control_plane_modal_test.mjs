@@ -110,23 +110,33 @@ try {
     await workspace.locator("#taskBrowserAccess").waitFor();
     assert.equal(await page.evaluate(() => document.activeElement?.id), "taskBrowserAccess", "MCP denial leads directly to the task browser permission control");
 
+    // The redesigned Ask ATL page: landing hero, chat rail, context picker
+    // (imported tasks only) and the segmented Ask/Diagnose/Fix composer.
     await page.locator('[data-page="assistant"]:visible').first().click();
-    await page.locator('[data-action="assistant-open:global"]').first().click();
-    await dialog.locator("#assistantTranscript").waitFor();
-    if (process.env.ATL_ASSISTANT_SCREENSHOT && viewport.width === 390) await dialog.screenshot({ path: process.env.ATL_ASSISTANT_SCREENSHOT });
-    await dialog.locator(".assistant-guidance").evaluate((node) => { node.open = true; });
-    await dialog.locator('[data-action="assistant-suggest"]').click();
-    assert.match(await dialog.locator("#assistantMessage").inputValue(), /T-022/, "suggestion names the current blocked task");
-    const assistantBounds = await dialog.boundingBox();
-    assert.ok(assistantBounds.y >= 0 && assistantBounds.y + assistantBounds.height <= viewport.height + 1, "Ask ATL modal fits viewport");
-    await dialog.locator('[data-action="access-open:global"]').click();
-    await dialog.waitFor();
-    await dialog.locator('#taskAccessMode').waitFor();
-    const accessBounds = await dialog.boundingBox();
-    assert.ok(accessBounds.y >= 0 && accessBounds.y + accessBounds.height <= viewport.height + 1, "workspace access modal fits viewport");
-    const overflow = await dialog.evaluate((node) => ({ body: node.querySelector(".dialogbody").scrollWidth - node.querySelector(".dialogbody").clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
-    assert.ok(overflow.body <= 1 && overflow.page <= 1, "workspace access has no horizontal overflow");
-    await page.keyboard.press("Escape");
+    await page.locator(".ask-landing").waitFor();
+    await page.locator("#askInput").waitFor();
+    if (viewport.width === 390) {
+      await page.locator(".ask-burger").click();
+      assert.equal(await page.locator(".ask-page.ask-rail-open").count(), 1, "the mobile burger opens the chat drawer");
+      await page.locator(".ask-scrim").click();
+      assert.equal(await page.locator(".ask-page.ask-rail-open").count(), 0, "tapping the scrim closes the chat drawer");
+    } else {
+      await page.locator(".ask-rail .ask-new").waitFor();
+    }
+    await page.locator('[data-action="ask-picker"]').first().click();
+    await dialog.locator(".ask-picker").waitFor();
+    assert.match(await dialog.locator(".ask-picker-body").textContent(), /No imported tasks yet/, "the picker lists imported tasks only; native tasks stay out");
+    await dialog.locator('[data-action="ask-picker-tab:project"]').click();
+    await dialog.locator("#askPickerProject").check();
+    await dialog.locator('[data-action="ask-picker-apply"]').click();
+    assert.equal(await dialog.count(), 0, "the picker closes on apply");
+    assert.ok(await page.locator(".ask-composer-chips .ask-chip").count() >= 1, "applied context appears as a composer chip");
+    assert.ok(await page.locator('[data-action="ask-mode:fix"]').isDisabled(), "fix stays disabled without a workspace-capable task context");
+    await page.locator('[data-action="ask-mode:diagnose"]').click();
+    assert.match(await page.locator(".ask-seg.on").textContent(), /Diagnose/, "mode switches update the segmented control");
+    const composerBounds = await page.locator(".ask-composer").boundingBox();
+    assert.ok(composerBounds.y >= 0 && composerBounds.y + composerBounds.height <= viewport.height + 1, "the Ask ATL composer fits the viewport");
+    if (process.env.ATL_ASSISTANT_SCREENSHOT && viewport.width === 390) await page.locator(".ask-page").screenshot({ path: process.env.ATL_ASSISTANT_SCREENSHOT });
     await page.locator('[data-page="settings"]:visible').first().click();
     await page.locator("#browserAccessDefault").waitFor();
     await page.locator("#browserAccessDefault").selectOption("approved");
