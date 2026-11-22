@@ -803,8 +803,9 @@ function printProviders(cfg) {
   const registryIds = Object.keys(registry);
   if (flags.json) {
     // Machine-readable view for plugin/automation callers: ids with their
-    // worker, endpoint and readiness problems (never the key material).
-    console.log(JSON.stringify({ providers: registryIds.map((id) => { const entry = registry[id]; return { id, worker: entry.worker, base_url: entry.base_url || "", model: entry.model || "", ready: validateProviderEntry(entry).length === 0 }; }) }, null, 2));
+    // worker, endpoint and readiness problems (never the key material), plus
+    // the project's selected provider for binding UIs.
+    console.log(JSON.stringify({ selected: profile.use || profile.defaultWorker || null, providers: registryIds.map((id) => { const entry = registry[id]; return { id, worker: entry.worker, base_url: entry.base_url || "", model: entry.model || "", ready: validateProviderEntry(entry).length === 0 }; }) }, null, 2));
     return;
   }
   console.log("Your providers (~/.atl/providers.json — API keys stored outside every repo):");

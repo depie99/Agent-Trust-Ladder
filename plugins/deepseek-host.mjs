@@ -87,6 +87,14 @@ export async function createTask(ctx, host, title, signal) {
 export async function approveTask(ctx, host, taskId, note, signal) {
   if (!String(taskId || '').trim()) throw new Error('usage: /atl-approve <task-id> [--note text]');
   const project = await resolveProject(ctx);
+  // When the host owns an approval surface, the decision happens there —
+  // visible in the host UI instead of only in tool output (#61). Denial
+  // shapes are matched defensively; the ATL owner gate itself still runs.
+  if (typeof ctx?.approval?.request === 'function') {
+    const decision = await ctx.approval.request({ title: `ATL approve ${String(taskId).trim()}`, detail: String(note || 'Record owner approval for this task.').trim() });
+    const denied = decision === false || decision?.approved === false || decision?.decision === 'deny' || decision?.decision === 'denied';
+    if (denied) return 'Denied; approval was not recorded.';
+  }
   const args = ['approve', String(taskId).trim()];
   if (String(note || '').trim()) args.push('--note', String(note).trim());
   // The owner approval gate surfaces as an action card when the host provides
