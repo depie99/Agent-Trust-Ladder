@@ -1331,7 +1331,7 @@ ${feedbackLine}
       `<div class="mt-setup" data-mt-setup>${connected
         ? `<p class="sub">Using the saved Azure connection for <b dir="ltr">${escapeHtml(connection.org_url || "")}</b><span id="mtIdentityLine">${identityNameLine(myTasksSetupProjects?.identity) || identityNameLine(myTasksStatus)}</span>.<br><span class="muted tiny">Reads only — ATL never writes to Azure and never creates tasks from this page.</span></p>`
         : `<p class="sub">This dialog reuses the saved Azure connection (PAT with Work Items: Read).</p><p class="sub">${connection?.id ? "No credential is available for this session." : "Connect Azure Boards first."}</p><div class="bar" style="margin-top:8px">${connection?.id ? btn("Re-authenticate", `mt-reconnect:${connection.id}`, "sm primary") : ""}<button class="btn sm" data-action="go:sources">Issue sources</button></div>`}<div id="mtProjectList">${setupProjectsHtml()}</div>${setupScheduleHtml(myTasksSettingsData?.settings)}</div>`,
-      `${btn("Save settings", "mt-save", "primary")}<button type="button" class="btn" data-mtr-action="analysis-settings">${locale === "fa-IR" ? "\u062a\u062d\u0644\u06cc\u0644 \u0648 Jira" : "Analysis & Jira"}</button><button type="button" class="btn" data-mtr-action="bindings">${locale === "fa-IR" ? "اتصال مخزن‌ها" : "Repository connections"}</button>${btn("Close", "close", "ghost")}`);
+      `${btn("Save settings", "mt-save", "primary")}<button type="button" class="btn" data-mtr-action="analysis-settings">Analysis & Jira</button><button type="button" class="btn" data-mtr-action="bindings">Repository connections</button>${btn("Close", "close", "ghost")}`);
   }
   async function saveMyTasksSettings() {
     const inDialog = Boolean($("[data-mt-setup]"));
