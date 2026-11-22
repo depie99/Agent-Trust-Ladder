@@ -16,7 +16,7 @@ const savedHome = { USERPROFILE: process.env.USERPROFILE, HOME: process.env.HOME
 process.env.USERPROFILE = home;
 process.env.HOME = home;
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
-fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "claude", base_url: "https://example.test", api_key: "test-key", model: "test-model" } } }));
+fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "openai-http", protocol: "openai", base_url: "https://example.test/v1", api_key: "test-key", model: "test-model" } } }));
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1 }));
 fs.mkdirSync(path.join(root, "src"), { recursive: true });

@@ -17,7 +17,7 @@ process.env.HOME = fakeHome;
 fs.mkdirSync(path.join(fakeHome, ".atl"), { recursive: true });
 fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({
   providers: {
-    testprov: { id: "testprov", label: "Test Provider", worker: "claude", base_url: "https://example.test/api", api_key: "sk-secret-value", model: "m-1", models: ["m-1", "m-2"] },
+    testprov: { id: "testprov", label: "Test Provider", worker: "openai-http", protocol: "openai", base_url: "https://example.test/api", api_key: "sk-secret-value", model: "m-1", models: ["m-1", "m-2"] },
   },
 }, null, 2));
 
