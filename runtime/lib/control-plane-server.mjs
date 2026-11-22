@@ -201,31 +201,22 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE), embed
   // document listeners active makes route clicks race and can make Tasks
   // appear to open another page. Keep the artifact's DOM/CSS intact while
   // removing only that stale inline controller at the HTTP boundary.
-  const legacyController = /<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/;
-  let bodyText = replaceRegexExactlyOnce(source, legacyController, '<script src="./control-plane-i18n.js"></script><script src="./control-plane-client.js"></script>', 'legacy controller');
-  bodyText = replaceExactlyOnce(bodyText, '<script src="./control-plane-client.js">', '<script src="./control-plane-changes.js"></script><script src="./control-plane-client.js">', 'client script');
-  bodyText = replaceExactlyOnce(bodyText, '<script src="./control-plane-client.js">', '<script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">', 'client script');
+  // The artifact ships exactly one live-controller script tag; the served
+  // surface needs the i18n dictionary and the two auxiliary bundles ahead of
+  // it. (The stale inline demo controller this rewrite used to replace is
+  // gone from the artifact itself — issue #60 removed it.)
+  let bodyText = replaceExactlyOnce(source, '<script src="./control-plane-client.js">', '<script src="./control-plane-i18n.js"></script><script src="./control-plane-changes.js"></script><script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">', 'live controller scripts');
   // The checked-in standalone artifact predates the live client and places
   // the body inside the flex topbar. Close that shell boundary for the live
   // surface; otherwise the header's flex rules squeeze and center the page.
   bodyText = replaceExactlyOnce(bodyText, '<div id="mobile" class="mobile">', '</header><div id="mobile" class="mobile">', 'mobile shell');
   bodyText = replaceExactlyOnce(bodyText, '<title>ATL — Developer Control Plane Prototype</title>', '<title>ATL — Developer Control Plane</title>', 'prototype title');
-  for (const [pattern, label] of [
-    [/<span>[^<]*Interactive mock[^<]*<\/span>/g, 'demo footer'],
-    [/<span class="pill hotkey">INTERACTIVE DEMO<\/span>/g, 'demo pill'],
-    [/<div class="workspace"><div class="row between"><strong>agent-trust-ladder<\/strong><span class="green">[^<]*<\/span><\/div><div class="muted tiny">main[^<]*<\/div><\/div>/g, 'demo workspace'],
-    [/<button id="noticesBtn" class="btn ghost">[^<]*<span class="amber">3<\/span><\/button>/g, 'demo unread badge'],
-  ]) {
-    const count = [...source.matchAll(pattern)].length;
-    if (count !== 1) throw new Error(`Control Plane artifact contract changed; expected one ${label} marker, found ${count}`);
-  }
-  // The artifact's footer and topbar pill honestly describe its offline demo
-  // mode. The served surface reads and drives the real workspace, so relabel
-  // them here; the standalone file keeps its mock banner.
-  bodyText = replaceRegexExactlyOnce(bodyText, /<span>[^<]*Interactive mock[^<]*<\/span>/, `<span>Live - connected to ${escapeText(path.basename(root))}</span>`, 'demo footer');
-  bodyText = replaceRegexExactlyOnce(bodyText, /<span class="pill hotkey">INTERACTIVE DEMO<\/span>/, '<span class="pill hotkey">LIVE</span>', 'demo pill');
-  bodyText = replaceRegexExactlyOnce(bodyText, /<div class="workspace"><div class="row between"><strong>agent-trust-ladder<\/strong><span class="green">[^<]*<\/span><\/div><div class="muted tiny">main[^<]*<\/div><\/div>/, `<div class="workspace"><div class="row between"><strong>${escapeText(path.basename(root))}</strong><span class="green">●</span></div><div class="muted tiny">${escapeText(root)}</div></div>`, 'demo workspace');
-  bodyText = replaceRegexExactlyOnce(bodyText, /<button id="noticesBtn" class="btn ghost">[^<]*<span class="amber">3<\/span><\/button>/, '<button id="noticesBtn" class="btn ghost" aria-label="Notifications">Notifications</button>', 'static unread badge');
+  // The artifact ships neutral slots (no demo residue); the served surface
+  // fills them with the live project identity.
+  bodyText = replaceExactlyOnce(bodyText, '<strong data-ws-name>agent-trust-ladder</strong>', `<strong data-ws-name>${escapeText(path.basename(root))}</strong>`, 'workspace name');
+  bodyText = replaceExactlyOnce(bodyText, '<div class="muted tiny" data-ws-root>local project</div>', `<div class="muted tiny" data-ws-root>${escapeText(root)}</div>`, 'workspace root');
+  bodyText = replaceExactlyOnce(bodyText, '<span data-live-label>Starting the local Control Plane…</span>', `<span data-live-label>Live - connected to ${escapeText(path.basename(root))}</span>`, 'live label');
+  bodyText = replaceExactlyOnce(bodyText, '<span class="pill hotkey" data-mode-pill>LOCAL</span>', '<span class="pill hotkey" data-mode-pill>LIVE</span>', 'mode pill');
   if (embedded) bodyText = replaceRegexExactlyOnce(bodyText, /<div class="cliDock">[\s\S]*?<\/div>/, '', 'duplicate plugin console');
   const projectKey = crypto.createHash("sha256").update(canonicalRoot(root)).digest("hex").slice(0, 16);
   bodyText = replaceExactlyOnce(bodyText, '<html lang="en"', `<html lang="en" data-atl-project-key="${projectKey}"${embedded ? ' data-atl-context="plugin"' : ''}`, 'HTML root');

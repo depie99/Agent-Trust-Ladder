@@ -135,7 +135,7 @@
   }
   if (mobileStrip) mobileStripDrag(mobileStrip);
   const routes = [
-    ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["shipped", "✔", "Shipped"], ["sources", "?", "Issue sources"], ["mytasks", "☰", "My Tasks"], ["assistant", "✦", "Ask ATL"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"], ["runs", "◷", "Workflow runs"],
+    ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["shipped", "✔", "Shipped"], ["sources", "⇥", "Issue sources"], ["mytasks", "☰", "My Tasks"], ["assistant", "✦", "Ask ATL"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"], ["runs", "◷", "Workflow runs"],
     ["team", "♙", "Agent Team"], ["projects", "⌂", "Projects"], ["approvals", "✓", "Approvals"], ["operations", "▣", "Operations"], ["batches", "▥", "Batches"], ["brain", "◈", "Knowledge"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
   ];
   const fallback = {
@@ -148,6 +148,10 @@
   const PLUGIN = document.documentElement.dataset.atlContext === "plugin";
   const projectStorageScope = document.documentElement.dataset.atlProjectKey || "standalone";
   const scopedStorageKey = key => `${key}:${projectStorageScope}`;
+  // Plugin mode hosts the console in the terminal + the atl CLI; the panel
+  // keeps zero CLI-console entry points (the served artifact already drops
+  // the dock markup; this catches any runtime that skips the rewrite).
+  if (PLUGIN) document.querySelector(".cliDock")?.remove();
   const PLUGIN_NAV = [["tasks", "☷", "Tasks"], ["attention", "!", "Attention"], ["studio", "◇", "Plan Studio"], ["more", "⋯", "More"]];
   // Inline SVG line icons (24-grid, stroke 1.6) replacing the unicode nav
   // glyphs. The `routes`/`PLUGIN_NAV` glyph fields stay as fallbacks so the
@@ -1404,7 +1408,7 @@ ${feedbackLine}
     const requestCard = (r) => {
       const associations = r.repositories?.length ? r.repositories : (r.repository?.id ? [r.repository] : []);
       const plannedCount = associations.filter((a) => (r.plans || []).some((plan) => plan.repositoryId === a.id && plan.approved)).length;
-      return `<article class="source-request" data-import-request-history="${escapeHtml(r.id)}"><header class="source-request-head"><span class="source-key source-${escapeHtml(r.source?.type || "file")}">${escapeHtml((r.source?.type || "src").slice(0, 2).toUpperCase())} · #${escapeHtml(String(r.source?.remote_id ?? "?"))}</span><div class="source-request-title"><b>#${escapeHtml(String(r.source?.remote_id ?? "?"))} · ${escapeHtml(r.title)}</b><div class="muted tiny">${escapeHtml(r.id)} · rev ${escapeHtml(String(r.source?.revision ?? "unknown"))}${r.source?.iteration ? ` · ${escapeHtml(r.source.iteration)}` : ""} · Affects ${associations.length || 0} repositor${associations.length === 1 ? "y" : "ies"}${associations.length ? ` (${associations.map((a) => escapeHtml(a.name || "?")).join(" + ")})` : ""} ${link(r.source)}</div></div><div class="bar source-request-actions">${r.needs_plan ? `<span class="pill amber">${(r.plans || []).length ? "1 needs repo plan" : "needs repo plan"}</span>` : '<span class="pill green">all repos planned</span>'}${btn("Source details", `task-detail:${r.id}`, "sm ghost")}${btn("Remove", `source-remove:${r.id}`, "sm ghost danger")}</div></header><details class="source-request-content"><summary>Imported content</summary><p class="imported-content-copy" dir="auto">${escapeHtml(r.snapshot?.objective || r.objective || "No description was returned by the source. Refresh the item before planning.")}</p><ul>${(r.snapshot?.completion_checks || r.completion_checks || []).map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul></details><div class="source-branch-eyebrow">AFFECTED REPOSITORY WORKSTREAMS (${associations.length} LINKED ${associations.length === 1 ? "REPOSITORY" : "REPOSITORIES"}${plannedCount ? ` · ${plannedCount} PLANNED` : ""})</div><div class="source-branch-grid">${associations.map((assoc, index) => branchFor(r, assoc, index)).join("") || `<div class="source-branch-box is-empty">Not linked to a repository yet — choose the repositories this request affects so each one gets its own plan, or plan it in this workspace.</div>${r.needs_plan ? `<div class="bar">${btn("Choose repositories", `source-repos:${r.id}`, "sm primary")}${btn("Plan in this workspace", `plan:${r.id}`, "sm")}</div>` : ""}`}</div></article>`;
+      return `<article class="source-request" data-import-request-history="${escapeHtml(r.id)}"><header class="source-request-head"><span class="source-key source-${escapeHtml(r.source?.type || "file")}">${escapeHtml((r.source?.type || "src").slice(0, 2).toUpperCase())} · #${escapeHtml(String(r.source?.remote_id ?? "?"))}</span><div class="source-request-title"><b data-no-translate>#${escapeHtml(String(r.source?.remote_id ?? "?"))} · ${escapeHtml(r.title)}</b><div class="muted tiny">${escapeHtml(r.id)} · rev ${escapeHtml(String(r.source?.revision ?? "unknown"))}${r.source?.iteration ? ` · ${escapeHtml(r.source.iteration)}` : ""} · Affects ${associations.length || 0} repositor${associations.length === 1 ? "y" : "ies"}${associations.length ? ` (${associations.map((a) => escapeHtml(a.name || "?")).join(" + ")})` : ""} ${link(r.source)}</div></div><div class="bar source-request-actions">${r.needs_plan ? `<span class="pill amber">${(r.plans || []).length ? "1 needs repo plan" : "needs repo plan"}</span>` : '<span class="pill green">all repos planned</span>'}${btn("Source details", `task-detail:${r.id}`, "sm ghost")}${btn("Remove", `source-remove:${r.id}`, "sm ghost danger")}</div></header><details class="source-request-content"><summary>Imported content</summary><p class="imported-content-copy" dir="auto" data-no-translate>${escapeHtml(r.snapshot?.objective || r.objective || "No description was returned by the source. Refresh the item before planning.")}</p><ul>${(r.snapshot?.completion_checks || r.completion_checks || []).map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul></details><div class="source-branch-eyebrow">AFFECTED REPOSITORY WORKSTREAMS (${associations.length} LINKED ${associations.length === 1 ? "REPOSITORY" : "REPOSITORIES"}${plannedCount ? ` · ${plannedCount} PLANNED` : ""})</div><div class="source-branch-grid">${associations.map((assoc, index) => branchFor(r, assoc, index)).join("") || `<div class="source-branch-box is-empty">Not linked to a repository yet — choose the repositories this request affects so each one gets its own plan, or plan it in this workspace.</div>${r.needs_plan ? `<div class="bar">${btn("Choose repositories", `source-repos:${r.id}`, "sm primary")}${btn("Plan in this workspace", `plan:${r.id}`, "sm")}</div>` : ""}`}</div></article>`;
     };
     return `<section class="panel source-workbench" aria-label="Imported requests"><div class="paneltitle"><h2>Imported requests · Cross-repository work breakdown</h2><span class="pill ${requests.some((r) => r.needs_plan) ? "amber" : ""}">${requests.filter((r) => r.needs_plan).length} need${requests.filter((r) => r.needs_plan).length === 1 ? "s" : ""} repo plan</span></div><p class="source-footnote">1 request → N affected repositories → 1 Plan &amp; Queue per repository. Every plan is grounded, reviewed and approved against its own codebase.</p>${requests.map(requestCard).join("") || '<p class="source-empty">No requests imported yet.</p>'}</section><details class="panel source-workbench source-history-drawer" aria-label="Import history" open><summary>Import history ${(sourceHistory.history || []).length ? `· ${(sourceHistory.history || []).length} batch${(sourceHistory.history || []).length === 1 ? "" : "es"}` : ""}</summary><div class="pad">${(sourceHistory.history || []).length ? btn("Clear history", "source-history-clear", "sm") : ""}${(sourceHistory.history || []).map((record) => `<details><summary>${record.legacy ? "Recovered source record" : "Import batch"} · ${escapeHtml(record.at || "time not recorded")} · ${escapeHtml(record.source)} · ${record.added} imported · ${record.skipped} already present</summary><p>Selection: ${escapeHtml(record.selection?.work_item || record.selection?.iteration || "configured source")} · Destination: ${escapeHtml(record.destination)}</p><ul>${(record.items || []).map((item) => `<li>${escapeHtml(item.taskId || "")} · ${escapeHtml(item.title)} · revision ${escapeHtml(item.source?.revision ?? "unknown")}</li>`).join("")}</ul></details>`).join("") || (sourceHistory.cleared_at ? `<p>History cleared ${escapeHtml(sourceHistory.cleared_at)}. New imports will appear here.</p>` : "<p>No imports recorded yet.</p>")}</div></details>`;
   }
@@ -1442,11 +1446,11 @@ ${feedbackLine}
         const members = (queue.task_ids || []).map((id) => repo.tasks.find((task) => task.id === id)).filter(Boolean);
         const queuedCount = queue.queued ?? Math.max(0, queue.total - queue.done - queue.active - queue.blocked);
         const summary = [queue.done && `${queue.done} Done`, queue.active && `${queue.active} Running`, queue.blocked && `${queue.blocked} Blocked`, queuedCount && `${queuedCount} Queued`].filter(Boolean).join(" · ") || "Empty";
-        return `<div class="workmap-queue"><div class="workmap-queuebar"><b>≡ ${escapeHtml(queue.name)}</b><span class="muted tiny">${escapeHtml(summary)}${queue.source_title ? ` · plan for ${escapeHtml(queue.source_title)}` : ""}</span><span style="flex:1"></span>${btn("▶ Run queue", `run-preview:${escapeHtml(queue.id)}`, "sm primary")}</div>${members.map((task) => `<div class="workmap-subtask">${taskGlyph(task.status)}<span class="task-id-badge">${escapeHtml(task.id)}</span><b class="truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</b><span style="flex:1"></span>${workerPill(task.worker)}<span class="pill ${task.status === "done" ? "green" : isRunning(task.status) ? "green" : isBlocked(task.status) ? "red" : ""}">${statusLabel(task.status)}</span>${btn("Inspect", `task-detail:${task.id}`, "sm ghost")}</div>`).join("") || '<p class="muted tiny workmap-empty">Queue has no visible tasks yet.</p>'}</div>`;
+        return `<div class="workmap-queue"><div class="workmap-queuebar"><b>≡ ${escapeHtml(queue.name)}</b><span class="muted tiny">${escapeHtml(summary)}${queue.source_title ? ` · plan for ${escapeHtml(queue.source_title)}` : ""}</span><span style="flex:1"></span>${btn("▶ Run queue", `run-preview:${escapeHtml(queue.id)}`, "sm primary")}</div>${members.map((task) => `<div class="workmap-subtask">${taskGlyph(task.status)}<span class="task-id-badge">${escapeHtml(task.id)}</span><b class="truncate" data-no-translate title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</b><span style="flex:1"></span>${workerPill(task.worker)}<span class="pill ${task.status === "done" ? "green" : isRunning(task.status) ? "green" : isBlocked(task.status) ? "red" : ""}">${statusLabel(task.status)}</span>${btn("Inspect", `task-detail:${task.id}`, "sm ghost")}</div>`).join("") || '<p class="muted tiny workmap-empty">Queue has no visible tasks yet.</p>'}</div>`;
       }).join("");
       const orphanRows = orphanPlans.map((plan) => `<div class="workmap-queue"><div class="workmap-queuebar"><b>◇ ${escapeHtml(plan.title || plan.id)}</b><span class="muted tiny">plan without a linked request · ${plan.approved ? "approved" : escapeHtml(plan.stage || "draft")}</span><span style="flex:1"></span>${btn("Open plan", `plan-load:${plan.id}`, "sm ghost")}</div></div>`).join("");
       const looseTasks = repo.tasks.filter((task) => !task.queue_id);
-      const looseRows = looseTasks.length ? `<div class="workmap-queue"><div class="workmap-queuebar"><b>Tasks without a queue</b><span class="muted tiny">${looseTasks.length} bound to this repository · add them to a queue to run</span></div>${looseTasks.map((task) => `<div class="workmap-subtask">${taskGlyph(task.status)}<span class="task-id-badge">${escapeHtml(task.id)}</span><b class="truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</b><span style="flex:1"></span>${workerPill(task.worker)}<span class="pill ${isBlocked(task.status) ? "red" : ""}">${statusLabel(task.status)}</span>${btn("Inspect", `task-detail:${task.id}`, "sm ghost")}</div>`).join("")}</div>` : "";
+      const looseRows = looseTasks.length ? `<div class="workmap-queue"><div class="workmap-queuebar"><b>Tasks without a queue</b><span class="muted tiny">${looseTasks.length} bound to this repository · add them to a queue to run</span></div>${looseTasks.map((task) => `<div class="workmap-subtask">${taskGlyph(task.status)}<span class="task-id-badge">${escapeHtml(task.id)}</span><b class="truncate" data-no-translate title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</b><span style="flex:1"></span>${workerPill(task.worker)}<span class="pill ${isBlocked(task.status) ? "red" : ""}">${statusLabel(task.status)}</span>${btn("Inspect", `task-detail:${task.id}`, "sm ghost")}</div>`).join("")}</div>` : "";
       return orphanRows + queueRows + looseRows || '<p class="muted tiny workmap-empty">No queues or tasks are bound to this repository yet.</p>';
     };
     const withWork = (map.repositories || []).filter((repo) => repo.counts.requests + repo.counts.plans + repo.counts.queues + repo.counts.tasks > 0);
@@ -1582,9 +1586,9 @@ ${feedbackLine}
       const repos = r.repositories?.length ? r.repositories : r.repository?.id ? [r.repository] : [];
       const planButtons = r.needs_plan
         ? repos.length
-          ? repos.map(repo => btn(repos.length === 1 ? 'Create plan' : `Create plan ? ${escapeHtml(repo.name || repo.id)}`, `plan:${r.id}:${repo.id}`, 'small primary'))
+          ? repos.map(repo => btn(repos.length === 1 ? 'Create plan' : `Create plan → ${escapeHtml(repo.name || repo.id)}`, `plan:${r.id}:${repo.id}`, 'small primary'))
           : [btn('Create plan', `plan:${r.id}`, 'small primary')]
-        : [btn('Open in Plan Studio ?', `plan:${r.id}${repos.length === 1 ? ':' + repos[0].id : ''}`, 'small')];
+        : [btn('Open in Plan Studio →', `plan:${r.id}${repos.length === 1 ? ':' + repos[0].id : ''}`, 'small')];
       return `<article class="request" data-import-request="${escapeHtml(r.id)}"><div class="request-left"><span class="request-icon">↳</span><div><h3><span class="muted">#${escapeHtml(String(r.source?.remote_id ?? '?'))}</span> &nbsp;${escapeHtml(r.title)}</h3><p>${escapeHtml(r.id)}${r.revision ? ` · rev ${escapeHtml(String(r.revision))}` : ''} · via ${escapeHtml(r.source?.connection_name || r.source?.type || 'source')} · ${repos.length} ${repos.length === 1 ? 'repository' : 'repositories'}</p></div></div><div class="actions"><span class="badge ${r.needs_plan ? 'auth' : 'verified'}">${r.needs_plan ? 'Needs plan' : 'Planned'}</span>${btn('Edit repos', `source-repos:${r.id}`, 'small')}${planButtons.join("")}</div></article>`;
     }).join('');
     return `<div class="issue-sources source-v2"><div class="page-head"><div><div class="eyebrow">WORKSPACE / ISSUE SOURCES</div><h1>Issue sources</h1><p>Connect a source, verify access, browse issues, then import the ones you want to plan.</p></div><div class="actions">${btn('Check all access', 'sources-check-all')}${btn('+ Add source', 'sources-add', 'primary')}</div></div>
@@ -1609,7 +1613,13 @@ ${feedbackLine}
     const visible = rows.filter(row => !row.hidden && !row.querySelector("input")?.disabled);
     const selected = [...document.querySelectorAll("[data-source-index]:checked:not(:disabled)")].length;
     const button = document.querySelector('[data-action="sources-import"]');
-    if (button) { button.textContent = "Import " + selected + (selected === 1 ? " issue" : " issues"); button.disabled = selected === 0 || !connected; }
+    if (button) {
+      // Written after every interaction, so it must localize itself the same
+      // way the initial render's label does (exact + pattern dictionary).
+      const label = "Import " + selected + (selected === 1 ? " issue" : " issues");
+      button.textContent = locale === "fa-IR" ? (window.ATL_I18N?.translateText?.(label, "fa-IR") || label) : label;
+      button.disabled = selected === 0 || !connected;
+    }
     if ($("#sourceSelectionCount")) $("#sourceSelectionCount").textContent = selected + " selected";
     const selectAll = $("#sourceSelectAll");
     if (selectAll) {
@@ -2323,7 +2333,7 @@ operations: () => {
     const preventionRows = preventionItems.map((item) => `<div class="event"><div class="row between"><b>${escapeHtml(item.preventer)}</b><span class="pill ${item.enforced ? "green" : item.status === "rolled-back" ? "red" : "amber"}">${escapeHtml(item.status)}${item.enforced ? " · enforced" : " · not enforced"}</span></div><div class="muted tiny">before ${item.before_occurrences} · after ${item.after_occurrences}${item.evidence ? ` · ${escapeHtml(item.evidence.command)}` : " · no passing command yet"}</div>${item.rollback ? `<div class="muted tiny">Rollback: ${escapeHtml(item.rollback)}</div>` : ""}</div>`).join("") || '<p class="sub">No prevention proposed yet. One recorded failure is an anecdote; a proposal needs a recurring signature.</p>';
     const recoveryTone = recovery.verified ? "green" : "red";
     const problems = (recovery.problems || []).map((problem) => `<div class="event between"><span>${escapeHtml(problem.name || "state")}</span><span class="pill red">${escapeHtml(problem.cause)}</span></div>`).join("");
-    return `<section class="panel space"><div class="paneltitle"><div><h2>Operational memory</h2><p class="sub">Why context was selected, which failures recur, and whether a preventer is actually enforced.</p></div><span class="pill ${recoveryTone}">${escapeHtml(recovery.status || "unknown")}${recovery.verified ? " · verified" : " · not verified"}</span></div><div class="pad">${problems ? `<div class="knowledge-notice"><b>Interrupted or corrupt state is not served as knowledge</b>${problems}</div>` : ""}<div class="field"><label class="label" for="memoryQuery">Context preview</label><input id="memoryQuery" class="input" placeholder="e.g. صف شبانه نقطه بازرسی / queue resume checkpoint"></div><div class="bar" style="margin-top:8px">${btn("Preview selected context", "memory-context", "sm primary")}</div><div id="memoryContext" class="space" role="status"></div><div class="grid two space">${card("Recurring failure signatures", `<div class="pad">${signatureRows}</div>`)}${card("Preventions", `<div class="pad">${preventionRows}<p class="sub space">Claim state · active ${counts.active || 0} · conflicted ${counts.conflicted || 0} · unknown ${counts.unknown || 0} · expired ${counts.expired || 0} · superseded ${counts.superseded || 0}. A proposal is not an installed policy.</p></div>`)}</div></div></section>`;
+    return `<section class="panel space"><div class="paneltitle"><div><h2>Operational memory</h2><p class="sub">Why context was selected, which failures recur, and whether a preventer is actually enforced.</p></div><span class="pill ${recoveryTone}">${escapeHtml(recovery.status || "unknown")}${recovery.verified ? " · verified" : " · not verified"}</span></div><div class="pad">${problems ? `<div class="knowledge-notice"><b>Interrupted or corrupt state is not served as knowledge</b>${problems}</div>` : ""}<div class="field"><label class="label" for="memoryQuery">Context preview</label><input id="memoryQuery" class="input" placeholder="e.g. queue resume checkpoint"></div><div class="bar" style="margin-top:8px">${btn("Preview selected context", "memory-context", "sm primary")}</div><div id="memoryContext" class="space" role="status"></div><div class="grid two space">${card("Recurring failure signatures", `<div class="pad">${signatureRows}</div>`)}${card("Preventions", `<div class="pad">${preventionRows}<p class="sub space">Claim state · active ${counts.active || 0} · conflicted ${counts.conflicted || 0} · unknown ${counts.unknown || 0} · expired ${counts.expired || 0} · superseded ${counts.superseded || 0}. A proposal is not an installed policy.</p></div>`)}</div></div></section>`;
   }
 
   panels.brain = () => {
@@ -2692,7 +2702,10 @@ operations: () => {
     status.setAttribute("aria-live", "polite");
   }
   function syncOfflineActions() {
-    const allowedOffline = /^(?:go:|filter:|queue:|plugin-back$|plugin-retry$|close$|refresh$|palette$|plugin-overflow$|theme-toggle$|toggle-locale$)/;
+    // Sources actions stay enabled while offline: a click during a blip gets
+    // a visible fetch error instead of a dead button, and the watchdog
+    // repaint re-enables everything on reconnect anyway.
+    const allowedOffline = /^(?:go:|filter:|queue:|sources-|plugin-back$|plugin-retry$|close$|refresh$|palette$|plugin-overflow$|theme-toggle$|toggle-locale$)/;
     document.querySelectorAll("#content button[data-action], #modal button[data-action]").forEach((button) => {
       if (connected || allowedOffline.test(button.dataset.action || "")) {
         if (button.dataset.disabledOffline === "true") {
@@ -2769,29 +2782,6 @@ operations: () => {
     const ids = provider === 'github' ? ['sourceFormName', 'sourceFormRepo'] : provider === 'jira' ? ['sourceFormName', 'sourceFormUrl', 'sourceFormProjects'] : ['sourceFormName', 'sourceFormUrl', 'sourceFormProject'];
     save.disabled = sourceFormBusy || !connected || ids.some(id => !document.getElementById(id)?.value.trim());
   }
-  function enhanceCurrentProviderModal() {
-    // Save connection is intentionally disabled until an existing field changes.
-    const current = document.querySelector(".provider-current");
-    const modelInput = current?.querySelector("[data-pm-current-model]");
-    const id = modelInput?.dataset.pmCurrentModel;
-    const active = id && studioProviders?.find((provider) => provider.id === id);
-    if (!current || !active || current.querySelector("[data-pm-current-label]")) return;
-    const levels = active.thinking_levels?.length ? active.thinking_levels : ["default", "none", "minimal", "low", "medium", "high", "xhigh", "max"];
-    const savedThinking = active.thinking_level === "default" ? "" : (active.thinking_level || "");
-    const levelOptions = levels.map((level) => `<option value="${level === "default" ? "" : escapeHtml(level)}" ${savedThinking === (level === "default" ? "" : level) ? "selected" : ""}>${level === "default" ? "Provider default" : escapeHtml(level)}</option>`).join("");
-    const button = [...current.querySelectorAll("button[data-action]")].find((item) => item.dataset.action === `pm-model:${id}`);
-    if (button) {
-      button.dataset.action = `pm-current-save:${id}`;
-      button.dataset.pmModelSave = id;
-      button.textContent = "Saved";
-      button.disabled = true;
-      button.setAttribute("aria-disabled", "true");
-      button.classList.remove("primary");
-      button.classList.add("ghost", "disabled");
-    }
-    current.insertAdjacentHTML("beforeend", `<div class="grid two" style="margin-top:12px"><div class="field"><label class="label" for="pmCurrentLabel">Display name</label><input class="input" id="pmCurrentLabel" data-pm-current-label data-saved-value="${escapeHtml(active.label || "")}" value="${escapeHtml(active.label || "")}" placeholder="Friendly provider name"></div><div class="field"><label class="label" for="pmCurrentThinking">Thinking / effort</label><select class="input" id="pmCurrentThinking" data-pm-current-thinking data-saved-value="${escapeHtml(savedThinking)}">${levelOptions}</select></div><div class="field"><label class="label" for="pmCurrentUrl">Base URL</label><input class="input" id="pmCurrentUrl" data-pm-current-url data-saved-value="${escapeHtml(active.base_url || "")}" value="${escapeHtml(active.base_url || "")}" placeholder="https://…"></div><div class="field"><label class="label" for="pmCurrentKey">API key</label><input type="password" class="input" id="pmCurrentKey" data-pm-current-key autocomplete="new-password" placeholder="Leave blank to keep the stored key"></div></div><p class="muted tiny" style="margin:8px 0 0">Provider id <code>${escapeHtml(active.id)}</code> · the key stays masked and blank means keep the current secret.</p>`);
-  }
-
   function renderProviderCard(provider, activeId, projectDefault, editingId, removeConfirm, templates) {
     const id = String(provider.id || "");
     const isActive = id === activeId;
@@ -3404,13 +3394,6 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     applyLocale();
   }
 
-  function taskDiagram(task) {
-    detailExecution = null;
-    const outcome = taskOutcome(task);
-    const flow = `flowchart LR\n  A[Request] --> B[${task.agent}]\n  B --> C[${task.status}]\n  C --> D[${outcome.passed}/${outcome.total} checks passed]\n  D --> E[Outcome recorded]`;
-    const model = `erDiagram\n  TASK ||--o{ LOG_EVENT : records\n  TASK ||--o{ EVIDENCE : proves\n  TASK }o--|| QUEUE : belongs_to\n  TASK }o--o| WORKSPACE : changes_in\n  TASK {\n    string id\n    string status\n    string assigned_worker\n    int attempt_count\n  }`;
-    popupWide(`${escapeHtml(task.id)} / Change diagrams`, `<p class="sub">The lifecycle picture is derived from persisted task state. Mermaid source documents the underlying relationships; it communicates structure, not proof.</p><h3>What happened</h3>${lifecycleDiagram(task)}<div class="notice" style="margin-top:12px"><b>${escapeHtml(outcome.summary)}</b><p class="sub">${outcome.passed}/${outcome.total} checks passed · ${task.logs.length} recent events · ${escapeHtml(task.workspace || "no workspace recorded")}</p></div><h3 style="margin-top:18px">Change-flow Mermaid</h3><pre class="terminal" style="min-height:0;white-space:pre-wrap">${escapeHtml(flow)}</pre><h3 style="margin-top:18px">Task data model · Mermaid ER</h3><pre class="terminal" style="min-height:0;white-space:pre-wrap">${escapeHtml(model)}</pre>`, btn("Back to task", `task-detail:${task.id}`, "primary") + btn("Close", "close"));
-  }
   // Plain-language replacement for the legacy raw-Mermaid diagram view.
   function taskDiagram(task) {
     const outcome = taskOutcome(task);
@@ -3895,7 +3878,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       assistantPending = { scope: assistantScope, provider, model: model || "", message, mode };
       await action("assistant-confirm"); return;
     }
-    if (value === "assistant-confirm") { if (!assistantPending) return; try { const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "send", ...assistantPending }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, "assistant-confirm"); if (!response.ok) throw new Error(result.error || "Assistant could not start"); const scope = assistantPending.scope; const draft = assistantDrafts.get(scope); if (draft) draft.message = ""; assistantPending = null; await openAssistantScoped(scope); } catch (error) { popup("Assistant could not start", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Back", `assistant-open:${assistantScope}`)); } return; }
+    if (value === "assistant-confirm") { const pending = assistantPending; assistantPending = null; if (!pending) return; try { const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "send", ...pending }) }); const result = await response.json(); if (result.approvalRequired) { assistantPending = pending; return showRunApproval(result.proposal, "assistant-confirm"); } if (!response.ok) throw new Error(result.error || "Assistant could not start"); const scope = pending.scope; const draft = assistantDrafts.get(scope); if (draft) draft.message = ""; await openAssistantScoped(scope); } catch (error) { assistantPending = null; popup("Assistant could not start", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Back", `assistant-open:${assistantScope}`)); } return; }
     if (value === "assistant-cancel") { try { const response = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "cancel", scope: assistantScope }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "No session to stop"); await openAssistantScoped(assistantScope); } catch (error) { popup("Cannot stop session", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Back", `assistant-open:${assistantScope}`)); } return; }
     if (value === "ask-new") { clearInterval(askPoll); askCurrent = null; askSession = null; askSessionFingerprint = ""; askContextDraft = null; askPersistCurrent(); render(); $("#askInput")?.focus(); return; }
     if (value.startsWith("ask-open:")) { const id = value.slice(9); if (id && id !== askCurrent) await loadAskConversation(id); return; }
@@ -4634,7 +4617,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const poll = async () => {
           if (!dialogOpen || !document.querySelector(`[data-action="pm-${installing ? "install" : "login"}-builtin:${id}"]`) && !(builtinWorkers.find((worker) => worker.id === id)?.operation?.status === "running")) return;
           await loadProviders(true);
-          if (!dialogOpen || pmEditingBuiltinId) return;
+          // Skip the repaint while any dialog field is focused — a poll
+          // landing mid-keystroke must not wipe the registry add-form or a
+          // default-model edit (the editing guard alone misses #pmKey).
+          if (!dialogOpen || pmEditingBuiltinId || document.activeElement?.closest?.("#modal input, #modal textarea, #modal select")) return;
           providerManagerModal(null);
           if (builtinWorkers.find((worker) => worker.id === id)?.operation?.status === "running") setTimeout(poll, 2000);
         };
@@ -5049,12 +5035,13 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       return;
     }
     if (value === "plan-publish-confirm") {
-      if (!publishPending) return;
+      const pending = publishPending;
+      publishPending = null;
+      if (!pending) return;
       try {
-        const result = await planApi("/api/plan/publish", { draftId: publishPending.draftId, destination: publishPending.destination, previewToken: publishPending.token, confirm: true });
-        publishPending = null;
+        const result = await planApi("/api/plan/publish", { draftId: pending.draftId, destination: pending.destination, previewToken: pending.token, confirm: true });
         popup("Tasks published", `<ul>${result.result.results.map((item) => `<li><a href="${escapeHtml(item.url || "#")}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.proposal_id)} · ${escapeHtml(item.url || item.id)}</a></li>`).join("")}</ul>`, btn("Done", "close"));
-      } catch (error) { publishPending = null; popup("Publishing stopped", `<p class="red">${escapeHtml(error.message)}</p><p class="sub">Completed items remain mapped to this draft so a retry will not duplicate them.</p>`, btn("Close", "close")); }
+      } catch (error) { popup("Publishing stopped", `<p class="red">${escapeHtml(error.message)}</p><p class="sub">Completed items remain mapped to this draft so a retry will not duplicate them.</p>`, btn("Close", "close")); }
       return;
     }
     if (value.startsWith("plan-review:")) {
@@ -5114,12 +5101,14 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
     if (value.startsWith("question-answer:") || value.startsWith("ov-question-answer:")) {
       const surface = value.startsWith("ov-") ? "ov" : "chat";
-      const [, source, questionId] = value.split(':');
+      const rest = value.slice(value.indexOf(':') + 1);
+      const source = rest.slice(0, rest.indexOf(':'));
+      const questionId = rest.slice(source.length + 1);
       const draftId = currentDraft.id;
       const key = `${draftId}:${source}:${questionId}`;
       if (checkingQuestions.has(key)) return;
       const prefix = surface === "ov" ? "studio-ov-q" : "studio-q";
-      const answer = $(`#${prefix}-custom-${source}-${questionId}`)?.value.trim() || document.querySelector(`input[name="${prefix}-${source}-${questionId}"]:checked`)?.value || questionDraft(source, questionId) || currentDraft.answer_assessments?.[questionId]?.original_answer || '';
+      const answer = $(`#${CSS.escape(prefix)}-custom-${CSS.escape(source)}-${CSS.escape(questionId)}`)?.value.trim() || document.querySelector(`input[name="${CSS.escape(prefix)}-${CSS.escape(source)}-${CSS.escape(questionId)}"]:checked`)?.value || questionDraft(source, questionId) || currentDraft.answer_assessments?.[questionId]?.original_answer || '';
       if (!answer) { studioNotice = 'Choose a suggested answer or write a custom one before sending.'; render(); return; }
       const revision = currentDraft.revision;
       checkingQuestions.add(key); render();
@@ -5257,8 +5246,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value.startsWith("task-budget-save:")) { const id = value.slice(17); const additionalSessions = Number($("#budget-add")?.value); if (!Number.isInteger(additionalSessions) || additionalSessions < 1 || additionalSessions > 20) return popup("Invalid budget", "<p>Choose between 1 and 20 additional sessions.</p>", btn("Back", `task-budget:${id}`)); try { const response = await fetch("/api/tasks/session-budget", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId: id, additionalSessions }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Could not increase budget"); await refresh(false, true); popup("Budget increased", `<p>${escapeHtml(result.budget.used)} of ${escapeHtml(result.budget.max_sessions)} task sessions used. Review the run before resuming.</p>`, btn("Close", "close") + btn("Review resume", `run-task:${id}`, "primary")); } catch (error) { popup("Budget not changed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
     if (value.startsWith("run-task:") || value.startsWith("run-task-preview:")) { const updating = value.startsWith("run-task-preview:"); const id = value.slice(updating ? 17 : 9); const policy=snapshot.resource_policy; const maxSessions = updating ? Number($("#run-sessions")?.value) : (policy?.enabled?policy.max_sessions:policy?.default_sessions||8); if (!Number.isInteger(maxSessions) || maxSessions < 1 || maxSessions > 50) return popup("Invalid budget", "<p>Choose between 1 and 50 sessions per task.</p>", btn("Back", `run-task:${id}`)); try { const response = await fetch("/api/run/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskIds: [id], maxSessions, maxMinutes: 60 }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "preview failed"); const task = derived().tasks.find((item) => item.id === id); const exhausted = task?.executionBudget && task.executionBudget.used >= task.executionBudget.max_sessions; popup(`Dispatch preview · ${escapeHtml(id)}`, `<div class="terminal">${escapeHtml((result.lines || []).join("\n"))}</div><div class="field"><label class="label" for="run-sessions">Session ceiling for this run (1–50)</label><input class="input" id="run-sessions" type="number" min="1" max="50" step="1" value="${maxSessions}"></div><div class="notice"><b>Nothing has started.</b><p>Update the preview after changing this limit. The run has a 60-minute overall limit; any persistent task limit also applies. Required review and dependencies remain in force.</p></div>`, btn("Cancel", "close") + btn("Update preview", `run-task-preview:${id}`) + (exhausted ? btn("Increase task budget", `task-budget:${id}`, "primary") : btn("Run this task", `run-task-confirm:${id}:${maxSessions}`, "primary"))); } catch (error) { popup("Preview failed", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
     if (value.startsWith("run-task-confirm:")) { const [id, sessions] = value.slice(17).split(":"); const maxSessions = Number(sessions); const input = $("#run-sessions"); if (input && Number(input.value) !== maxSessions) return popup("Update preview first", "<p>The session limit changed. Update the preview before starting.</p>", btn("Back", `run-task:${id}`)); close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, taskIds: [id], maxSessions, maxMinutes: 60 }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, `run-task-confirm:${id}:${maxSessions}`); if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
-    if (value.startsWith("run-start:")) { const id = value.slice(10) || snapshot.queues?.active_queue; close(); const response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, queueId: id }) }); const result = await response.json(); if (result.approvalRequired) return showRunApproval(result.proposal, `run-start:${id}`); if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
-    if (value === "run-stop") { const response = await fetch("/api/run/stop", { method: "POST" }); const result = await response.json(); if (!response.ok) return popup("Stop request", `<p>${escapeHtml(result.error || "No active run")}</p>`, btn("Close", "close")); currentRun = result.run; render(); return; }
+    if (value.startsWith("run-start:")) { const id = value.slice(10) || snapshot.queues?.active_queue; close(); let response, result; try { response = await fetch("/api/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, queueId: id }) }); result = await response.json(); } catch (error) { return popup("Run refused", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } if (result.approvalRequired) return showRunApproval(result.proposal, `run-start:${id}`); if (!response.ok) return popup("Run refused", `<p class="red">${escapeHtml(result.error || "Run could not start")}</p>`, btn("Close", "close")); currentRun = result.run; page = "queues"; render(); return; }
+    if (value === "run-stop") { let response, result; try { response = await fetch("/api/run/stop", { method: "POST" }); result = await response.json(); } catch (error) { return popup("Stop request", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } if (!response.ok) return popup("Stop request", `<p>${escapeHtml(result.error || "No active run")}</p>`, btn("Close", "close")); currentRun = result.run; render(); return; }
     if (value.startsWith("agent:")) { const agent = derived().agents?.find((row) => row[0] === value.slice(6)); popup(`${value.slice(6)} / Agent brief`, `<p>Live role telemetry is shown in Agent Team and Activity & Logs.</p>`, btn("Logs", "go:activity") + btn("Close", "close")); return; }
     if (value === "export") { const blob = new Blob([(snapshot.state?.log_tail || []).map((item) => JSON.stringify(item)).join("\n")], { type: "application/jsonl" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "atl-activity.jsonl"; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); }
   }
@@ -5280,15 +5269,18 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const priority = $("#fPriority")?.value || "normal";
     const queueId = $("#fQueue")?.value;
     const repositoryId = $("#fRepository")?.value || null;
+    // The console tokenizer treats \" and \\ as escapes; a title with a lone
+    // backslash otherwise corrupts the command line.
+    const cliArg = (value) => `"${String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
     try {
       let taskId = id;
       if (taskId) {
-        await apiCommand(`task edit ${taskId} --title "${title.replaceAll('"', '\\"')}" --objective "${objective.replaceAll('"', '\\"')}" --priority ${priority}`);
+        await apiCommand(`task edit ${taskId} --title ${cliArg(title)} --objective ${cliArg(objective)} --priority ${priority}`);
       } else {
-        const created = await apiCommand(`task create --title "${title.replaceAll('"', '\\"')}" --priority ${priority}`);
+        const created = await apiCommand(`task create --title ${cliArg(title)} --priority ${priority}`);
         taskId = created.selectedTaskId;
         if (!taskId) throw new Error("task creation returned no task id");
-        if (objective !== title) await apiCommand(`task edit ${taskId} --objective "${objective.replaceAll('"', '\\"')}"`);
+        if (objective !== title) await apiCommand(`task edit ${taskId} --objective ${cliArg(objective)}`);
       }
       if ($("#fRepository") && repositoryId !== (derived().tasks.find((task) => task.id === taskId)?.repository_id || null)) {
         const response = await fetch("/api/tasks/repository", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId, repositoryId }) });
