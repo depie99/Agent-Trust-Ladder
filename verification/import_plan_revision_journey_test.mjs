@@ -17,7 +17,7 @@ Object.assign(process.env, { USERPROFILE: home, HOME: home, AZDO_PAT: 'synthetic
 const evidence = path.resolve('.atl-evidence/import-plan-revision');
 fs.mkdirSync(evidence, { recursive: true });
 fs.mkdirSync(path.join(home, '.atl'), { recursive: true });
-fs.writeFileSync(path.join(home, '.atl/providers.json'), JSON.stringify({ providers: { test: { id: 'test', worker: 'claude', model: 'fixture', base_url: 'https://example.invalid', api_key: 'synthetic' } } }));
+fs.writeFileSync(path.join(home, '.atl/providers.json'), JSON.stringify({ providers: { test: { id: 'test', worker: 'openai-http', protocol: 'openai', model: 'fixture', base_url: 'https://example.invalid/v1', api_key: 'synthetic' } } }));
 fs.mkdirSync(path.join(root, 'config'));
 fs.writeFileSync(path.join(root, 'config/manager.json'), JSON.stringify({ version: 1, intake: { azure: { enabled: true, org_url: 'https://example.invalid/Collection', project: 'Demo', token_env: 'AZDO_PAT' } } }));
 fs.writeFileSync(path.join(root, 'app.js'), '// cart fixture');
