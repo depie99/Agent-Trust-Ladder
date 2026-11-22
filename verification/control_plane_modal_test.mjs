@@ -118,7 +118,9 @@ try {
     if (viewport.width === 390) {
       await page.locator(".ask-burger").click();
       assert.equal(await page.locator(".ask-page.ask-rail-open").count(), 1, "the mobile burger opens the chat drawer");
-      await page.locator(".ask-scrim").click();
+      // The drawer covers the viewport's left ~300px, so tap the scrim on
+      // its far side (the pane is ~374px wide; stay inside its box).
+      await page.locator(".ask-scrim").click({ position: { x: 360, y: 300 } });
       assert.equal(await page.locator(".ask-page.ask-rail-open").count(), 0, "tapping the scrim closes the chat drawer");
     } else {
       await page.locator(".ask-rail .ask-new").waitFor();
