@@ -5636,5 +5636,11 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (page === "assistant") void loadAskPage();
     if (page === 'sources' && sourceSelectedId && !sourcePreview) void browseCurrentDefaults();
     if (page === "mytasks" && !myTasksTimer) myTasksTimer = setInterval(() => { if (page === "mytasks") void loadMyTasks({ silent: true }); }, 5000);
+  }).catch(() => {
+    // Boot must never leave a blank page: one failed load — a stale session
+    // after a server restart, an unreachable route — still renders the shell
+    // from fallback state and connects the stream so later snapshots heal it.
+    render();
+    connectStream();
   });
 })();
