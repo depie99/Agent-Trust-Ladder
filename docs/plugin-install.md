@@ -25,7 +25,7 @@ ZCode Desktop discovers a local marketplace catalog and installs from it:
 3. Find the **agent-trust-ladder** card (Developer Tools) and select **Get**. When it finishes, the card shows **Installed**. New plugins are enabled by default.
 4. Restart ZCode Desktop, or open a new session, so discovery loads the installed components.
 
-What you get: the `atl` MCP tools (`atl_info`, `atl_start`, `atl_skill`, `atl_command`, `atl_job`, `atl_control_plane`, `atl_connect`), the `/atl-*` commands, and an **ATL Control Plane** session panel that presents the full browser interface without a chat command.
+What you get: the `/atl-*` commands, an **ATL Control Plane** session panel that presents the full browser interface without a chat command, and the `atl` MCP tools — setup and runtime (`atl_info`, `atl_start`, `atl_connect`, `atl_control_plane`, `atl_skill`, `atl_command`, `atl_job`, `atl_review`, `atl_project_bootstrap`), harness planning and programs (`atl_plan_context/save/answer/review/approve`, `atl_run_preview/start/status/stop`, `atl_program_save/status/reconcile/approve/bind/start/stop`), and read-only Jira access (`atl_jira_search`, `atl_jira_issue`, `atl_jira_comments`, `atl_jira_transitions`, `atl_jira_preview`).
 
 Verify the installation before first use (see [Verify the installation](#verify-the-installation)).
 
@@ -58,7 +58,7 @@ dsh plugin --profile atl add ./dist/plugins/deepseek
 dsh --profile atl web
 ```
 
-The adapter declares its supported DSH range in `engines.dsh`; recheck it when moving to another DSH release. For a portable archive, run `npm pack --ignore-scripts` inside `dist/plugins/deepseek` and install the resulting `.tgz`.
+The adapter declares its supported DSH range in `engines.dsh`; recheck it when moving to another DSH release. For a portable archive, run `npm pack --ignore-scripts` inside `dist/plugins/deepseek` and install the resulting `.tgz`. Inside the harness the adapter adds native tools, slash commands, jobs, action cards with an approval gate, a directory picker, a right-sidebar task-board tab, and a Control Plane panel that persists across tab switches.
 
 ### Gemini CLI
 

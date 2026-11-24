@@ -8,19 +8,23 @@ The Control Plane is ATL’s local browser interface. It presents the same task,
 atl ui --port 4317
 ```
 
-Run from the managed application, open the printed `127.0.0.1` URL, and check the project name. See [getting started](getting-started.md) for installation and [interface reference](team-interfaces.md) for the complete menu map.
+Run from the managed application, open the printed `127.0.0.1` URL, and check the project name. See [getting started](getting-started.md) for installation and [interface reference](team-interfaces.md) for the menu map.
 
 ## Follow the owner workflow
 
 1. Read **Overview** for blockers and pending decisions.
-2. Use **Issue sources**, **Tasks**, or **Plan Studio** to describe work.
+2. Use **Issue sources**, **Tasks**, or **Plan Studio** to describe work — or open **My Tasks**, prepare an assigned issue, and hand it off to **Plan Studio**.
 3. Inspect objectives, checks, prerequisites, routing, and resources.
 4. Select a queue and inspect preview, budget, and blocked items.
-5. Confirm execution and watch **Activity & Logs**.
+5. Confirm execution and watch **Workflow runs**; full session detail remains in **Activity & Logs**.
 6. Inspect task evidence, **Review changes**, and independent review.
 7. Decide whether delivery is ready and authorize the intended action.
 
 A preview is information. Confirmation authorizes a particular operation. Queue membership, task approval, and remote publishing have different effects.
+
+## Interface behavior
+
+The footer shows the live shortcuts: **Ctrl K** opens the command console, **N** starts a new task, **1–9** open the first nine sidebar pages, and **Esc** closes a dialog. While you are typing or a dialog is focused, full-screen re-renders are held and a badge announces pending updates — select **show now** or leave the field to apply them.
 
 ## Recognize the screens
 

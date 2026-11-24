@@ -12,15 +12,23 @@ source_of_truth:
   diagrams: Mermaid blocks in owning Markdown guides
   style: docs/scss/styles.scss
 verified_against:
-  base_revision: 25d4985
-  overlay: none — the release commit verifies a clean tree at the base revision
-  release_ref: v0.2.0
-  fingerprints: .atl-evidence/docs-refresh/source-fingerprints.json
+  base_revision: b57a70bc14b37d7561a733c2853cfeb645f623a6
+  overlay: docs-only refresh (guides, regenerated references, theme, captures) on a clean tree at the base revision
+  release_ref: v0.2.0 (package) / plugin 0.6.22 (.codex-plugin/plugin.json)
 last_sync:
-  date: '2026-11-14'
-  scope: public guides, project entry points, generated site, package docs, Pages gates; added the per-harness plugin install guide (docs/plugin-install.md)
+  date: '2026-11-22'
+  scope: >-
+    full public-guide sync from the October/November snapshot to current main: daemon/one-state-owner
+    model, writer leases, owner-session rotation, auth recovery (Azure re-auth from every surface,
+    DPAPI remembered credentials), built-in subscription providers and bounded OpenAI-compatible
+    planning, issue-sources v2 modal fields, EGM deep-review mechanics and risk policy gate, harness
+    planning/run/program MCP tools, overnight ledger and recover commands, release/ship tooling and
+    branch model, Control Plane 18-page inventory, digit shortcuts 1-9, held-update badge, My Tasks/
+    Workflow runs/Shipped/Batches surfaces, impact workspace, resource-model file rows; theme rebased
+    onto the Control Plane token maps with theme-aware light diagram variants; all 7 Control Plane
+    captures re-shot against the redesigned UI
   public_pages: 39
-  maintained_markdown_files_checked: 242
+  maintained_markdown_files_checked: 241
   rendered_mermaid_diagrams: 7
   current_control_plane_captures: 7
 verification:
@@ -44,3 +52,4 @@ known_gaps:
   - External links and installed provider protocol compatibility were not checked live.
   - Production connectors and real model quality are outside this documentation verification.
   - Full public guides are English; the refreshed Persian entry links to canonical guides.
+  - docs/ask-atl.md was left to its in-flight companion change and was not re-audited in this refresh.

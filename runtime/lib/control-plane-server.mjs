@@ -24,6 +24,7 @@ import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLA
 import { paths, loadState, saveState, logEvent, createTask } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
 import { approveClaim, registerRoutine, validateSkill } from "./governance.mjs";
+import { addClaim } from "./brain.mjs";
 import { approvalSnapshot, authorizeAction, decideProposal, proposeAction, recordActionOutcome, revokeGrant } from "./approvals.mjs";
 import { registerProject, removeProject, setSupervisorDefaults, supervisorSnapshot } from "./supervisor.mjs";
 import { projectWorkMap } from "./project-map.mjs";
@@ -40,7 +41,7 @@ import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview, readTaskReviewState, writeTaskReviewState } from "./change-review-store.mjs";
 import { buildExecutionProjection, readImpactChildren } from "./execution-projection.mjs";
 import { taskStatechart } from "./task-statechart.mjs";
-import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace } from "./control-assistant.mjs";
+import { createAssistant, assistantContext, assistantMessageDigest, assistantWorkspace, conversationFixTask, createConversation, deleteConversation, isConversation, listConversations, migrateScopeConversations, renameConversation, updateConversationContext } from "./control-assistant.mjs";
 import { previewPlanPublish, publishPlan, verifyImportedSource, refreshImportedAzureSource } from "./plan-publish.mjs";
 import { runEgmReview, runGlmGoldfishReview, readEgmReviewConfig, parseEgmReports, egmReviewBudgetGate } from "./egm-review.mjs";
 import { acquireReviewLock, releaseReviewLock, reviewPolicyCheck, continueAccuracyConversation, saveQuestionProgress, planReviewSnapshotCurrent, saveCandidateAccuracyReview } from "./plan-studio.mjs";
@@ -1349,6 +1350,16 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   };
   if (!readOnlyPreview) { reviews.start(); triage.start(); jira.start(); }
   const assistant = createAssistant(root, { providerConfig: () => readManagerConfig(root) });
+  // The Ask ATL page picker merges built-in CLI workers with configured
+  // OpenAI-compatible registry providers (e.g. solico-glm). Registry entries
+  // are masked via providerChoices — never keys. `ready:false` entries stay
+  // visible with their reason so a silent empty dropdown cannot happen.
+  const assistantProviderCatalog = () => {
+    const config = readManagerConfig(root);
+    const cli = builtinProviderStatus(config).filter((item) => ["codex", "gapgpt"].includes(item.id)).map((item) => ({ id: item.id, label: item.label, kind: "cli", defaultModel: item.defaultModel || "", models: (item.models || []).map((model) => ({ id: model.id, label: model.label || model.id })), ready: Boolean(item.installed && item.signedIn), reason: !item.installed ? "not installed" : !item.signedIn ? "not signed in" : "" }));
+    const registry = providerChoices(loadUserProviders()).filter((item) => item.worker === "openai-http").map((item) => ({ id: item.id, label: item.label, kind: "http", defaultModel: item.model || "", models: (Array.isArray(item.models) && item.models.length ? item.models : (item.model ? [item.model] : [])).map((model) => typeof model === "string" ? { id: model, label: model } : { id: model.id, label: model.label || model.id }), ready: item.ready, reason: (item.problems || []).join("; ") }));
+    return [...cli, ...registry];
+  };
   // A browser server can start after its runner has died. Reconcile the
   // durable run ledger before projecting it, otherwise the UI can show a
   // permanently-running task/progress bar with no live provider process.
@@ -1558,20 +1569,33 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       }
       if (req.method === "POST" && url.pathname === "/api/assistant") {
         const payload = JSON.parse(await readBody(req) || "{}"); const scope = String(payload.scope || "global");
-        if (payload.action === "read") { const context = assistantContext(root, scope); json(res, 200, { ok: true, guidance: context.guidance, recovery: context.recovery_plan || null, access: executionAccess(root, scope === "global" ? null : scope), session: assistant.read(scope), providers: builtinProviderStatus(readManagerConfig(root)).filter((item) => ["codex", "gapgpt"].includes(item.id)) }); return; }
+        const conversationSend = isConversation(scope);
+        const assistantProviders = assistantProviderCatalog();
+        if (payload.action === "conversations") { migrateScopeConversations(root); json(res, 200, { ok: true, conversations: listConversations(root), providers: assistantProviders }); return; }
+        if (payload.action === "conversation-create") { try { const conversation = createConversation(root, { title: payload.title, context: payload.context, mode: payload.mode, provider: payload.provider || null, model: payload.model || null }); cachedFrame = null; json(res, 200, { ok: true, conversation }); } catch (error) { json(res, 400, { ok: false, error: error.message }); } return; }
+        if (payload.action === "conversation-rename") { try { const conversation = renameConversation(root, scope, payload.title); cachedFrame = null; json(res, 200, { ok: true, conversation }); } catch (error) { json(res, 400, { ok: false, error: error.message }); } return; }
+        if (payload.action === "conversation-update") { try { const conversation = updateConversationContext(root, scope, payload.context); cachedFrame = null; json(res, 200, { ok: true, conversation }); } catch (error) { json(res, 400, { ok: false, error: error.message }); } return; }
+        if (payload.action === "conversation-delete") { try { if (conversationSend) { assistant.cancel(scope); } } catch { /* nothing running */ } try { deleteConversation(root, scope); cachedFrame = null; json(res, 200, { ok: true }); } catch (error) { json(res, 400, { ok: false, error: error.message }); } return; }
+        if (payload.action === "read") {
+          if (conversationSend) { json(res, 200, { ok: true, guidance: null, recovery: null, access: null, session: assistant.read(scope), providers: assistantProviders }); return; }
+          const context = assistantContext(root, scope); json(res, 200, { ok: true, guidance: context.guidance, recovery: context.recovery_plan || null, access: executionAccess(root, scope === "global" ? null : scope), session: assistant.read(scope), providers: builtinProviderStatus(readManagerConfig(root)).filter((item) => ["codex", "gapgpt"].includes(item.id)) }); return;
+        }
         if (payload.action === "cancel") { json(res, 200, { ok: true, session: assistant.cancel(scope) }); return; }
         if (payload.action !== "send") { json(res, 400, { error: "Unknown assistant action." }); return; }
-        const context = assistantContext(root, scope); const message = String(payload.message || "");
-        const mode = payload.mode || "diagnose";
-        if (!["diagnose", "fix"].includes(mode)) { json(res, 400, { error: "Unknown assistant mode." }); return; }
-        const workspace = mode === "fix" ? assistantWorkspace(root, scope) : null;
-        const access = executionAccess(root, scope === "global" ? null : scope);
+        const context = conversationSend ? null : assistantContext(root, scope); const message = String(payload.message || "");
+        const mode = payload.mode || (conversationSend ? "ask" : "diagnose");
+        if (!["ask", "diagnose", "fix"].includes(mode)) { json(res, 400, { error: "Unknown assistant mode." }); return; }
+        if (!conversationSend && mode === "ask") { json(res, 400, { error: "Ask mode is available on the Ask ATL page only." }); return; }
+        const fixTask = mode === "fix" ? (conversationSend ? conversationFixTask(root, scope) : scope) : null;
+        const workspace = mode === "fix" ? assistantWorkspace(root, fixTask) : null;
+        const access = executionAccess(root, mode === "fix" ? fixTask : (conversationSend ? null : scope === "global" ? null : scope));
         if (mode === "fix" && access.mode !== "workspace-write") { json(res, 409, { ok: false, error: "Task access is read-only. Authorize workspace writes in Workspace access before retrying." }); return; }
         if (!message.trim() || message.length > 12000) { json(res, 400, { error: "Enter a message under 12,000 characters." }); return; }
-        const action = { project: path.resolve(root), task: scope === "global" ? null : scope, operation: mode === "fix" ? "assistant.fix" : "assistant.diagnose", target: String(payload.provider || ""), args: { scope, model: String(payload.model || ""), messageDigest: assistantMessageDigest(message), contextDigest: assistantMessageDigest(JSON.stringify(context)), mode, workspace, access: mode === "fix" ? access.mode : "read-only" }, policyVersion: 1 };
+        const contextDigest = assistantMessageDigest(conversationSend ? JSON.stringify(payload.context || null) : JSON.stringify(context));
+        const action = { project: path.resolve(root), task: fixTask || (conversationSend ? null : scope === "global" ? null : scope), operation: mode === "fix" ? "assistant.fix" : "assistant.diagnose", target: String(payload.provider || ""), args: { scope, model: String(payload.model || ""), messageDigest: assistantMessageDigest(message), contextDigest, mode, workspace, access: mode === "fix" ? access.mode : "read-only" }, policyVersion: 1 };
         const approval = authorizeAction(root, action);
         if (!approval.allowed) { const proposal = proposeAction(root, action, { principal: "owner" }); json(res, 202, { ok: true, approvalRequired: true, proposal }); return; }
-        const session = assistant.start({ scope, provider: String(payload.provider || ""), model: String(payload.model || ""), message, mode, workspace });
+        const session = assistant.start({ scope, provider: String(payload.provider || ""), model: String(payload.model || ""), message, mode, workspace, context: conversationSend ? (payload.context || null) : null });
         recordActionOutcome(root, action, { status: "started" }); json(res, 202, { ok: true, session }); return;
       }
       if (req.method === "GET" && url.pathname === "/api/events") {
@@ -1746,6 +1770,14 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         else if (payload.action === "validate-skill") result = validateSkill(payload.skill || {});
         else if (payload.action === "promote-skill") { json(res, 409, { ok: false, error: "Promotion is unavailable: the control plane cannot verify validation runs or independent reviews yet." }); return; }
         else if (payload.action === "register-routine") result = registerRoutine(root, payload.routine || {}, { actor: "manager" });
+        else if (payload.action === "add-claim") {
+          // Save-to-Knowledge from the Ask ATL page: an evidence-linked claim
+          // is born UNKNOWN and needs the usual claim approval to verify.
+          const claimText = String(payload.text || "").replace(/sk-[A-Za-z0-9_-]{12,}|(?:api[_-]?key|access[_-]?token|password)\s*[:=]\s*\S+/gi, "[redacted]").trim();
+          if (!claimText) { json(res, 400, { ok: false, error: "Nothing to save: the reply text was empty." }); return; }
+          result = addClaim(root, { text: claimText.slice(0, 8000), source_id: String(payload.source_id || "ask-atl"), source_content: String(payload.source_content || claimText), subject: payload.subject ? String(payload.subject).slice(0, 200) : null, source_uri: payload.source_uri ? String(payload.source_uri) : null, project: path.basename(root), owner: "ask-atl" });
+          cachedFrame = null;
+        }
         else { json(res, 400, { ok: false, error: "unknown brain action" }); return; }
         json(res, 200, { ok: true, result, snapshot: createControlPlaneSnapshot(root) });
         return;

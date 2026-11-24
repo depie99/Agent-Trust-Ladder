@@ -1,6 +1,6 @@
 # Documentation workflow
 
-Markdown is the editable source for public guides. A generator produces the GitHub Pages HTML and section search index. The package also includes the guides for local reading.
+Markdown is the editable source for public guides. Generators produce the GitHub Pages HTML, the section search index, and the source-derived references (`cli-reference.md`, `state-contract.md`, `api-reference.md`, `skills.md`, `repository-map.md` — regenerated from the CLI usage text, state contract, server routes, skill frontmatter, and the file tree; `docs:check` fails when they drift). The package also includes the guides for local reading.
 
 ## Find the source
 
@@ -42,7 +42,7 @@ Run `node scripts/docs-preview.mjs` for an isolated, read-only synthetic Control
 
 ## Verify and publish
 
-`npm run docs:check` checks generated freshness, source links, HTML links/anchors, search coverage, assets, and catalog consistency. Browser review separately checks rendered diagrams, search, theme, and responsive navigation.
+`npm run docs:check` checks generated freshness, source links, HTML links/anchors, search coverage, assets, and catalog consistency. CI additionally runs `npm run docs:css:check` (compiled stylesheet matches `docs/scss/styles.scss`) and `npm run docs:diagrams:check` (light diagram variants) before the browser regression. Browser review separately checks rendered diagrams, search, theme, and responsive navigation.
 
 Run `npm run docs:test` for the offline browser regression. It checks every public page and exercises search, empty results, keyboard focus, code copying, persistent theme, mobile navigation, and ER diagrams. External network requests are blocked. Its evidence is written to `.atl-evidence/docs-refresh/` and retained by the documentation CI workflow.
 

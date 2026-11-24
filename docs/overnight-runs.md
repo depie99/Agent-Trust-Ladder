@@ -18,7 +18,7 @@ These are example limits, not a promise of eight successful tasks. Other gates c
 
 ## Monitor, stop, and recover
 
-Follow **Queues**, **Activity & Logs**, and **Usage & Limits**. Use the exposed stop operation and inspect resulting state. Reconcile an existing run after a restart before launching again. Preserve failed commands, output, revisions, and blockers. Apply bounded repairs and rerun checks; do not reset counters to evade limits. See [queue recovery](queue-recovery.md) and [reliability](task-run-reliability.md).
+Follow **Queues**, **Workflow runs**, and **Usage & Limits**. Use the exposed stop operation and inspect resulting state. Session transcripts live under `.trust/manager/overnight/<task>/session-NN-<role>.log`, and the durable run record at `.trust/manager/overnight/run.json`. Reconcile an interrupted run with `atl overnight status` and `atl overnight recover --confirm` (it resumes only untouched tasks) before launching again. Preserve failed commands, output, revisions, and blockers. Apply bounded repairs and rerun checks; do not reset counters to evade limits. See [queue recovery](queue-recovery.md) and [reliability](task-run-reliability.md).
 
 ## Assess delivery
 
