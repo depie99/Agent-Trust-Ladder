@@ -648,6 +648,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/dependencies_model.py](../verification/dependencies_model.py) | name -> (tasks [(id, priority)], edges {id: [dep ids]}) — "depends on". |
 | [verification/developer_delivery_contract_test.mjs](../verification/developer_delivery_contract_test.mjs) | Executable regression check for developer delivery contract. |
 | [verification/developer_delivery_receipt_test.mjs](../verification/developer_delivery_receipt_test.mjs) | Executable regression check for developer delivery receipt. |
+| [verification/dispatch_preflight_test.mjs](../verification/dispatch_preflight_test.mjs) | Executable regression check for dispatch preflight. |
 | [verification/dispatcher_test.mjs](../verification/dispatcher_test.mjs) | Executable regression check for dispatcher. |
 | [verification/docs_site_test.mjs](../verification/docs_site_test.mjs) | Executable regression check for docs site. |
 | [verification/e2e/dsh_zero_to_hero_journey.mjs](../verification/e2e/dsh_zero_to_hero_journey.mjs) | DSH zero-to-hero journey — live end-to-end proof of the ATL plugin inside a |
