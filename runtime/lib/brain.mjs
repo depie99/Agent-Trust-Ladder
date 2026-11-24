@@ -78,7 +78,7 @@ export function archiveSource(root, { sourceId, uri = null, content, result = "o
     fs.mkdirSync(rawDir, { recursive: true });
     const rawFile = path.join(rawDir, "content");
     // Redact on intake, before the raw observation ever reaches disk (#35).
-    if (!fs.existsSync(rawFile)) fs.writeFileSync(rawFile, redactLocal(bytes.toString("utf8"), { root })); 
+    if (!fs.existsSync(rawFile)) fs.writeFileSync(rawFile, redactLocal(bytes.toString("utf8"), { root }));
   }
   const source = { id: sourceId, uri, revision, observed_at: observedAt, result, error, raw_path: revision ? `.trust/manager/brain/raw/${revision}/content` : null };
   saveSources(root, { ...store, sources: [...store.sources, source] }, store.revision);

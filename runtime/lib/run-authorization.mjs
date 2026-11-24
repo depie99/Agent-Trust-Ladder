@@ -1,4 +1,4 @@
-﻿import path from 'node:path';
+import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadState } from './state.mjs';
 import { loadQueue } from './queue.mjs';

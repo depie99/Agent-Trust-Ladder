@@ -1,4 +1,4 @@
-﻿import { projectDaemonBackend } from './execution-backend.mjs';
+import { projectDaemonBackend } from './execution-backend.mjs';
 import { getProgram, updateProgram, programReport, projectFor, programTaskReady, claimProgramRunner, heartbeatProgramRunner, reconcileProgramRun, listRecoverablePrograms, recordProgramDispatch } from './programs.mjs';
 import { randomUUID } from 'node:crypto';
 import { loadState } from './state.mjs';

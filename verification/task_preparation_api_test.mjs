@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { emptyMyTasksStore, readMyTasksStore, workItemKey } from "../runtime/lib/my-tasks.mjs";
+import { emptyMyTasksStore, workItemKey } from "../runtime/lib/my-tasks.mjs";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { registerProject } from "../runtime/lib/supervisor.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";

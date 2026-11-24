@@ -12,9 +12,7 @@ import {
   createConversation,
   deleteConversation,
   listConversations,
-  migrateScopeConversations,
   normalizeContextSelection,
-  updateConversationContext,
 } from "../runtime/lib/control-assistant.mjs";
 
 // Isolated per-machine ATL home so the provider registry is test-local.
