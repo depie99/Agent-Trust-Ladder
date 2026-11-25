@@ -208,7 +208,7 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE), embed
   // The checked-in standalone artifact predates the live client and places
   // the body inside the flex topbar. Close that shell boundary for the live
   // surface; otherwise the header's flex rules squeeze and center the page.
-  bodyText = replaceExactlyOnce(bodyText, '<div id="mobile" class="mobile">', '</header><div id="mobile" class="mobile">', 'mobile shell');
+  if (bodyText.includes('<div id="mobile" class="mobile">')) bodyText = replaceExactlyOnce(bodyText, '<div id="mobile" class="mobile">', '</header><div id="mobile" class="mobile">', 'mobile shell');
   bodyText = replaceExactlyOnce(bodyText, '<title>ATL — Developer Control Plane Prototype</title>', '<title>ATL — Developer Control Plane</title>', 'prototype title');
   // The artifact ships neutral slots (no demo residue); the served surface
   // fills them with the live project identity.
