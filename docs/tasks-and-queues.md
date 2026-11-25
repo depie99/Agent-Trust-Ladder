@@ -2,6 +2,8 @@
 
 A task defines a bounded outcome and acceptance evidence. A queue chooses the work considered by a bounded run. Order does not remove prerequisite or approval gates.
 
+The **Tasks** board shows active work. Open completed work from **Shipped** to browse its Activity, Changes, and Process, then use **Back to Shipped** to return to the archive. Filters and live status updates clear board selections that are no longer visible.
+
 ## Create a task contract
 
 1. Open **Tasks** and create or import work.
@@ -15,6 +17,31 @@ A useful check names behavior and a verifier: “Submitting an empty email displ
 ## Build a queue
 
 Open **Queues**, create/select a named queue, add reviewed tasks, and inspect its policy and dependencies. Queue membership persists independently of browser selection.
+
+## Test evidence for workflow runs
+
+Define an observable completion check for each scenario. A manager can register a Node verifier for that exact check. ATL runs registered verifiers in the task workspace when the task reaches verification, without a provider session.
+
+```text
+atl verifier T-001 "The report is generated" integration verification/report.mjs
+atl verification-policy project block
+atl verification-policy T-001 inherit
+atl test-evidence T-001
+```
+
+Verifier types are `unit`, `integration`, `browser`, `e2e`, and `artifact`. A browser verifier writes `before.png` and `after.png` to the directory provided in `ATL_TEST_EVIDENCE_DIR`. Use the same fixture and viewport for the interaction pair. When the verifier is registered before implementation, ATL also attempts a browser baseline before the first implementation session and lists it separately. Test assertions and the process exit determine pass or fail. The Test Evidence panel links the saved output and screenshots under each attempt.
+
+Set the project default under **Settings → Workflow verification**. Each task can inherit the project setting, block completion, or allow completion with evidence gaps. ATL records the policy used for each run. An allowed gap leaves the evidence report unverified. Independent review, verified handoffs, and integrated delivery still use their existing gates.
+
+With automatic model routing enabled, ATL uses the configured capability tiers and cost ordering for unresolved verification work. An inconclusive Beacon session can use one higher-tier route within the existing model ceiling and session budget. Registered tests run independently of model usage.
+
+Replay the local workflow and inspect the before-and-after screenshots, output, and exact results in `.atl-evidence/workflow-verification/index.html`.
+
+```text
+node verification/workflow_verification_e2e_test.mjs
+node verification/full_e2e_playwright_test.mjs
+node verification/e2e/full_operation_test.mjs
+```
 
 ![Named queues in a synthetic project](assets/screenshots/queues.jpg)
 

@@ -13,6 +13,8 @@ Open a task in the live Control Plane with **Activity**, **Changes** and **Proce
 
 Completed handoffs can be inspected after their workspace is archived. Active or blocked work needs **Capture current changes**. Capture stores immutable inspection data and compares two successive snapshots; a mismatch prevents publication. It never invents a missing baseline from Git HEAD. Pause a busy worker before capturing if consistency errors persist.
 
+Completed tasks open their verified handoff by default. The revision picker labels completed handoffs and workspace inspections. If the handoff is unavailable, **Changes** shows the error and offers saved inspections. In Split view, a file added or deleted in the selected revision has a **File absent** label on the missing side.
+
 ## Model and trust boundary
 
 ```mermaid
@@ -61,7 +63,9 @@ The workspace Activity and Process views read `GET /api/task-execution`, a pure 
 
 The additive graph connects objectives, attempts, captures, files, patch hunks, checks and recorded outcomes. Edges say `recorded`, `inferred` or `unknown`; a task-level check never proves file coverage. Large graphs collapse by stage and directory, with further hunk groups by file. The accessible list exposes **Load more captured files** and **Expand captured hunks** for every deferred page. Limits on the initial projection never permanently hide valid captured files or hunks. Binary, redacted or bounded-out patches retain their actual availability.
 
-Both Execution and Code impact support zoom, pan, fit, SVG export, Mermaid source copy and an accessible list. Mermaid is generated from the structured graph and rendered with strict security and SVG text labels. Clipboard denial opens selectable source. Hunk navigation uses the exact capture and patch index. No provider call occurs when a task or diagram opens.
+Process opens Code impact when captured files are available. Execution shows recorded events in time order, and Code impact groups the task, attempts or captures, changed files, checks and outcome into columns. Both views support zoom, pan, fit, SVG export, Mermaid source copy and an accessible list. The interactive SVG and Mermaid source use the same task graph. Clipboard denial opens selectable source. Hunk navigation uses the exact capture and patch index. No provider call occurs when a task or diagram opens.
+
+Fit keeps diagrams at 80% scale or larger. Scroll or pan through diagrams that exceed the canvas. With focus on the canvas, use the arrow keys to pan, **+** or **−** to zoom, and **0** to fit.
 
 Review state is stored at `.trust/manager/change-reviews/<task-id>/review-state.json` (version 1, maximum 16 MiB). Updates use the shared local transaction lock, expected revision, a temporary file and atomic rename. Dead lock owners can be recovered; concurrent or stale writes return a conflict. Comments do not alter task lifecycle, captures or GitHub.
 

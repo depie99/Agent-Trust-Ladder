@@ -16,7 +16,7 @@
     "atl/references/resource-execution.md": "e5a5c39abceb3d7a0d231134fbd9f581aee13f195b79f59a1e9033ec128f0fb2",
     "atl/references/routing.md": "e7a0172c1f4a225c5923077451406d167cd6dd62a9b9d26947652e7b60b9b90c",
     "atl/references/skill-catalog.md": "55f8db66ea506e94c57e3be00b9d609ad7ada7aa1f0b9d1a9f69b4bae25c3db9",
-    "atl/scripts/azure-intake.mjs": "52ae0cc16c18a017ead5baca99f90d8422a5b3d64c80b4b75a011a83c90d59b4",
+    "atl/scripts/azure-intake.mjs": "3a11c60e28f89ffab0ba586567f48e28283812bad330c22cf3fd18eaa48bcacb",
     "atl/scripts/batch-runner.mjs": "4ac6eee2df3852dac0c656d737eb248f35efef9602263452b985f09fb5730fdb",
     "atl/scripts/developer-delivery.mjs": "88a12562d1f9ec2c628854be93748b581009e2c82e14b52858b42ee30b803c7e",
     "atl/scripts/operational-memory.mjs": "45f70ff003c11f090dba37a56ae465df0c5fde9ea75a86d48997b2abe1c62106",

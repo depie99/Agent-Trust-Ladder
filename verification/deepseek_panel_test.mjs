@@ -1,3 +1,4 @@
+import { checkPanelPlanningAndAssistant } from "./panel-workflows.mjs";
 // Render the shipped DSH browser factory against a slot/connection contract
 // fixture, with a real ATL server. This does not claim a full DSH host run.
 // First launch contract: only the host workspace registry selects projects;
@@ -79,6 +80,7 @@ try {
   await frame.locator('#fTitle').fill('Auto-opened home workspace');
   await frame.getByRole('button', { name: 'Create task', exact: true }).click();
   await frame.getByText('Auto-opened home workspace', { exact: true }).first().waitFor();
+  await checkPanelPlanningAndAssistant(frame, "Auto-opened home workspace");
   assert.ok(Object.values(JSON.parse(fs.readFileSync(path.join(project, '.trust/manager/state.json'), 'utf8')).tasks).some(task => task.title === 'Auto-opened home workspace'));
 
   // Host theme drives the embedded page.

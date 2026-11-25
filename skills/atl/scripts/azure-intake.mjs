@@ -120,7 +120,7 @@ export async function fetchAzureTasks(cfg, { requestImpl = requestJson, env = pr
     const item = await requestImpl(url, { headers, ...tls });
     return item ? [normalizeAzureWorkItem(item, cfg, { frozen: false, resourceMapper })] : [];
   }
-  const query = await requestImpl(`${normalized.base}/_apis/wit/wiql?api-version=6.0`, {
+  const query = await requestImpl(`${normalized.base}/_apis/wit/wiql?api-version=6.0&$top=100`, {
     method: "POST",
     headers,
     body: { query: azureQuery(cfg) },

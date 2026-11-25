@@ -10,7 +10,7 @@ atl projects list
 atl projects concurrency 2
 ```
 
-Register from the intended application. Inspect **Projects** before using the supervisor. Shared concurrency is bounded; readiness and task gates can permit fewer sessions than the configured cap.
+Register from the intended application. Open **Repositories** to see the registered repositories and their linked requests, plans, queues, and task assignment controls before using the supervisor. Shared concurrency is bounded; readiness and task gates can permit fewer sessions than the configured cap.
 
 ## Review approvals
 

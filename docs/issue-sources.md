@@ -1,10 +1,14 @@
 # Issue sources
 
-Save named connections, preview issues from a selected connection, then import requests for planning. Import does not create executable queue work; the request needs a reviewed plan first.
+Open **Inbox** to see assigned and imported requests together. Use the stage filters to find requests that need repositories, need plans, are in planning, have approved plans, or have shipped. **Assigned to me** filters to assignments from your connected account.
+
+Open a request to read its review and link registered repositories. **Send to Plan Studio** creates or reuses a local draft for each linked repository. You can also select several imported requests and send them together. Drafts still need review and approval before they create queues.
+
+**Repositories** shows active repositories first and keeps the idle list collapsed after the first three. Open a repository to see its requests, plans, queues and task assignment controls. To open Inbox or Repositories by keyboard, press **6** or **7** respectively.
 
 ## Add a connection
 
-Open **Issue sources** and choose **Add source**. Select GitHub, Jira, or Azure Boards, enter a connection name and location, then save. Each GitHub connection represents one repository. You may save several connections for the same provider. New forms start empty; saved names and locations appear only in **Connected sources** and the explicit editor.
+In **Inbox**, open **Sources** and choose **Add source**. Select GitHub, Jira, or Azure Boards, enter a connection name and location, then save. Each GitHub connection represents one repository. You may save several connections for the same provider. **Sources** also gives access to watch settings and the assigned-work review board.
 
 | Provider | Location | Authentication |
 |---|---|---|
@@ -20,13 +24,15 @@ Token and API-key inputs are masked by default; **Show** and **Hide** reveal or 
 
 Existing provider settings in `config/manager.json` appear as named connections after migration. The registry lives in `.trust/manager/issue-connections.json`; it stores locations and credential references, never tokens. Legacy CLI and My Tasks settings remain in `config/manager.json`. Removing a default connection requires pausing it or having a replacement.
 
+My Tasks uses the Azure credential from the default enabled Issue Sources connection. If the default is paused, My Tasks uses the first enabled Azure connection. Reconnecting that source also resumes My Tasks after an authentication failure.
+
 ## Preview and import
 
-1. Choose **Browse issues** on a card, or select a connection in **Browse issues**. The source’s available issues load automatically; a preview creates no tasks.
+1. Choose **Import issues** in Inbox or **Browse issues** on a source card. Select a connection to preview its issues.
 2. For Azure Boards, the saved default sprint is selected when present. Choose another sprint from that connection’s list, choose **All sprints**, or enter a work item number or link and choose **Search issues**. An empty default lists work items across the project’s sprints.
-3. Filter the results by title, number, state, label, or Jira project where available. The list reflects the provider adapter’s result limit and configured scope.
+3. Filter the results by title, number, state, label, or Jira project where available. Azure issue searches return up to 100 results per search. Use a sprint or a work item number to narrow the search.
 4. Select the intended issues and affected repositories, then import them.
-5. Open **Imported requests** to inspect source details and create a plan for each affected repository.
+5. Return to **Inbox** to inspect the imported requests and send them to Plan Studio.
 
 Imports keep the connection ID and name, remote issue identity, and revision. Deduplication uses the original remote issue identity, so finding the same issue through another connection does not create another request.
 

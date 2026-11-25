@@ -42,8 +42,13 @@ try {
   const output = snapshot(f.root, f.workspace);
   f.task.evidence = [{ kind: "check", check: "behavior", result: "pass", coverage: "complete", code_revision: output.revision, packet_revision: 1 }];
   recordHandoff(f.root, f.task);
+  f.write("runtime/example.js", "later inspection\n");
+  const later = captureChangeReview(f.root, f.task);
+  assert.notEqual(later.output.revision, output.revision);
   fs.renameSync(f.workspace, `${f.workspace}-archived`);
   const completed = readChangeReview(f.root, f.task);
+  assert.equal(completed.source_kind, "handoff");
+  assert.equal(readChangeReview(f.root, f.task, later.id).source_kind, "inspection");
   assert.equal(completed.output.revision, output.revision);
   assert.match(fileDiff(f.root, completed, digest("runtime/example.js")).patch, /newer source/, "archived workspace is not needed for stored review");
   const target = path.join(f.root, "outside"); fs.mkdirSync(target);

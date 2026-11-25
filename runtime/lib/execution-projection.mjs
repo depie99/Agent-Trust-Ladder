@@ -301,7 +301,11 @@ export function buildExecutionProjection(root, taskId, options = {}) {
       }
       const graphCaptures = captures.slice(0, 20);
       if (fileCaptureId && !graphCaptures.some((capture) => capture.id === fileCaptureId)) graphCaptures.push({ id: fileCaptureId });
-      for (const capture of graphCaptures) nodes.push({ id: `capture:${capture.id}`, kind: "capture", label: `Capture ${capture.id.slice(0, 8)} · ${capture.id === currentCaptureId ? "current" : "historical"}`, capture_id: capture.id, files_next_cursor: capture.id === fileCaptureId ? (totalFiles > files.length ? files.length : null) : 0 });
+      for (const capture of graphCaptures) {
+        const id = `capture:${capture.id}`;
+        nodes.push({ id, kind: "capture", label: `Capture ${capture.id.slice(0, 8)} · ${capture.id === currentCaptureId ? "current" : "historical"}`, capture_id: capture.id, files_next_cursor: capture.id === fileCaptureId ? (totalFiles > files.length ? files.length : null) : 0 });
+        edges.push({ from: `task:${taskId}`, to: id, provenance: "recorded", label: "task capture" });
+      }
       for (const file of files) {
         const id = `file:${file.capture_id}:${file.id}`;
         const fileNode = { id, kind: "file", label: file.path, file_id: file.id, capture_id: file.capture_id, hunks_loaded: false };
@@ -315,6 +319,8 @@ export function buildExecutionProjection(root, taskId, options = {}) {
           if (capture && hunkFilesProcessed < 24 && hunkCount < 250) {
             hunkFilesProcessed++;
             const diff = fileDiff(root, capture, file.id, { milliseconds: 100 });
+            fileNode.additions = diff.additions ?? null;
+            fileNode.deletions = diff.deletions ?? null;
             const patch = diff.patch || "";
             if (diff.availability !== "available" || diff.truncated) hunksTruncated = true;
             const headers = [...patch.matchAll(/^@@[^\n]*/gm)];

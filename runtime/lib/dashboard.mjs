@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
+import { testEvidence, verificationPolicy } from "./test-evidence.mjs";
 import { activeTasks, wakeActions } from "./render.mjs";
 import { paths, loadState, saveState, logEvent, transition } from "./state.mjs";
 import { AVATARS, NAMES, readFeed, post as feedPost } from "./feed.mjs";
@@ -700,16 +701,14 @@ function renderTaskDetail(snapshot, selected, width, plain, scroll = 0, maxRows 
   if (task.blocker?.reason) {
     if (task.next_wake_at) lines.push(`${paint("wake", "faint", plain)} ${timeOf(task.next_wake_at)}`);
   }
-  if (task.completion_checks?.length) {
-    lines.push("", paint(`CHECKS · ${task.completion_checks.length}`, "faint", plain));
-    for (const check of task.completion_checks.slice(0, 8)) {
-      const evidence = task.evidence?.filter((entry) => entry.kind === "check" && entry.check === check) || [];
-      const pass = evidence.some((entry) => entry.result === "pass");
-      const fail = evidence.some((entry) => entry.result === "fail");
-      const icon = pass ? paint("✓", "mint", plain) : fail ? paint("×", "coral", plain) : paint("·", "amber", plain);
-      lines.push(` ${icon} ${truncate(check, Math.max(10, inner - 4))}`);
-    }
+  const verification = testEvidence(task, task.verification_revision, snapshot.root);
+  const evidencePolicy = verification.policy || verificationPolicy(snapshot.state, task);
+  lines.push("", paint("TEST EVIDENCE", "faint", plain),
+    ...wrap(`${verification.verified ? "Verified" : "Unverified"} | ${evidencePolicy === "allow" ? "Allow completion with evidence gaps" : "Block completion"}`, inner));
+  for (const check of verification.checks.slice(0, 8)) {
+    lines.push(...wrap(` ${check.status}: ${check.expected}`, inner));
   }
+  lines.push(...wrap(`Details: atl test-evidence ${task.id}`, inner));
   const notes = (task.evidence || []).filter((entry) => entry.kind === "note").slice(-2);
   if (notes.length) {
     lines.push("", paint("LATEST NOTES", "faint", plain));
