@@ -787,7 +787,7 @@ ${p.auto_models?'':'<div class="set-note-dashed">Model routes appear here once a
     const token = { Blocked: "red", High: "amber", Running: "green", Done: "green", Queued: "blue", Review: "violet", InProgress: "green", InReview: "violet", PASS: "green", VERIFY: "violet", INFO: "blue", Idle: "blue", Unknown: "amber" }[label] || "";
     return `<span class="pill status-badge ${token}" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
   }
-  const btn = (text, action, cls = "") => { const iconOnly = action.startsWith("source-remove:"); return `<button class="btn ${cls}${iconOnly ? " source-remove-icon" : ""}" data-action="${escapeHtml(action)}"${iconOnly ? ' aria-label="Remove imported request" title="Remove imported request"' : ""}${cls.includes("disabled") ? ' disabled aria-disabled="true"' : ""}>${iconOnly ? '<svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h10M6 4.5V3h4v1.5m2 0-.6 8H4.6L4 4.5m2.5 2v4m3-4v4"/></svg>' : text}</button>`; };
+  const btn = (text, action, cls = "", label = "") => { const iconOnly = action.startsWith("source-remove:"); return `<button class="btn ${cls}${iconOnly ? " source-remove-icon" : ""}" data-action="${escapeHtml(action)}"${iconOnly ? ' aria-label="Remove imported request" title="Remove imported request"' : label ? ` aria-label="${escapeHtml(label)}"` : ""}${cls.includes("disabled") ? ' disabled aria-disabled="true"' : ""}>${iconOnly ? '<svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h10M6 4.5V3h4v1.5m2 0-.6 8H4.6L4 4.5m2.5 2v4m3-4v4"/></svg>' : text}</button>`; };
   const head = (label, title, subtitle, buttons = "") => `<div class="pagehead"><div><div class="eyebrow">${label}</div><h1>${title}</h1><p class="sub">${subtitle}</p></div><div class="bar">${buttons}</div></div>`;
   const card = (title, html, extra = "", cls = "") => `<section class="panel${cls ? ` ${cls}` : ""}"><div class="paneltitle"><h2>${title}</h2>${extra}</div>${html}</section>`;
   const meter = (value, color = "var(--accent)") => `<div class="track"><div class="fill" style="width:${Math.max(0, Math.min(100, Number(value) || 0))}%;background:${color}"></div></div>`;
@@ -1219,7 +1219,7 @@ ${feedbackLine}
     if (["in_progress", "in_review", "verifying"].includes(task.rawStatus)) return btn("Resume", `run-task:${task.id}`, `sm primary${currentRun.status === "running" ? " disabled" : ""}`) + btn("Logs", `task-detail:${task.id}`, "sm");
     if (task.rawStatus === "blocked") return btn("Unblock", `unblock:${task.id}`, "sm") + btn("Logs", `task-detail:${task.id}`, "sm");
     if (["done", "archived", "rejected"].includes(task.rawStatus)) return btn("Logs", `task-detail:${task.id}`, "sm") + btn("Delete", `task-delete:${task.id}`, "sm danger");
-    return btn("Run", `run-task:${task.id}`, "sm primary") + btn("More", `task-actions:${task.id}`, "sm");
+    return btn("Run", `run-task:${task.id}`, "sm primary") + btn("More", `task-actions:${task.id}`, "sm", `More actions for ${task.id}`);
   };
   function liveRunState(task) {
     if (currentRun.status !== "running") return null;
@@ -3114,8 +3114,20 @@ operations: () => {
     dialogOpen = true;
     $("#modal").innerHTML = `<div class="overlay" id="overlay"><section class="dialog ${escapeHtml(dialogClass)}" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1"><div class="dialoghead"><h2 id="modalTitle">${escapeHtml(title)}</h2><button class="btn ghost dialog-close" type="button" data-action="close" aria-label="Close dialog">✕</button></div><div class="dialogbody">${body}</div>${actions ? `<div class="dialogfoot">${actions}</div>` : ""}</section></div>`;
     const dialog = $("#modal .dialog");
+    // A short explanatory lead-in doubles as the dialog description so screen
+    // readers announce why the dialog opened before the actions; long bodies
+    // that merely start with a note stay out of the announcement.
+    const lead = dialog.querySelector(".dialogbody > p.sub");
+    if (lead) { if (!lead.id) lead.id = "modalDesc"; dialog.setAttribute("aria-describedby", lead.id); }
     const first = dialog.querySelector(".dialogbody input:not([disabled]), .dialogbody textarea:not([disabled]), .dialogbody select:not([disabled])");
-    (first || dialog).focus({ preventScroll: true });
+    const firstAction = dialog.querySelector(".dialogfoot button:not([disabled])");
+    // Action-only dialogs focus their first footer button (Back/Cancel by
+    // convention) instead of the inert container, so acting takes one Enter
+    // and the actions follow immediately in the tab order.
+    (first || firstAction || dialog).focus({ preventScroll: true });
+    // Field-free dialogs have nothing to lose, so they also dismiss on an
+    // overlay click — the pointer equivalent of the Escape affordance.
+    if (!first) $("#modal .overlay")?.addEventListener("click", (event) => { if (event.target?.id === "overlay") close(); });
   }
   function popup(title, body, actions = "") { detailExecution = null; showModal(title, body, actions); }
   function popupWide(title, body, actions = "", dialogClass = "") { showModal(title, body, actions, `dialog-wide ${dialogClass}`); }
