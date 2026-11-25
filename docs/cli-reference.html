@@ -59,8 +59,9 @@ Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   escalate &lt;id&gt; --reason &quot;...&quot; --actor &lt;role&gt;
 
 Owner gates (the human's levers, no incantations)
-  why [task-id]                 the full &quot;why&quot; behind every active task — complete
-                                blocker text, never truncated, plus the exact fix command
+  why [task-id]                 full blocker reason, what happened, every recorded
+                                next action, exact command/route, log and session ids,
+                                plus per-handoff reasons and fixes; never truncated
   approve &lt;task-id&gt; [--note &quot;...&quot;]
                                 the owner gate in one word: records your approval as
                                 durable evidence, clears an approval blocker, and
@@ -542,7 +543,7 @@ function saveConfig(config) {
 <tr>
 <td><code>why [task-id]</code></td>
 <td>read</td>
-<td>explain blockers and next actions</td>
+<td>full blocker reason, diagnosis and next actions</td>
 </tr>
 <tr>
 <td><code>show [task-id]</code></td>
