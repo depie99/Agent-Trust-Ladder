@@ -33,13 +33,44 @@ try {
   const started = await startControlPlaneServer(root,{planningInvoke, publishFetch}); server=started.server;
   browser=await chromium.launch({headless:true}); const page=await browser.newPage({viewport:{width:1280,height:900}}); page.setDefaultTimeout(30000); // slow CI runners and big trees need headroom
   await page.goto(started.url); await page.locator('[data-page="tasks"]').first().click();
-  await page.getByText('Search project rooms',{exact:true}).first().click(); await page.getByRole('button',{name:'More actions',exact:true}).click(); await page.getByRole('button',{name:'Plan task',exact:true}).click();
+  await page.getByText('Search project rooms',{exact:true}).first().click(); await page.getByRole('button',{name:'More task actions',exact:true}).click(); await page.getByRole('button',{name:'Plan task',exact:true}).click();
   assert.match(await page.locator('#goal').inputValue(),/Filter repositories by name/);
+  const initialGoal = await page.locator('#goal').inputValue();
+  assert.ok(await page.locator('.studio-plan').evaluate(pane => pane.clientWidth > pane.parentNode.querySelector('.studio-conversation').clientWidth), 'Plan gets more space in the desktop split');
+  assert.ok(await page.locator('.studio-workspace').evaluate(workspace => workspace.getBoundingClientRect().left - workspace.closest('.main').getBoundingClientRect().left <= 16), 'Workspace sits close to the sidebar');
+  await page.getByRole('button', {name:'Focus conversation',exact:true}).click();
+  assert.equal(await page.locator('.studio-plan').isVisible(), false);
+  assert.equal(await page.locator('#goal').inputValue(), initialGoal);
+  await page.getByRole('button', {name:'Show Plan',exact:true}).click();
+  assert.equal(await page.locator('.studio-plan').isVisible(), true);
+  await page.getByRole('button', {name:'Focus Plan',exact:true}).click();
+  assert.equal(await page.locator('.studio-conversation').isVisible(), false);
+  await page.locator('.planpane-tabs [data-action="studio-plantab:tasks"]').click();
+  assert.equal(await page.locator('.studio-conversation').isVisible(), false);
+  await page.getByRole('button', {name:'Show conversation',exact:true}).click();
+  assert.equal(await page.locator('#goal').inputValue(), initialGoal);
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('[data-action="studio-pane:plan"]').click();
+  assert.equal(await page.locator('.studio-plan').isVisible(), true);
+  await page.locator('[data-action="studio-pane:conversation"]').click();
+  assert.equal(await page.locator('#goal').inputValue(), initialGoal);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.setViewportSize({width:1280,height:900});
   // The planning mode lives in the composer's settings popover now.
   await page.locator('.studio-settings > summary').click();
   await page.getByRole('button',{name:'Generate with model',exact:true}).click();
   assert.match(await page.locator('#goal').inputValue(),/Filter repositories by name/, 'objective survives rerender');
+  await page.route('**/api/providers', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    assert.deepEqual(route.request().postDataJSON(), { action: 'models', id: 'test' });
+    await route.fulfill({ json: { ok: true, models: ['discovered-model'] } });
+  });
+  await page.getByRole('button',{name:'Load models',exact:true}).click();
+  await page.locator('#providerModelSuggestions option[value="discovered-model"]').waitFor({ state: 'attached' });
+  await page.locator('#providerModel').fill('unlisted-exact-model');
+  const generationRequest = page.waitForRequest((request) => request.url().endsWith('/api/plan/generate'));
   await page.getByRole('button',{name:'Generate plan',exact:true}).click();
+  assert.equal((await generationRequest).postDataJSON().model, 'unlisted-exact-model');
   await page.getByText('Model plan ready', {exact:false}).waitFor();
   assert.equal(calls,1); assert.match(requested.intent,/Preserve deletion behavior/);
   assert.equal(Object.keys(loadState(root).tasks).length,2,'generation does not create tasks');
@@ -48,6 +79,8 @@ try {
   await page.getByRole('heading',{name:'Review this plan'}).waitFor();
   await page.getByRole('button',{name:'Run review'}).click();
   await page.getByRole('region',{name:'Plan review'}).getByText('Accuracy review passed',{exact:false}).waitFor();
+  const evidenceOutput = process.env.ATL_TEST_EVIDENCE_DIR;
+  if (evidenceOutput) await page.screenshot({path:path.join(evidenceOutput,"before.png")});
   const approvalRequest = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === '/api/plan/approve');
   await page.getByRole('region',{name:'Plan review'}).getByRole('button',{name:'Approve → Plan Queue'}).click();
   await page.getByText('Plan approved — Plan Queue created').waitFor();
@@ -55,6 +88,7 @@ try {
   const state=loadState(root); const generated=Object.values(state.tasks).filter(t=>t.plan_draft_id);
   assert.equal(generated.length,1); assert.match(generated[0].objective,/Filter repositories by name/); assert.deepEqual(generated[0].completion_checks,['node test/search.mjs']);
   assert.notEqual(generated[0].status,'in_progress');
+  if (evidenceOutput) await page.screenshot({path:path.join(evidenceOutput,"after.png")});
   await page.getByRole('button',{name:'Close',exact:true}).click();
   await page.locator('[data-page="studio"]').first().click();
   await page.locator('.planpane-tabs [data-action="studio-plantab:review"]').click();

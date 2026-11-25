@@ -51,7 +51,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(running.url, { waitUntil: "domcontentloaded" });
-  await page.click('[data-page="mytasks"]');
+  await page.goto(new URL("?page=mytasks", page.url()).href);
   await page.waitForSelector(".mtr-status-group");
   await page.click('[data-action="mt-settings"]');
   await page.check('[data-mt-project="Beta"]');

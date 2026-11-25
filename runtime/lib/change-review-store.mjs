@@ -74,6 +74,10 @@ export function readChangeReview(root, task, id = null) {
     if (task.handoff) { const record = fromHandoff(root, task); if (record.id === id) return validate(record, task); }
     throw new ChangeReviewError("change_set_missing", "Captured revision is unavailable for this task", 404);
   }
+  if (task.handoff && task.status === "done") {
+    try { return validate(fromHandoff(root, task), task); }
+    catch { throw new ChangeReviewError("handoff_unavailable", "Completed handoff is unavailable or failed validation. Select an earlier inspection explicitly if available.", 409); }
+  }
   const records = fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => /^[a-f0-9]{64}\.json$/.test(name)).map((name) => {
     const file = safePath(directory, name);
     try { return validate(JSON.parse(fs.readFileSync(file, "utf8")), task); }

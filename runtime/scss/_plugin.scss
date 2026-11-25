@@ -1,6 +1,5 @@
-// Plugin presentation (ZCode native panel). Every rule is scoped under
-// html[data-atl-context="plugin"], which only plugins/panel-entry.mjs sets,
-// so the default browser Control Plane renders exactly as before.
+// Plugin presentation for the DSH and ZCode panels. Both hosts set
+// html[data-atl-context="plugin"] before loading the shared client.
 // Colors are token-only (dark/light parity holds automatically) and layout
 // uses logical properties, so the Persian RTL locale needs no overrides.
 //
@@ -38,7 +37,7 @@ html[data-atl-context="plugin"] #localeBtn { display: none; }
 .plugin-overflow-menu { position: absolute; top: calc(100% + 6px); inset-inline-start: 0; z-index: 40; min-width: 210px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--pane); }
 .plugin-overflow-menu .nav { border: 0; background: none; text-align: start; min-height: 40px; }
 
-// ---- Primary navigation: the four plugin destinations live in #mobile.
+// ---- Primary navigation lives in #mobile.
 // The same container is a top tab strip from 640px up and a bottom bar below.
 html[data-atl-context="plugin"] .mobile { display: flex; align-items: center; gap: 4px; padding: 8px 16px; margin: 0; border-bottom: 1px solid var(--border); background: var(--mobile-bg); }
 html[data-atl-context="plugin"] .mobile .btn { display: inline-flex; align-items: center; min-height: 40px; min-width: 0; justify-content: center; gap: 7px; padding: 8px 12px; font-size: 12px; }
@@ -53,6 +52,12 @@ html[data-atl-context="plugin"] .tasks-search-row > [data-action="tasks-select-v
 html[data-atl-context="plugin"] .mobile .btn:focus-visible,
 html[data-atl-context="plugin"] .task-row:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (max-width: 639px) {
+  html[data-atl-context="plugin"] { scroll-padding-block-end: calc(72px + env(safe-area-inset-bottom)); }
+  html[data-atl-context="plugin"] .studio-settings-body {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 96px - env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
   html[data-atl-context="plugin"] .mobile { position: fixed; inset-inline: 0; bottom: 0; z-index: 30; margin: 0; padding: 6px max(10px, env(safe-area-inset-left)) max(6px, env(safe-area-inset-bottom)); border-bottom: 0; border-top: 1px solid var(--border); background: var(--pane); justify-content: space-around; }
   html[data-atl-context="plugin"] .mobile .btn { flex: 1; min-width: 0; }
   html[data-atl-context="plugin"] .mobile .btn { flex-wrap: wrap; gap: 2px 4px; font-size: 11px; }
@@ -103,5 +108,6 @@ html[data-atl-context="plugin"] .approval-request { margin-bottom: 10px; }
 // floated ~130px in, which reads as broken margins. These rules deliberately
 // live LAST so they override the .mobile margin:0 / topbar rules above;
 // below 1590px the max-width never binds and narrow layouts are untouched.
+html[data-atl-context="plugin"] .body,
 html[data-atl-context="plugin"] .mobile { max-width: 1590px; margin-inline: auto; }
 html[data-atl-context="plugin"] .topbar { max-width: 1590px; margin-inline: auto; }

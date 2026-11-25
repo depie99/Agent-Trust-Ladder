@@ -98,6 +98,10 @@ export function routeTask(config,task={},role='rowan',{profile=providerProfile(c
   const p=resourcePolicy(config),assessment=assessTask(task,{role});
   const learned=learnedResources(config.__resourceRoot,task,assessment);
   if(p.enabled&&p.auto_models&&learned.tierFloor&&level(learned.tierFloor)>level(assessment.tier)){assessment.tier=learned.tierFloor;assessment.reasons.push(`Project history: repeated review repairs in ${learned.samples} comparable verified tasks; raise capability to ${learned.tierFloor}`);}
+  if (role === "beacon" && task.verification_escalation) {
+    assessment.tier = MODEL_TIERS[Math.min(2, level(assessment.tier) + 1)];
+    assessment.reasons.push("Escalate once after an unresolved verification session");
+  }
   const pinned=Boolean(selectedWorker||selectedModel||profile.byRole?.[role]||profile.modelByRole?.[role]);
   const base=providerForRole(profile,role);
   let chosen=null,blocked=null;

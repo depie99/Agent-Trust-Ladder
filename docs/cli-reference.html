@@ -41,6 +41,9 @@ Intake (pulls new work in)
 
 Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   revision &lt;id&gt;                print the workspace content revision
+  verifier &lt;id&gt; &quot;&lt;check&gt;&quot; &lt;type&gt; verification/&lt;script&gt;.mjs
+  verification-policy &lt;project|id&gt; &lt;block|allow|inherit&gt;
+  test-evidence &lt;id&gt;           report verification attempts and revision freshness
   observe &lt;id&gt; &lt;packet.json&gt;    record complete revision-bound observation evidence
   contract-repair &lt;id&gt; &lt;file&gt;  apply one supervisor-requested Pip contract revision
   update &lt;id&gt; [--set k=v]... [--check &quot;...&quot;]... [--objective &quot;...&quot;]
@@ -406,6 +409,12 @@ async function runWorkerLoop(taskId, { overnight }) {
   const finalTask = finalState.tasks[taskId];
   console.log(`\nRun stopped after ${budget.sessions} session(s): ${taskId} is ${finalTask?.status || &quot;unknown&quot;}.`);
   console.log(`Reason: ${outcome.reason}.`);
+  if (!opts.dryRun &amp;&amp; finalTask) {
+    const evidence = outcome.evidence?.checks ? outcome.evidence : testEvidence(finalTask);
+    console.log(`Test Evidence: ${evidence.verified ? &quot;verified&quot; : &quot;unverified&quot;}`);
+    for (const check of evidence.checks) console.log(`  ${check.status}: ${check.expected}`);
+    console.log(`Evidence details: atl test-evidence ${taskId}`);
+  }
   console.log(&quot;Next: atl wake &amp;&amp; atl brief --save &amp;&amp; atl show &quot; + taskId);
 }
 
@@ -479,7 +488,13 @@ async function runQueueLoop({ overnight }) {
   saveBrief(ROOT, renderBrief(after));
   say(&quot;runner&quot;, &quot;queue run finished — morning brief saved.&quot;);
   console.log(`\nQueue run finished after ${budget.sessions} session(s). Results:`);
-  for (const r of results) console.log(`  ${String(r.id).padEnd(6)} ${String(r.status).padEnd(12)} ${r.reason}`);
+  for (const result of results) {
+    console.log(`  ${String(result.id).padEnd(6)} ${String(result.status).padEnd(12)} ${result.reason}`);
+    const task = after.tasks[result.id];
+    if (!task) continue;
+    const evidence = testEvidence(task, task.verification_revision, ROOT);
+    console.log(`    Test Evidence: ${evidence.verified ? &quot;verified&quot; : &quot;unverified&quot;} (atl test-evidence ${task.id})`);
+  }
   console.log(&quot;\nMorning report: atl brief   ·   transcript: atl feed --roster   ·   per task: atl show &lt;id&gt;&quot;);
 }
 

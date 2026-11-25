@@ -27,7 +27,7 @@ function safeFile(dir, name) {
   return target;
 }
 function fileHash(file) { return fs.existsSync(file) ? hash(fs.readFileSync(file)) : null; }
-export function snapshot(root, workspace) {
+export function snapshot(root, workspace, { storeBlobs = true } = {}) {
   let names;
   const trackedModes = {};
   try {
@@ -51,8 +51,8 @@ export function snapshot(root, workspace) {
     if (!fs.existsSync(file) || !fs.lstatSync(file).isFile()) continue;
     const bytes = fs.readFileSync(file); const digest = hash(bytes);
     const blob = path.join(store(root), "blobs", digest);
-    fs.mkdirSync(path.dirname(blob), { recursive: true });
-    if (fileHash(blob) !== digest) {
+    if (storeBlobs && fileHash(blob) !== digest) {
+      fs.mkdirSync(path.dirname(blob), { recursive: true });
       const temporary = `${blob}.${process.pid}.tmp`;
       fs.writeFileSync(temporary, bytes); fs.renameSync(temporary, blob);
     }

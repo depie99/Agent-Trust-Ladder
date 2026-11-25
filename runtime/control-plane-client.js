@@ -135,8 +135,8 @@
   }
   if (mobileStrip) mobileStripDrag(mobileStrip);
   const routes = [
-    ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["shipped", "✔", "Shipped"], ["sources", "?", "Issue sources"], ["mytasks", "☰", "My Tasks"], ["assistant", "✦", "Ask ATL"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"], ["runs", "◷", "Workflow runs"],
-    ["team", "♙", "Agent Team"], ["projects", "⌂", "Projects"], ["approvals", "✓", "Approvals"], ["operations", "▣", "Operations"], ["batches", "▥", "Batches"], ["brain", "◈", "Knowledge"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
+    ["overview", "▦", "Overview"], ["tasks", "☷", "Tasks"], ["shipped", "✔", "Shipped"], ["sources", "?", "Issue sources"], ["mytasks", "☰", "My Tasks"], ["inbox", "☰", "Inbox"], ["assistant", "✦", "Ask ATL"], ["studio", "◇", "Plan Studio"], ["queues", "≡", "Queues"], ["runs", "◷", "Workflow runs"],
+    ["team", "♙", "Agent Team"], ["projects", "⌂", "Repositories"], ["approvals", "✓", "Approvals"], ["operations", "▣", "Operations"], ["batches", "▥", "Batches"], ["brain", "◈", "Knowledge"], ["activity", "▤", "Activity & Logs"], ["usage", "◉", "Usage & Limits"], ["settings", "⚙", "Settings"],
   ];
   const fallback = {
     state: { tasks: {}, log_tail: [] }, queues: { active_queue: "default", items: [] }, notifications: { unread: 0, items: [] },
@@ -148,7 +148,7 @@
   const PLUGIN = document.documentElement.dataset.atlContext === "plugin";
   const projectStorageScope = document.documentElement.dataset.atlProjectKey || "standalone";
   const scopedStorageKey = key => `${key}:${projectStorageScope}`;
-  const PLUGIN_NAV = [["tasks", "☷", "Tasks"], ["attention", "!", "Attention"], ["studio", "◇", "Plan Studio"], ["more", "⋯", "More"]];
+  const PLUGIN_NAV = [["tasks", "☷", "Tasks"], ["attention", "!", "Attention"], ["studio", "◇", "Plan Studio"], ["assistant", "✦", "Ask ATL"], ["more", "⋯", "More"]];
   // Inline SVG line icons (24-grid, stroke 1.6) replacing the unicode nav
   // glyphs. The `routes`/`PLUGIN_NAV` glyph fields stay as fallbacks so the
   // arrays and their keyboard order remain canonical.
@@ -182,20 +182,31 @@
   const pluginDetailOpen = new Map();
   const pluginValidPage = (saved) => routes.some((route) => route[0] === saved) || ["attention", "more", "task"].includes(saved);
   let page = (() => {
+    const locationUrl = new URL(location.href);
+    const requested = locationUrl.searchParams.get("page");
+    if (routes.some(route => route[0] === requested)) {
+      locationUrl.searchParams.delete("page");
+      history.replaceState(history.state, "", locationUrl);
+      if (requested === "sources") {
+        try { sessionStorage.removeItem("atl-cp-intake-tool"); } catch { /* storage may be unavailable */ }
+      }
+      return requested;
+    }
     try {
       const saved = sessionStorage.getItem("atl-cp-page");
-      if (saved && (PLUGIN ? pluginValidPage(saved) : routes.some((route) => route[0] === saved))) return saved;
+      if (saved && (PLUGIN ? pluginValidPage(saved) : saved === "task" || routes.some((route) => route[0] === saved))) return saved;
     } catch { /* storage may be unavailable */ }
     return PLUGIN ? "tasks" : "overview";
   })();
   // The detail screen needs a selected task; a restored session without one lands on the list.
-  if (page === "task") page = "tasks";
+  if (PLUGIN && page === "task") page = "tasks";
   // Task workspace (browser shell): selected task, active view, disclosure
   // state and scroll positions survive reloads; the projection cache is
   // memory-only and refetches when the underlying task record changes.
   let workspaceTaskId = null;
   let workspaceView = "activity";
   let workspaceNarrowDetail = false;
+  let workspaceReturnPage = "tasks";
   const workspaceOpen = new Map();
   const workspaceProjection = new Map();
   let workspaceProjectionSeq = 0;
@@ -205,7 +216,7 @@
   const workspaceRestore = (() => {
     try {
       const saved = JSON.parse(localStorage.getItem(scopedStorageKey("atl-cp-workspace")) || "null");
-      if (saved && typeof saved === "object") {
+      if ((page === "tasks" || page === "task") && saved && typeof saved === "object") {
         if (typeof saved.task === "string") workspaceTaskId = saved.task;
         if (workspaceViews.includes(saved.view)) workspaceView = saved.view;
       }
@@ -213,11 +224,13 @@
       if (ui && typeof ui === "object") {
         for (const [key, open] of Object.entries(ui.open || {})) workspaceOpen.set(key, Boolean(open));
         workspaceNarrowDetail = Boolean(ui.detail);
+        if (ui.returnPage === "shipped") workspaceReturnPage = "shipped";
       }
     } catch { /* storage may be unavailable */ }
     return true;
   })();
   void workspaceRestore;
+  if (page === "task" && !workspaceTaskId) page = "tasks";
   if (PLUGIN) {
     pluginTaskId = workspaceTaskId;
     try { if (workspaceTaskId && sessionStorage.getItem("atl-cp-page") === "task" && window.matchMedia("(max-width: 959px)").matches) page = "task"; } catch { /* storage may be unavailable */ }
@@ -228,9 +241,19 @@
       sessionStorage.setItem(scopedStorageKey("atl-cp-workspace-ui"), JSON.stringify({
         open: Object.fromEntries(workspaceOpen),
         detail: workspaceNarrowDetail,
+        returnPage: workspaceReturnPage,
       }));
     } catch { /* private browsing */ }
   };
+  function clearWorkspaceSelection() {
+    workspaceTaskId = pluginTaskId = null;
+    workspaceView = "activity";
+    workspaceNarrowDetail = false;
+    workspaceReturnPage = "tasks";
+    workspaceReview = null;
+    workspacePersist();
+  }
+  let renderedPage = page;
   let filter = "All";
   let query = "";
   let queueFilter = "All";
@@ -249,6 +272,8 @@ let queueFilterTouched = false;
   let currentRun = { status: "idle", progress: [], results: [] };
   let pendingApprovalAction = null;
   let assistantScope = "global";
+  let assistantHistoryQuery = "";
+  let assistantRequest = 0;
   let assistantPending = null;
   let assistantPoll = null;
   // Ask ATL page state: conversation rail, current chat, context picker.
@@ -294,8 +319,10 @@ let queueFilterTouched = false;
   // resizable conversation share, the refinement target task, and whether the
   // transcript should keep following the latest entry.
   let studioMobilePane = "conversation";
+  let studioFocusedPane = null;
+  const studioDefaultSplit = 46;
   let studioPlanTab = "overview";
-  let studioSplit = (() => { try { const value = Number(localStorage.getItem(scopedStorageKey("atl-cp-studio-split"))); return value >= 24 && value <= 72 ? value : 40; } catch { return 40; } })();
+  let studioSplit = (() => { try { const value = Number(localStorage.getItem(scopedStorageKey("atl-cp-studio-split"))); return value >= 24 && value <= 72 ? value : studioDefaultSplit; } catch { return studioDefaultSplit; } })();
   let studioSplitDragging = false;
   let studioComposerTarget = null;
   let studioTranscriptStick = true;
@@ -321,6 +348,19 @@ let queueFilterTouched = false;
   const shippedCollapsed = new Set();
   const currentAssign = new Map();
   let projectQuery = "";
+  let selectedRepository = null;
+  let showIdleRepositories = false;
+  let inboxStage = "All", inboxQuery = "", inboxProvider = "", inboxProject = "", inboxAssigned = false;
+  const inboxPageSize = 8;
+  let inboxLimit = inboxPageSize, inboxSelected = null, inboxNotice = "", inboxLoading = false, inboxSending = false, inboxLinking = false;
+  let intakeTool = null;
+  let inboxRepositoryQuery = "";
+  try {
+    const savedTool = sessionStorage.getItem("atl-cp-intake-tool");
+    if (page === "sources" && ["connections", "import"].includes(savedTool)) intakeTool = savedTool;
+  } catch { /* storage may be unavailable */ }
+  const inboxChecked = new Set();
+  const inboxRepositoryChoices = new Set();
   // Provider manager modal state (never holds key material — keys travel
   // once, from the password input straight into POST /api/providers).
   let pmTemplates = [];
@@ -370,20 +410,15 @@ let queueFilterTouched = false;
   // Workflow runs (Batches page): the selected run is presentation state and
   // survives reloads; its step tree loads from /api/batch on selection.
   let workflowSelected = (() => { try { return sessionStorage.getItem(scopedStorageKey("atl-cp-batch")) || null; } catch { return null; } })();
-  let workflowDetail = null;
-  let workflowRequest = 0;
-  async function loadWorkflowDetail(id) {
-    const request = ++workflowRequest;
-    workflowDetail = { loading: true };
-    render();
-    try {
-      const response = await fetch(`/api/batch?id=${encodeURIComponent(id)}`, { cache: "no-store" });
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
-      if (request !== workflowRequest || workflowSelected !== id) return;
-      workflowDetail = { summary: result.summary || null };
-    } catch (error) { if (request !== workflowRequest || workflowSelected !== id) return; workflowDetail = { error: error.message }; }
-    if (request === workflowRequest && workflowSelected === id) render();
+  let batchSearch = "";
+  let batchFormOrder = [];
+  let knowledgeTab = "claims";
+  let claimFilter = "unchecked";
+  let claimLimit = 2;
+  let knowledgeSource = null;
+  function selectBatch(id) {
+    workflowSelected = id;
+    try { sessionStorage.setItem(scopedStorageKey("atl-cp-batch"), id); } catch { /* storage may be unavailable */ }
   }
   const sourceImportRepos = new Set();
   let accessSettings = null;
@@ -521,7 +556,7 @@ let queueFilterTouched = false;
     const keyed = (studioProviders || []).map((provider) => ({ ...provider, kind: "key", modelOptions: [...new Set([provider.model, ...(provider.models || [])].filter(Boolean).map(String))].map((id) => ({ id, label: id })) }));
     const taken = new Set(keyed.map((provider) => provider.id));
     const builtin = (builtinWorkers || []).filter((worker) => ["codex", "gapgpt", "claude"].includes(worker.id) && !taken.has(worker.id)).map((worker) => {
-      const modelOptions = (worker.models || []).map((model) => typeof model === "string" ? { id: model, label: model } : { id: String(model.id), label: String(model.label || model.id) }).filter((model) => !(worker.id === "codex" && worker.method === "chatgpt" && model.id === "gpt-6.1-terra"));
+      const modelOptions = (worker.models || []).map((model) => typeof model === "string" ? { id: model, label: model } : { id: String(model.id), label: String(model.label || model.id) });
       const problems = !worker.installed ? ["CLI not installed"] : !worker.signedIn ? ["not signed in"] : [];
       const preferredModel = modelOptions.some((model) => model.id === worker.defaultModel) ? worker.defaultModel : modelOptions[0]?.id || "";
       const needsModel = worker.id === "codex" && worker.method === "chatgpt";
@@ -550,6 +585,10 @@ let queueFilterTouched = false;
           studioModel = preferred.model || preferred.models?.[0] || "";
           studioThinking = preferred.thinking_level || "";
         }
+      }
+      const selected = planningChoices().find((provider) => provider.id === studioProvider);
+      if (selected?.kind === "subscription" && selected.method === "chatgpt" && !selected.models.includes(studioModel)) {
+        studioModel = selected.model || "";
       }
     } catch { studioProviders = studioProviders || []; }
     return studioProviders;
@@ -627,16 +666,85 @@ ${p.auto_models?'':'<div class="set-note-dashed">Model routes appear here once a
     return `<span class="pill" data-execution-tokens>${total==null?'Tokens not reported':`${Number(total).toLocaleString()} ${report.coverage==='complete'?'tokens':'reported tokens'}`} · ${report.reported_sessions}/${report.sessions} sessions covered</span>`;
   }
   function resourceLearningMarkup() {
-    const samples=snapshot.usage?.learning?.samples||[];
-    return card('Learning from executions',`<div class="pad" data-resource-learning><b>${samples.length} verified task histories</b><p class="sub">${snapshot.resource_policy?.enabled?'Adaptive estimates are enabled.':'Adaptive estimates are disabled in Settings.'} ATL calibrates session estimates after three comparable verified tasks and raises model capacity after repeated review repairs. Current limits still apply.</p><p class="muted tiny">Execution reports below retain token coverage and source revisions. Historical records without a recorded effort assessment remain observations.</p>${btn('Resource settings','go:settings','sm')}</div>`,'','space');
+    const count = snapshot.usage?.learning?.samples?.length || 0;
+    return `<section class="panel knowledge-learning" data-resource-learning><div><b>Learning from executions · ${count} verified task ${count === 1 ? "history" : "histories"}</b><p class="sub">Adaptive estimates are ${snapshot.resource_policy?.enabled ? "on" : "off"}. ATL uses three comparable verified tasks to calibrate session estimates.</p></div>${btn("Resource settings", "knowledge-resource-settings", "sm")}</section>`;
   }
+  function verificationPolicySelect(taskId, selected) {
+    return `<label>Verification policy <select data-verification-policy="${escapeHtml(taskId)}">
+      ${taskId ? `<option value="inherit" ${selected === "inherit" ? "selected" : ""}>Inherit project default</option>` : ""}
+      <option value="block" ${selected === "block" ? "selected" : ""}>Block completion</option>
+      <option value="allow" ${selected === "allow" ? "selected" : ""}>Allow completion with evidence gaps</option>
+      </select></label><span role="status" data-verification-policy-status></span>`;
+  }
+
+  document.addEventListener("change", async (event) => {
+    const select = event.target.closest("[data-verification-policy]");
+    if (!select) return;
+    const output = select.parentElement.nextElementSibling;
+    select.disabled = true;
+    try {
+      await planApi("/api/verification-policy", { taskId: select.dataset.verificationPolicy || null, policy: select.value });
+      output.textContent = "Saved";
+    } catch (error) {
+      output.textContent = error.message;
+    } finally {
+      select.disabled = false;
+    }
+  });
+
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-refresh-test-evidence]");
+    if (!button) return;
+    const panel = button.closest("[data-test-evidence]");
+    const taskId = button.dataset.refreshTestEvidence;
+    button.disabled = true;
+    try {
+      const response = await fetch(`/api/test-evidence?taskId=${encodeURIComponent(taskId)}`);
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Evidence unavailable");
+      panel.outerHTML = testEvidenceMarkup(result.evidence, taskId);
+    } catch (error) {
+      panel.querySelector("[data-evidence-refresh-status]").textContent = error.message;
+      button.disabled = false;
+    }
+  });
+
+  function testEvidenceMarkup(report, taskId) {
+    if (!report) return "";
+    const policy = report.policy || report.effective_policy;
+    const checks = report.checks.map(({ expected, type, status, attempts, baseline }) => {
+      const history = [...attempts].reverse().concat(baseline ? [baseline] : []).map((entry) => {
+        const artifact = entry.output_id ? `/api/test-evidence?id=${encodeURIComponent(entry.output_id)}` : "";
+        const files = artifact ? [`<a href="${artifact}" target="_blank" rel="noopener">Test output</a>`,
+          ...(entry.screenshots || []).filter((name) => ["before.png", "after.png"].includes(name)).map((name) =>
+            `<a href="${artifact}&amp;file=${name}" target="_blank" rel="noopener">${name === "before.png" ? "Before action" : "After action"}</a>`)] : [];
+        return `<li><div class="evidence-attempt-title">${entry === baseline ? "Pre-implementation baseline" : escapeHtml(entry.result || "unknown")} · ${escapeHtml(entry.at || "")}</div>
+          <p>${escapeHtml(entry.detail || "")}</p><code>${escapeHtml(JSON.stringify(entry.command || ""))}</code>
+          <p>Exit ${escapeHtml(entry.exit_code ?? "unavailable")} · ${escapeHtml(entry.duration_ms ?? "unknown")} ms · Revision ${escapeHtml(entry.code_revision || "unknown")}</p>
+          <div class="evidence-links">${files.join("")}</div></li>`;
+      }).join("");
+      return `<li><details data-test-status="${escapeHtml(status)}"><summary data-no-translate><span class="evidence-scenario"><b>${escapeHtml(expected)}</b><small>${escapeHtml(type || "Observed check")}</small></span><span class="evidence-status" data-outcome="${escapeHtml(status)}">${escapeHtml(status)}</span></summary>
+        <ol>${history || "<li>No recorded attempts</li>"}</ol></details></li>`;
+    }).join("");
+    return `<section class="test-evidence" data-test-evidence>
+      <header class="evidence-header"><div><h3>Test Evidence</h3><p>${report.checks.filter(({ status }) => status === "passed").length} of ${report.checks.length} checks passed</p></div>
+      <span class="evidence-status" data-outcome="${report.verified ? "passed" : "unverified"}">${report.verified ? "Verified" : "Unverified"}</span></header>
+      ${checks ? `<ul class="evidence-checks">${checks}</ul>` : "<p>No acceptance scenarios recorded.</p>"}
+      <footer class="evidence-controls">
+        ${verificationPolicySelect(taskId, report.override || "inherit")}
+        <button type="button" class="btn sm" data-refresh-test-evidence="${escapeHtml(taskId)}">Refresh evidence</button>
+        <span role="status" data-evidence-refresh-status></span>
+        <small>Run policy: ${policy === "allow" ? "Allow completion with evidence gaps" : "Block completion"}</small>
+      </footer></section>`;
+  }
+
   function executionReportMarkup(report) {
     if(!report)return '';
     const count=value=>value==null?'Not reported':Number(value).toLocaleString();
     const rows=(report.stages||[]).map(stage=>`<tr><td>${escapeHtml(stage.role)}</td><td><bdi dir="ltr">${escapeHtml(stage.provider)} / ${escapeHtml(stage.model||'provider default')}</bdi></td><td>${stage.sessions}</td><td>${count(stage.total)}<br><small>${stage.reported_sessions}/${stage.sessions} covered</small></td></tr>`).join('');
     const timeline=(report.timeline||[]).map(row=>`<li><time>${escapeHtml(row.startedAt?new Date(row.startedAt).toLocaleString():'Time unavailable')}</time> · <b>${escapeHtml(row.role)}</b> · <bdi dir="ltr">${escapeHtml(row.provider)} / ${escapeHtml(row.model||'provider default')}</bdi>${row.modelChanged?' <span class="pill amber">Model changed</span>':''}<p class="muted tiny">${count(row.tokens?.total)} tokens · ${escapeHtml(row.tokens?.source||'not-reported')}${row.failure?` · ${escapeHtml(row.failure.kind)}`:''} · ${escapeHtml(row.statusBefore||'started')} → ${escapeHtml(row.statusAfter||(row.finishedAt?'finished':'in progress'))}${row.budget?` · budget ${escapeHtml(row.budget.used)}/${escapeHtml(row.budget.max_sessions)}`:''}</p></li>`).join('');
     const changes=(report.budget_changes||[]).map(change=>{let detail=change.detail;try{const budget=JSON.parse(detail);detail=`${budget.previous??'Unallocated'} → ${budget.max_sessions} sessions · ${budget.source} · ${(budget.reasons||[]).join('; ')}`;}catch{}return `<li><time>${escapeHtml(change.at?new Date(change.at).toLocaleString():'')}</time> · ${escapeHtml(change.actor)} · <span dir="auto">${escapeHtml(detail)}</span></li>`;}).join('');
-    return `<section class="execution-report notice" data-execution-report><h3>Execution & resources report</h3>${executionTokenBadge(report)}<p class="sub">${report.unknown_sessions} session(s) without reported token usage. Totals include retries and repairs; partial totals exclude unknown usage.</p><p class="muted tiny">Input: ${count(report.tokens?.input)} · Output: ${count(report.tokens?.output)} · Cached input (included in input): ${count(report.tokens?.cached_input)}</p>${report.planning_sessions?`<p class="sub">${report.planning_sessions} shared planning session(s), counted once for this queue.</p>`:''}<div class="execution-report-scroll"><table><thead><tr><th>Stage</th><th>Configured provider / model</th><th>Sessions</th><th>Tokens</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No recorded provider sessions.</td></tr>'}</tbody></table></div><details class="task-detail-disclosure"><summary>Session timeline (${report.timeline?.length||0})</summary><ol>${timeline||'<li>No session records.</li>'}</ol></details>${report.route_changes?.length?`<details class="task-detail-disclosure"><summary>Quota failover history (${report.route_changes.length})</summary><ol>${report.route_changes.map(event=>`<li>${escapeHtml(event.at)} · ${escapeHtml(event.task)} · ${escapeHtml(event.event)}<p class="muted tiny" dir="auto">${escapeHtml(event.detail)}</p></li>`).join('')}</ol></details>`:''}${changes?`<details class="task-detail-disclosure"><summary>Budget changes (${report.budget_changes.length})</summary><ol>${changes}</ol></details>`:''}<p class="muted tiny">Completed, independently reviewed runs feed project resource estimates. Permissions, model ceilings and owner budgets remain in effect.</p></section>`;
+    return `<section class="execution-report notice" data-execution-report><h3>Execution & resources report</h3>${executionTokenBadge(report)}<p class="sub">${report.unknown_sessions} session(s) without reported token usage. Totals include retries and repairs; partial totals exclude unknown usage.</p><p class="muted tiny">Input: ${count(report.tokens?.input)} · Output: ${count(report.tokens?.output)} · Cached input (included in input): ${count(report.tokens?.cached_input)}</p>${report.planning_sessions?`<p class="sub">${report.planning_sessions} shared planning session(s), counted once for this queue.</p>`:''}<div class="execution-report-scroll"><table><thead><tr><th>Stage</th><th>Configured provider / model</th><th>Sessions</th><th>Tokens</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No recorded provider sessions.</td></tr>'}</tbody></table></div><details class="task-detail-disclosure"><summary>Session timeline (${report.timeline?.length||0})</summary><ol>${timeline||'<li>No session records.</li>'}</ol></details>${report.route_changes?.length?`<details class="task-detail-disclosure"><summary>${report.route_changes.some((event) => event.event === "verification_model_escalated") ? "Model routing history" : "Quota failover history"} (${report.route_changes.length})</summary><ol>${report.route_changes.map(event=>`<li>${escapeHtml(event.at)} · ${escapeHtml(event.task)} · ${escapeHtml(event.event)}<p class="muted tiny" dir="auto">${escapeHtml(event.detail)}</p></li>`).join('')}</ol></details>`:''}${changes?`<details class="task-detail-disclosure"><summary>Budget changes (${report.budget_changes.length})</summary><ol>${changes}</ol></details>`:''}<p class="muted tiny">Completed, independently reviewed runs feed project resource estimates. Permissions, model ceilings and owner budgets remain in effect.</p></section>`;
   }
 
   async function loadAccess(task = null) {
@@ -898,7 +1006,7 @@ ${feedbackLine}
   function studioConversationPane(draft) {
     const entries = draft?.conversation || [];
     const questions = questionCards(draft);
-    const transcript = `<div class="studio-transcript" id="studioTranscript" role="log" aria-live="polite" aria-label="Planning conversation">${!entries.length && !questions.length ? `<div class="studio-empty">${draft ? '<p class="sub">The plan is loaded. Describe a change or ask a question below — each send is one bounded refinement call, and the proposed changes appear in the Tasks tab for comparison.</p>' : '<p class="sub">Describe the bounded change you want planned. The plan appears in the pane beside this conversation.</p>'}</div>` : entries.map((entry, index) => conversationEntryView(entry, index)).join("")}${questions}${studioBusy ? studioProgressPanel() : ""}</div>`;
+    const transcript = `<div class="studio-transcript" id="studioTranscript" role="log" aria-live="polite" aria-label="Planning conversation">${!entries.length && !questions.length ? `<div class="studio-empty">${draft ? '<p class="sub">The plan is loaded. Describe a change or ask a question below — each send is one bounded refinement call, and the proposed changes appear in the Tasks tab for comparison.</p>' : '<h3>What would you like to plan?</h3><p class="sub">Describe the change and what success looks like.</p>'}</div>` : entries.map((entry, index) => conversationEntryView(entry, index)).join("")}${questions}${studioBusy ? studioProgressPanel() : ""}</div>`;
     const contextBlocks = `${studioRevisionFindings.length ? '<section class="studio-revision" aria-label="Review corrections"><h3>Changes requested by review</h3><p>These findings will be sent with your next message.</p>' + studioRevisionFindings.map((item, index) => '<article><b>' + (index + 1) + '. ' + escapeHtml(item.severity) + '</b><p>' + escapeHtml(item.message) + '</p>' + (item.correction ? '<p><strong>Change:</strong> ' + escapeHtml(item.correction) + '</p>' : '') + '</article>').join('') + '</section>' : ""}${!studioBusy ? studioIdleAlerts() : ""}${studioSourceContextNotice()}`;
     const refining = draft && draft.stage !== "repair";
     const submitLabel = studioBusy ? (refining ? "Updating plan…" : "Generating plan…") : refining ? "Update plan" : studioMode === "model" ? "Generate plan" : "Generate local skeleton";
@@ -909,7 +1017,7 @@ ${feedbackLine}
         ? '<p class="muted tiny studio-allowance">Uses 1 of 1 confirmed session · 15 min cap · refused while an overnight run holds the gate</p>'
         : '<p class="muted tiny studio-allowance">Local skeleton · 0 tokens · deterministic, clearly not model output, never approvable</p>';
     const composer = `<div class="studio-composer"><div class="bar attachment-list studio-attachments" style="align-items:stretch;flex-wrap:wrap">${studioComposerTarget ? `<span class="pill violet">Revising: ${escapeHtml(studioComposerTarget)} <button type="button" class="btn sm ghost" data-action="ask-task-clear" aria-label="Stop targeting ${escapeHtml(studioComposerTarget)}">✕</button></span>` : ""}${studioAttachments.length ? attachmentMarkup() : '<span class="muted tiny">No references attached — add them in Settings.</span>'}</div><textarea id="goal" class="input studio-composer-input" rows="3" placeholder="${refining ? "Describe a change or ask a question. Enter adds a line; Ctrl/Cmd+Enter sends." : "Describe the bounded change you want ATL to plan and verify."}" aria-label="${refining ? "Refinement message" : "Goal and constraints"}">${escapeHtml(studioGoal)}</textarea><div class="row between studio-composer-foot"><div class="bar" style="flex-wrap:wrap"><select id="providerSelect" class="input studio-provider-select" aria-label="Provider">${studioProviderOptions()}</select><details class="studio-settings" data-studio-settings ${studioSettingsOpen ? "open" : ""}><summary class="btn sm" role="button">⚙ Settings</summary><div class="studio-settings-body">${refining ? "" : `<div class="tasks-segmented studio-mode-switch" role="group" aria-label="Planning mode"><button type="button" class="tasks-seg-btn ${studioMode === "local" ? "active" : ""}" data-action="mode:local" aria-label="Local skeleton" aria-pressed="${studioMode === "local"}"><span>Local skeleton</span><span class="pill green">Free</span></button><button type="button" class="tasks-seg-btn ${studioMode === "model" ? "active" : ""}" data-action="mode:model" aria-label="Generate with model" aria-pressed="${studioMode === "model"}"><span>Generate with model</span><span class="pill violet">1 session</span></button></div>`}${refining || studioMode === "model" ? `<div class="field"><label class="label" for="providerModel">Model</label>${studioModelControl()}</div><div class="field"><label class="label" for="providerThinking">Thinking / effort</label><select id="providerThinking" class="input">${studioThinkingOptions()}</select></div>` : ""}<div class="field"><label class="label" for="studioFiles" style="display:flex;justify-content:space-between"><span>Reference files and images</span><span class="muted tiny">${studioAttachments.length} attached</span></label><input id="studioFiles" class="input" type="file" multiple accept="image/*,.txt,.md,.json,.yaml,.yml,.csv,.log,.pdf"><p class="muted tiny" style="margin-top:6px">Text files are included in the planning context. Images are previewed and recorded as references; current providers are text-only.</p></div><p class="muted tiny">Planning budget: 1 session per submission · 15 minute cap · refused while an overnight run holds the gate.</p></div></details>${btn("Clear form", "studio-clear", `sm ghost ${studioBusy ? "disabled" : ""}`)}</div><div class="bar" style="flex-wrap:wrap">${allowance}${btn(submitLabel, submitAction, `primary ${studioBusy ? "disabled" : ""}`)}</div></div>${studioNotice ? `<p class="sub ${studioNotice.startsWith("Error") ? "red" : "green"}" style="margin:8px 0 0" data-studio-notice>${escapeHtml(studioNotice)}</p>${studioErrorLog && studioNotice.startsWith("Error") ? `<div class="bar" style="margin-top:6px" data-studio-log-row>${btn("Show raw response", "show-provider-log", "sm")}</div>` : ""}` : ""}</div>`;
-    return `<div class="studio-pane-head"><h2>Conversation</h2>${draft ? `<span class="pill ${studioBusy ? "amber" : "green"}">rev ${escapeHtml(String(draft.revision || 1))}</span>` : ""}</div>${transcript}${contextBlocks}${composer}`;
+    return `<div class="studio-pane-head"><h2>Conversation</h2>${draft ? `<span class="pill ${studioBusy ? "amber" : "green"}">rev ${escapeHtml(String(draft.revision || 1))}</span>` : ""}<button type="button" class="btn sm studio-layout-toggle" data-action="studio-conversation-focus" aria-pressed="${studioFocusedPane === "conversation"}">${studioFocusedPane === "conversation" ? "Show Plan" : "Focus conversation"}</button></div>${transcript}${contextBlocks}${composer}`;
   }
   function studioProviderOptions() {
     const providers = planningChoices();
@@ -922,6 +1030,10 @@ ${feedbackLine}
     const selected = planningChoices().find((provider) => provider.id === studioProvider) || null;
     const modelSuggestions = selected?.modelOptions || [];
     const current = studioModel || selected?.model || modelSuggestions[0]?.id || "";
+    if (selected?.kind !== "subscription" || selected.id !== "codex" || selected.method !== "chatgpt") {
+      const suggestions = modelSuggestions.map(({ id, label }) => `<option value="${escapeHtml(id)}" label="${escapeHtml(label)}"></option>`).join("");
+      return `<div class="bar"><input id="providerModel" class="input" list="providerModelSuggestions" value="${escapeHtml(current)}" placeholder="Enter exact model ID">${selected?.kind === "key" && selected.base_url ? btn("Load models", "studio-load-models", "sm") : ""}</div><datalist id="providerModelSuggestions">${suggestions}</datalist>`;
+    }
     if (!modelSuggestions.length) return `<input id="providerModel" class="input" value="${escapeHtml(current)}" placeholder="exact model id">`;
     const options = modelSuggestions.some((model) => model.id === current) || !current ? modelSuggestions : [{ id: current, label: `${current} (current)` }, ...modelSuggestions];
     return `<select id="providerModel" class="input">${options.map((model) => `<option value="${escapeHtml(model.id)}" ${model.id === current ? "selected" : ""}>${escapeHtml(model.label !== model.id ? `${model.label} · ${model.id}` : model.id)}</option>`).join("")}</select>`;
@@ -944,7 +1056,7 @@ ${feedbackLine}
       : studioPlanTab === "overview" ? studioOverviewBody(draft)
       : studioPlanTab === "tasks" ? studioTasksBody(draft)
       : studioReviewSection(draft);
-    return `<div class="studio-pane-head"><h2>Plan</h2>${draft ? `<span class="muted tiny">${escapeHtml(draft.id)}</span>` : ""}</div>${tabs}<div class="studio-plan-body" id="planOutput" ${studioBusy ? 'aria-busy="true"' : ""}>${studioBusy && draft?.stage !== "repair" ? studioProgressPanel() : ""}${body}${studioPlanTab === "overview" ? savedPlansPreview() : ""}</div><div class="studio-nextstep" data-studio-nextstep><p class="sub" style="margin:0"><b>Next:</b> ${escapeHtml(next.bar || next.explanation || "")}</p>${next.label ? btn(next.label, next.action, `${next.enabled ? "primary" : ""} ${next.enabled ? "" : "disabled"} sm`) : ""}</div>`;
+    return `<div class="studio-pane-head"><h2>Plan</h2>${draft ? `<span class="muted tiny">${escapeHtml(draft.id)}</span>` : ""}<button type="button" class="btn sm studio-layout-toggle" data-action="studio-plan-focus" aria-pressed="${studioFocusedPane === "plan"}">${studioFocusedPane === "plan" ? "Show conversation" : "Focus Plan"}</button></div>${tabs}<div class="studio-plan-body" id="planOutput" ${studioBusy ? 'aria-busy="true"' : ""}>${studioBusy && draft?.stage !== "repair" ? studioProgressPanel() : ""}${body}${studioPlanTab === "overview" ? savedPlansPreview() : ""}</div><div class="studio-nextstep" data-studio-nextstep><p class="sub" style="margin:0"><b>Next:</b> ${escapeHtml(next.bar || next.explanation || "")}</p>${next.label ? btn(next.label, next.action, `${next.enabled ? "primary" : ""} ${next.enabled ? "" : "disabled"} sm`) : ""}</div>`;
   }
   function rejectedPlanPreview(response, reason = "") {
     if (response == null) return "";
@@ -1044,7 +1156,7 @@ ${feedbackLine}
       logs: (snapshot.state?.log_tail || []).filter((entry) => entry.task === task.id).slice(-8),
       evidence: task.evidence || [], lastCheckpoint: task.last_checkpoint || null, workspace: task.workspace || null,
       browserAccess: browserAccessFor(task.id),
-      inputRevisions: task.input_revisions || {}, recovery: task.recovery || null, waitingReason: (task.status === "blocked" && taskBlockerReason(task)) || task.waiting_reason || "", executionBudget: task.execution_budget || null, providerRoute: task.provider_route || null, resources: task.resource_preview || task.resource_decision || null, executionReport: task.execution_report || null, updatedAt: task.updated_at || null,
+      inputRevisions: task.input_revisions || {}, recovery: task.recovery || null, waitingReason: (task.status === "blocked" && taskBlockerReason(task)) || task.waiting_reason || "", executionBudget: task.execution_budget || null, providerRoute: task.provider_route || null, resources: task.resource_preview || task.resource_decision || null, executionReport: task.execution_report || null, testEvidence: task.test_evidence || null, updatedAt: task.updated_at || null,
     })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
     const queues = (snapshot.queues?.items || []).map((queue) => ({ ...queue, label: queue.name || queue.id }));
     const agents = (snapshot.team || []).map((agent) => [
@@ -1126,6 +1238,18 @@ ${feedbackLine}
   const taskRow = (task, selectedId = null) => { const outcome = taskOutcome(task); const isRunning = liveRunState(task) === "running"; const isBlocked = task.rawStatus === "blocked" || task.rawStatus === "escalated"; const isDone = task.rawStatus === "done"; const rowState = (isBlocked ? "is-blocked" : isRunning ? "is-running" : isDone ? "is-done" : "") + (selectedId === task.id ? " is-selected" : ""); const priorityTone = { Urgent: "red", High: "amber", Normal: "blue", Low: "" }[task.priority] || ""; const summaryText = task.lastCheckpoint?.note || task.desc || task.stage || statusLabel(task.rawStatus); return `<div class="tableitem task-row ${rowState}" data-task="${escapeHtml(task.id)}"><div class="task-main"><input type="checkbox" data-tsel="${escapeHtml(task.id)}" ${selectedTasks.has(task.id) ? "checked" : ""} aria-label="Select ${escapeHtml(task.id)}"><button type="button" class="task-main-copy" data-action="task-detail:${escapeHtml(task.id)}" aria-label="Open task ${escapeHtml(task.id)}: ${escapeHtml(task.title)}"><div class="task-topline"><span class="task-id-badge">${isRunning ? '<span class="running-mark" aria-label="running"></span>' : isDone ? '<span class="green">✓ </span>' : ""}${escapeHtml(task.id)}</span><span class="pill">${escapeHtml(task.queue)}</span>${task.repository_name ? `<span class="pill ghost task-repo-pill" title="Repository">⌂ ${escapeHtml(task.repository_name)}</span>` : ""}${task.priority && task.priority !== "Normal" ? `<span class="pill ${priorityTone}">${escapeHtml(task.priority)}</span>` : ""}${task.plan_review_required ? '<span class="pill amber">Plan review</span>' : ""}</div><b class="task-title-text truncate" data-no-translate dir="auto">${escapeHtml(task.title)}</b>${isBlocked && task.block ? `<div class="task-inline-blocker" title="${escapeHtml(task.block)}"><b>◈</b><span class="truncate">${escapeHtml(task.block)}</span></div>` : `<div class="task-subcopy truncate" dir="auto">${escapeHtml(summaryText)}</div>`}</button></div><div class="task-mid">${taskProgressMarkup(task)}${executionTokenBadge(task.executionReport)}<div class="task-progress-meta"><span>${isDone ? `Accomplished · ${outcome.passed}/${outcome.total} checks` : `Stage: ${escapeHtml(statusLabel(task.rawStatus))}`}</span><span>${task.logs.length} log${task.logs.length === 1 ? "" : "s"}</span></div></div><div class="task-controls"><div class="task-control-meta">${badge(task.status)}<span class="task-agent-chip" title="Assigned to ${escapeHtml(task.agent)}"><span class="task-agent-avatar">${escapeHtml((task.agent || "U")[0].toUpperCase())}</span><span class="task-owner-name">${escapeHtml(task.agent)}</span></span></div><div class="task-actions">${taskRowActions(task)}</div></div></div>`; };
   const eventRow = (event) => `<div class="event"><span class="muted tiny" style="white-space:nowrap">${escapeHtml(event[0])}</span><div>${badge(event[1])} <span class="muted">${escapeHtml(event[2])}</span><div style="margin-top:5px">${escapeHtml(event[3])}</div></div></div>`;
   const stat = (name, value, detail) => `<div class="panel stat"><small>${name}</small><strong>${value}</strong><div class="muted tiny">${detail}</div></div>`;
+
+  function workspaceTaskState(task) {
+    if (["in_review", "review"].includes(task.rawStatus)) return { label: "✓ Ready for review", tone: "green" };
+    if (task.rawStatus === "done") return { label: "Done", tone: "green" };
+    if (task.block || ["blocked", "escalated"].includes(task.rawStatus)) return { label: "! Needs you", tone: "amber" };
+    if (liveRunState(task) === "running" || ["in_progress", "verifying"].includes(task.rawStatus)) return { label: "● Running", tone: "blue" };
+    return { label: "New", tone: "" };
+  }
+  function workspaceTaskCard(task, selectedId) {
+    const status = workspaceTaskState(task);
+    return `<article class="task-row task-card${selectedId === task.id ? " is-selected" : ""}${status.tone === "blue" ? " is-running" : ""}" data-task="${escapeHtml(task.id)}"><button type="button" class="task-main-copy" data-action="task-detail:${escapeHtml(task.id)}" aria-pressed="${selectedId === task.id}"><span class="task-card-top"><span>${escapeHtml(task.id)}</span><span class="pill ${status.tone}">${escapeHtml(status.label)}</span></span><b class="task-title-text" data-no-translate dir="auto">${escapeHtml(task.title)}</b></button>${executionTokenBadge(task.executionReport)}${status.tone === "blue" ? `<div class="task-card-progress" role="progressbar" aria-label="Task progress" aria-valuenow="${task.progress || 0}" aria-valuemin="0" aria-valuemax="100"><span style="width:${Math.max(0, Math.min(100, task.progress || 0))}%"></span></div>` : ""}</article>`;
+  }
 
   function approvalSummary(item) {
     const request = item.action || {};
@@ -1220,7 +1344,7 @@ ${feedbackLine}
       projectMap = result;
       projectMapError = "";
     } catch (error) { projectMapError = error.message; }
-    finally { projectMapLoading = false; if ((page === "projects" || page === "sources") && !dialogOpen && !cardDraft) render(); }
+    finally { projectMapLoading = false; if ((page === "projects" || page === "sources" || page === "inbox") && !dialogOpen && !cardDraft) render(); }
   }
   async function loadMyTasks({ silent = false } = {}) {
     if (!silent) { myTasksLoading = true; myTasksError = ""; if (page === "mytasks") render(); }
@@ -1252,7 +1376,7 @@ ${feedbackLine}
       myTasksData = itemsData.ok ? itemsData : { items: [], projects: {} };
       myTasksError = "";
     } catch (error) { myTasksError = error.message; }
-    finally { myTasksLoading = false; if (page === "mytasks" && !dialogOpen && !cardDraft) render(); }
+    finally { myTasksLoading = false; if ((page === "mytasks" || page === "inbox") && !dialogOpen && !cardDraft) render(); }
   }
   async function loadMyTasksProjects() {
     try {
@@ -1271,7 +1395,7 @@ ${feedbackLine}
     if (projectListNode) projectListNode.innerHTML = setupProjectsHtml();
     const identityNode = $("#mtIdentityLine");
     if (identityNode) identityNode.innerHTML = identityNameLine(myTasksSetupProjects?.identity) || identityNameLine(myTasksStatus);
-    if (page === "mytasks" && !dialogOpen && !cardDraft) render();
+    if ((page === "mytasks" || page === "inbox") && !dialogOpen && !cardDraft) render();
   }
   const identityNameLine = (identity) => identity?.display_name ? ` — signed in as <b dir="auto">${escapeHtml(identity.display_name)}</b>` : "";
   async function loadMyTasksSettings() {
@@ -1295,7 +1419,7 @@ ${feedbackLine}
         ? btn("Re-authenticate", `mt-reconnect:${connectionId}`, "primary")
         : btn("Open Issue sources", "go:sources", "primary");
       const guidance = rejected
-        ? "The Azure credential was rejected or is missing. Re-authenticate with a PAT that has Work Items: Read access, then retry."
+        ? "The Azure credential was rejected or is missing. Reconnect with a PAT that has Work Items: Read access, then retry."
         : forbidden
           ? "The saved PAT lacks access to this project. Re-authenticate with a PAT that includes Work Items: Read, or ask the project admin for access."
           : "Check the connection and try again.";
@@ -1319,10 +1443,13 @@ ${feedbackLine}
     // Project checkboxes seed from saved settings; rendering before the settings
     // payload lands would show every box unchecked and one save would wipe the
     // stored selection (owner report 2026-11-11).
-    if (!myTasksSettingsData) await loadMyTasksSettings().catch(() => {});
+    await loadMyTasksSettings().catch(() => {});
     const connection = myTasksSettingsData?.connection || null;
     const connected = Boolean(connection?.token_present);
-    if (!myTasksSetupProjects && connected) void loadMyTasksProjects();
+    if (connected && (!myTasksSetupProjects || myTasksSetupProjects.error)) {
+      myTasksSetupProjects = null;
+      void loadMyTasksProjects();
+    }
     showModal("Set up My Tasks",
       `<div class="mt-setup" data-mt-setup>${connected
         ? `<p class="sub">Using the saved Azure connection for <b dir="ltr">${escapeHtml(connection.org_url || "")}</b><span id="mtIdentityLine">${identityNameLine(myTasksSetupProjects?.identity) || identityNameLine(myTasksStatus)}</span>.<br><span class="muted tiny">Reads only — ATL never writes to Azure and never creates tasks from this page.</span></p>`
@@ -1380,7 +1507,7 @@ ${feedbackLine}
     const item = (myTasksData?.items || []).find(entry => entry.key === key);
     if (item) void window.ATL_MY_TASKS.open(item);
   }
-  function sourceHistoryPanel() {
+  function sourceHistoryPanel({ historyOnly = false } = {}) {
     const requests = sourceHistory.requests || [];
     const link = (source) => /^https:\/\//i.test(source?.url || "") ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">Open original</a>` : "";
     const map = projectMap;
@@ -1406,13 +1533,152 @@ ${feedbackLine}
       const plannedCount = associations.filter((a) => (r.plans || []).some((plan) => plan.repositoryId === a.id && plan.approved)).length;
       return `<article class="source-request" data-import-request-history="${escapeHtml(r.id)}"><header class="source-request-head"><span class="source-key source-${escapeHtml(r.source?.type || "file")}">${escapeHtml((r.source?.type || "src").slice(0, 2).toUpperCase())} · #${escapeHtml(String(r.source?.remote_id ?? "?"))}</span><div class="source-request-title"><b>#${escapeHtml(String(r.source?.remote_id ?? "?"))} · ${escapeHtml(r.title)}</b><div class="muted tiny">${escapeHtml(r.id)} · rev ${escapeHtml(String(r.source?.revision ?? "unknown"))}${r.source?.iteration ? ` · ${escapeHtml(r.source.iteration)}` : ""} · Affects ${associations.length || 0} repositor${associations.length === 1 ? "y" : "ies"}${associations.length ? ` (${associations.map((a) => escapeHtml(a.name || "?")).join(" + ")})` : ""} ${link(r.source)}</div></div><div class="bar source-request-actions">${r.needs_plan ? `<span class="pill amber">${(r.plans || []).length ? "1 needs repo plan" : "needs repo plan"}</span>` : '<span class="pill green">all repos planned</span>'}${btn("Source details", `task-detail:${r.id}`, "sm ghost")}${btn("Remove", `source-remove:${r.id}`, "sm ghost danger")}</div></header><details class="source-request-content"><summary>Imported content</summary><p class="imported-content-copy" dir="auto">${escapeHtml(r.snapshot?.objective || r.objective || "No description was returned by the source. Refresh the item before planning.")}</p><ul>${(r.snapshot?.completion_checks || r.completion_checks || []).map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul></details><div class="source-branch-eyebrow">AFFECTED REPOSITORY WORKSTREAMS (${associations.length} LINKED ${associations.length === 1 ? "REPOSITORY" : "REPOSITORIES"}${plannedCount ? ` · ${plannedCount} PLANNED` : ""})</div><div class="source-branch-grid">${associations.map((assoc, index) => branchFor(r, assoc, index)).join("") || `<div class="source-branch-box is-empty">Not linked to a repository yet — choose the repositories this request affects so each one gets its own plan, or plan it in this workspace.</div>${r.needs_plan ? `<div class="bar">${btn("Choose repositories", `source-repos:${r.id}`, "sm primary")}${btn("Plan in this workspace", `plan:${r.id}`, "sm")}</div>` : ""}`}</div></article>`;
     };
-    return `<section class="panel source-workbench" aria-label="Imported requests"><div class="paneltitle"><h2>Imported requests · Cross-repository work breakdown</h2><span class="pill ${requests.some((r) => r.needs_plan) ? "amber" : ""}">${requests.filter((r) => r.needs_plan).length} need${requests.filter((r) => r.needs_plan).length === 1 ? "s" : ""} repo plan</span></div><p class="source-footnote">1 request → N affected repositories → 1 Plan &amp; Queue per repository. Every plan is grounded, reviewed and approved against its own codebase.</p>${requests.map(requestCard).join("") || '<p class="source-empty">No requests imported yet.</p>'}</section><details class="panel source-workbench source-history-drawer" aria-label="Import history" open><summary>Import history ${(sourceHistory.history || []).length ? `· ${(sourceHistory.history || []).length} batch${(sourceHistory.history || []).length === 1 ? "" : "es"}` : ""}</summary><div class="pad">${(sourceHistory.history || []).length ? btn("Clear history", "source-history-clear", "sm") : ""}${(sourceHistory.history || []).map((record) => `<details><summary>${record.legacy ? "Recovered source record" : "Import batch"} · ${escapeHtml(record.at || "time not recorded")} · ${escapeHtml(record.source)} · ${record.added} imported · ${record.skipped} already present</summary><p>Selection: ${escapeHtml(record.selection?.work_item || record.selection?.iteration || "configured source")} · Destination: ${escapeHtml(record.destination)}</p><ul>${(record.items || []).map((item) => `<li>${escapeHtml(item.taskId || "")} · ${escapeHtml(item.title)} · revision ${escapeHtml(item.source?.revision ?? "unknown")}</li>`).join("")}</ul></details>`).join("") || (sourceHistory.cleared_at ? `<p>History cleared ${escapeHtml(sourceHistory.cleared_at)}. New imports will appear here.</p>` : "<p>No imports recorded yet.</p>")}</div></details>`;
+    const workstreams = historyOnly ? "" : `<section class="panel source-workbench" aria-label="Imported requests"><div class="paneltitle"><h2>Imported requests · Cross-repository work breakdown</h2><span class="pill ${requests.some((r) => r.needs_plan) ? "amber" : ""}">${requests.filter((r) => r.needs_plan).length} need${requests.filter((r) => r.needs_plan).length === 1 ? "s" : ""} repo plan</span></div><p class="source-footnote">1 request → N affected repositories → 1 Plan &amp; Queue per repository. Every plan is grounded, reviewed and approved against its own codebase.</p>${requests.map(requestCard).join("") || '<p class="source-empty">No requests imported yet.</p>'}</section>`;
+    return workstreams + `<details class="panel source-workbench source-history-drawer" aria-label="Import history" ${historyOnly ? "" : "open"}><summary>Import history ${(sourceHistory.history || []).length ? `· ${(sourceHistory.history || []).length} batch${(sourceHistory.history || []).length === 1 ? "" : "es"}` : ""}</summary><div class="pad">${(sourceHistory.history || []).length ? btn("Clear history", "source-history-clear", "sm") : ""}${(sourceHistory.history || []).map((record) => `<details><summary>${record.legacy ? "Recovered source record" : "Import batch"} · ${escapeHtml(record.at || "time not recorded")} · ${escapeHtml(record.source)} · ${record.added} imported · ${record.skipped} already present</summary><p>Selection: ${escapeHtml(record.selection?.work_item || record.selection?.iteration || "configured source")} · Destination: ${escapeHtml(record.destination)}</p><ul>${(record.items || []).map((item) => `<li>${escapeHtml(item.taskId || "")} · ${escapeHtml(item.title)} · revision ${escapeHtml(item.source?.revision ?? "unknown")}</li>`).join("")}</ul></details>`).join("") || (sourceHistory.cleared_at ? `<p>History cleared ${escapeHtml(sourceHistory.cleared_at)}. New imports will appear here.</p>` : "<p>No imports recorded yet.</p>")}</div></details>`;
   }
+  async function loadInbox() {
+    if (inboxLoading) return;
+    inboxLoading = true;
+    try {
+      await Promise.all([loadIssueSources(), loadMyTasks({ silent: true })]);
+    } catch (error) {
+      inboxNotice = error.message;
+    } finally {
+      inboxLoading = false;
+      if (page === "inbox") render();
+    }
+  }
+
+  const inboxStages = ["All", "Needs repos", "Needs plan", "Planning", "Planned", "Shipped"];
+  const registeredLinks = request => (request.repositories || []).filter(repo => repo.registered);
+  const inboxUrlKey = value => String(value || "").replace(/\/+$/, "").toLowerCase();
+
+  function inboxRows() {
+    const assigned = new Map((myTasksData?.items || []).map(item => [inboxUrlKey(item.url) || item.key, item]));
+    const shippedByDraft = new Map();
+    for (const task of Object.values(snapshot.state?.tasks || {})) {
+      if (!task.plan_draft_id || task.intake_only) continue;
+      const previous = shippedByDraft.get(task.plan_draft_id) ?? true;
+      shippedByDraft.set(task.plan_draft_id, previous && task.status === "done");
+    }
+    const rows = (sourceHistory.requests || []).filter(request => snapshot.state?.tasks?.[request.id]?.status !== "rejected").map(request => {
+      const url = inboxUrlKey(request.source?.url);
+      const item = url ? assigned.get(url) : null;
+      if (item) assigned.delete(url);
+      const links = registeredLinks(request);
+      const branches = links.map(repo => (request.plans || []).find(plan => plan.repositoryId === repo.id && plan.approved));
+      const stage = !links.length ? "Needs repos"
+        : branches.every(plan => plan && shippedByDraft.get(plan.draftId)) ? "Shipped"
+        : branches.every(Boolean) ? "Planned"
+        : (request.plans || []).some(plan => links.some(repo => repo.id === plan.repositoryId)) ? "Planning"
+        : "Needs plan";
+      return { id: request.id, title: request.title, source: request.source || {}, stage, request, item, links };
+    });
+    for (const item of assigned.values()) {
+      if (item.state_category === "complete") continue;
+      const source = { type: item.source || "azure", remote_id: item.id, project: item.project, url: item.url };
+      rows.push({ id: `assigned:${item.key}`, title: item.title, item, source, stage: "Needs repos", links: [] });
+    }
+    return rows;
+  }
+
+  function inboxInspector(row) {
+    if (!row) return "";
+    const projectOptions = snapshot.supervisor?.projects || [];
+    const review = row.item?.brief;
+    const reviewText = typeof review === "string" ? review : review?.summary || review?.objective || "";
+    const sourceLink = /^https:\/\//i.test(row.source.url || "") ? `<a href="${escapeHtml(row.source.url)}" target="_blank" rel="noopener noreferrer">Open original</a>` : "";
+    const plans = (row.request?.plans || []).map(plan => `<div class="intake-inspector-row"><span>${escapeHtml(plan.repositoryName || plan.title || "Workspace plan")}</span>${btn("Open plan", `plan-load:${plan.draftId}`, "sm")}</div>`).join("");
+    const suggestions = new Set();
+    if (row.source.project) {
+      for (const peer of sourceHistory.requests || []) {
+        if (peer.id === row.id || peer.source?.project !== row.source.project || peer.source?.type !== row.source.type) continue;
+        for (const repo of registeredLinks(peer)) suggestions.add(repo.id);
+      }
+    }
+    const repositories = [...projectOptions].sort((a, b) => Number(inboxRepositoryChoices.has(b.id)) - Number(inboxRepositoryChoices.has(a.id))
+      || Number(suggestions.has(b.id)) - Number(suggestions.has(a.id)) || a.name.localeCompare(b.name));
+    const options = repositories.map(repo => {
+      const locked = row.request?.plans?.some(plan => plan.repositoryId === repo.id);
+      const searchText = `${repo.name} ${repo.root}`.toLowerCase();
+      return `<label class="intake-repo-option" data-inbox-repo-option="${escapeHtml(searchText)}" ${searchText.includes(inboxRepositoryQuery) ? "" : "hidden"}><input type="checkbox" data-inbox-repo="${escapeHtml(repo.id)}" ${inboxRepositoryChoices.has(repo.id) ? "checked" : ""} ${locked && inboxRepositoryChoices.has(repo.id) ? "disabled" : ""}><span class="intake-row-copy"><b>${escapeHtml(repo.name)}</b><small dir="ltr">${escapeHtml(repo.root)}</small></span>${suggestions.has(repo.id) ? '<span class="pill">Suggested</span>' : ""}</label>`;
+    }).join("");
+    const details = row.item ? btn("Full review & preparation", `mt-row:${encodeURIComponent(row.item.key)}`, "sm") : "";
+    const objective = row.request?.snapshot?.objective || row.request?.objective;
+    const original = row.request ? `<details class="intake-original"><summary>Imported request details</summary>${objective ? `<p class="sub" dir="auto">${escapeHtml(objective)}</p>` : ""}<div class="bar">${btn("Open request", `task-detail:${row.id}`, "sm")}${btn("Remove imported request", `source-remove:${row.id}`, "sm danger")}</div></details>` : "";
+    const canSendAssigned = !row.request && row.source.type === "azure" && row.item?.prep_status === "ready";
+    const editor = row.request || canSendAssigned ? `<h3>Repositories this affects</h3><p class="sub">Each linked repository gets its own plan.</p><input type="search" class="input" id="inboxRepoSearch" aria-label="Search repositories" placeholder="Search ${repositories.length} repositories" value="${escapeHtml(inboxRepositoryQuery)}"><div id="inboxRepositoryOptions" class="intake-repo-options">${options || '<p class="sub">Register a repository first.</p>'}</div><div class="bar">${row.request ? btn("Save links", "inbox-save-links", "sm") : details}${btn("Send to Plan Studio", "inbox-save-send", `primary sm${inboxSending ? " disabled" : ""}`)}</div>` : `<h3>Preparation</h3><p class="sub">Complete the assigned-work preparation before choosing repositories and sending this request to Plan Studio.</p>${details}`;
+    return `<aside class="intake-inspector" tabindex="-1" aria-label="Request details"><div class="row between"><h2 dir="auto">${escapeHtml(row.title)}</h2><button class="btn ghost" data-action="inbox-close" aria-label="Close request details">×</button></div><p class="sub">${escapeHtml([row.source.type, row.source.project || row.source.repo, row.source.iteration].filter(Boolean).join(" · "))}</p><div class="bar"><span class="pill amber">${row.stage}</span>${sourceLink}</div><section class="intake-review"><h3>ATL review</h3><p class="sub" dir="auto">${escapeHtml(reviewText || (row.item ? "Open the full review for findings and preparation." : "No assigned-work review linked to this request."))}</p>${row.request ? details : ""}</section>${editor}${plans ? `<h3>Plans</h3>${plans}` : ""}${original}</aside>`;
+  }
+
+  function inboxPanel() {
+    const rows = inboxRows();
+    const filter = row => (!inboxAssigned || row.item)
+      && (!inboxProvider || row.source.type === inboxProvider)
+      && (!inboxProject || (row.source.project || row.source.repo) === inboxProject)
+      && `${row.title} ${row.source.remote_id ?? ""} ${row.links.map(repo => repo.name).join(" ")}`.toLowerCase().includes(inboxQuery.trim().toLowerCase());
+    const matching = rows.filter(filter);
+    const visible = matching.filter(row => inboxStage === "All" || inboxStage === row.stage);
+    const selected = rows.find(row => row.id === inboxSelected);
+    const viewOptions = (values, current, title) => `<option value="">${title}</option>${[...new Set(values.filter(Boolean))].sort().map(value => `<option value="${escapeHtml(value)}" ${current === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}`;
+    const rowMarkup = visible.slice(0, inboxLimit).map(row => {
+      const open = `inbox-open:${row.id}`;
+      const action = !row.request ? btn("Review request", open, "sm")
+        : row.stage === "Needs repos" ? btn("Choose repos", open, "sm")
+        : row.stage === "Needs plan" ? btn("Send to Plan Studio", `inbox-send:${row.id}`, `primary sm${inboxSending ? " disabled" : ""}`)
+        : row.request.plans?.length === 1 ? btn("Open plan", `plan-load:${row.request.plans[0].draftId}`, "sm")
+        : btn("Open plans", open, "sm");
+      const reviewStatus = row.item?.review_status;
+      const sourceType = ["azure", "github", "jira"].includes(row.source.type) ? row.source.type : "source";
+      return `<article class="intake-row inbox-row ${row.id === inboxSelected ? "is-selected" : ""}">${row.request ? `<input type="checkbox" data-inbox-check="${escapeHtml(row.id)}" aria-label="Select ${escapeHtml(row.title)}" ${inboxChecked.has(row.id) ? "checked" : ""}>` : "<span></span>"}<span class="intake-source ${sourceType}" title="${sourceType}">${sourceType.slice(0, 2).toUpperCase()}</span><div class="intake-row-copy"><button class="intake-title" data-action="${escapeHtml(open)}" dir="auto">${escapeHtml(row.title)}</button><small>#${escapeHtml(row.source.remote_id ?? "?")} ${reviewStatus ? `<span class="pill ${reviewStatus === "ready" ? "green" : ""}">${escapeHtml(reviewStatus === "ready" ? "Reviewed" : reviewStatus)}</span>` : ""} ${row.links.map(repo => `<span class="pill">${escapeHtml(repo.name)}</span>`).join("")}</small></div><span class="pill ${["Planned", "Shipped"].includes(row.stage) ? "green" : row.stage === "Planning" ? "blue" : "amber"}">${row.stage}</span>${action}</article>`;
+    }).join("");
+    const checked = rows.filter(row => inboxChecked.has(row.id));
+    const ready = checked.length && checked.every(row => row.links.length);
+    return `<section class="intake-page"><div class="pagehead"><div><div class="eyebrow">INTAKE / INBOX</div><h1>Inbox</h1><p class="sub">Review requests, link repositories, and send work to Plan Studio.</p></div><div class="bar">${btn(`Sources · ${sourceConnections.filter(entry => entry.enabled).length} enabled`, "inbox-sources")}${btn("Check now", "inbox-check")}${btn("+ Import issues", "inbox-import", "primary")}</div></div><div class="intake-tabs" aria-label="Request stage">${inboxStages.map(stage => `<button class="pill ${stage === inboxStage ? "active" : ""}" data-action="inbox-stage:${stage}" aria-pressed="${stage === inboxStage}">${stage} ${stage === "All" ? matching.length : matching.filter(row => row.stage === stage).length}</button>`).join("")}</div><div class="intake-filters"><input class="input" type="search" id="inboxSearch" aria-label="Search requests" placeholder="Search requests by title, number, or repository" value="${escapeHtml(inboxQuery)}"><select class="input" id="inboxSource" aria-label="Issue source">${viewOptions(rows.map(row => row.source.type), inboxProvider, "All sources")}</select><select class="input" id="inboxProject" aria-label="Source project">${viewOptions(rows.map(row => row.source.project || row.source.repo), inboxProject, "All projects")}</select><button class="btn ${inboxAssigned ? "primary" : ""}" data-action="inbox-assigned" aria-pressed="${inboxAssigned}">Assigned to me</button></div>${inboxNotice ? `<p class="notice" role="status">${escapeHtml(inboxNotice)}</p>` : ""}<div class="intake-layout ${selected ? "has-inspector" : ""}"><div class="intake-list">${rowMarkup || `<p class="sub" role="status">${inboxLoading ? "Loading requests…" : "No requests match these filters."}</p>`}${checked.length ? `<div class="intake-selection"><b>${checked.length} selected${ready ? "" : " · link repositories first"}</b>${btn("Clear", "inbox-clear", "sm")}${btn("Send to Plan Studio", "inbox-send-checked", `primary sm${!ready || inboxSending ? " disabled" : ""}`)}</div>` : ""}${visible.length > inboxLimit ? btn(`Show more · ${inboxLimit} of ${visible.length}`, "inbox-more", "intake-more") : ""}</div>${inboxInspector(selected)}</div></section>`;
+  }
+
+  async function sendInboxRequests(ids) {
+    if (inboxSending) return;
+    const rows = new Map(inboxRows().map(row => [row.id, row]));
+    const selected = ids.map(id => rows.get(id));
+    if (!selected.length || selected.some(row => !row?.links.length)) {
+      inboxNotice = "Link each selected request to a repository first.";
+      render();
+      return;
+    }
+    inboxSending = true;
+    inboxNotice = "Preparing Plan Studio drafts…";
+    render();
+    const drafts = [];
+    try {
+      for (const row of selected) {
+        for (const repo of row.links) {
+          const request = row.request;
+          const objective = request.snapshot?.objective || request.objective;
+          const checks = request.snapshot?.completion_checks || request.completion_checks || [];
+          const intent = [row.title, objective, checks.length ? "Source acceptance criteria:\n" + checks.map(check => "- " + check).join("\n") : ""].filter(Boolean).join("\n\n");
+          const result = await planApi("/api/plan/local", { fromInbox: true, sourceTaskId: row.id, repositoryId: repo.id, intent });
+          drafts.push(result.draft);
+        }
+        inboxChecked.delete(row.id);
+      }
+      await loadSavedPlans();
+      if (page === "inbox") {
+        await performAction(`plan-load:${drafts[0].id}`);
+        if (drafts.length > 1) studioNotice = `${drafts.length} repository drafts are ready in Saved plans.`;
+      }
+    } catch (error) {
+      inboxNotice = `${drafts.length ? `${drafts.length} drafts are available in Plan Studio. ` : ""}${error.message}`;
+    } finally {
+      inboxSending = false;
+      if (page === "inbox" || page === "studio") render();
+    }
+  }
+
   function workmapPanel() {
     const map = projectMap;
     if (!map) return "";
     const statusPill = (status) => status === "planned" ? '<span class="pill green">planned here</span>' : status === "drafting" ? '<span class="pill blue">draft in progress</span>' : '<span class="pill amber">needs plan</span>';
-    const healthPillFor = (repo) => !repo.health?.exists ? '<span class="pill red" title="The repository path is missing on disk; planning and execution stay blocked">missing on disk</span>' : repo.health?.git ? `<span class="pill" title="Git checkout">⎇ ${escapeHtml(repo.health.branch || "git")}</span>` : '<span class="pill amber" title="Not a git checkout; plans cannot ground here">no git</span>';
     const capPill = (repo) => `<span class="pill" title="Concurrent provider sessions allowed for this repository">Cap: ${escapeHtml(repo.maxConcurrent)}</span>`;
     const isRunning = (status) => ["in_progress", "in_review", "verifying"].includes(status);
     const isBlocked = (status) => ["blocked", "escalated"].includes(status);
@@ -1421,47 +1687,35 @@ ${feedbackLine}
     const workerPill = (worker) => worker ? `<span class="pill" title="Assigned worker">${escapeHtml(worker[0].toUpperCase() + worker.slice(1))}</span>` : "";
     const unqueuedSuggestions = derived().tasks.filter((task) => !task.archived && !task.intake_only && task.queue === "Unqueued").slice(0, 40);
     const assignBar = (repo) => `<div class="workmap-assign"><input class="input" id="repoAssignTitle-${escapeHtml(repo.id)}" list="repoAssignOptions-${escapeHtml(repo.id)}" placeholder="New task title or select existing unqueued task…" aria-label="Task title to assign to ${escapeHtml(repo.name)}"><datalist id="repoAssignOptions-${escapeHtml(repo.id)}">${unqueuedSuggestions.map((task) => `<option value="${escapeHtml(task.title)}">${escapeHtml(task.id)}</option>`).join("")}</datalist><select class="input" id="repoAssignWorker-${escapeHtml(repo.id)}" aria-label="Worker for the assigned task">${WORKER_ROLES.map((role) => `<option value="${role}" ${role === "rowan" ? "selected" : ""}>${role[0].toUpperCase() + role.slice(1)}</option>`).join("")}</select>${btn("+ Assign to repo", `repo-assign:${escapeHtml(repo.id)}`, "sm primary")}</div>`;
-    const planBoxFor = (repo, request, workstream) => {
-      const branches = workstream?.branches || [];
-      if (!branches.length) return `<div class="workmap-needbox"><div><b>◈ Plan needed for this ${request.also?.length ? "shared request" : "request"}</b><span class="muted tiny">Plan it against ${escapeHtml(repo.name)} so this side of the fix is grounded, reviewed and approved in the right codebase.</span></div>${btn("◇ Plan in this repo", `plan:${request.id}:${repo.id}`, "sm primary")}</div>`;
-      const rendered = branches.map(({ plan, queue, tasks }) => {
-        const proposed = tasks.length || queue?.total || 0;
-        const subtaskLine = tasks.length ? `<div class="workmap-planbox-tasks">${tasks.slice(0, 3).map((task) => `${taskGlyph(task.status)} <span class="task-id-badge">${escapeHtml(task.id)}</span> <span class="truncate">${escapeHtml(task.title)}</span>`).join("")}${tasks.length > 3 ? `<span class="muted tiny">+${tasks.length - 3} more</span>` : ""}</div>` : "";
-        const archiveButton = plan.approved ? "" : `<button type="button" class="btn sm danger plan-delete-icon" data-action="plan-archive-confirm:${escapeHtml(plan.id)}" aria-label="Delete draft ${escapeHtml(plan.title || plan.id)}" title="Delete draft">✕</button>`;
-        return `<div class="workmap-planbox${plan.approved ? " is-approved" : ""}"><div class="workmap-planbox-eyebrow">${plan.approved ? `APPROVED PLAN · QUEUE${queue ? ` · ${queue.done}/${queue.total} DONE` : ""}` : `PLAN DRAFT · ${proposed} SUBTASK${proposed === 1 ? "" : "S"} PROPOSED`}</div><div class="workmap-planbox-body"><div><b class="truncate" title="${escapeHtml(plan.title || plan.id)}">${escapeHtml(plan.title || plan.id)}</b><div class="muted tiny">${escapeHtml(String(plan.id).slice(0, 22))} · ${plan.approved ? "queued — preview the queue before any run" : plan.review === "passed" ? "review passed · ready for queue approval" : `${escapeHtml(plan.stage || "draft")} · needs a passing review before approval`}</div></div><div class="bar">${btn("Open plan", `plan-load:${plan.id}`, "sm ghost")}${plan.approved ? btn("View queue", "go:queues", "sm") : btn("Approve →", `plan-approve:${plan.id}`, "sm primary")}${archiveButton}</div></div>${subtaskLine}</div>`;
-      });
-      return rendered[0] + (rendered.length > 1 ? `<details class="workmap-older-plans"><summary>${rendered.length - 1} older plan version${rendered.length === 2 ? "" : "s"} · show versions</summary>${rendered.slice(1).join("")}</details>` : "");
+    const requestCardFor = (repo, request) => {
+      const key = `#${escapeHtml(String(request.source?.remote_id ?? "?"))}`;
+      const shared = request.also?.length ? `<small class="muted">Shared w/ ${request.also.map(other => escapeHtml(other.name)).join(", ")}</small>` : "";
+      const primary = request.draft
+        ? btn("Open plan", `plan-load:${request.draft.id}`, "sm")
+        : btn("Plan in this repo", `plan:${request.id}:${repo.id}`, "sm primary");
+      return `<article class="intake-related-request"><b dir="auto">${key} ${escapeHtml(request.title)}</b>${shared}<div class="row between">${statusPill(request.status)}${primary}</div></article>`;
     };
-    const requestCardFor = (repo, request, workstream) => {
-      const key = `${escapeHtml((request.source?.type || "src").slice(0, 2).toUpperCase())} #${escapeHtml(String(request.source?.remote_id ?? "?"))}`;
-      const shared = request.also?.length ? `<span class="pill amber" title="This request also affects other repositories">⇄ Shared w/ ${request.also.map((other) => escapeHtml(other.name)).join(", ")}</span>` : "";
-      return `<article class="workmap-request"><div class="workmap-request-head"><span class="workmap-key">${key}</span><b class="truncate" title="${escapeHtml(request.title)}">${escapeHtml(request.title)}</b>${shared}<span style="flex:1"></span>${statusPill(request.status)}${btn("Edit repos", `source-repos:${request.id}`, "sm ghost")}${btn("Details", `task-detail:${request.id}`, "sm ghost")}</div>${planBoxFor(repo, request, workstream)}</article>`;
-    };
-    const queueSectionFor = (repo, orphanPlans) => {
+    const queueSectionFor = (repo) => {
       const queueRows = (repo.queues || []).map((queue) => {
         const members = (queue.task_ids || []).map((id) => repo.tasks.find((task) => task.id === id)).filter(Boolean);
         const queuedCount = queue.queued ?? Math.max(0, queue.total - queue.done - queue.active - queue.blocked);
         const summary = [queue.done && `${queue.done} Done`, queue.active && `${queue.active} Running`, queue.blocked && `${queue.blocked} Blocked`, queuedCount && `${queuedCount} Queued`].filter(Boolean).join(" · ") || "Empty";
         return `<div class="workmap-queue"><div class="workmap-queuebar"><b>≡ ${escapeHtml(queue.name)}</b><span class="muted tiny">${escapeHtml(summary)}${queue.source_title ? ` · plan for ${escapeHtml(queue.source_title)}` : ""}</span><span style="flex:1"></span>${btn("▶ Run queue", `run-preview:${escapeHtml(queue.id)}`, "sm primary")}</div>${members.map((task) => `<div class="workmap-subtask">${taskGlyph(task.status)}<span class="task-id-badge">${escapeHtml(task.id)}</span><b class="truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</b><span style="flex:1"></span>${workerPill(task.worker)}<span class="pill ${task.status === "done" ? "green" : isRunning(task.status) ? "green" : isBlocked(task.status) ? "red" : ""}">${statusLabel(task.status)}</span>${btn("Inspect", `task-detail:${task.id}`, "sm ghost")}</div>`).join("") || '<p class="muted tiny workmap-empty">Queue has no visible tasks yet.</p>'}</div>`;
       }).join("");
-      const orphanRows = orphanPlans.map((plan) => `<div class="workmap-queue"><div class="workmap-queuebar"><b>◇ ${escapeHtml(plan.title || plan.id)}</b><span class="muted tiny">plan without a linked request · ${plan.approved ? "approved" : escapeHtml(plan.stage || "draft")}</span><span style="flex:1"></span>${btn("Open plan", `plan-load:${plan.id}`, "sm ghost")}</div></div>`).join("");
+      const planRows = repo.plans.map((plan) => `<div class="workmap-queue"><div class="workmap-queuebar"><b>◇ ${escapeHtml(plan.title || plan.id)}</b><span class="muted tiny">${plan.approved ? "Approved" : escapeHtml(plan.stage || "Draft")}</span><span style="flex:1"></span>${btn("Open plan", `plan-load:${plan.id}`, "sm ghost")}</div></div>`).join("");
       const looseTasks = repo.tasks.filter((task) => !task.queue_id);
       const looseRows = looseTasks.length ? `<div class="workmap-queue"><div class="workmap-queuebar"><b>Tasks without a queue</b><span class="muted tiny">${looseTasks.length} bound to this repository · add them to a queue to run</span></div>${looseTasks.map((task) => `<div class="workmap-subtask">${taskGlyph(task.status)}<span class="task-id-badge">${escapeHtml(task.id)}</span><b class="truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</b><span style="flex:1"></span>${workerPill(task.worker)}<span class="pill ${isBlocked(task.status) ? "red" : ""}">${statusLabel(task.status)}</span>${btn("Inspect", `task-detail:${task.id}`, "sm ghost")}</div>`).join("")}</div>` : "";
-      return orphanRows + queueRows + looseRows || '<p class="muted tiny workmap-empty">No queues or tasks are bound to this repository yet.</p>';
+      return planRows + queueRows + looseRows || '<p class="muted tiny workmap-empty">No queues or tasks are bound to this repository yet.</p>';
     };
-    const withWork = (map.repositories || []).filter((repo) => repo.counts.requests + repo.counts.plans + repo.counts.queues + repo.counts.tasks > 0);
-    const idleRepos = (map.repositories || []).filter((repo) => !(repo.counts.requests + repo.counts.plans + repo.counts.queues + repo.counts.tasks > 0));
-    const matchesQuery = (repo) => !projectQuery || `${repo.name} ${repo.root} ${repo.id}`.toLowerCase().includes(projectQuery.toLowerCase());
-    // Cards with live or blocked work float to the top; otherwise alphabetical.
-    const cards = withWork.filter(matchesQuery).sort((a, b) => ((b.counts.blocked + b.counts.active) - (a.counts.blocked + a.counts.active)) || (b.counts.needs_plan - a.counts.needs_plan) || a.name.localeCompare(b.name)).map((repo) => {
-      const orphanPlans = (repo.plans || []).filter((plan) => !plan.source_task_id);
-      const requestsBody = (repo.requests || []).map((request) => requestCardFor(repo, request, (repo.workstreams || []).find((entry) => entry.request.id === request.id))).join("") || '<p class="muted tiny workmap-empty">No imported request affects this repository. Plan new work with + Plan above, or assign a task below.</p>';
-      return `<section class="panel workmap-card${(repo.counts.active || repo.counts.blocked) ? " workmap-busy" : ""}" data-repo-card="${escapeHtml(repo.id)}"><div class="workmap-cardhead"><div class="workmap-cardtitle"><b class="workmap-name">⌂ ${escapeHtml(repo.name)}</b><span class="workmap-root" dir="ltr" title="${escapeHtml(repo.root)}">${escapeHtml(repo.root)}</span></div><div class="bar">${healthPillFor(repo)}${capPill(repo)}${btn("+ Plan", `plan-repo:${escapeHtml(repo.id)}`, "sm primary")}</div></div><div class="workmap-eyebrow is-green">1. LINKED IMPORTED REQUESTS &amp; PLANS (${repo.counts.requests}${repo.counts.needs_plan ? ` · ${repo.counts.needs_plan} NEED${repo.counts.needs_plan === 1 ? "S" : ""} PLAN` : ""})</div><div class="workmap-requestlist">${requestsBody}</div><div class="workmap-eyebrow is-blue">2. REPOSITORY QUEUES &amp; EXECUTABLE SUBTASKS (${repo.counts.tasks} TASK${repo.counts.tasks === 1 ? "" : "S"})</div><div class="workmap-queues">${queueSectionFor(repo, orphanPlans)}</div><div class="workmap-eyebrow">3. ASSIGN OR CREATE TASK IN THIS REPOSITORY</div>${assignBar(repo)}</section>`;
-    }).join("");
-    const idleStrip = idleRepos.filter(matchesQuery).length ? `<div class="workmap-idlehead">IDLE REPOSITORIES (${idleRepos.filter(matchesQuery).length} WITH NO ACTIVE WORK — ASSIGN WORK TO EXPAND THEM)</div><div class="workmap-idlegrid">${idleRepos.filter(matchesQuery).map((repo) => `<section class="panel workmap-idlecard" data-repo-card="${escapeHtml(repo.id)}"><div class="workmap-idle-main"><b>⌂ ${escapeHtml(repo.name)}</b><span class="muted tiny" dir="ltr">${repo.health?.git ? `⎇ ${escapeHtml(repo.health.branch || "git")}` : "no git"} · Cap: ${escapeHtml(repo.maxConcurrent)}</span></div><div class="bar">${btn("+ Assign task", `direct-task:${escapeHtml(repo.id)}`, "sm")}${btn("+ Plan", `plan-repo:${escapeHtml(repo.id)}`, "sm ghost")}</div></section>`).join("")}</div>` : "";
-    const unassignedRows = (map.unassigned || []).map((request) => `<div class="event workmap-row"><div><b class="truncate" title="${escapeHtml(request.title)}">${escapeHtml(request.title)}</b><div class="muted tiny">${escapeHtml(request.source?.type || "source")} #${escapeHtml(String(request.source?.remote_id ?? "?"))} · imported ${escapeHtml(String(request.imported_at || "time not recorded").slice(0, 16))}</div></div><div class="bar source-history-actions">${btn("Choose repositories", `source-repos:${request.id}`, "sm primary")}${btn("Details", `task-detail:${request.id}`, "sm ghost")}</div></div>`).join("");
-    const unassigned = (map.unassigned || []).length ? `<section class="panel space"><div class="paneltitle"><h2>Requests without a repository</h2><span class="pill amber">${map.unassigned.length}</span></div><p class="sub" style="margin:0;padding:0 15px 10px">Imported requests that affect no registered repository yet. Assign them so planning inspects the right codebase.</p><div class="pad">${unassignedRows}</div></section>` : "";
-    return `${unassigned}<div class="grid two" style="align-items:start">${cards || `<div class="pad muted">No repositories with active work — register one, plan imported requests, or assign a task to an idle repository below.</div>`}</div>${idleStrip}<p class="muted tiny space">A request affecting several repositories gets one plan and one queue per repository, all linked back to the same request. Plans are never moved between repositories.</p>`;
+    const hasWork = (repo) => repo.counts.requests + repo.counts.plans + repo.counts.queues + repo.counts.open > 0;
+    const matches = (repo) => `${repo.name} ${repo.root} ${repo.id}`.toLowerCase().includes(projectQuery.toLowerCase());
+    const repositories = (map.repositories || []).filter(matches);
+    const active = repositories.filter(hasWork).sort((a, b) => (b.counts.active + b.counts.blocked) - (a.counts.active + a.counts.blocked) || a.name.localeCompare(b.name));
+    const idle = repositories.filter(repo => !hasWork(repo)).sort((a, b) => a.name.localeCompare(b.name));
+    const selected = (map.repositories || []).find(repo => repo.id === selectedRepository);
+    const row = (repo, working) => `<article class="intake-row ${selected?.id === repo.id ? "is-selected" : ""}" data-repo-card="${escapeHtml(repo.id)}"><div class="intake-row-copy"><b>${escapeHtml(repo.name)}</b><small dir="ltr" title="${escapeHtml(repo.root)}">${escapeHtml(repo.root)}</small></div><small>${escapeHtml(repo.health?.branch || (repo.health?.git ? "Git" : "No Git"))}</small>${capPill(repo)}${working ? `<span class="pill blue">${repo.counts.requests} request${repo.counts.requests === 1 ? "" : "s"}</span>` : '<span class="pill">Idle</span>'}${btn(working ? "Open" : "+ Assign task", `repositories-open:${escapeHtml(repo.id)}`, "sm")}</article>`;
+    const panel = selected ? `<aside class="intake-inspector" tabindex="-1" aria-label="Repository details"><div class="row between"><h2>${escapeHtml(selected.name)}</h2><button class="btn ghost" data-action="repositories-close" aria-label="Close repository details">×</button></div><p class="sub" dir="ltr">${escapeHtml(selected.root)}${selected.health?.branch ? " · " + escapeHtml(selected.health.branch) : ""}</p><h3>Requests</h3>${selected.requests.map(request => requestCardFor(selected, request)).join("") || '<p class="sub">No linked requests.</p>'}<h3>Plans and queue</h3>${queueSectionFor(selected)}<h3>Add a task here</h3>${assignBar(selected)}<div class="bar">${btn("New standalone plan", `plan-repo:${escapeHtml(selected.id)}`, "sm")}</div></aside>` : "";
+    return `<div class="intake-layout ${panel ? "has-inspector" : ""}"><div class="intake-list"><h2>Active · ${active.length}</h2>${active.map(repo => row(repo, true)).join("") || '<p class="sub">No active repositories match.</p>'}<h2>Idle · ${idle.length}</h2>${idle.slice(0, showIdleRepositories || projectQuery ? idle.length : 3).map(repo => row(repo, false)).join("")}${idle.length > 3 && !projectQuery ? btn(showIdleRepositories ? "Show fewer idle repositories" : `Show ${idle.length - 3} more idle repositories`, "repositories-idle", "intake-more") : ""}</div>${panel}</div>`;
   }
   function selectSource(id) {
     sourcePreviewSequence++; sourceSelectedId = id; sourcePreview = null; sourceSelectedIndices.clear(); sourceNotice = ''; sourceImportResult = null;
@@ -1553,32 +1807,39 @@ ${feedbackLine}
       const cta = sourceConnectionCta(c);
       return `<article class="source-connection-card connection ${c.id === sourceSelectedId ? 'selected' : ''}" data-provider="${c.provider}"><div class="card-top"><span class="provider ${c.provider === 'azure' ? 'az' : c.provider}">${{ github: 'GH', jira: 'JR', azure: 'AZ' }[c.provider]}</span><div><h3 class="card-title">${escapeHtml(c.name)}</h3><div class="provider-label">${providerName[c.provider]}</div></div></div><details class="source-card-menu"><summary aria-label="More actions for ${escapeHtml(c.name)}">⋮</summary><div>${btn('Edit connection', `sources-edit:${c.id}`, 'sm ghost')}${btn('Check access', `sources-check:${c.id}`, 'sm ghost')}${['azure','github','jira'].includes(c.provider) ? btn(c.provider === 'azure' ? (c.token_present ? 'Replace PAT' : 'Connect PAT') : (c.token_present ? 'Replace token' : 'Connect token'), `sources-credential:${c.id}`, 'sm ghost') : ''}${btn(c.enabled ? 'Pause connection' : 'Resume connection', `sources-toggle:${c.id}`, 'sm ghost')}${btn('Remove connection', `sources-delete:${c.id}`, 'sm ghost')}</div></details><div class="card-status"><span class="badge ${badge}">${glyph} ${status}</span><span class="card-tag">${sourceProviderTag(c.provider, 'badge')}</span></div><p class="remote" title="${escapeHtml(location(c))}" dir="auto">${escapeHtml(location(c))}</p><p class="verified-time">Last verified: ${relativeVerifiedTime(c.checked_at)}${c.error ? ` · ${escapeHtml(c.error)}` : ''}</p><div class="card-actions">${btn(cta.label, cta.action, 'primary')}<span class="card-tag card-tag-actions">${sourceProviderTag(c.provider, 'actions')}</span></div></article>`;
     }).join('');
+    const requests = sourceHistory.requests || [];
+    const importsByIssue = new Map();
+    for (const { source } of requests) {
+      if (!source) continue;
+      const key = JSON.stringify([source.type, String(source.remote_id)]);
+      if (!importsByIssue.has(key)) importsByIssue.set(key, []);
+      importsByIssue.get(key).push(source);
+    }
     const isImportedItem = (item) => {
       const source = item.source?.type || selected?.provider;
       const key = String(item.source?.remote_id ?? 'Issue');
-      return (sourceHistory.requests || []).some(r => {
-        const prior = r.source || {}, incoming = item.source || {};
-        if (prior.type !== source || String(prior.remote_id) !== key) return false;
+      const incoming = item.source || {};
+      return importsByIssue.get(JSON.stringify([source, key]))?.some(prior => {
         if (prior.url && incoming.url) return prior.url === incoming.url;
         if (incoming.repo) return prior.repo === incoming.repo;
         if (incoming.base_url) return prior.base_url === incoming.base_url;
         return prior.connection_id ? prior.connection_id === selected?.id : prior.project === incoming.project;
       });
     };
+    let importedCount = 0;
     const rows = candidates.map(item => {
       const source = item.source?.type || selected?.provider;
       const key = String(item.source?.remote_id ?? 'Issue');
       const imported = isImportedItem(item);
+      if (imported) importedCount++;
       const label = item.labels?.[0] || item.priority || 'Issue';
       const state = item.state || item.source?.state || 'open';
       const closed = String(state).toLowerCase() === 'closed';
       return `<tr class="${imported ? 'row-disabled' : ''}" data-preview-source="${escapeHtml(source)}" data-preview-state="${escapeHtml(state)}" data-preview-label="${escapeHtml(selected?.provider === 'jira' ? key.split('-')[0] : label)}" data-preview-search="${escapeHtml([item.title,key,item.objective_hint].filter(Boolean).join(' ').toLowerCase())}"><td><input type="checkbox" data-source-index="${item.index}" aria-label="Select ${escapeHtml(item.title)}" ${imported ? 'disabled' : sourceSelectedIndices.has(item.index) ? 'checked' : ''}></td><td class="issue-title"><span class="issue-state ${closed ? 'is-closed' : 'is-open'}" title="${escapeHtml(state)}" aria-hidden="true">${closed ? '⊘' : '◉'}</span><span class="id">#${escapeHtml(key)}</span>${escapeHtml(item.title)}</td><td><span class="label ${['bug','docs','enhancement'].includes(label) ? label : ''}">${escapeHtml(label)}</span></td><td class="muted repositories">${item.source?.repo ? '1' : '—'}</td><td><span class="status-pill ${imported ? 'imported' : 'ready'}">${imported ? 'Already imported' : 'Ready'}</span></td></tr>`;
     }).join('');
-    const importedCount = candidates.filter(isImportedItem).length;
     const selectedCount = candidates.length - importedCount;
     const importResultSection = sourceImportResult ? `<section class="source-section source-import-result" aria-label="Import result"><div class="section-head"><div><div class="title-line"><h2>Import result</h2></div></div>${btn('×', 'sources-import-result-dismiss', 'quiet small')}</div><div class="import-result-banner${sourceImportResult.error ? ' is-error' : ''}" role="status">${sourceImportResult.error ? `<span>✕ ${escapeHtml(sourceImportResult.error)}</span>${btn('Search again & retry', 'sources-import-retry', 'small primary')}` : `<span>✓ ${sourceImportResult.added} request${sourceImportResult.added === 1 ? '' : 's'} created${sourceImportResult.skipped ? ` · ${sourceImportResult.skipped} already imported ${sourceImportResult.skipped === 1 ? 'is' : 'are'} skipped` : ''}${sourceImportResult.repositories?.length ? ` · linked to ${sourceImportResult.repositories.map(escapeHtml).join(', ')}` : ''}.</span>`}</div>${sourceImportResult.items?.length ? `<ul class="import-result-items">${sourceImportResult.items.map(item => `<li><span class="ir-mark ${item.taskId ? 'ok' : 'skip'}">${item.taskId ? '✓' : '○'}</span><span class="ir-title">#${escapeHtml(String(item.remote ?? '?'))} ${escapeHtml(item.title || '')}</span><span class="ir-note">${item.taskId ? `request created · <b>${escapeHtml(item.taskId)}</b>` : 'skipped · already imported'}</span></li>`).join('')}</ul>` : ''}</section>` : '';
-    const requests = sourceHistory.requests || [];
-    const requestCards = requests.map(r => {
+    const requestCards = (intakeTool ? [] : requests).map(r => {
       const repos = r.repositories?.length ? r.repositories : r.repository?.id ? [r.repository] : [];
       const planButtons = r.needs_plan
         ? repos.length
@@ -1587,11 +1848,11 @@ ${feedbackLine}
         : [btn('Open in Plan Studio ?', `plan:${r.id}${repos.length === 1 ? ':' + repos[0].id : ''}`, 'small')];
       return `<article class="request" data-import-request="${escapeHtml(r.id)}"><div class="request-left"><span class="request-icon">↳</span><div><h3><span class="muted">#${escapeHtml(String(r.source?.remote_id ?? '?'))}</span> &nbsp;${escapeHtml(r.title)}</h3><p>${escapeHtml(r.id)}${r.revision ? ` · rev ${escapeHtml(String(r.revision))}` : ''} · via ${escapeHtml(r.source?.connection_name || r.source?.type || 'source')} · ${repos.length} ${repos.length === 1 ? 'repository' : 'repositories'}</p></div></div><div class="actions"><span class="badge ${r.needs_plan ? 'auth' : 'verified'}">${r.needs_plan ? 'Needs plan' : 'Planned'}</span>${btn('Edit repos', `source-repos:${r.id}`, 'small')}${planButtons.join("")}</div></article>`;
     }).join('');
-    return `<div class="issue-sources source-v2"><div class="page-head"><div><div class="eyebrow">WORKSPACE / ISSUE SOURCES</div><h1>Issue sources</h1><p>Connect a source, verify access, browse issues, then import the ones you want to plan.</p></div><div class="actions">${btn('Check all access', 'sources-check-all')}${btn('+ Add source', 'sources-add', 'primary')}</div></div>
+    return `<div class="issue-sources source-v2 ${intakeTool ? "intake-tool-" + intakeTool : ""}"><div class="page-head"><div><div class="eyebrow">INTAKE / INBOX</div><h1>${intakeTool === "import" ? "Import issues" : "Issue sources"}</h1><p>${intakeTool === "import" ? "Choose the issues to add to your Inbox." : "Manage access to the sources that feed your Inbox."}</p></div><div class="actions">${intakeTool === "import" ? btn("Manage sources", "inbox-sources") : btn("Watch settings", "inbox-watch") + btn("Assigned reviews", "inbox-reviews") + btn('Check all access', 'sources-check-all') + btn('+ Add source', 'sources-add', 'primary')}</div></div>
       ${sourceConnectionNotice ? `<div class="notice" role="status"><span>${escapeHtml(sourceConnectionNotice)}</span>${btn('×', 'sources-dismiss-notice', 'quiet small')}</div>` : ''}
-      <section class="source-section source-workbench"><div class="section-head"><div><div class="title-line"><h2>Connected sources</h2><span class="count">${sourceConnections.length} connections</span></div><p class="section-sub">Your saved connections. Check access before browsing issues.</p></div><span class="muted small">Access checks never import issues</span></div><div class="connections source-connection-grid">${cards || `<div class="source-empty-state"><div class="provider-glyphs" aria-hidden="true"><span class="pg gh">◉</span><span class="pg jr">◆</span><span class="pg az">▦</span></div><h3>No sources yet</h3><p>Add your first connection to browse and import issues.</p>${btn('+ Add source', 'sources-add', 'primary')}</div>`}</div></section>
-      <section class="source-section source-workbench"><div class="section-head browser-head"><div><h2>Browse issues</h2><p class="section-sub">Find the work you want to bring into ATL.</p></div><span class="browsing">${selected ? `<span class="dot"></span> Browsing ${escapeHtml(selected.name)}` : 'Choose a connection'}</span></div><div class="filters"><div><label for="sourceConnectionSelect">Connection</label><select id="sourceConnectionSelect"><option value="">Choose a connection</option>${sourceConnections.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === sourceSelectedId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select></div><div><label for="sourceStateFilter">${selected?.provider === 'azure' ? 'Work item state' : 'State'}</label><select id="sourceStateFilter"><option${sourceStateFilter === 'All states' ? ' selected' : ''}>All states</option>${[...new Set(candidates.map(item => item.state).filter(Boolean))].map(state => `<option${state === sourceStateFilter ? ' selected' : ''}>${escapeHtml(state)}</option>`).join('')}</select></div><div><label for="${selected?.provider === 'azure' ? 'sourceAzureSearchIteration' : 'sourceLabelFilter'}">${selected?.provider === 'azure' ? 'Sprint' : selected?.provider === 'jira' ? 'Project' : 'Label'}</label>${selected?.provider === 'azure' ? `<select id="sourceAzureSearchIteration"><option value="">All sprints</option>${sourceIteration && !azureIterations.some(it => it.path === sourceIteration) ? `<option value="${escapeHtml(sourceIteration)}" selected>${escapeHtml(sourceIteration)}</option>` : ''}${azureIterations.map(it => `<option value="${escapeHtml(it.path)}" ${it.path === sourceIteration ? 'selected' : ''}>${escapeHtml(it.name)}</option>`).join('')}</select>` : `<select id="sourceLabelFilter"><option value=""${sourceLabelFilter ? '' : ' selected'}>${selected?.provider === 'jira' ? 'All projects' : 'Any label'}</option>${[...new Set(selected?.provider === 'jira' ? (selected.settings.projects || []) : candidates.flatMap(i => i.labels || []))].map(l => `<option${l === sourceLabelFilter ? ' selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>`}</div><div class="search-field"><label for="sourceSearch">Search</label><input id="sourceSearch" type="search" aria-label="Filter previewed issues" placeholder="Search by title or issue number" value="${escapeHtml(sourceSearchTerm)}"></div>${btn(sourceBrowseLoading ? 'Searching…' : '⌕  Search issues', 'sources-preview-selected', 'primary')}</div>
-      ${selected?.provider === 'azure' ? `<div class="source-extra-filters"><label for="sourceAzureWorkItem">Work item number or link</label><input id="sourceAzureWorkItem" placeholder="Number or link" value="${escapeHtml(sourceWorkItem)}">${btn('Load sprints', 'sources-azure-sprints', 'small')}<span id="sourceSprintsNotice" role="status">${escapeHtml(azureSprintsNotice)}</span></div>` : ''}${sourceNotice ? `<p class="notice" role="status">${escapeHtml(sourceNotice)}</p>` : ''}<div class="result-header"><span><b>Results</b> · ${candidates.length} issue${candidates.length === 1 ? '' : 's'}</span><span class="muted">Results clear if you switch connection</span></div><div class="table-wrap"><table><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? 'checked' : 'disabled'}></th><th>Issue</th><th>Labels</th><th>Repositories</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><p class="source-empty empty" ${candidates.length ? 'hidden' : ''}>Choose a connected source and search issues here.</p><div class="import-bar"><div><b id="sourceSelectionCount">${selectedCount} selected</b><span class="bar-note">${importedCount ? ` · ${importedCount} already imported ${importedCount === 1 ? 'is' : 'are'} skipped` : ' · Imported issues are excluded automatically'}</span></div><div class="actions">${btn('Clear', 'sources-clear-selection', 'quiet small')}${btn(`Import ${selectedCount} issue${selectedCount === 1 ? '' : 's'}`, 'sources-import', `primary small${selectedCount ? '' : ' disabled'}`)}</div></div><details class="source-import-options"><summary>Affected repository mapping</summary><div class="source-repo-pills" role="group" aria-label="Affected repositories">${(snapshot.supervisor?.projects || []).map(p => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(p.id)}" ${sourceImportRepos.has(p.id) ? 'checked' : ''}><span>${escapeHtml(p.name)}</span></label>`).join('')}</div></details></section>${importResultSection}<section class="source-section"><div class="section-head"><div><div class="title-line"><h2>Imported requests</h2><span class="count">${requests.length}</span></div><p class="section-sub">Ready for the next step.</p></div></div>${requestCards || '<p class="empty">No requests imported yet.</p>'}</section><details class="source-workstream-details" ${sourceWorkstreamsOpen ? 'open' : ''}><summary>Repository workstreams &amp; import history</summary>${sourceHistoryPanel()}</details><p class="footnote">Sources are read-only. ATL never modifies your original issues.</p></div>`;
+      <section class="source-section source-workbench intake-connection-list"><div class="section-head"><div><div class="title-line"><h2>Connected sources</h2><span class="count">${sourceConnections.length} connections</span></div><p class="section-sub">Your saved connections. Check access before browsing issues.</p></div><span class="muted small">Access checks never import issues</span></div><div class="connections source-connection-grid">${cards || `<div class="source-empty-state"><div class="provider-glyphs" aria-hidden="true"><span class="pg gh">◉</span><span class="pg jr">◆</span><span class="pg az">▦</span></div><h3>No sources yet</h3><p>Add your first connection to browse and import issues.</p>${btn('+ Add source', 'sources-add', 'primary')}</div>`}</div></section>
+      <section class="source-section source-workbench intake-issue-browser"><div class="section-head browser-head"><div><h2>Browse issues</h2><p class="section-sub">Find the work you want to bring into ATL.</p></div><span class="browsing">${selected ? `<span class="dot"></span> Browsing ${escapeHtml(selected.name)}` : 'Choose a connection'}</span></div><div class="filters"><div><label for="sourceConnectionSelect">Connection</label><select id="sourceConnectionSelect"><option value="">Choose a connection</option>${sourceConnections.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === sourceSelectedId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select></div><div><label for="sourceStateFilter">${selected?.provider === 'azure' ? 'Work item state' : 'State'}</label><select id="sourceStateFilter"><option${sourceStateFilter === 'All states' ? ' selected' : ''}>All states</option>${[...new Set(candidates.map(item => item.state).filter(Boolean))].map(state => `<option${state === sourceStateFilter ? ' selected' : ''}>${escapeHtml(state)}</option>`).join('')}</select></div><div><label for="${selected?.provider === 'azure' ? 'sourceAzureSearchIteration' : 'sourceLabelFilter'}">${selected?.provider === 'azure' ? 'Sprint' : selected?.provider === 'jira' ? 'Project' : 'Label'}</label>${selected?.provider === 'azure' ? `<select id="sourceAzureSearchIteration"><option value="">All sprints</option>${sourceIteration && !azureIterations.some(it => it.path === sourceIteration) ? `<option value="${escapeHtml(sourceIteration)}" selected>${escapeHtml(sourceIteration)}</option>` : ''}${azureIterations.map(it => `<option value="${escapeHtml(it.path)}" ${it.path === sourceIteration ? 'selected' : ''}>${escapeHtml(it.name)}</option>`).join('')}</select>` : `<select id="sourceLabelFilter"><option value=""${sourceLabelFilter ? '' : ' selected'}>${selected?.provider === 'jira' ? 'All projects' : 'Any label'}</option>${[...new Set(selected?.provider === 'jira' ? (selected.settings.projects || []) : candidates.flatMap(i => i.labels || []))].map(l => `<option${l === sourceLabelFilter ? ' selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>`}</div><div class="search-field"><label for="sourceSearch">Search</label><input id="sourceSearch" type="search" aria-label="Filter previewed issues" placeholder="Search by title or issue number" value="${escapeHtml(sourceSearchTerm)}"></div>${btn(sourceBrowseLoading ? 'Searching…' : '⌕  Search issues', 'sources-preview-selected', 'primary')}</div>
+      ${selected?.provider === 'azure' ? `<div class="source-extra-filters"><label for="sourceAzureWorkItem">Work item number or link</label><input id="sourceAzureWorkItem" placeholder="Number or link" value="${escapeHtml(sourceWorkItem)}">${btn('Load sprints', 'sources-azure-sprints', 'small')}<span id="sourceSprintsNotice" role="status">${escapeHtml(azureSprintsNotice)}</span></div>` : ''}${sourceNotice ? `<p class="notice" role="status">${escapeHtml(sourceNotice)}</p>` : ''}<div class="result-header"><span><b>Results</b> · ${candidates.length} issue${candidates.length === 1 ? '' : 's'}</span><span class="muted">Results clear if you switch connection</span></div><div class="table-wrap"><table><thead><tr><th><input id="sourceSelectAll" type="checkbox" aria-label="Select all visible issues" ${candidates.length ? 'checked' : 'disabled'}></th><th>Issue</th><th>Labels</th><th>Repositories</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div><p class="source-empty empty" ${candidates.length ? 'hidden' : ''}>Choose a connected source and search issues here.</p><div class="import-bar"><div><b id="sourceSelectionCount">${selectedCount} selected</b><span class="bar-note">${importedCount ? ` · ${importedCount} already imported ${importedCount === 1 ? 'is' : 'are'} skipped` : ' · Imported issues are excluded automatically'}</span></div><div class="actions">${btn('Clear', 'sources-clear-selection', 'quiet small')}${btn(`Import ${selectedCount} issue${selectedCount === 1 ? '' : 's'}`, 'sources-import', `primary small${selectedCount ? '' : ' disabled'}`)}</div></div><details class="source-import-options"><summary>Affected repository mapping</summary><div class="source-repo-pills" role="group" aria-label="Affected repositories">${(snapshot.supervisor?.projects || []).map(p => `<label class="source-repo-pill"><input type="checkbox" data-import-repository value="${escapeHtml(p.id)}" ${sourceImportRepos.has(p.id) ? 'checked' : ''}><span>${escapeHtml(p.name)}</span></label>`).join('')}</div></details></section>${importResultSection}<section class="source-section intake-imported-requests"><div class="section-head"><div><div class="title-line"><h2>Imported requests</h2><span class="count">${requests.length}</span></div><p class="section-sub">Ready for the next step.</p></div></div>${requestCards || '<p class="empty">No requests imported yet.</p>'}</section><details class="source-workstream-details" ${sourceWorkstreamsOpen ? 'open' : ''}><summary>Repository workstreams &amp; import history</summary>${intakeTool ? "" : sourceHistoryPanel()}</details>${intakeTool === "import" ? sourceHistoryPanel({ historyOnly: true }) : ""}<p class="footnote">Sources are read-only. ATL never modifies your original issues.</p></div>`;
   }
   function issueSourcesPanel() {
     return issueSourcesPanelV2();
@@ -1727,6 +1988,108 @@ ${feedbackLine}
       + headerCards
       + chains
       + (stream ? `<div class="space"></div>${card("Run activity", `<div class="pad wf-stream">${stream}</div>`)}` : "");
+  }
+
+  const batchTaskEligible = task => Boolean(task?.plan_draft_id && task.plan_queue_id && !task.plan_review_required && !task.intake_only && !task.archived_at && !["done", "rejected", "archived"].includes(task.status));
+  const batchTaskStopped = item => ["failed", "blocked", "exhausted", "interrupted", "needs_reconciliation"].includes(item.status);
+  const batchDate = date => date ? new Date(date).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }) : "";
+  const batchTimeLimit = minutes => minutes >= 60 && minutes % 60 === 0 ? `${minutes / 60} h` : `${minutes} min`;
+
+  function batchCardDate(batch) {
+    const raw = batch.status === "scheduled" ? batch.scheduled_at : batch.started_at || batch.created_at;
+    if (!raw) return batch.id;
+    const date = new Date(raw);
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    if (batch.status === "scheduled" && date.toDateString() === today.toDateString()) {
+      return `${date.getHours() >= 17 ? "Tonight" : "Today"} ${date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
+    }
+    if (batch.status !== "scheduled" && date.toDateString() === yesterday.toDateString()) return date.getHours() >= 17 ? "Last night" : "Yesterday";
+    return date.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" });
+  }
+
+  const batchAwaitingStart = batch => batch.status === "running" && !batch.started_at && (batch.items || []).every(item => item.status === "pending" && !item.attempts);
+
+  function batchStatus(batch) {
+    const stopped = (batch.items || []).filter(batchTaskStopped).length;
+    if (batch.valid === false) return { text: "Unavailable", tone: "amber" };
+    if (batch.status === "scheduled") return { text: "Scheduled", tone: "blue" };
+    if (batch.recovery_required && batch.status === "recovery_required") return { text: "Needs reconciliation", tone: "amber" };
+    if (batch.status === "complete") return { text: stopped ? `Completed with ${stopped} stopped` : "✓ Completed", tone: stopped ? "amber" : "green", stopped };
+    if (batch.status === "running") return { text: batchAwaitingStart(batch) ? "Ready" : "Running", tone: "blue" };
+    return { text: stopped ? `${stopped} stopped` : "Stopped", tone: "amber" };
+  }
+
+  function batchesPanel() {
+    const batches = snapshot.batches || [];
+    const selected = batches.find(batch => batch.id === workflowSelected) || batches[0];
+    const tasks = snapshot.state?.tasks || {};
+    const visible = batches.filter(batch => `${batch.name || batch.id} ${batch.id} ${batchStatus(batch).text} ${(batch.items || []).map(item => tasks[item.task]?.title || item.task).join(" ")}`.toLowerCase().includes(batchSearch.toLowerCase()));
+    const rows = visible.map(batch => {
+      const status = batchStatus(batch);
+      const date = batchCardDate(batch);
+      return `<button class="batch-card ${batch.id === selected?.id ? "active" : ""}" data-action="workflow-select:${escapeHtml(batch.id)}" aria-pressed="${batch.id === selected?.id}"><span class="row between"><b>${escapeHtml(date || batch.id)}</b><span class="pill ${status.tone}">${status.stopped ? `! ${status.stopped} stopped` : status.text}</span></span><span class="sub">${escapeHtml(batch.name || batch.id)} · ${batch.progress?.total || 0} tasks</span></button>`;
+    }).join("");
+    let detail = "";
+    if (selected) {
+      const status = batchStatus(selected);
+      const items = selected.items || [];
+      const done = selected.progress?.succeeded || 0;
+      const total = selected.progress?.total || items.length;
+      const queue = items.map(item => tasks[item.task]?.plan_queue_id).find(Boolean);
+      const activeAction = selected.status === "scheduled" ? btn("Cancel schedule", `batch-stop:${selected.id}`, "sm")
+        : batchAwaitingStart(selected) ? btn("Start batch", `batch-run:${selected.id}`, "sm primary")
+        : selected.status === "running" ? btn("Stop", `batch-stop:${selected.id}`, "sm danger")
+        : selected.status === "recovery_required" ? btn("Reconcile", `batch-reconcile:${selected.id}`, "sm")
+        : selected.status === "stopped" && selected.remaining?.length && (!selected.scheduled_at || selected.started_at) ? btn("Resume", `batch-resume:${selected.id}`, "sm") : "";
+      const steps = items.map(item => {
+        const task = tasks[item.task], stopped = batchTaskStopped(item);
+        const elapsed = item.started_at && item.ended_at ? Math.max(1, Math.round((Date.parse(item.ended_at) - Date.parse(item.started_at)) / 60_000)) : null;
+        const outcome = item.status === "succeeded" ? "✓ Done" : stopped ? "! Stopped" : item.status === "pending" ? "Pending" : item.status === "running" ? "Running" : "Skipped";
+        const attempts = `${item.attempts} attempt${item.attempts === 1 ? "" : "s"}${elapsed ? ` · ${elapsed} min` : ""}`;
+        const report = stopped && item.reason ? `${item.reason} · ${attempts}` : attempts;
+        return `<article class="batch-step"><span class="batch-step-id">${escapeHtml(item.task)}</span><div class="batch-step-copy"><b dir="auto">${escapeHtml(task?.title || item.task)}</b><p class="sub">${escapeHtml(report)}</p></div><div class="bar batch-step-actions"><span class="pill ${item.status === "succeeded" ? "green" : stopped ? "amber" : "blue"}">${outcome}</span>${stopped ? btn("View evidence", `batch-evidence:${encodeURIComponent(item.task)}`, "sm") + (batchTaskEligible(task) && item.status !== "needs_reconciliation" ? btn("Retry in new batch", `batch-retry-task:${encodeURIComponent(item.task)}`, "sm primary") : "") : ""}</div></article>`;
+      }).join("");
+      detail = `<section class="panel batch-detail" aria-label="Selected batch"><div class="batch-detail-head"><div><h2>${escapeHtml(selected.name || selected.id)}</h2><p class="sub">${escapeHtml([batchDate(selected.status === "scheduled" ? selected.scheduled_at : selected.started_at || selected.created_at), batchDate(selected.finished_at)].filter(Boolean).join(" → "))}</p></div><div class="bar"><span class="pill ${status.tone}">${status.text}</span>${btn("Duplicate", `batch-duplicate:${selected.id}`, "sm")}${queue ? btn("Open queue", `batch-open-queue:${queue}`, "sm") : ""}${activeAction}</div></div><div class="batch-limits"><span>Time limit <b>${batchTimeLimit(selected.limits?.max_minutes || 0)}</b></span><span>Attempts per task <b>${selected.limits?.max_attempts ?? "—"}</b></span><span>Stop on failure <b>${selected.failure_policy === "stop" ? "On" : "Off"}</b></span></div><div class="batch-progress"><b>${done} of ${total} tasks done</b><progress aria-label="Tasks completed" value="${done}" max="${Math.max(1, total)}"></progress></div>${steps || '<p class="sub">No task outcomes recorded yet.</p>'}${selected.restart ? `<p class="batch-note">ATL checked the batch after restarting at ${escapeHtml(batchDate(selected.restart.at))}. ${escapeHtml(selected.restart.detail || "")}</p>` : ""}${selected.stop_reason && selected.status !== "scheduled" ? `<p class="batch-note">${escapeHtml(selected.stop_reason)}</p>` : ""}</section>`;
+    }
+    const programs = (snapshot.programs || []).map(program => `<details class="panel pad space"><summary>${escapeHtml(program.outcome || program.id)} · ${escapeHtml(program.status || "Unknown")}</summary><p class="sub">${Object.keys(program.run?.sessions || {}).length} of ${escapeHtml(String(program.limits?.maxSessions ?? "—"))} sessions used</p>${program.error ? `<p class="red">${escapeHtml(program.error)}</p>` : ""}${(program.milestones || []).map(milestone => `<div class="lined"><b>${escapeHtml(milestone.outcome || milestone.id)}</b><p class="sub">${escapeHtml(milestone.projectId)} · ${escapeHtml(milestone.status || "Needs plan")}</p>${(milestone.tasks || []).map(task => `<p class="sub">${escapeHtml(task.task)} · ${escapeHtml(task.status)}${task.blocker ? " · " + escapeHtml(task.blocker) : ""}</p>`).join("")}</div>`).join("")}</details>`).join("");
+    return `<section class="batches-design">${head("BUILD / BATCHES", "Batches", "Run a fixed list of tasks overnight, one at a time, within limits you set.", btn("Refresh", "refresh") + btn("+ New batch", "batch-new", "primary"))}<div class="batch-flow"><b>How it works</b><span>1 Review work in ${btn("Inbox", "go:inbox", "ghost")}</span><span aria-hidden="true">→</span><span>2 Plan in ${btn("Plan Studio", "go:studio", "ghost")}</span><span aria-hidden="true">→</span><span>3 Check ${btn("Queues", "go:queues", "ghost")}</span><span aria-hidden="true">→</span><span>4 Start a batch</span></div>${batches.length ? `<div class="batch-layout"><aside class="batch-list"><input id="batchSearch" class="input" type="search" aria-label="Search batches" placeholder="Search batches" value="${escapeHtml(batchSearch)}">${rows || '<p class="sub">No batches match your search.</p>'}</aside>${detail}</div>` : `<section class="panel batch-empty"><h2>No batches yet</h2><p class="sub">Choose tasks with approved plans and set their run limits.</p><div class="bar">${btn("+ New batch", "batch-new", "primary")}${btn("Open Queues", "go:queues")}</div></section>`}${programs}</section>`;
+  }
+
+  function renderBatchTaskList() {
+    const mount = $("#batchTaskList");
+    if (!mount) return;
+    const tasks = Object.values(snapshot.state?.tasks || {}).filter(batchTaskEligible);
+    const byId = new Map(tasks.map(task => [task.id, task]));
+    const ordered = [...batchFormOrder.map(id => byId.get(id)).filter(Boolean), ...tasks.filter(task => !batchFormOrder.includes(task.id))];
+    mount.innerHTML = ordered.map(task => {
+      const index = batchFormOrder.indexOf(task.id);
+      return `<div class="batch-task-choice"><label><input type="checkbox" data-batch-task="${escapeHtml(task.id)}" ${index >= 0 ? "checked" : ""}><b>${escapeHtml(task.id)}</b><span dir="auto">${escapeHtml(task.title)}</span><small>${["blocked", "escalated"].includes(task.status) ? "Needs you" : "Ready"}</small></label>${index >= 0 ? `<div class="batch-reorder">${btn("↑", `batch-order:up:${task.id}`, `sm${index === 0 ? " disabled" : ""}`)}${btn("↓", `batch-order:down:${task.id}`, `sm${index === batchFormOrder.length - 1 ? " disabled" : ""}`)}</div>` : ""}</div>`;
+    }).join("") || '<p class="sub">There are no open tasks with approved plans. Check Queues first.</p>';
+    updateBatchPreview();
+  }
+
+  function updateBatchPreview() {
+    if (!$("#batchPreview")) return;
+    const count = batchFormOrder.length, attempts = Number($("#batchAttempts").value), minutes = Number($("#batchMinutes").value);
+    const provider = defaultProvider || snapshot.usage?.default_provider || "codex";
+    $("#batchSelection").textContent = `Only tasks with an approved plan can be added. ${count} selected.`;
+    const route = snapshot.resource_policy?.enabled && snapshot.resource_policy?.auto_models ? "uses automatic model routing" : `uses the Default provider (${provider})`;
+    $("#batchPreview").textContent = `${count} task${count === 1 ? "" : "s"} · up to ${batchTimeLimit(minutes)} · at most ${count * attempts} attempts · ${route}.`;
+    const submit = $('[data-action="batch-start-save"]');
+    if (submit) submit.disabled = !count || !$("#batchAttempts").checkValidity();
+  }
+
+  function openBatchForm({ tasks = [], limits = {}, failurePolicy = "continue" } = {}) {
+    batchFormOrder = tasks.filter(id => batchTaskEligible(snapshot.state?.tasks?.[id]));
+    const tonight = new Date();
+    tonight.setHours(22, 0, 0, 0);
+    const today = tonight.getTime() > Date.now();
+    if (!today) tonight.setDate(tonight.getDate() + 1);
+    const minutes = limits.max_minutes || 480;
+    const choices = [...new Set([60, 120, 240, 480, 720, 1440, minutes])].sort((a, b) => a - b);
+    showModal("New batch", `<p class="sub">Pick tasks and limits. Nothing starts until you authorize it.</p><div class="batch-form"><b>Tasks, run in this order</b><div id="batchTaskList"></div><p id="batchSelection" class="sub" role="status"></p><div class="batch-form-grid"><label>Start<select id="batchStart" class="input"><option value="">Now</option><option value="${tonight.toISOString()}" selected>${today ? "Tonight" : "Tomorrow"} 22:00</option></select></label><label>Time limit<select id="batchMinutes" class="input">${choices.map(value => `<option value="${value}" ${value === minutes ? "selected" : ""}>${value >= 60 && value % 60 === 0 ? value / 60 + (value === 60 ? " hour" : " hours") : value + " minutes"}</option>`).join("")}</select></label><label>Attempts per task<input id="batchAttempts" class="input" type="number" min="1" max="3" step="1" required value="${Math.min(3, Math.max(1, limits.max_attempts || 2))}"></label><label>If a task fails<select id="batchFailure" class="input"><option value="continue">Skip and continue</option><option value="stop" ${failurePolicy === "stop" ? "selected" : ""}>Stop the batch</option></select></label></div><div class="batch-preview"><b>Preview</b><p id="batchPreview" class="sub" role="status"></p></div><p id="batchError" class="red" role="alert"></p></div>`, btn("Cancel", "close") + btn("Authorize and start", "batch-start-save", "primary"), "batch-form-dialog");
+    renderBatchTaskList();
   }
   function workflowDetailBody(taskId) {
     const state = (snapshot.state || {}).tasks || {};
@@ -2019,7 +2382,8 @@ ${feedbackLine}
   }
 
   const panels = {
-    sources: issueSourcesPanel,
+    sources: () => (intakeTool ? `<div class="intake-back">${btn("Back to Inbox", "go:inbox", "sm")}</div>` : "") + issueSourcesPanel(),
+    inbox: inboxPanel,
     runs: runsPanel,
     assistant: () => askPage(),
     overview: () => {
@@ -2037,14 +2401,14 @@ ${feedbackLine}
     tasks: () => {
       const { tasks } = derived();
       const shippedIds = shippedTaskIds(tasks);
-      const shippedCount = tasks.filter((task) => shippedIds.has(task.id)).length;
+      const shippedCount = tasks.filter((task) => !task.archived && shippedIds.has(task.id)).length;
       const allTasks = tasks.filter((task) => !task.archived && !task.intake_only && !shippedIds.has(task.id));
       // Until the owner picks a queue explicitly, the board starts on the
       // active queue (plus unqueued drafts) so finished queues never crowd the page.
       const activeQueueLabel = derived().queues.find((queue) => queue.id === snapshot.queues?.active_queue)?.label || null;
       // Auto-scope only when the active queue still holds runnable work;
       // a finished (fully shipped) queue falls back to the unfiltered board.
-      if (!queueFilterTouched && queueFilter === "All" && activeQueueLabel && allTasks.some((task) => task.queue === activeQueueLabel)) queueFilter = activeQueueLabel;
+      if (!queueFilterTouched) queueFilter = activeQueueLabel && allTasks.some((task) => task.queue === activeQueueLabel) ? activeQueueLabel : "All";
       const autoScope = !queueFilterTouched && Boolean(activeQueueLabel) && queueFilter === activeQueueLabel;
       const queueTasks = allTasks.filter((task) => queueFilter === "All" || task.queue === queueFilter || (autoScope && task.queue === "Unqueued"));
       // Workspace filters answer operator questions instead of mirroring raw
@@ -2052,11 +2416,14 @@ ${feedbackLine}
       const matchesWorkspaceFilter = (task, status = filter) => {
         if (status === "All") return true;
         if (status === "Running") return liveRunState(task) === "running" || task.rawStatus === "in_progress";
-        if (status === "Needs attention") return task.rawStatus === "blocked" || task.rawStatus === "escalated" || Boolean(task.block) || Boolean(task.plan_review_required) || Boolean(task.review_required) || task.recovery?.status === "exhausted";
+        if (status === "Needs attention" || status === "Blocked") return task.rawStatus === "blocked" || task.rawStatus === "escalated" || Boolean(task.block) || Boolean(task.plan_review_required) || Boolean(task.review_required) || task.recovery?.status === "exhausted";
         if (status === "Completed") return task.rawStatus === "done";
         return task.status === status;
       };
       const visible = queueTasks.filter((task) => matchesWorkspaceFilter(task) && [task.title, task.id, task.agent, task.desc].join(" ").toLowerCase().includes(query.toLowerCase()));
+      const visibleIds = new Set(visible.map(task => task.id));
+      if (snapshot !== fallback && workspaceTaskId && !visibleIds.has(workspaceTaskId)) clearWorkspaceSelection();
+      for (const id of selectedTasks) if (!visibleIds.has(id)) selectedTasks.delete(id);
       const queueOptions = [...new Set(tasks.map((task) => task.queue).filter((queue) => queue !== "Unqueued"))];
       const scoped = queueFilter !== "All";
       const selectedQueue = derived().queues.find((queue) => queue.label === queueFilter);
@@ -2064,18 +2431,21 @@ ${feedbackLine}
       const totalFor = (status) => status === "All" ? allTasks.length : allTasks.filter((task) => matchesWorkspaceFilter(task, status)).length;
       const countBadgeLabel = scoped ? (status) => `${countFor(status)}/${totalFor(status)}` : (status) => `${totalFor(status)}`;
       const blockedTotal = allTasks.filter((task) => task.rawStatus === "blocked" || task.rawStatus === "escalated").length;
-      const taskPageActions = PLUGIN
-        ? (blockedTotal > 0 ? btn(`◈ Blocked (${blockedTotal})`, "blockers", "sm") : "") + btn("+ Create task", "new", "primary")
-        : (blockedTotal > 0 ? btn(`◈ Blocked (${blockedTotal})`, "blockers", "sm") : "") + btn("+ Create task", "new", "primary") + (shippedCount ? btn(`✔ Shipped (${shippedCount})`, "go:shipped", "sm") : "") + (selectedQueue?.id === "default" ? btn("Clear Default queue", "queue-clear:default", "danger") : "");
-      const bulkToolbar = `<div class="tasks-bulk-bar"><div class="bar"><span class="pill green">${selectedTasks.size} selected</span><span class="muted tiny">Bulk task actions</span></div><div class="bar">${btn("Select visible", "tasks-select-visible", "sm")}${selectedTasks.size ? btn("Clear selection", "tasks-clear-selection", "sm") + btn(`Archive ${selectedTasks.size}`, "tasks-archive-selected", "sm danger") : ""}</div></div>`;
+      const taskPageActions = btn(`Shipped · ${shippedCount}`, "go:shipped") + btn("+ Create task", "new", "primary");
+      const bulkToolbar = `<div class="tasks-bulk-bar"><div class="bar"><span class="pill green">${selectedTasks.size} selected</span><span class="muted tiny">Bulk task actions</span></div><div class="bar">${visible.length ? btn("Select visible", "tasks-select-visible", "sm") : ""}${selectedTasks.size ? btn("Clear selection", "tasks-clear-selection", "sm") + btn(`Archive ${selectedTasks.size}`, "tasks-archive-selected", "sm danger") : ""}</div></div>`;
       const filterSet = PLUGIN ? ["All", "Running", "Blocked", "Done"] : ["All", "Running", "Needs attention", "Completed"];
-      const filterTabs = filterSet.map((status) => `<button type="button" class="tasks-seg-btn ${filter === status ? "active" : ""}" data-action="filter:${status}" aria-pressed="${filter === status}"><span>${escapeHtml(status)}</span><span class="tasks-seg-count">${countBadgeLabel(status)}</span></button>`).join("");
-      const tasksHead = head("WORKSPACE / TASKS", "Task management", "Author, prioritize, assign and inspect work without leaving the UI.", taskPageActions)
-        + (tasks.some(task => !task.archived && task.intake_only && task.plan_review_required) ? `<section class="notice"><b>Imported requests await planning</b><p>${tasks.filter(task => !task.archived && task.intake_only && task.plan_review_required).length} source request(s) need a reviewed plan before execution.</p>${btn('Open imported requests', 'sources-open-workstreams', 'primary')}</section>` : '');
+      const filterNames = { "Needs attention": "Needs you", "Completed": "Done", "Blocked": "Needs you" };
+      const filterTabs = filterSet.map((status) => `<button type="button" class="tasks-seg-btn ${filter === status ? "active" : ""}" data-action="filter:${status}" aria-pressed="${filter === status}"><span>${escapeHtml(filterNames[status] || status)}</span><span class="tasks-seg-count">${countFor(status)}</span></button>`).join("");
+      const tasksHead = `<div class="pagehead tasks-pagehead"><div><h1>Tasks</h1><p class="sub">Create, run and review work without leaving the UI.</p></div><div class="bar">${taskPageActions}</div></div>`
+        + (tasks.some(task => !task.archived && task.intake_only && task.plan_review_required) ? `<section class="notice tasks-import-notice"><b>Imported requests await planning</b><p>${tasks.filter(task => !task.archived && task.intake_only && task.plan_review_required).length} source request(s) need a reviewed plan before execution.</p>${btn('Open imported requests', 'sources-open-workstreams', 'primary')}</section>` : '');
       // Plugin board: active runs first, then everything else in id order.
       const pluginRunScore = (task) => Number(liveRunState(task) === "running" || task.rawStatus === "in_progress");
-      const ordered = PLUGIN ? [...visible].sort((a, b) => pluginRunScore(b) - pluginRunScore(a)) : visible;
-      const shell = `<div class="panel tasks-shell"><div class="tasks-command-bar"><div class="tasks-search-row"><div class="tasks-search-box"><span class="search-glyph" aria-hidden="true">⌕</span><input class="input" id="taskSearch" placeholder="Search tasks..." aria-label="Search tasks" value="${escapeHtml(query)}"></div><select id="queueSelect" class="input" style="width:185px" aria-label="Filter by queue"><option value="All">All</option>${queueOptions.map((queue) => `<option ${queue === queueFilter ? "selected" : ""}>${escapeHtml(queue)}</option>`).join("")}</select></div><div class="tasks-filter-row"><div class="tasks-segmented" role="group" aria-label="Filter tasks by status">${filterTabs}</div><span class="muted tiny">Showing <b>${visible.length}</b> of <b>${allTasks.length}</b> active task${allTasks.length === 1 ? "" : "s"}</span></div>${scoped ? `<div class="notice" style="padding:9px 12px"><div class="row between"><span>Showing queue <b>${escapeHtml(queueFilter)}</b>. Counts are <b>this queue / all queues</b>.</span>${btn("Show all queues", "queue:All", "sm")}</div></div>` : ""}</div>${bulkToolbar}${ordered.map((task) => taskRow(task, !PLUGIN && task.id === workspaceTaskId ? workspaceTaskId : null)).join("") || (PLUGIN && !connected && !allTasks.length ? '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>Connecting to the control plane…</b><p class="sub" style="margin-top:6px">Live data has not arrived yet. If this persists, use Retry in the header.</p></div>' : '<div class="pad muted" style="text-align:center;padding:34px 18px"><b>No matching tasks in this scope.</b><p class="sub" style="margin-top:6px">Try clearing your search filter or switching back to All queues.</p></div>')}</div>`;
+      const ordered = PLUGIN ? [...visible].sort((a, b) => pluginRunScore(b) - pluginRunScore(a)) : [...visible].sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }));
+      const viewingDone = filter === "Completed" || filter === "Done";
+      const emptyList = viewingDone
+        ? `<p>Completed tasks are in Shipped.</p>${btn("Open Shipped", "go:shipped", "sm")}`
+        : !query && !scoped && filter === "All" ? "No active tasks." : "No matching tasks.";
+      const shell = `<div class="tasks-shell"><div class="tasks-command-bar"><input class="input" id="taskSearch" placeholder="Search tasks... (press /)" aria-label="Search tasks" value="${escapeHtml(query)}"><div class="tasks-segmented" role="group" aria-label="Filter tasks by status">${filterTabs}</div><div class="task-queue-context"><span>Queue: <b>${escapeHtml(scoped ? queueFilter : "All queues")}</b></span> · <button type="button" class="linklike" data-action="queue:All">Show all queues</button><details class="task-queue-picker"><summary aria-label="Choose queue">⌄</summary><select id="queueSelect" class="input" aria-label="Filter by queue"><option value="All">All queues</option>${queueOptions.map((queue) => `<option ${queue === queueFilter ? "selected" : ""}>${escapeHtml(queue)}</option>`).join("")}</select></details></div></div><div class="task-card-list">${ordered.map((task) => workspaceTaskCard(task, PLUGIN ? pluginTaskId : workspaceTaskId)).join("") || `<div class="task-list-empty">${emptyList}</div>`}</div>${visible.length || selectedTasks.size ? bulkToolbar : ""}</div>`;
       // Wide plugin layout: the selected task renders beside the list instead of taking over the page.
       const pluginPaneTask = PLUGIN && window.matchMedia("(min-width: 960px)").matches && pluginTaskId ? derived().tasks.find((task) => task.id === pluginTaskId) : null;
       // Browser layout: the selected task opens the focused workspace beside
@@ -2083,7 +2453,7 @@ ${feedbackLine}
       const workspaceTask = !PLUGIN && workspaceTaskId ? tasks.find((task) => task.id === workspaceTaskId) : null;
       return tasksHead + (PLUGIN
         ? `<div class="plugin-tasks-split${pluginPaneTask ? " with-pane" : ""}"><div class="plugin-task-list">${shell}</div>${pluginPaneTask ? `<aside class="plugin-task-pane" aria-label="Task details">${taskWorkspaceBody(pluginPaneTask, pluginDetailOpen)}</aside>` : ""}</div>`
-        : `<div class="task-workspace-layout${workspaceView !== "activity" && workspaceTaskId ? " review-focused show-detail" : workspaceNarrowDetail ? " show-detail" : ""}"><div class="task-workspace-side">${shell}</div><section class="task-workspace-main" id="taskWorkspace" data-task-view="${escapeHtml(workspaceView)}" aria-label="Task workspace">${workspaceTask ? taskWorkspaceBody(workspaceTask, workspaceOpen) : workspaceEmptyBody()}</section></div>`);
+        : `<div class="task-workspace-layout${workspaceTask && workspaceView !== "activity" ? " review-focused show-detail" : workspaceTask && workspaceNarrowDetail ? " show-detail" : ""}"><div class="task-workspace-side">${shell}</div><section class="task-workspace-main" id="taskWorkspace" data-task-view="${escapeHtml(workspaceView)}" aria-label="Task workspace">${workspaceTask ? taskWorkspaceBody(workspaceTask, workspaceOpen) : workspaceEmptyBody(countFor("Running"), countFor("Needs attention"))}</section></div>`);
     },
     shipped: () => {
       const { tasks, queues } = derived();
@@ -2125,7 +2495,7 @@ studio: () => {
       return head("WORKSPACE / PLAN STUDIO", escapeHtml(draftTitle), subtitle, headerBar)
         + (draft?.repository?.bindingError ? `<div class="notice" role="alert" style="margin:10px 0"><b class="amber">Repository binding problem</b><p class="sub">${escapeHtml(draft.repository.bindingError)} Planning and execution stay blocked until the binding is fixed; the draft itself is kept.</p></div>` : "")
         + mobileTabs
-        + `<div class="studio-workspace" data-mobile-pane="${escapeHtml(studioMobilePane)}" style="--studio-split:${Number(studioSplit) || 40}"><section class="studio-pane studio-conversation" aria-label="Conversation">${studioConversationPane(draft)}</section><div class="studio-splitter" role="separator" aria-orientation="vertical" aria-label="Resize conversation and plan panes" title="Drag to resize · double-click resets"></div><section class="studio-pane studio-plan" aria-label="Plan">${studioPlanPane(draft)}</section></div>`;
+        + `<div class="studio-workspace${studioFocusedPane ? ` studio-${studioFocusedPane}-focused` : ""}" data-mobile-pane="${escapeHtml(studioMobilePane)}" style="--studio-split:${Number(studioSplit) || studioDefaultSplit}"><section class="studio-pane studio-conversation" aria-label="Conversation">${studioConversationPane(draft)}</section><div class="studio-splitter" role="separator" aria-orientation="vertical" aria-label="Resize conversation and plan panes" title="Drag to resize · double-click resets"></div><section class="studio-pane studio-plan" aria-label="Plan">${studioPlanPane(draft)}</section></div>`;
     },
         queues: () => {
       const { tasks, queues } = derived();
@@ -2196,12 +2566,12 @@ team: () => {
       const selected = projects.filter((project) => selectedProjects.has(project.id)).length;
       const rows = filtered.map((project) => `<div class="project-row"><label class="project-info"><input type="checkbox" data-project-select="${escapeHtml(project.id)}" ${selectedProjects.has(project.id) ? "checked" : ""} aria-label="Select ${escapeHtml(project.name)}"><span class="project-copy"><b>${escapeHtml(project.name)}</b><span class="project-path" title="${escapeHtml(project.root)}">${escapeHtml(project.root)}</span><span class="muted tiny">ID: ${escapeHtml(project.id)}</span></span></label><div class="project-actions"><span class="pill">Session cap: ${escapeHtml(project.maxConcurrent)}</span>${btn("Delete", `project-delete:${escapeHtml(project.id)}`, "sm danger")}</div></div>`).join("");
       const mapNotice = projectMapLoading && !projectMap ? '<section class="panel space" role="status"><div class="pad"><span class="running-mark" aria-hidden="true"></span><span class="muted">Building the work map…</span></div></section>' : projectMapError ? `<div class="notice space" role="alert"><b class="amber">Work map unavailable</b><p class="sub">${escapeHtml(projectMapError)}</p></div>` : "";
-      const activeCount = (projectMap?.repositories || []).filter((repo) => repo.counts.requests + repo.counts.plans + repo.counts.queues + repo.counts.tasks > 0).length;
-      return `<div class="pagehead"><div><div class="eyebrow">WORKSPACE / PROJECTS</div><h1>Project work map</h1><p class="sub">Each repository shows its linked cross-repo requests, plans, active queues, executable subtasks, and direct task assignment.</p></div><div class="bar workmap-kpis"><span class="workmap-kpi"><small>REPOSITORIES</small><b>${projects.length}</b><span class="muted tiny">(${activeCount} active)</span></span><span class="workmap-kpi"><small>SHARED CAP</small><b>${snapshot.supervisor?.defaults?.maxConcurrent || 2}</b><span class="muted tiny">/ ${snapshot.supervisor?.defaults?.maxConcurrentCap || 5} max</span></span>${btn("+ Register repository", "project-register", "primary")}<label class="project-search workmap-filter"><span class="sr-only">Filter repository cards</span><input id="workmapSearch" class="input" type="text" placeholder="⌕ Filter repos…" value="${escapeHtml(projectQuery)}"></label>${btn("Refresh", "refresh")}</div></div>`
+    const activeCount = (projectMap?.repositories || []).filter((repo) => repo.counts.requests + repo.counts.plans + repo.counts.queues + repo.counts.open > 0).length;
+      return `<div class="pagehead"><div><div class="eyebrow">INTAKE / REPOSITORIES</div><h1>Repositories</h1><p class="sub">See each repository's requests, plans and queues, or assign work directly.</p></div><div class="bar workmap-kpis"><span class="pill">${projects.length} registered</span><span class="pill blue">${activeCount} active</span><span class="pill">Shared cap ${snapshot.supervisor?.defaults?.maxConcurrent || 2} / ${snapshot.supervisor?.defaults?.maxConcurrentCap || 5}</span>${btn("+ Register repository", "project-register", "primary")}</div></div><div class="bar intake-repo-tools"><input id="workmapSearch" class="input" type="search" aria-label="Filter repositories" placeholder="Filter repositories..." value="${escapeHtml(projectQuery)}">${btn("Refresh", "refresh", "sm")}</div>`
         + mapNotice + workmapPanel()
-        + `<details class="workmap-registry space"${projectQuery || selected ? " open" : ""}><summary>Repository registry <span class="pill">${projects.length}</span><span class="muted tiny">Paths, IDs, session caps and removal</span></summary><section class="panel project-list"><div class="project-list-head"><div><h2>Registry</h2><p class="sub">${projects.length} registered · ${selected} selected</p></div><div class="project-toolbar"><label class="project-search"><span class="sr-only">Search repositories</span><input id="projectSearch" class="input" type="text" placeholder="Filter cards by name, path or ID" value="${escapeHtml(projectQuery)}"></label>${btn("Delete selected", "projects-delete-selected", "danger")}</div></div>${filtered.length ? `<div class="project-list-meta"><label><input type="checkbox" id="projectSelectAll" ${filtered.every((project) => selectedProjects.has(project.id)) ? "checked" : ""}> Select all shown</label><span>${filtered.length} shown</span></div>${rows}` : `<div class="project-empty"><b>${projects.length ? "No matching repositories" : "No repositories registered yet"}</b><p class="sub">${projects.length ? "Try a different name, path or ID." : "Register a repository to add it to your workspace."}</p>${projects.length ? "" : btn("Register repository", "project-register", "primary")}</div>`}</section></details>`;
+        + `<details class="workmap-registry space"${projectQuery || selected ? " open" : ""}><summary>Manage repository registry <span class="pill">${projects.length}</span><span class="muted tiny">Paths, IDs, session caps and removal</span></summary><section class="panel project-list"><div class="project-list-head"><div><h2>Registry</h2><p class="sub">${projects.length} registered · ${selected} selected</p></div><div class="project-toolbar"><label class="project-search"><span class="sr-only">Search repositories</span><input id="projectSearch" class="input" type="text" placeholder="Filter cards by name, path or ID" value="${escapeHtml(projectQuery)}"></label>${btn("Delete selected", "projects-delete-selected", "danger")}</div></div>${filtered.length ? `<div class="project-list-meta"><label><input type="checkbox" id="projectSelectAll" ${filtered.every((project) => selectedProjects.has(project.id)) ? "checked" : ""}> Select all shown</label><span>${filtered.length} shown</span></div>${rows}` : `<div class="project-empty"><b>${projects.length ? "No matching repositories" : "No repositories registered yet"}</b><p class="sub">${projects.length ? "Try a different name, path or ID." : "Register a repository to add it to your workspace."}</p>${projects.length ? "" : btn("Register repository", "project-register", "primary")}</div>`}</section></details>`;
     },
-    mytasks: () => window.ATL_MY_TASKS.render(myTasksData || {}, myTasksSettingsData?.settings || {}, myTasksStatus || {}, {
+    mytasks: () => `<div class="intake-back">${btn("Back to Inbox", "go:inbox", "sm")}</div>` + window.ATL_MY_TASKS.render(myTasksData || {}, myTasksSettingsData?.settings || {}, myTasksStatus || {}, {
       locale, api: planApi, popupWide, btn, refresh: async () => { await refresh(false); await loadMyTasks({ silent: true }); }, loading: myTasksLoading || !myTasksSettingsData, connection: myTasksSettingsData?.connection, connected: Boolean(myTasksSettingsData?.connection?.token_present), error: myTasksError, notice: myTasksNotice,
     }), approvalCenter,
 operations: () => {
@@ -2225,54 +2595,7 @@ operations: () => {
         + `<div class="grid two space"><section class="panel"><div class="paneltitle"><h2>Routine history</h2><span class="pill blue">Scheduler: ${escapeHtml(scheduler.status || "stopped")}</span></div><div class="pad">${routineCards}</div></section>`
         + `<section class="panel"><div class="paneltitle"><h2>Backups</h2>${btn("Create backup", "backup-create", "sm primary")}</div><div class="pad">${backupCards}</div></section></div>`;
     },
-    batches: () => {
-      const batches = snapshot.batches || [];
-      const skills = snapshot.brain?.skills || [];
-      const routines = snapshot.brain?.routines || [];
-      const selected = batches.find((batch) => batch.id === workflowSelected) || null;
-      const runRows = batches.map((batch) => {
-        const progress = batch.progress || {};
-        const pillTone = batch.status === "complete" ? (batch.successful ? "green" : "amber") : batch.status === "running" ? "blue" : batch.recovery_required ? "red" : "";
-        const icon = batch.status === "running" ? '<span class="running-mark" aria-hidden="true"></span>' : batch.complete ? '<span class="wf-ico done">✓</span>' : batch.recovery_required ? '<span class="wf-ico blocked">!</span>' : '<span class="wf-ico">◇</span>';
-        return `<button class="wf-run ${batch.id === workflowSelected ? "on" : ""}" data-action="workflow-select:${escapeHtml(batch.id)}"><span class="wf-run-ico">${icon}</span><span class="wf-run-name">${escapeHtml(batch.id)}<span class="wf-run-sub">${progress.succeeded || 0}/${progress.total || 0} steps · max ${escapeHtml(String(batch.limits?.max_minutes ?? "?"))} min</span></span><span class="pill ${pillTone}">${escapeHtml(batch.status)}${batch.valid === false ? " · invalid" : ""}</span></button>`;
-      }).join("");
-      const recipes = [
-        ...skills.map((skill) => ({ name: skill.id, sub: `Gold skill · v${escapeHtml(skill.version)}${skill.trust_basis === "user-designated" ? " · user-designated" : ""}` })),
-        ...routines.map((routine) => ({ name: routine.id, sub: `${escapeHtml(routine.skill_id || "")} · ${escapeHtml(routine.schedule || "manual")} · ${routine.enabled ? "enabled" : "approval gated"}` })),
-      ];
-      const recipeRows = recipes.map((recipe) => `<button class="wf-run wf-recipe" data-page="brain" title="Open Knowledge"><span class="wf-run-ico">◇</span><span class="wf-run-name">${escapeHtml(recipe.name)}<span class="wf-recipe-sub">${recipe.sub}</span></span></button>`).join("");
-      let detailHtml;
-      if (!selected) {
-        detailHtml = `<div class="panel pad wf-detail-empty"><b>Select a workflow run</b><p class="sub">Runs are bounded overnight batches: a fixed task list runs one step at a time with durable time and attempt limits. A restart is reconciled before any uncertain work repeats.</p></div>`;
-      } else if (workflowDetail?.error) {
-        detailHtml = `<div class="panel pad"><p class="red" role="alert">${escapeHtml(workflowDetail.error)}</p><div class="bar" style="margin-top:10px">${btn("Retry", `workflow-select:${escapeHtml(selected.id)}`, "sm")}</div></div>`;
-      } else if (workflowDetail?.loading) {
-        detailHtml = `<div class="panel pad" role="status"><span class="running-mark" aria-hidden="true"></span><span class="muted">Loading run steps…</span></div>`;
-      } else {
-        const summary = workflowDetail?.summary;
-        const items = summary?.items || [];
-        const progress = selected.progress || {};
-        const tone = selected.status === "complete" ? (selected.successful ? "green" : "amber") : selected.status === "running" ? "blue" : selected.recovery_required ? "red" : "amber";
-        const steps = items.map((item) => {
-          const task = snapshot.state?.tasks?.[item.task];
-          const origin = task?.source_origin || (task?.source?.type !== "plan-studio" ? task?.source : null);
-          const sourceContext = origin ? [origin.type === "azure" ? "Azure Boards" : origin.type, origin.remote_id ? `#${origin.remote_id}` : null, origin.iteration?.split("\\").at(-1)].filter(Boolean).join(" · ") : null;
-          const verdict = item.receipt?.verdict?.status;
-          const attempts = Number(item.attempts) || 0;
-          const icon = item.status === "running" ? '<span class="running-mark" aria-hidden="true"></span>' : ["complete", "passed"].includes(item.status) ? '<span class="wf-ico done">✓</span>' : ["failed", "blocked", "needs_reconciliation"].includes(item.status) ? '<span class="wf-ico blocked">!</span>' : '<span class="wf-ico">◇</span>';
-          return `<div class="wf-step ${item.status === "running" ? "is-running" : ""}"><span class="wf-step-ico">${icon}</span><span class="wf-step-main"><b>${escapeHtml(item.task)}${task?.title ? ` · ${escapeHtml(task.title)}` : ""}</b>${sourceContext ? `<span class="wf-step-reason">${escapeHtml(sourceContext)}</span>` : ""}${item.reason ? `<span class="wf-step-reason">${escapeHtml(item.reason)}</span>` : ""}</span>${attempts > 1 ? `<span class="pill violet">×${attempts}</span>` : ""}<span class="pill ${verdict ? "green" : ""}">${escapeHtml(verdict || item.status)}</span></div>`;
-        }).join("") || '<p class="sub pad">This run has no recorded steps yet.</p>';
-        const primary = selected.status === "running" ? btn("Stop", `batch-stop:${selected.id}`, "sm danger")
-          : selected.recovery_required ? btn("Reconcile", `batch-reconcile:${selected.id}`, "sm primary")
-            : selected.complete ? btn("Run again", `batch-run:${selected.id}`, "sm") : btn("Resume", `batch-run:${selected.id}`, "sm primary");
-        detailHtml = `<div class="panel wf-detail"><div class="paneltitle"><div><h2>${escapeHtml(selected.id)}</h2><p class="sub">${progress.total || items.length} steps · max ${escapeHtml(String(selected.limits?.max_minutes ?? "?"))} min · max ${escapeHtml(String(selected.limits?.max_attempts ?? "?"))} attempts per task</p></div><span class="pill ${tone}">${escapeHtml(selected.status)}${selected.valid === false ? " · invalid" : ""}</span></div><div class="wf-steps">${steps}</div>${selected.stop_reason ? `<p class="sub wf-stopreason">${escapeHtml(selected.stop_reason)}</p>` : ""}<div class="wf-detail-foot"><div class="bar">${primary}${btn("Summary", `batch-summary:${selected.id}`, "sm")}${selected.human_decision ? `<span class="muted tiny">Next decision: ${escapeHtml(selected.human_decision.task)} · ${escapeHtml(selected.human_decision.reason || "")}</span>` : ""}</div></div></div>`;
-      }
-      const programsHtml = (snapshot.programs || []).map(program => `<section class="panel pad space" aria-label="Program ${escapeHtml(program.id)}"><div class="row between"><div><h2>${escapeHtml(program.outcome || program.id)}</h2><span class="muted tiny">${escapeHtml(program.id)}</span></div><span class="pill">${escapeHtml(program.status)}</span></div><p class="sub">${Object.keys(program.run?.sessions || {}).length} of ${escapeHtml(String(program.limits?.maxSessions ?? "?"))} total sessions used · ${escapeHtml(String(program.limits?.maxMinutes ?? "?"))} minute limit${program.run?.deadline_at ? ` · deadline ${escapeHtml(new Date(program.run.deadline_at).toLocaleString())}` : ""}</p>${program.error ? `<p class="sub red">${escapeHtml(program.error)}</p>` : ""}${(program.milestones || []).map(m => `<div class="lined"><div class="row between"><b>${escapeHtml(m.outcome)}</b><span class="pill">${escapeHtml(m.status || "needs-plan")}</span></div><p class="sub">Project ${escapeHtml(m.projectId)} · prerequisites: ${escapeHtml((m.dependsOn || []).join(", ") || "none")}</p>${(m.tasks || []).map(t => `<p class="sub">${escapeHtml(t.project)} / ${escapeHtml(t.task)} · ${escapeHtml(t.status)}${t.blocker ? ` · blocker: ${escapeHtml(t.blocker)}` : ""}</p>`).join("")}</div>`).join("")}<p class="sub">Plan and approve milestones in harness chat. ${program.run?.cancel_requested ? "Safe stop requested." : ""}</p></section>`).join("");
-      return head("OPERATIONS / BATCHES", "Workflow runs", "Bounded overnight batches: a fixed task list runs sequentially with durable time and attempt limits. A restart is reconciled before any uncertain work repeats.", btn("New batch", "batch-new", "primary") + btn("Refresh", "refresh"))
-        + `<section class="panel pad space" aria-label="Import to execution"><div class="bar">${btn("1. Review imported work", "go:mytasks", "sm")}${btn("2. Plan & review specs", "go:studio", "sm")}${btn("3. Inspect queues", "go:queues", "sm")}</div><p class="sub">Review the requested issue and linked repository. Plan and answer questions in harness chat; the same revision appears in Plan Studio for review. Approval creates a queue without starting workers. Preview its tasks and limits, then authorize the exact run.</p></section>`
-        + programsHtml
-        + `<div class="wf-layout"><aside class="wf-side"><section class="panel wf-panel"><div class="wf-eyebrow">WORKFLOW RUNS</div><div class="wf-runlist">${runRows || '<p class="sub pad">No runs recorded yet. New batch starts one with an explicit task list and time/attempt limits.</p>'}</div></section><section class="panel wf-panel"><div class="wf-eyebrow">RECIPES</div><div class="wf-runlist">${recipeRows || '<p class="sub pad">No Gold skills or routines registered yet.</p>'}</div><p class="sub pad wf-recipes-note">Recipes are this workspace's Gold skills and approval-gated routines — managed on Knowledge.</p></section></aside>${detailHtml}</div>`;
-    },
+    batches: batchesPanel,
         activity: () => { const { events } = derived(); const filtered = events.filter((event) => !activityFilter || event.join(" ").toLowerCase().includes(activityFilter.toLowerCase())); return head("OPERATIONS / EVIDENCE", "Activity & Logs", "Searchable decisions, feedback, blockers, verification and overnight handoffs.", btn("Refresh", "refresh") + btn("Export", "export")) + `<div class="grid three">${stat("Events", filtered.length, activityFilter ? "Filtered events" : "Authoritative state log")}${stat("Blockers", derived().tasks.filter((task) => task.rawStatus === "blocked").length, "Actions awaiting owner")}${stat("Connection", connected ? "Live" : "Stale", "Runtime-backed feed")}</div><div class="panel pad"><label class="label" for="activitySearch">Filter audit events</label><input id="activitySearch" class="input" value="${escapeHtml(activityFilter)}" placeholder="actor, task, event, or text"></div><div class="grid twocol space">${card("Timeline", `<div class="pad">${filtered.map(eventRow).join("") || '<span class="muted">No matching events.</span>'}</div>`)}${card("Runtime handoff", `<div class="pad"><div class="row between"><strong>ATL state</strong>${badge(connected ? "Live" : "Unknown")}</div><p class="sub">The browser reads authoritative state through the local bridge and marks it stale when refreshes fail.</p><div class="lined row between"><span>Captured</span><b>${escapeHtml(snapshot.captured_at ? new Date(snapshot.captured_at).toLocaleTimeString() : "unknown")}</b></div></div>`)}</div>`; },
     usage: () => { const provider = snapshot.usage?.default_provider || "codex"; const rows = (snapshot.usage?.snapshots || []).filter((item) => item.provider === provider); const latest = rows.at(-1); const remote = rows.filter((item) => item.source === "provider-adapter").at(-1); const localSessions = rows.filter((item) => item.source === "atl-session").reduce((total, item) => total + Number(item.used?.sessions || 0), 0); const captured = latest?.captured_at ? new Date(latest.captured_at).toLocaleString() : "Never"; const verified = remote?.confidence === "verified"; const noticeTone = verified ? "green" : "amber"; const reset = remote?.reset_at ? new Date(remote.reset_at).toLocaleString() : "Not reported"; const provenance = Array.isArray(remote?.provenance) && remote.provenance.length ? `<div class="muted tiny" style="margin-top:12px;letter-spacing:1px">PROVENANCE BADGES</div><div class="bar" style="margin-top:6px">${remote.provenance.map((badgeId) => `<span class="pill green">${escapeHtml(String(badgeId))}</span>`).join("")}</div>` : ""; return head("OPERATIONS / RESOURCE MONITOR", "Usage & Limits", "Provider evidence, local run observations, and dispatch safeguards.", btn("Refresh providers", "usage-refresh", "primary") + btn("Refresh snapshot", "refresh")) + `<div class="usage-banner ${verified ? "is-verified" : "is-standby"}" role="status"><b>${verified ? "✦" : "◈"} <span class="${noticeTone}">${verified ? "Provider telemetry verified" : "Provider telemetry unavailable"}</span></b><span class="pill ${noticeTone}">${verified ? "Verified" : "Local observations"}</span></div><p class="sub" style="margin:10px 0 0">${escapeHtml(remote?.detail || `No verified quota data for ${provider}. Local session observations are shown separately.`)}</p><div class="grid three space">${stat("Default provider", provider, latest?.model || "No usage sample for this provider")}${stat("Quota remaining", remote?.remaining == null ? "Unknown" : Number(remote.remaining).toLocaleString(), remote?.remaining != null ? "tokens" : remote?.reset_at ? `Resets · ${reset}` : "No verified provider quota")}${stat("Local sessions", localSessions, `${rows.length} recorded observations · latest ${captured}`)}</div><div class="grid two space">${card("Telemetry evidence & provenance", `<div class="pad"><div class="event between" style="justify-content:space-between"><span>Provider probe</span>${badge(verified ? "Verified" : "Unknown")}</div><div class="event between" style="justify-content:space-between"><span>Source</span><b class="muted">${escapeHtml(remote?.source || "No provider sample")}</b></div><div class="event between" style="justify-content:space-between"><span>Last capture</span><b class="muted">${escapeHtml(remote?.captured_at ? new Date(remote.captured_at).toLocaleString() : "Never")}</b></div><div class="event between" style="justify-content:space-between"><span>Recorded local runs</span><b>${localSessions}</b></div><p class="muted tiny" style="margin:13px 0 0">Provider quota is displayed only after a provider-specific authenticated response. Local sessions are separate evidence, not a quota estimate.</p></div>`)}${card("Preflight dispatch safeguards", '<div class="pad"><div class="row between"><span>Provider limit</span>' + (remote?.remaining != null ? '<span class="pill green">Enabled ✓</span>' : badge("Unknown")) + '</div><div class="lined row between"><span>Dispatch policy</span><span class="pill amber">Confirm risks ⚠</span></div><div class="lined row between"><span>Stop on rate-limit</span><span class="green">Required</span></div><div class="lined row between"><span>Quota provenance</span><span class="muted">Provider adapter only</span></div>' + provenance + "</div>")}</div>` + economicsMarkup(); },
     settings: () => {
@@ -2291,7 +2614,7 @@ operations: () => {
       const offlineBanner = connected ? "" : `<div class="settings-banner" role="status"><span class="sb-text"><b>! ATL is offline, so actions are paused.</b> You can read settings, but saving is disabled until it reconnects.</span>${btn("Retry connection", "refresh", "sm")}</div>`;
       return head("WORKSPACE / SETTINGS", "Settings & Safety Defaults", "Control spend, access and automation for this project. Changes apply to new runs only.", btn("Refresh", "refresh"))
         + offlineBanner
-        + `<div class="settings-layout">${settingsNav}<div class="settings-content">${resourceSettingsCard()}${providersCard}<div class="settings-card-grid">${accessSettingsCard()}${browserSettingsCard()}${executionCard}${codemapCard}</div>${keysCard}</div></div>`;
+        + `<div class="settings-layout">${settingsNav}<div class="settings-content">${resourceSettingsCard()}${card("Workflow verification", `<div class="pad">${verificationPolicySelect("", snapshot.verification_policy || "block")}</div>`)}${providersCard}<div class="settings-card-grid">${accessSettingsCard()}${browserSettingsCard()}${executionCard}${codemapCard}</div>${keysCard}</div></div>`;
     },
   };
 
@@ -2326,21 +2649,48 @@ operations: () => {
     return `<section class="panel space"><div class="paneltitle"><div><h2>Operational memory</h2><p class="sub">Why context was selected, which failures recur, and whether a preventer is actually enforced.</p></div><span class="pill ${recoveryTone}">${escapeHtml(recovery.status || "unknown")}${recovery.verified ? " · verified" : " · not verified"}</span></div><div class="pad">${problems ? `<div class="knowledge-notice"><b>Interrupted or corrupt state is not served as knowledge</b>${problems}</div>` : ""}<div class="field"><label class="label" for="memoryQuery">Context preview</label><input id="memoryQuery" class="input" placeholder="e.g. صف شبانه نقطه بازرسی / queue resume checkpoint"></div><div class="bar" style="margin-top:8px">${btn("Preview selected context", "memory-context", "sm primary")}</div><div id="memoryContext" class="space" role="status"></div><div class="grid two space">${card("Recurring failure signatures", `<div class="pad">${signatureRows}</div>`)}${card("Preventions", `<div class="pad">${preventionRows}<p class="sub space">Claim state · active ${counts.active || 0} · conflicted ${counts.conflicted || 0} · unknown ${counts.unknown || 0} · expired ${counts.expired || 0} · superseded ${counts.superseded || 0}. A proposal is not an installed policy.</p></div>`)}</div></div></section>`;
   }
 
+  function knowledgeSourceTitle(id) {
+    const value = String(id || "");
+    if (value.startsWith("execution-plan:")) {
+      const draft = studioSavedDrafts.find(entry => entry.id === value.slice(15));
+      return draft ? `Plan: ${draft.title}` : "Plan execution";
+    }
+    if (value.startsWith("execution-queue:")) return `Queue: ${value.slice(16)}`;
+    if (value.startsWith("execution:")) {
+      const task = snapshot.state?.tasks?.[value.slice(10)];
+      return task ? `Task: ${task.title}` : "Task execution";
+    }
+    return value || "Source unavailable";
+  }
+
   panels.brain = () => {
     const brain = snapshot.brain || fallback.brain;
-    const claims = brain.claims || [], stale = brain.stale || [], skills = brain.skills || [], routines = brain.routines || [];
-    const staleIds = new Set(stale.map((claim) => claim.claim_id));
-    const conflicts = claims.filter((claim) => claim.status === "CONFLICTED");
-    const unchecked = claims.filter((claim) => !claim.checked_at).length;
-    const claimRows = claims.map((claim) => {
-      const status = String(claim.status || "UNKNOWN");
-      const explanation = status === "CONFLICTED" ? "Flagged because another claim shares its subject and has different wording. Review the sources; this does not necessarily mean they contradict each other." : status === "VERIFIED" ? "Marked verified" : status === "PARTIAL" ? "Partially supported; review before approval" : status === "SUPERSEDED" ? "Replaced by newer knowledge" : "Awaiting review";
-      const date = claim.checked_at ? `Reviewed ${new Date(claim.checked_at).toLocaleDateString()}` : "Not reviewed yet";
-      return `<article class="knowledge-claim"><div class="knowledge-claim-top">${badge(status)}${staleIds.has(claim.claim_id) ? '<span class="pill amber">Stale</span>' : ""}</div><p class="knowledge-text">${escapeHtml(claim.text)}</p><p class="sub">${escapeHtml(explanation)}</p><div class="knowledge-meta"><span>Source: <b>${escapeHtml(claim.source_id)}</b></span><span>${escapeHtml(date)}</span>${claim.subject ? `<span>Subject: ${escapeHtml(claim.subject)}</span>` : ""}</div><details class="knowledge-details"><summary>Record details</summary><div class="muted tiny">Claim ID: ${escapeHtml(claim.claim_id)}<br>Source revision: ${escapeHtml(claim.source_revision || "Unavailable")}<br>Observed: ${escapeHtml(claim.observed_at ? new Date(claim.observed_at).toLocaleString() : "Unknown")}</div></details>${["UNKNOWN", "PARTIAL"].includes(status) ? `<div class="space">${btn("Approve claim", `brain-approve:${escapeHtml(claim.claim_id)}`, "sm primary")}</div>` : ""}</article>`;
-    }).join("") || '<div class="knowledge-empty"><b>No claims yet</b><p class="sub">Research records appear here when they are captured.</p></div>';
-    const skillRows = skills.map((skill) => `<div class="event between"><span><b>${escapeHtml(skill.id)}</b> <span class="muted">v${escapeHtml(skill.version)}</span></span><span class="pill amber">${skill.trust_basis === "user-designated" ? "User-designated" : "Recorded Gold"} ? not independently verified</span></div>`).join("") || '<p class="sub">No promoted skills yet.</p>';
-    const routineRows = routines.map((routine) => `<div class="event between"><span><b>${escapeHtml(routine.id)}</b><span class="muted tiny"> ? ${escapeHtml(routine.skill_id)} ? ${escapeHtml(routine.schedule)}</span></span>${badge(routine.enabled ? "Enabled" : "Approval gated")}</div>`).join("") || '<p class="sub">No routines registered yet.</p>';
-    return head("WORKSPACE / KNOWLEDGE", "Knowledge", "Review research, its sources, and the status of recorded claims.", btn("Refresh", "refresh")) + resourceLearningMarkup() + `<div class="grid four">${stat("Sources", brain.sources?.total || 0, "Archived source records")}${stat("Claims", claims.length, `${unchecked} not reviewed`)}${stat("Needs attention", conflicts.length, "Flagged for comparison")}${stat("Stale", stale.length, "Older than 30 days")}</div><div class="knowledge-layout space"><section class="panel"><div class="paneltitle"><div><h2>Claims & freshness</h2><p class="sub">Review each statement alongside its source and status.</p></div></div>${conflicts.length ? `<div class="knowledge-notice"><b>${conflicts.length} flagged for comparison</b><p class="sub">A shared subject and different wording can trigger a conflict, even when statements are compatible. Existing flags are preserved until reviewed.</p></div>` : ""}<div class="knowledge-claims">${claimRows}</div></section><div class="knowledge-sidebar">${card("Gold skills", `<div class="pad">${skillRows}<p class="sub space">Gold is the list of skills available for routine registration. A user designation is a personal choice, not independent validation.</p><div class="space">${btn("Install a skill", "brain-skill-install", "sm primary")} ${btn("Review installed skills", "brain-skill-form", "sm")}</div></div>`)}${card("Approval-gated routines", `<div class="pad">${routineRows}<p class="sub space">Routines are saved plans linked to a Gold skill. They are created disabled; the current scheduler creates internal run records, not completed skill executions.</p><div class="space">${btn("Register a routine", "brain-routine-form", "sm")}</div></div>`, "", "space")}${card("How this works", '<div class="pad"><p class="sub">Claims are advisory and linked to captured sources. A status is not a substitute for reviewing the underlying evidence.</p><p class="sub space">Unchecked claims are counted separately from stale claims, which exceed the 30-day freshness window.</p></div>', "", "space")}</div></div>` + operationalMemoryMarkup();
+    const claims = brain.claims || [], sources = brain.sources?.sources || [], skills = brain.skills || [], routines = brain.routines || [];
+    const stale = new Set((brain.stale || []).map(claim => claim.claim_id));
+    const unchecked = claims.filter(claim => !claim.checked_at).length;
+    const conflicts = claims.filter(claim => claim.status === "CONFLICTED").length;
+    const visible = claims.filter(claim => claimFilter === "all" || (claimFilter === "unchecked" && !claim.checked_at)
+      || (claimFilter === "reviewed" && claim.checked_at) || (claimFilter === "stale" && stale.has(claim.claim_id))
+      || (claimFilter === "attention" && claim.status === "CONFLICTED"));
+    const statusNames = { PARTIAL: "Partial", VERIFIED: "Verified", CONFLICTED: "Needs attention", SUPERSEDED: "Superseded", UNKNOWN: "Unknown" };
+    const claimRows = visible.slice(0, claimLimit).map(claim => {
+      const execution = /^execution(?:-plan|-queue)?:/.test(claim.source_id || "");
+      const statement = String(claim.text || "").replace(/\s*Source revision [a-f0-9]{16,}\.?\s*$/i, "");
+      const title = execution ? knowledgeSourceTitle(claim.source_id) : statement.split(/[\r\n]/)[0];
+      const finding = execution ? statement.replace(/^(?:Plan|Task|Queue) [^:]+:\s+/i, "").replace(/unknown reported tokens(?: \(unknown\))?/i, "token usage not reported") : "";
+      const reason = claim.status === "PARTIAL" ? "Partially supported" : claim.status === "CONFLICTED" ? "Compare the source with claims on the same subject" : claim.status === "SUPERSEDED" ? "Replaced by newer knowledge" : "";
+      const source = sources.find(entry => entry.id === claim.source_id && entry.revision === claim.source_revision);
+      const sourceLabel = execution ? claim.source_id.startsWith("execution-plan:") ? "execution plan" : "execution report" : claim.source_id;
+      const approve = ["PARTIAL", "UNKNOWN"].includes(claim.status) ? btn("Approve claim", `brain-approve:${claim.claim_id}`, "sm primary") : "";
+      return `<article class="knowledge-record"><div class="knowledge-record-title"><b dir="auto">${escapeHtml(title)}</b><div class="bar"><span class="pill ${claim.status === "VERIFIED" ? "green" : "amber"}">${statusNames[claim.status] || "Unknown"}</span><span class="pill">${claim.checked_at ? "Reviewed" : "Not reviewed"}</span>${stale.has(claim.claim_id) ? '<span class="pill amber">Stale</span>' : ""}</div></div>${reason || finding ? `<p class="sub" dir="auto">${escapeHtml([reason, finding].filter(Boolean).join(": "))}</p>` : ""}<div class="knowledge-record-footer"><div><span class="sub">Source: ${escapeHtml(sourceLabel || "Unavailable")}${claim.source_revision ? " · rev " + escapeHtml(claim.source_revision.slice(0, 7)) : ""}</span><details class="knowledge-record-details"><summary>Record details</summary><p dir="auto">${escapeHtml(claim.text)}</p><p class="sub" dir="ltr">Claim ID: ${escapeHtml(claim.claim_id)}<br>Source revision: ${escapeHtml(claim.source_revision || "Unavailable")}</p>${source ? btn("Open source record", `knowledge-source:${encodeURIComponent(claim.claim_id)}`, "sm") : ""}</details></div>${approve}</div></article>`;
+    }).join("") || '<div class="knowledge-record"><b>No matching claims</b><p class="sub">Captured research and execution observations appear here.</p></div>';
+    const skillsCard = `<section class="panel knowledge-rail-card"><h2>Skills</h2><p class="sub">${skills.length ? `${skills.length} promoted skill${skills.length === 1 ? "" : "s"}. Promoted skills can be registered as routines.` : "No promoted skills yet. Promoted skills can be registered as routines."}</p><div class="bar">${btn("Install a skill", "brain-skill-install", "sm primary")}${btn("Review installed", "brain-skill-form", "sm")}</div></section>`;
+    const routinesCard = `<section class="panel knowledge-rail-card"><h2>Routines</h2><p class="sub">${routines.length ? `${routines.length} registered routine${routines.length === 1 ? "" : "s"}.` : "None yet."} A routine is a saved plan linked to a skill, created disabled and approval-gated.</p>${btn("Register a routine", "brain-routine-form", "sm")}</section>`;
+    const claimsPanel = `<section class="panel knowledge-main"><div class="knowledge-panel-head"><h2>Claims &amp; freshness</h2><select id="knowledgeClaimFilter" class="input" aria-label="Filter claims">${[["unchecked", "Not reviewed"], ["all", "All claims"], ["reviewed", "Reviewed"], ["attention", "Needs attention"], ["stale", "Stale"]].map(([id, label]) => `<option value="${id}" ${claimFilter === id ? "selected" : ""}>${label}</option>`).join("")}</select></div>${claimRows}${visible.length > claimLimit ? btn(`Show ${visible.length - claimLimit} more`, "knowledge-more", "ghost knowledge-more") : ""}</section>`;
+    const sourceRows = (knowledgeSource ? sources.filter(entry => entry.id === knowledgeSource.id && entry.revision === knowledgeSource.revision) : sources).map(source => `<article class="knowledge-record"><div class="row between"><b>${escapeHtml(knowledgeSourceTitle(source.id))}</b>${badge(source.result || "Unknown")}</div><p class="sub">${escapeHtml(batchDate(source.observed_at))}</p><details class="knowledge-record-details" ${knowledgeSource ? "open" : ""}><summary>Record details</summary><p class="sub" dir="ltr">${escapeHtml(source.id)}<br>${escapeHtml(source.revision || "Revision unavailable")}</p>${/^https:\/\//i.test(source.uri || "") ? `<a href="${escapeHtml(source.uri)}" target="_blank" rel="noopener noreferrer">Open original</a>` : ""}</details></article>`).join("") || '<p class="sub">No source records have been archived yet.</p>';
+    const sourcesPanel = `<section class="panel knowledge-main"><div class="knowledge-panel-head"><h2>Sources</h2>${knowledgeSource ? btn("Show all sources", "knowledge-tab:sources", "sm") : ""}</div>${sourceRows}</section>`;
+    const skillsPanel = `<section class="panel knowledge-main"><div class="knowledge-panel-head"><h2>Skills &amp; routines</h2></div><h3>Promoted skills</h3>${skills.map(skill => `<p class="sub">${escapeHtml(skill.id)} · v${escapeHtml(skill.version)} · ${skill.trust_basis === "user-designated" ? "User-designated" : "Recorded Gold"}</p>`).join("") || '<p class="sub">No promoted skills yet.</p>'}<h3>Registered routines</h3>${routines.map(routine => `<p class="sub">${escapeHtml(routine.id)} · ${escapeHtml(routine.skill_id || "")} · ${escapeHtml(routine.schedule || "Manual")} · ${routine.enabled ? "Enabled" : "Approval gated"}</p>`).join("") || '<p class="sub">No routines registered yet.</p>'}</section>`;
+    return `<section class="knowledge-design">${head("WORKSPACE / KNOWLEDGE", "Knowledge", "What ATL has learned and recorded, with its sources and review status.", btn("Refresh", "refresh"))}${resourceLearningMarkup()}<div class="knowledge-stats">${stat("Sources", brain.sources?.total || 0, "Archived source records")}<div class="${unchecked ? "knowledge-stat-active" : ""}">${stat("Claims", claims.length, `${unchecked} not reviewed`)}</div>${stat("Needs attention", conflicts, "Flagged for comparison")}${stat("Stale", stale.size, "Older than 30 days")}</div><nav class="knowledge-tabs" aria-label="Knowledge sections">${[["claims", "Claims"], ["sources", "Sources"], ["skills", "Skills &amp; routines"]].map(([id, label]) => `<button class="${knowledgeTab === id ? "active" : ""}" aria-pressed="${knowledgeTab === id}" data-action="knowledge-tab:${id}">${label}${id === "claims" && unchecked ? `<span class="pill amber">${unchecked}</span>` : ""}</button>`).join("")}</nav><div class="knowledge-board">${knowledgeTab === "sources" ? sourcesPanel : knowledgeTab === "skills" ? skillsPanel : claimsPanel}<aside class="knowledge-rail">${skillsCard}${routinesCard}<details class="panel knowledge-rail-card"><summary>How this works</summary><p class="sub">Claims link to captured sources. Review the evidence before approving a claim. Stale claims exceed the 30-day freshness window.</p>${operationalMemoryMarkup()}</details></aside></div></section>`;
   };
 
   // ---- Plugin presentation (ZCode native panel) ----
@@ -2353,16 +2703,14 @@ operations: () => {
   const PLUGIN_MORE_GROUPS = [
     ["Plan & work", [
       ["studio", "Plan Studio", "Model-assisted task planning"],
-      ["mytasks", "My Tasks", "Azure Boards and Jira personal board"],
       ["queues", "Queues", "Queue previews, runs and safe stop"],
       ["shipped", "Shipped archive", "Completed tasks from finished queues"],
     ]],
-    ["Intake & projects", [
-      ["sources", "Issue sources", "Imported requests and connectors"],
-      ["projects", "Projects", "Work map and registry"],
+    ["Intake", [
+      ["inbox", "Inbox", "Assigned and imported requests"],
+      ["projects", "Repositories", "Linked requests, plans and queues"],
     ]],
     ["Assist & supervise", [
-      ["assistant", "Ask ATL", "Discuss this project or fix a task workspace"],
       ["approvals", "Approvals", "Full approval center and history"],
       ["team", "Agent Team", "Pipeline and role status"],
       ["batches", "Batches", "Overnight batch runs"],
@@ -2417,8 +2765,10 @@ operations: () => {
     if (workspaceTaskId !== id) impactExpanded.clear();
     pluginTaskId = id;
     workspaceTaskId = id;
+    const shipped = page === "shipped" || (page === "task" && workspaceReturnPage === "shipped");
+    workspaceReturnPage = shipped ? "shipped" : "tasks";
     workspacePersist();
-    if (window.matchMedia("(min-width: 960px)").matches) render();
+    if (!shipped && window.matchMedia("(min-width: 960px)").matches) render();
     else openPage("task");
   }
   function pluginMarkSelection() {
@@ -2437,7 +2787,11 @@ operations: () => {
     + `<div class="panel pad plugin-more-list">` + PLUGIN_MORE_GROUPS.map(([label, links]) => `<div class="plugin-more-group"><div class="plugin-more-group-label">${label}</div><div class="plugin-more-grid">${links.map(([id, label2, description]) => `<button class="lined plugin-more-link" data-page="${id}"><b>${label2}</b><span class="muted tiny">${description}</span></button>`).join("")}</div></div>`).join("")
     + (PLUGIN ? "" : `<div class="plugin-more-grid"><button class="lined plugin-more-link" data-action="cli"><b>CLI console</b><span class="muted tiny">Run ATL commands directly</span></button></div>`) + `</div>`;
   panels.task = () => {
-    const task = pluginTaskId ? derived().tasks.find((item) => item.id === pluginTaskId) : null;
+    const task = derived().tasks.find((item) => item.id === (PLUGIN ? pluginTaskId : workspaceTaskId));
+    if (!PLUGIN) {
+      const back = btn(workspaceReturnPage === "shipped" ? "Back to Shipped" : "All tasks", "workspace-back", "sm ghost");
+      return `<div class="task-detail-screen">${back}${task ? taskWorkspaceBody(task, workspaceOpen) : '<p class="sub">This task is no longer in the snapshot.</p>'}</div>`;
+    }
     if (!task) return head("WORKSPACE / TASK", "Task details", "This task is no longer in the snapshot.")
       + `<div class="pad">${btn("← Back to tasks", "plugin-back")}</div>`;
     return head("WORKSPACE / TASK", escapeHtml(task.id), `<span data-no-translate dir="auto">${escapeHtml(task.title)}</span>`, btn("← Back", "plugin-back") + btn("Ask ATL", `assistant-open:${escapeHtml(task.id)}`, "primary"))
@@ -2473,20 +2827,22 @@ operations: () => {
     // array (palette, session restore) stays untouched.
     const groups = [
       ["Workspace", ["overview", "tasks", "queues", "runs", "approvals"]],
-      ["Build", ["studio", "shipped", "batches", "sources"]],
+      ["Intake", ["inbox", "projects"]],
+      ["Build", ["studio", "shipped", "batches"]],
       ["Intelligence", ["assistant", "brain", "team"]],
-      ["Operations", ["mytasks", "projects", "operations", "activity", "usage", "settings"]],
+      ["Operations", ["operations", "activity", "usage", "settings"]],
     ];
     const byRoute = Object.fromEntries(routes.map((route) => [route[0], route]));
     // Digit shortcuts follow this rendered order (#32); the nth visible nav
     // item is what key `n` opens.
     shortcutOrder = groups.flatMap((group) => group[1].map((id) => byRoute[id]).filter(Boolean));
     const shortcutFor = (route) => { const index = shortcutOrder.indexOf(route); return index >= 0 && index < 9 ? String(index + 1) : null; };
-    const groupHtml = (names) => names.map((name) => `<div class="section">${name}</div>` + groups.find((group) => group[0] === name)[1].map((id) => byRoute[id]).filter(Boolean).map((route) => { const key = shortcutFor(route); return `<button class="nav ${page === route[0] ? "on" : ""}" data-page="${route[0]}"${page === route[0] ? ' aria-current="page"' : ""}${key ? ` title="${route[2]} — press ${key}"` : ""}><span class="ico">${iconFor(route[0], route[1])}</span><span class="lbl">${route[2]}</span>${key ? `<span class="nav-key">${key}</span>` : ""}${navBadges(route[0])}</button>`; }).join("")).join("");
-    $("#navA").innerHTML = groupHtml(["Workspace", "Build"]);
+    const activeNavPage = ["sources", "mytasks"].includes(page) ? "inbox" : page;
+    const groupHtml = (names) => names.map((name) => `<div class="section">${name}</div>` + groups.find((group) => group[0] === name)[1].map((id) => byRoute[id]).filter(Boolean).map((route) => { const key = shortcutFor(route); return `<button class="nav ${activeNavPage === route[0] ? "on" : ""}" data-page="${route[0]}"${activeNavPage === route[0] ? ' aria-current="page"' : ""}${key ? ` title="${route[2]} — press ${key}"` : ""}><span class="ico">${iconFor(route[0], route[1])}</span><span class="lbl">${route[2]}</span>${key ? `<span class="nav-key">${key}</span>` : ""}${navBadges(route[0])}</button>`; }).join("")).join("");
+    $("#navA").innerHTML = groupHtml(["Workspace", "Intake", "Build"]);
     $("#navB").innerHTML = groupHtml(["Intelligence", "Operations"]);
-    $("#mobile").innerHTML = routes.map((route) => `<button class="btn sm ${page === route[0] ? "primary" : ""}" data-page="${route[0]}">${route[2]}${navBadges(route[0])}</button>`).join("");
-    $("#crumb").textContent = routes.find((route) => route[0] === page)?.[2] || "Overview";
+    $("#mobile").innerHTML = shortcutOrder.map((route) => `<button class="btn sm ${activeNavPage === route[0] ? "primary" : ""}" data-page="${route[0]}">${route[2]}${navBadges(route[0])}</button>`).join("");
+    $("#crumb").textContent = routes.find((route) => route[0] === page)?.[2] || (page === "task" ? "Task" : "Overview");
   }
   // One honest state per built-in subscription worker, shared by the top
   // chip, Settings, and the provider manager. API-key sign-in counts as NOT
@@ -2584,6 +2940,13 @@ operations: () => {
     });
   }
   function render() {
+    const pageChanged = renderedPage !== page;
+    if (pageChanged) {
+      selectedTasks.clear();
+      if (page !== "tasks" && page !== "task" && (renderedPage === "tasks" || renderedPage === "task")) clearWorkspaceSelection();
+      renderedPage = page;
+    }
+    document.body.classList.toggle("tasks-design", page === "tasks" || page === "task");
     const pendingPat = page === 'sources' ? $('#sourceAzurePat')?.value : '';
     const pendingGithubToken = page === 'sources' ? $('#sourceGithubToken')?.value : '';
     // A background repaint must not eject a typing user: capture the focused
@@ -2603,6 +2966,7 @@ operations: () => {
     // review, assistant composer, disclosures, scroll) survives the wipe.
     const preservedWorkspace = captureWorkspaceNode();
     const content = $("#content");
+    const askComposer = page === "assistant" ? $(".ask-conversation > .assistant-root") : null;
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
     const scrollPositions = new Map();
@@ -2617,14 +2981,21 @@ operations: () => {
       if (position) { element.scrollLeft = position[0]; element.scrollTop = position[1]; }
       for (let index = 0; index < element.children.length; index++) restoreScroll(element.children[index], `${path}/${index}`);
     };
-    rememberScroll(content, "content");
-    try { sessionStorage.setItem("atl-cp-page", page); } catch { /* storage may be unavailable */ }
+    if (!pageChanged) rememberScroll(content, "content");
+    try {
+      sessionStorage.setItem("atl-cp-page", page);
+      if (page === "sources" && intakeTool) sessionStorage.setItem("atl-cp-intake-tool", intakeTool);
+      else sessionStorage.removeItem("atl-cp-intake-tool");
+    } catch { /* storage may be unavailable */ }
     syncRunSnapshot();
     const noticesButton = $("#noticesBtn"), unreadCount = Math.max(0, Number(snapshot.notifications?.unread || 0));
     if (noticesButton) { noticesButton.innerHTML = unreadCount ? `◈ <span class="amber">${unreadCount}</span>` : "◈"; noticesButton.setAttribute("aria-label", `${unreadCount} unread notifications`); }
     if (PLUGIN) ensurePluginTopbar(); nav(); renderProviderStatus(); renderConnectionIndicator();
     if (!(page === "studio" && document.activeElement?.id === "planRepairResponse")) {
       content.innerHTML = panels[page]?.() || panels.overview();
+      const askMount = $(".ask-conversation > .assistant-root");
+      if (askMount && askComposer?.dataset.askScope === askMount.dataset.askScope) askMount.replaceWith(askComposer);
+      if (page === "assistant") filterAskHistory();
       const freshWorkspace = workspaceHost();
       const freshBody = freshWorkspace?.querySelector(".task-workspace");
       const currentWorkspaceTask = freshBody?.dataset.workspaceTaskId ? derived().tasks.find((item) => item.id === freshBody.dataset.workspaceTaskId) : null;
@@ -2636,8 +3007,10 @@ operations: () => {
       } else {
         mountWorkspaceEffects();
       }
-      restoreScroll(content, "content");
-      window.scrollTo(scrollX, scrollY);
+      const sameWorkspace = !preservedWorkspace || (preservedWorkspace.taskId === freshBody?.dataset.workspaceTaskId
+        && preservedWorkspace.view === freshBody?.dataset.workspaceView);
+      if (!pageChanged && sameWorkspace) restoreScroll(content, "content");
+      window.scrollTo(pageChanged ? 0 : scrollX, pageChanged ? 0 : scrollY);
       // Put the caret back where the user left it (same id must exist in the
       // fresh markup; a changed panel leaves focus alone).
       if (focusState?.id) {
@@ -2654,7 +3027,7 @@ operations: () => {
         if (pluginFocus) {
           const node = [...content.querySelectorAll("[data-action],[data-page],[data-task]")].find((item) => item.dataset.action === pluginFocus || item.dataset.page === pluginFocus || item.dataset.task === pluginFocus);
           // Rows are plain divs and cannot take focus; land on their primary control.
-          if (node?.matches("[data-task]")) node.querySelector(".task-actions button, input")?.focus();
+          if (node?.matches("[data-task]")) node.querySelector(".task-main-copy, .task-actions button, input")?.focus();
           else node?.focus();
         }
       }
@@ -2692,7 +3065,7 @@ operations: () => {
     status.setAttribute("aria-live", "polite");
   }
   function syncOfflineActions() {
-    const allowedOffline = /^(?:go:|filter:|queue:|plugin-back$|plugin-retry$|close$|refresh$|palette$|plugin-overflow$|theme-toggle$|toggle-locale$)/;
+    const allowedOffline = /^(?:go:|filter:|queue:|task-detail:|workspace-view:|workspace-back$|studio-(?:conversation|plan)-focus$|studio-pane:|plugin-back$|plugin-retry$|close$|refresh$|palette$|plugin-overflow$|theme-toggle$|toggle-locale$|inbox-(?:stage:|open:|close$|assigned$|more$|clear$)|repositories-(?:open:|close$|idle$))/;
     document.querySelectorAll("#content button[data-action], #modal button[data-action]").forEach((button) => {
       if (connected || allowedOffline.test(button.dataset.action || "")) {
         if (button.dataset.disabledOffline === "true") {
@@ -2730,6 +3103,11 @@ operations: () => {
     discardPendingRender();
     if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
     modalReturnFocus = null;
+  }
+  function dismissDialog() {
+    const returnToSetup = Boolean(mtReconnectConnection);
+    close();
+    if (returnToSetup) void openMyTasksSettings().catch(() => {});
   }
   function showModal(title, body, actions = "", dialogClass = "") {
     if (!dialogOpen) modalReturnFocus = document.activeElement;
@@ -2922,17 +3300,12 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   // The focused replacement for the task-detail dialog: task list on the
   // left, workspace (Activity / Changes / Process + Ask ATL composer) on the
   // right. Shared with the plugin task pane through taskWorkspaceBody.
-  const workspaceEmptyBody = () => {
-    const { tasks } = derived();
-    const running = tasks.filter((task) => !task.archived && (liveRunState(task) === "running" || task.rawStatus === "in_progress")).length;
-    const attention = tasks.filter((task) => !task.archived && (task.rawStatus === "blocked" || task.rawStatus === "escalated" || task.plan_review_required)).length;
-    return `<div class="task-workspace-empty">
+  const workspaceEmptyBody = (running, attention) => `<div class="task-workspace-empty">
       <div class="task-workspace-empty-glyph" aria-hidden="true">⌘</div>
       <b>Select a task</b>
       <p class="sub">The workspace shows what ATL is doing, what changed, what passed, and what needs your decision.</p>
       <div class="bar">${running ? btn(`${running} running`, "filter:Running", "sm") : ""}${attention ? btn(`${attention} need attention`, "filter:Needs attention", "sm") : ""}</div>
     </div>`;
-  };
 
   function workspaceAttemptTitle(attempt) {
     if (attempt.kind === "session") {
@@ -2971,8 +3344,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (projection.availability === "unknown_task") return `<div class="notice"><b>Projection unavailable</b><p>${escapeHtml(projection.message || "No recorded task with this identifier.")}</p></div>`;
     if (projection.availability !== "available") return `<div class="notice"><b>Projection unavailable</b><p>${escapeHtml(projection.message || "Execution records cannot be read right now.")}</p></div>`;
     if (projection.unrun) {
-      const planned = [["preparation", "Repository preparation"], ["planning", "Specification & planning"], ["implementation", "Implementation"], ["review", "Review"], ["verification", "Verification"]];
-      return `<div class="task-workspace-planned"><b>Planned — ATL has not started this task yet.</b><p class="sub">Once a run starts, its recorded stages and attempts appear here.</p><div class="activity-planned-list">${planned.map(([key, name]) => `<div class="activity-stage is-planned"><span class="activity-stage-glyph">○</span><b>${escapeHtml(name)}</b></div>`).join("")}</div></div>`;
+      const planned = [["preparation", "Prepare repo"], ["planning", "Plan"], ["implementation", "Implement"], ["review", "Review"], ["verification", "Verify"]];
+      return `<div class="task-workspace-planned"><b>Planned. ATL has not started yet.</b><p class="sub">Progress appears here once you press Run.</p><div class="activity-planned-list">${planned.map(([key, name]) => `<div class="activity-stage is-planned" data-stage="${key}"><span class="activity-stage-glyph">○</span><b>${escapeHtml(name)}</b></div>`).join("")}</div></div>`;
     }
     const stages = projection.stages || [];
     if (!stages.length) return '<p class="muted">No recorded activity yet.</p>';
@@ -3006,9 +3379,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   const impactExpanded = new Set();
-  let graphRenderId = 0, mermaidLoader;
   function graphToolbar(groups = false) {
-    return `<div class="bar">${btn("Zoom out", "impact-zoom-out", "sm")}<span class="pill" data-graph-zoom>Fit</span>${btn("Zoom in", "impact-zoom-in", "sm")}${btn("Fit", "impact-fit", "sm")}${btn("Export SVG", "impact-export", "sm")}${btn("Copy Mermaid", "impact-copy", "sm")}${btn("View as list", "impact-list", "sm")}${groups ? btn("Collapse groups", "impact-collapse", "sm") : ""}</div>`;
+    return `<div class="bar process-graph-toolbar"><div class="process-zoom"><button type="button" data-action="impact-zoom-out" aria-label="Zoom out">−</button><span data-graph-zoom aria-live="polite">100%</span><button type="button" data-action="impact-zoom-in" aria-label="Zoom in">+</button></div>${btn("Fit", "impact-fit")}${btn("Export SVG", "impact-export")}${btn("Copy Mermaid", "impact-copy")}${btn("View as list", "impact-list")}${groups ? btn("Collapse groups", "impact-collapse") : ""}</div>`;
   }
   const activeGraphSection = () => document.querySelector('.process-flow[data-process-view="impact"] .process-impact, .process-flow[data-process-view="execution"] .process-execution-diagram');
   function zoomGraph(section, mode) {
@@ -3016,11 +3388,29 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (!svg || !canvas) return;
     const box = svg.viewBox.baseVal;
     if (!box.width || !box.height) return;
-    const fit = Math.min(1, Math.max(.02, (canvas.clientWidth - 16) / box.width));
-    const current = Number(svg.dataset.zoom || fit), zoom = mode === "fit" ? fit : Math.max(.02, Math.min(4, current * (mode === "in" ? 1.25 : .8)));
-    svg.dataset.zoom = String(zoom); svg.style.width = `${box.width * zoom}px`; svg.style.height = `${box.height * zoom}px`; svg.style.minWidth = "0";
-    const label = section.querySelector("[data-graph-zoom]"); if (label) label.textContent = `${Math.round(zoom * 100)}%`;
-    if (mode === "fit") { canvas.scrollLeft = 0; canvas.scrollTop = 0; }
+    const minZoom = .8, maxZoom = 4;
+    const widthFit = Math.min(1, canvas.clientWidth / box.width);
+    const fullFit = Math.min(widthFit, canvas.clientHeight / box.height);
+    const fit = fullFit >= minZoom ? fullFit : Math.max(minZoom, widthFit);
+    const current = Number(svg.dataset.zoom || fit);
+    const zoom = mode === "fit" ? fit : Math.max(minZoom, Math.min(maxZoom, current * (mode === "in" ? 1.25 : .8)));
+    const before = svg.getBoundingClientRect(), viewport = canvas.getBoundingClientRect();
+    const x = Math.max(0, Math.min(box.width, (viewport.left + canvas.clientWidth / 2 - before.left) / current));
+    const y = Math.max(0, Math.min(box.height, (viewport.top + canvas.clientHeight / 2 - before.top) / current));
+    svg.dataset.zoom = String(zoom);
+    svg.style.width = `${box.width * zoom}px`;
+    svg.style.height = `${box.height * zoom}px`;
+    section.querySelector("[data-graph-zoom]").textContent = `${Math.round(zoom * 100)}%`;
+    section.querySelector('[data-action="impact-zoom-out"]').disabled = zoom <= minZoom;
+    section.querySelector('[data-action="impact-zoom-in"]').disabled = zoom >= maxZoom;
+    if (mode === "fit") {
+      canvas.scrollLeft = 0;
+      canvas.scrollTop = 0;
+    } else {
+      const after = svg.getBoundingClientRect();
+      canvas.scrollLeft += after.left + x * zoom - (viewport.left + canvas.clientWidth / 2);
+      canvas.scrollTop += after.top + y * zoom - (viewport.top + canvas.clientHeight / 2);
+    }
   }
   function impactListMarkup(graph) {
     return graph.nodes.map((item) => {
@@ -3067,32 +3457,30 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     } catch (error) { if (status?.isConnected) status.textContent = error.message; }
     finally { node.loading = false; }
   }
+  const processViewByTask = new Map();
+  const selectedImpactEdges = new Map();
+  function impactEdgeCard(graph, taskId) {
+    const visibleIds = new Set(graph.nodes.filter(node => !["capture", "hunk"].includes(node.kind)).map(node => node.id));
+    const visibleEdges = graph.edges.filter(entry => visibleIds.has(entry.from) && visibleIds.has(entry.to));
+    const edge = graph.edges[selectedImpactEdges.get(taskId)] || visibleEdges.find(entry => entry.provenance === "unknown") || visibleEdges[0];
+    if (!edge) return "";
+    const from = graph.nodes.find(node => node.id === edge.from), to = graph.nodes.find(node => node.id === edge.to);
+    if (!from || !to) return "";
+    const explanation = edge.provenance === "unknown" ? `The file changed (recorded). The ${["pass", "passed"].includes(to.result) ? "passing test run" : "check"} is task-level, so it is not shown as proof this file was verified.` : edge.provenance === "inferred" ? "This connection is inferred from the recorded execution context. It is not direct proof of per-file verification." : "This connection is recorded in the task's execution evidence.";
+    return `<section class="process-edge-card"><div class="row between"><b>${escapeHtml(from.label)} → ${escapeHtml(to.label)}</b><span class="pill">${edge.provenance === "unknown" ? "Unknown link" : edge.provenance === "inferred" ? "Inferred link" : "Recorded link"}</span></div><p>${explanation}</p><div class="bar">${from.file_id ? btn("Open in Changes", `review-file:${from.capture_id}:${from.file_id}`) : ""}${to.kind === "check" ? btn("View test evidence", `impact-node:${encodeURIComponent(to.id)}`) : btn("View evidence", `impact-node:${encodeURIComponent(to.id)}`)}</div></section>`;
+  }
   function processMarkup(task, projection) {
-    if (!projection) return '<p role="status"><span class="running-mark" aria-hidden="true"></span><span class="muted">Loading process…</span></p>';
+    if (!projection) return '<p role="status">Loading process…</p>';
     if (projection.availability !== "available") return `<div class="notice"><b>Execution view unavailable</b><p>${escapeHtml(projection.message || "Execution records cannot be read right now.")}</p></div>`;
-    const repo = projection.repository || {};
-    const stages = projection.stages || [];
-    const orderedAttempts = stages.flatMap((stage) => stage.attempts.map((attempt) => ({ stage, attempt }))).sort((a, b) => String(a.attempt.started_at || a.attempt.ended_at || "").localeCompare(String(b.attempt.started_at || b.attempt.ended_at || "")));
-    const executionGraph = buildExecutionGraph(projection.graph || { nodes: [], edges: [] });
-    const executionTimeline = `<section class="process-timeline" aria-label="Recorded execution in chronological order">${orderedAttempts.map(({ stage, attempt }) => `<button type="button" class="process-attempt ${attempt.outcome === "failed" ? "is-failed" : ""}" data-action="activity-stage:${escapeHtml(stage.key)}:${escapeHtml(String(attempt.attempt))}"><span>${escapeHtml(stage.label)}</span><b>${escapeHtml(workspaceAttemptTitle(attempt))}</b><span class="muted tiny"><bdi dir="ltr">${escapeHtml(workspaceRange(attempt) || "Time not recorded")}</bdi></span>${workspaceOutcomePill(attempt.outcome)}</button>`).join("")}${projection.status ? `<div class="process-final-status"><b>Recorded final status</b> · ${escapeHtml(statusLabel(projection.status))}</div>` : ""}</section>`;
-    const impact = visibleImpactGraph(projection.graph || { nodes: [], edges: [] });
-    const codeImpact = `<section class="process-impact" aria-label="Code impact"><div class="row between"><h3>Code impact</h3>${graphToolbar(impact.groups)}</div><p class="muted tiny">Connections are labelled recorded, inferred, or unknown. Changed files and task-level checks are not treated as proof of per-file verification.</p>${impact.groups ? `<p class="muted tiny">Large graph: select a stage or directory to expand it.</p>` : ""}${projection.graph?.hunks_truncated ? `<p role="status">Graph details load in pages. Expand captured files or hunks in the list below.</p>` : ""}<div class="process-impact-canvas"><div class="mermaid process-impact-mermaid" data-impact-source>${escapeHtml(impactMermaid(impact))}</div></div><p data-impact-status role="status" aria-live="polite"></p><ol class="process-impact-list" hidden>${impactListMarkup(impact)}</ol><ul class="process-impact-edges" hidden>${impact.edges.map((edge) => `<li>${escapeHtml(edge.label)} <span class="pill">${escapeHtml(edge.provenance)}</span></li>`).join("")}</ul></section>`;
-    const node = (tone, title, body) => `<div class="process-node ${tone}"><div class="process-node-dot" aria-hidden="true"></div><div class="process-node-body">${body ? `<b>${title}</b>${body}` : `<b>${title}</b>`}</div></div>`;
-    const fileGroups = new Map();
-    for (const file of projection.files || []) { const list = fileGroups.get(file.capture_id) || []; list.push(file); fileGroups.set(file.capture_id, list); }
-    const filesNode = fileGroups.size ? `<div class="process-stage" data-stage="files"><header class="process-stage-head"><span class="activity-stage-glyph" aria-hidden="true">▾</span><b>Changed files</b><span class="muted tiny">${(projection.files || []).length} file${(projection.files || []).length === 1 ? "" : "s"} · ${(projection.captures || []).length} capture${(projection.captures || []).length === 1 ? "" : "s"}</span></header><div class="activity-capture-files">${[...fileGroups.entries()].flatMap(([captureId, list]) => list.map((file) => `<button type="button" class="review-file" data-action="review-file:${escapeHtml(captureId)}:${escapeHtml(file.id)}" title="${escapeHtml(captureId || "")}"><span class="pill">${escapeHtml(file.kind || "file")}</span><code class="review-path" dir="ltr">${escapeHtml(file.path)}</code></button>`)).join("")}</div></div>` : "";
-    const checks = projection.checks?.items || [];
-    const checksNode = checks.length || (projection.captures || []).length ? `<div class="process-stage" data-stage="checks"><header class="process-stage-head"><span class="activity-stage-glyph" aria-hidden="true">▾</span><b>Checks & review</b><span class="muted tiny">${checks.length} completion check${checks.length === 1 ? "" : "s"}</span></header><div class="process-checks">${checks.map((check) => `<div class="process-check"><span class="attempt-glyph ${check.result === "pass" ? "green" : check.result === "fail" ? "red" : ""}" aria-hidden="true">${check.result === "pass" ? "✓" : check.result === "fail" ? "✕" : "·"}</span><span class="truncate" dir="auto">${escapeHtml(check.check)}</span>${check.coverage ? `<span class="muted tiny">${escapeHtml(check.coverage)}</span>` : ""}<span class="muted tiny">${check.at ? escapeHtml(new Date(check.at).toLocaleString()) : "Not recorded"}</span></div>`).join("") || '<p class="muted tiny">No completion checks recorded.</p>'}</div></div>` : "";
-    return `<div class="process-flow" data-process-view="execution">
-      <div class="process-view-switch" role="group" aria-label="Process view"><button type="button" class="btn sm primary" data-action="process-execution" aria-pressed="true">Execution</button><button type="button" class="btn sm" data-action="process-impact" aria-pressed="false">Code impact</button></div>
-      ${node(repo.workspace_recorded ? "" : "is-unknown", repo.name || "Repository", `<p class="muted tiny">${repo.workspace ? `<code class="review-path" dir="ltr">${escapeHtml(repo.workspace)}</code>` : "Workspace not recorded"}${repo.name ? "" : " · Repository not recorded"}</p>`)}
-      <section class="process-execution-diagram" aria-label="Execution diagram">${graphToolbar()}<div class="process-impact-canvas"><div class="mermaid process-impact-mermaid" data-execution-source>${escapeHtml(impactMermaid(executionGraph))}</div></div><p class="muted tiny">Order follows recorded timestamps; items without a timestamp have unknown order. Select an attempt or check to open its evidence.</p><ol class="process-execution-list" hidden>${impactListMarkup(executionGraph)}</ol></section>
-      ${executionTimeline}
-      ${filesNode}
-      ${checksNode}
-      ${codeImpact}
-      ${!stages.length && !fileGroups.size ? '<p class="muted">No recorded execution yet. Planned work is labeled in Activity.</p>' : ""}
-    </div>`;
+    const graph = projection.graph || { nodes: [], edges: [] };
+    const impact = visibleImpactGraph(graph), execution = buildExecutionGraph(graph);
+    const activeView = processViewByTask.get(task.id) || (graph.nodes.some(node => node.kind === "file") ? "impact" : "execution");
+    const switcher = `<div class="process-view-switch" role="group" aria-label="Process view"><button type="button" class="btn sm ${activeView === "execution" ? "primary" : ""}" data-action="process-execution" aria-pressed="${activeView === "execution"}">Execution</button><button type="button" class="btn sm ${activeView === "impact" ? "primary" : ""}" data-action="process-impact" aria-pressed="${activeView === "impact"}">Code impact</button></div>`;
+    const legend = '<div class="process-legend"><span>— Recorded</span><span>╌ Inferred</span><span class="process-legend-unknown">··· Unknown</span><span>Click any item to open it in Changes or Evidence.</span></div>';
+    const section = (isExecution, current) => `<section class="${isExecution ? "process-execution-diagram" : "process-impact"}" aria-label="${isExecution ? "Execution diagram" : "Code impact"}"><div class="process-reference-toolbar">${switcher}${graphToolbar(current.groups)}</div>${legend}<div class="process-impact-canvas"><div class="process-impact-mermaid" ${isExecution ? "data-execution-source" : "data-impact-source"}>${escapeHtml(impactMermaid(current))}</div></div><p data-impact-status role="status" aria-live="polite"></p><ol class="${isExecution ? "process-execution-list" : "process-impact-list"}" hidden>${impactListMarkup(current)}</ol>${!isExecution ? `<ul class="process-impact-edges" hidden>${current.edges.map(edge => `<li>${escapeHtml(edge.label)} <span class="pill">${escapeHtml(edge.provenance)}</span></li>`).join("")}</ul><div data-impact-edge-card>${impactEdgeCard(impact, task.id)}</div>` : ""}</section>`;
+    const attempts = (projection.stages || []).flatMap(stage => stage.attempts.map(attempt => `<button type="button" class="process-attempt" data-action="activity-stage:${escapeHtml(stage.key)}:${attempt.attempt}"><b>${escapeHtml(stage.label)}</b><span>${escapeHtml(workspaceAttemptTitle(attempt))}</span>${workspaceOutcomePill(attempt.outcome)}</button>`)).join("");
+    const checks = (projection.checks?.items || []).map(check => `<div class="process-check"><span>${escapeHtml(check.check)}</span><b>${escapeHtml(check.result)}</b></div>`).join("");
+    return `<div class="process-flow" data-process-view="${activeView}">${section(true, execution)}${section(false, impact)}<section class="process-execution-evidence"><p class="muted">${escapeHtml(projection.repository?.name || "This workspace")}</p>${attempts}${checks}</section></div>`;
   }
 
   let graphWasLight = document.documentElement.classList.contains("light");
@@ -3145,31 +3533,93 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   async function renderImpactDiagram(execution = false) {
-    const source = document.querySelector(execution ? ".process-impact-mermaid[data-execution-source]" : ".process-impact-mermaid[data-impact-source]");
-    if (!source || source.dataset.rendered) return;
-    source.dataset.rendered = "loading";
-    const ticket = String(++graphRenderId); source.dataset.renderTicket = ticket;
-    try {
-      if (!window.mermaid) await (mermaidLoader ||= new Promise((resolve, reject) => { const script = document.createElement("script"); script.src = "/assets/mermaid.min.js"; script.onload = resolve; script.onerror = () => reject(new Error("Diagram renderer unavailable")); document.head.append(script); }));
-      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", htmlLabels: false, maxEdges: 10000, maxTextSize: 1000000, theme: document.documentElement.classList.contains("light") ? "default" : "dark", flowchart: { htmlLabels: false, useMaxWidth: true } });
-      source.dataset.mermaid = source.textContent;
-      const rendered = await window.mermaid.render(`atl-impact-${ticket}`, source.textContent);
-      if (!source.isConnected || source.dataset.renderTicket !== ticket) return;
-      source.innerHTML = rendered.svg; source.dataset.rendered = "true";
-      const svg = source.querySelector("svg"); svg?.classList.add(execution ? "process-execution-svg" : "process-impact-svg");
-      const fullGraph = workspaceProjection.get(workspaceTaskId)?.data?.graph || { nodes: [], edges: [] };
-      const graph = execution ? buildExecutionGraph(fullGraph) : visibleImpactGraph(fullGraph);
-      for (const item of graph.nodes) {
-        if (!["group", "file", "hunk", "attempt", "check", "capture"].includes(item.kind)) continue;
-        const safeId = `n_${Array.from(String(item.id)).map((char) => char.codePointAt(0).toString(16)).join("_")}`;
-        const group = [...(svg?.querySelectorAll("g.node[id]") || [])].find((entry) => new RegExp(`(?:^|-)flowchart-${safeId}-\\d+$`).test(entry.id));
-        if (group) { group.setAttribute("role", "button"); group.setAttribute("tabindex", "0"); group.setAttribute("aria-label", `${item.kind}: ${item.label}`); const open = () => void action(`impact-node:${encodeURIComponent(item.id)}`); group.addEventListener("click", open); group.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }); }
+    const source = document.querySelector(execution ? "[data-execution-source]" : "[data-impact-source]");
+    if (!source || source.dataset.rendered || !source.closest(".process-impact-canvas")?.clientWidth) return;
+    const taskId = source.closest(".task-workspace")?.dataset.workspaceTaskId;
+    const full = workspaceProjection.get(taskId)?.data?.graph;
+    if (!full) return;
+    const graph = execution ? buildExecutionGraph(full) : visibleImpactGraph(full);
+    const task = derived().tasks.find(entry => entry.id === taskId);
+    source.dataset.mermaid = impactMermaid(graph);
+    const linkedFiles = new Set(graph.edges.filter(edge => edge.label === "same packet revision").map(edge => edge.to));
+    const captureLinks = graph.edges.filter(edge => edge.label === "captured change" && !linkedFiles.has(edge.to));
+    const captures = new Set(captureLinks.map(edge => edge.from));
+    const columns = execution ? graph.nodes.map(node => [node]) : [
+      graph.nodes.filter(node => node.kind === "objective"),
+      graph.nodes.filter(node => node.kind === "attempt" || node.group_key?.startsWith("stage:") || captures.has(node.id)),
+      graph.nodes.filter(node => node.kind === "file" || node.group_key && !node.group_key.startsWith("stage:")),
+      graph.nodes.filter(node => ["check", "coverage"].includes(node.kind)),
+      graph.nodes.filter(node => node.kind === "outcome"),
+    ].filter(column => column.length);
+    const visible = columns.flat();
+    const positions = new Map();
+    const nodeWidth = 170, nodeHeight = 56, rowGap = 36, columnGap = 58, inset = 12;
+    const width = Math.max(1, columns.length) * (nodeWidth + columnGap) - columnGap + inset * 2;
+    const height = execution ? 112 : Math.max(324, ...columns.map(column => column.length * (nodeHeight + rowGap) - rowGap + inset * 2));
+    columns.forEach((column, index) => {
+      const columnHeight = column.length * (nodeHeight + rowGap) - rowGap;
+      column.forEach((node, row) => {
+        positions.set(node.id, {
+          x: inset + index * (nodeWidth + columnGap),
+          y: Math.max(inset, (Math.min(height, 440) - columnHeight) / 2) + row * (nodeHeight + rowGap),
+          w: nodeWidth, h: nodeHeight,
+        });
+      });
+    });
+    const lines = (text, limit = 20, cap = 3) => { const words=[]; for (const word of String(text).split(/\s+/)) { if (word.length <= limit) { words.push(word); continue; } let rest=word; while (rest.length > limit) { let cut=rest.lastIndexOf("/", limit); if (cut < Math.ceil(limit / 2) - 1) cut=limit - 1; words.push(rest.slice(0, cut + 1)); rest=rest.slice(cut + 1); } if (rest) words.push(rest); } const result=[]; let line=""; for (const word of words) { if (line && (line + " " + word).length > limit) { result.push(line); line=word; } else line+=(line ? " " : "")+word; } if(line)result.push(line); if (result.length > cap) { const head=result.slice(0,cap); head[cap-1]=head[cap-1].replace(/…$/,"")+"…"; return head; } return result; };
+    const paths = graph.edges.map((edge,index) => {
+      const start=positions.get(edge.from),end=positions.get(edge.to); if(!start || !end)return "";
+      if (edge.label === "captured change" && linkedFiles.has(edge.to)) return "";
+      const fromX = start.x + start.w, fromY = start.y + start.h / 2, endX = end.x, endY = end.y + end.h / 2;
+      const skipsColumn = endX - fromX > columnGap;
+      const d = start.x === end.x
+        ? `M ${fromX} ${fromY} h ${inset / 2} V ${endY} H ${fromX}`
+        : skipsColumn
+          ? `M ${fromX} ${fromY} l 16 -16 V ${inset / 2} H ${endX - 16} V ${endY - 16} L ${endX} ${endY}`
+          : `M ${fromX} ${fromY} L ${endX} ${endY}`;
+      return `<path class="process-graph-edge ${escapeHtml(edge.provenance)}" d="${d}" role="button" tabindex="0" aria-label="${escapeHtml(edge.provenance + ': ' + edge.label)}" data-impact-edge="${index}"/><path class="process-graph-edge-hit" d="${d}" data-impact-edge="${index}"/>`;
+    }).join("");
+    const nodes = visible.map(node => {
+      const pos=positions.get(node.id); if(!pos)return "";
+      const actionable=["file","hunk","attempt","check","group","capture"].includes(node.kind);
+      const tone=node.kind === "check" ? (["pass","passed","complete"].includes(node.result) ? "passed" : ["fail","failed"].includes(node.result) ? "failed" : "unknown") : node.kind;
+      const label = node.kind === "outcome" && task
+        ? `Outcome: ${workspaceTaskState(task).label.replace(/^[✓!●]\s*/, "").toLowerCase()}`
+        : node.kind === "file" ? node.label.split("/").at(-1)
+        : (node.kind === "objective" ? "Objective: " : "") + node.label;
+      const labelLines=lines(label, 20, node.kind === "file" && node.additions != null ? 2 : 3);
+      if(node.kind === "file" && node.additions != null) labelLines.push(`+${node.additions}${node.deletions ? ` −${node.deletions}` : ""}`);
+      return `<g class="node process-graph-node ${escapeHtml(tone)}" transform="translate(${pos.x},${pos.y})" ${actionable ? `role="button" tabindex="0" aria-label="${escapeHtml(node.kind + ': ' + node.label)}" data-impact-node="${escapeHtml(node.id)}"` : ""}><title>${escapeHtml(node.label)}</title><rect width="${pos.w}" height="${pos.h}" rx="10"/><text x="11" y="${labelLines.length === 3 ? 17 : labelLines.length === 2 ? 21 : 33}">${labelLines.slice(0,3).map((line,i) => `<tspan x="11" dy="${i ? 17 : 0}">${escapeHtml(line)}</tspan>`).join("")}</text></g>`;
+    }).join("");
+    source.innerHTML=`<svg class="${execution ? "process-execution-svg" : "process-impact-svg"}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${execution ? "Recorded execution" : "Code impact"}">${paths}${nodes}</svg>`;
+    for (const line of source.querySelectorAll("tspan")) {
+      const width = Number(line.closest(".process-graph-node").querySelector("rect").getAttribute("width")) - 22;
+      if (line.getComputedTextLength() > width) {
+        line.setAttribute("textLength", width);
+        line.setAttribute("lengthAdjust", "spacingAndGlyphs");
       }
-      zoomGraph(source.closest("section"), "fit");
-      const canvas = source.closest(".process-impact-canvas");
-      if (canvas) { canvas.tabIndex = 0; canvas.setAttribute("role", "region"); canvas.setAttribute("aria-label", "Diagram: arrow keys pan, toolbar controls zoom"); }
-      if (canvas && !canvas.dataset.panReady) { canvas.dataset.panReady = "true"; canvas.addEventListener("keydown", (event) => { if (event.target !== canvas || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return; event.preventDefault(); canvas.scrollBy({ left: event.key === "ArrowLeft" ? -80 : event.key === "ArrowRight" ? 80 : 0, top: event.key === "ArrowUp" ? -80 : event.key === "ArrowDown" ? 80 : 0 }); }); let drag = null; canvas.addEventListener("pointerdown", (event) => { if (event.button === 0 && !event.target.closest?.('[role="button"]')) drag = { x: event.clientX, y: event.clientY, left: canvas.scrollLeft, top: canvas.scrollTop }; }); canvas.addEventListener("pointermove", (event) => { if (!drag) return; canvas.scrollLeft = drag.left - (event.clientX - drag.x); canvas.scrollTop = drag.top - (event.clientY - drag.y); }); for (const name of ["pointerup", "pointercancel", "pointerleave"]) canvas.addEventListener(name, () => { drag = null; }); }
-    } catch { source.setAttribute("role", "status"); source.textContent = "Diagram unavailable. Use the accessible graph list below."; const list = source.closest("section")?.querySelector("ol"); if (list) list.hidden = false; }
+    }
+    source.dataset.rendered="true";
+    const activate=event => { const node=event.target.closest("[data-impact-node]"),edge=event.target.closest("[data-impact-edge]"); if(node)void action(`impact-node:${encodeURIComponent(node.dataset.impactNode)}`); else if(edge) { selectedImpactEdges.set(taskId,Number(edge.dataset.impactEdge)); const card=source.closest("section")?.querySelector("[data-impact-edge-card]"); if(card)card.innerHTML=impactEdgeCard(graph,taskId); } };
+    source.onclick=activate;
+    source.onkeydown=event=>{if(["Enter"," "].includes(event.key)){event.preventDefault();activate(event);}};
+    const canvas=source.closest(".process-impact-canvas"); canvas.tabIndex=0; canvas.setAttribute("role","region"); canvas.setAttribute("aria-label","Diagram: arrow keys pan, toolbar controls zoom");
+    canvas.onkeydown = event => {
+      if (event.target !== canvas) return;
+      const zoomKeys = { "+": "in", "=": "in", "-": "out", "0": "fit" };
+      if (Object.hasOwn(zoomKeys, event.key)) {
+        event.preventDefault();
+        zoomGraph(source.closest("section"), zoomKeys[event.key]);
+      } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+        canvas.scrollBy({ left: event.key === "ArrowLeft" ? -80 : event.key === "ArrowRight" ? 80 : 0, top: event.key === "ArrowUp" ? -80 : event.key === "ArrowDown" ? 80 : 0 });
+      }
+    };
+    let drag=null;
+    canvas.onpointerdown=event=>{if(event.button===0 && !event.target.closest('[role="button"],[data-impact-edge]')){drag={x:event.clientX,y:event.clientY,left:canvas.scrollLeft,top:canvas.scrollTop};canvas.setPointerCapture(event.pointerId);}};
+    canvas.onpointermove=event=>{if(drag){canvas.scrollLeft=drag.left-(event.clientX-drag.x);canvas.scrollTop=drag.top-(event.clientY-drag.y);}};
+    canvas.onpointerup=canvas.onpointercancel=()=>{drag=null;};
+    zoomGraph(source.closest("section"),"fit");
   }
 
   function taskWorkspaceBody(task, openMap) {
@@ -3186,7 +3636,9 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const isRunning = liveRunState(task) === "running" || task.rawStatus === "in_progress";
     const isBlocked = task.rawStatus === "blocked" || task.rawStatus === "escalated";
     const isDone = task.rawStatus === "done";
-    const runIndicator = `<span class="pill ${isBlocked ? "red" : isRunning ? "green" : isDone ? "blue" : ""} task-run-indicator">${isRunning ? '<span class="running-mark"></span> ' : isDone ? "✓ " : ""}${escapeHtml(statusLabel(task.rawStatus))}</span>`;
+    const displayState = workspaceTaskState(task);
+    const readyForReview = ["in_review", "review"].includes(task.rawStatus);
+    const runIndicator = `<span class="pill ${displayState.tone} task-run-indicator">${escapeHtml(displayState.label)}</span>`;
     const shortDesc = (task.desc || "").length > 110 ? `${task.desc.slice(0, 110)}…` : (task.desc || "");
     const cached = workspaceProjection.get(task.id);
     const viewBody = workspaceView === "changes"
@@ -3216,50 +3668,41 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       decisions.push(`<div class="notice task-decision"><div class="row between"><b>${escapeHtml(summary.title)} awaiting approval</b></div><p class="sub">${escapeHtml(summary.directTasks ? "Approving grants one-run permission for this task." : "Approving grants permission covering the queues that include this task.")}</p><div class="bar">${btn("Approve once", `approval-approve:${item.id}`, "sm primary")}${btn("Deny", `approval-deny:${item.id}`, "sm danger")}</div></div>`);
     }
     const browserState = browserAccessFor(task.id);
-    if (browserState.mode !== "approved" && !isDone && !task.intake_only) decisions.push(`<div class="notice task-decision"><div class="row between"><b>Browser access needs approval</b></div><p class="sub">Approve browser use before runs that observe pages.</p><div class="bar">${btn("Review browser approval", `browser-open:${task.id}`, "sm")}</div></div>`);
-    const disclosures = `
-      <details class="task-detail-disclosure"${disclose("acceptance")}${openAttr("acceptance")}><summary>Acceptance criteria</summary><div>${checksMarkup}${(task.completion_checks || []).length ? `<ul class="task-criteria-list">${task.completion_checks.map((check) => `<li dir="auto">${escapeHtml(check)}</li>`).join("")}</ul>` : '<p class="muted tiny">No explicit acceptance criteria recorded.</p>'}</div></details>
-      ${task.source && ["azure", "github", "jira"].includes(task.source.type) ? `<details class="task-detail-disclosure"${disclose("specification")}${openAttr("specification")}><summary>Full specification · imported from ${escapeHtml(task.source.type)} #${escapeHtml(task.source.remote_id)}</summary><div><p style="white-space:pre-wrap" dir="auto">${escapeHtml(task.intake_snapshot?.objective || task.desc || "No description was returned.")}</p><ul>${(task.intake_snapshot?.completion_checks || task.completion_checks).map((check) => `<li>${escapeHtml(check)}</li>`).join("")}</ul>${/^https:\/\//i.test(task.source.url || "") ? `<a href="${escapeHtml(task.source.url)}" target="_blank" rel="noopener noreferrer">Open original work item</a>` : ""}</div></details>` : ""}
-      <details class="task-detail-disclosure"${disclose("properties")}${openAttr("properties")}><summary>Task properties</summary><div><div class="task-prop-list"><div class="task-prop-row"><span class="task-prop-key">Task ID</span><b>${escapeHtml(task.id)}</b></div><div class="task-prop-row"><span class="task-prop-key">Assigned to</span><b>${escapeHtml(task.agent)}</b></div><div class="task-prop-row"><span class="task-prop-key">Repository</span><b title="${escapeHtml(task.repository_name || "This workspace")}">${escapeHtml(task.repository_name || "This workspace")}</b></div><div class="task-prop-row"><span class="task-prop-key">Queue</span><span class="pill">${escapeHtml(task.queue)}</span></div><div class="task-prop-row"><span class="task-prop-key">Priority</span>${badge(task.priority)}</div>${task.workspace ? `<div class="task-prop-row"><span class="task-prop-key">Workspace</span><code class="review-path" dir="ltr">${escapeHtml(task.workspace)}</code></div>` : ""}<div class="task-prop-row"><span class="task-prop-key">Packet revision</span><b>#${escapeHtml(task.packet_revision || 1)}</b></div></div></div></details>
-      <details class="task-detail-disclosure"${disclose("browser")}${openAttr("browser")}><summary>Browser configuration</summary><div><div class="task-sec-card" data-browser-access><div class="task-sec-title"><span>Browser access</span><span class="pill ${browserState.mode === "approved" ? "green" : "amber"}">${browserState.mode === "approved" ? "Allowed" : "Needs approval"}</span></div>${browserAccessControls(task.id)}</div></div></details>
-      <details class="task-detail-disclosure"${disclose("resources")}${openAttr("resources")}><summary>Resources & tokens</summary><div>${resourceSummary(task.resources)}${task.executionReport ? executionReportMarkup(task.executionReport) : '<p class="muted tiny">No provider session report yet.</p>'}</div></details>
-      <details class="task-detail-disclosure"${disclose("logs")}${openAttr("logs")}><summary>Raw logs (${task.logs.length})</summary><div><pre class="terminal" dir="auto">${escapeHtml(logs)}</pre></div></details>
-      <details class="task-detail-disclosure"${disclose("lifecycle")}${openAttr("lifecycle")}><summary>Lifecycle history</summary><div>${lifecycleDiagram(task)}${taskProgressMarkup(task, true)}</div></details>
-      <details class="task-detail-disclosure"${disclose("run-recovery")}${openAttr("run-recovery")}><summary>Run & recovery details</summary><div>${statusNote}${recoveryPanel}${budgetPanel}</div></details>`;
-    const tabs = [["activity", "Activity"], ["changes", "Changes"], ["process", "Process"]];
+    if (browserState.mode !== "approved" && !isDone && !task.intake_only) decisions.push(`<div class="notice task-decision task-browser-decision"><span><b>One thing needed before running:</b> approve browser access for this task.</span>${btn("Review approval", `browser-open:${task.id}`)}</div>`);
+    const disclosureRow = (key, title, summary, body) => `<details class="task-detail-disclosure"${disclose(key)}${openAttr(key)}><summary><b>${title}</b><span class="task-disclosure-summary">${summary}</span><span class="task-disclosure-chevron" aria-hidden="true">⌄</span></summary><div>${body}</div></details>`;
+    const propertyBody = `<div class="task-prop-list"><div class="task-prop-row"><span>Task ID</span><b>${escapeHtml(task.id)}</b></div><div class="task-prop-row"><span>Assigned to</span><b>${escapeHtml(task.agent)}</b></div><div class="task-prop-row"><span>Repository</span><b>${escapeHtml(task.repository_name || "This workspace")}</b></div><div class="task-prop-row"><span>Queue</span><b>${escapeHtml(task.queue)}</b></div><div class="task-prop-row"><span>Priority</span><b>${escapeHtml(task.priority)}</b></div></div><div class="bar">${btn("Edit task", `edit:${task.id}`, "sm")}${btn("Workspace access", `access-open:${task.id}`, "sm")}</div><details><summary>Logs & lifecycle</summary><pre class="terminal">${escapeHtml(logs)}</pre>${lifecycleDiagram(task)}${recoveryPanel}${budgetPanel}</details>${task.source ? `<details><summary>Original request</summary><p dir="auto">${escapeHtml(task.intake_snapshot?.objective || task.desc)}</p>${/^https:\/\//i.test(task.source.url || "") ? `<a href="${escapeHtml(task.source.url)}" target="_blank" rel="noopener noreferrer">Open original work item</a>` : ""}</details>` : ""}`;
+    const sessions = task.executionReport?.sessions ?? task.executionBudget?.used ?? 0;
+    const resourceHint = [`${sessions} sessions`, task.executionBudget ? `ceiling ${task.executionBudget.max_sessions}` : null, task.providerRoute?.provider || task.resources?.provider].filter(Boolean).join(" · ");
+    const disclosures = disclosureRow("acceptance", "Acceptance criteria", task.completion_checks.length ? `${task.completion_checks.length} recorded` : "None recorded", checksMarkup + (task.completion_checks.length ? `<ul>${task.completion_checks.map(check => `<li>${escapeHtml(check)}</li>`).join("")}</ul>` : ""))
+      + disclosureRow("browser", "Browser access", `${browserState.source === "task" ? "Task override" : "Project default"} · ${browserState.mode === "approved" ? "allowed" : "needs approval"}`, browserAccessControls(task.id))
+      + testEvidenceMarkup(task.testEvidence, task.id)
+      + disclosureRow("resources", "Resources & tokens", escapeHtml(resourceHint), resourceSummary(task.resources) + (task.executionReport ? executionReportMarkup(task.executionReport) : ""))
+      + disclosureRow("properties", "Properties", `Packet rev #${task.packet_revision || 1} · Edit task · Workspace access`, propertyBody);
+    const changesCount = (cached?.data?.files || []).length;
+    const tabs = [["activity", "Activity"], ["changes", `Changes${changesCount ? ` · ${changesCount} files` : ""}`], ["process", "Process"]];
     return `<div class="task-workspace" data-workspace-task-id="${escapeHtml(task.id)}" data-workspace-view="${escapeHtml(workspaceView)}" data-workspace-fingerprint="${escapeHtml(JSON.stringify(task))}">
       <header class="task-workspace-head">
-        <div class="row between" style="gap:10px">
-          <div class="row" style="gap:10px;min-width:0">
-            <button type="button" class="btn sm ghost task-workspace-back" data-action="workspace-back" aria-label="Back to task list">←</button>
-            <div style="min-width:0">
-              <div class="task-workspace-context"><span class="task-id-badge">${escapeHtml(task.id)}</span><span class="muted tiny">${task.repository_name ? `⌂ ${escapeHtml(task.repository_name)}` : "⌂ Repository not recorded"}${task.workspace ? ` · <code class="review-path" dir="ltr">${escapeHtml(task.workspace)}</code>` : ""}</span></div>
-              <h2 class="task-detail-title" data-no-translate dir="auto">${escapeHtml(task.title)}</h2>
-            </div>
+        <div class="task-workspace-titlebar">
+          <div class="task-workspace-identity">
+            ${PLUGIN || page !== "task" ? '<button type="button" class="btn sm ghost task-workspace-back" data-action="workspace-back" aria-label="Back to task list">‹ All tasks</button>' : ""}
+            <span class="task-id-badge">${escapeHtml(task.id)}</span>
+            <h2 class="task-detail-title" data-no-translate dir="auto">${escapeHtml(task.title)}</h2>
           </div>
-          ${runIndicator}
+          <div class="task-workspace-primary-actions">${runIndicator}${readyForReview ? btn("Approve", `workspace-approve:${task.id}`, "primary") : !isDone && !isBlocked ? btn(isRunning ? "Resume" : "▶ Run", `run-task:${task.id}`, "primary") : ""}${isBlocked ? btn("Unblock", `unblock:${task.id}`, "primary") : ""}${PLUGIN && page === "tasks" ? btn("Ask ATL", `assistant-open:${task.id}`, "sm") : ""}<button type="button" class="btn task-workspace-more" data-action="task-actions:${escapeHtml(task.id)}" aria-label="More task actions">···</button></div>
         </div>
-        <details class="task-objective"${disclose("objective")}${openAttr("objective")}><summary><b>Objective</b><span class="muted tiny truncate task-objective-hint" dir="auto">${escapeHtml(shortDesc || "No objective recorded.")}</span></summary><p class="task-detail-description" dir="auto">${escapeHtml(task.desc || "No objective recorded.")}</p></details>
-        <div class="task-workspace-tabs" role="tablist" aria-label="Workspace views">${tabs.map(([key, name]) => `<button type="button" class="task-workspace-tab ${workspaceView === key ? "active" : ""}" role="tab" aria-selected="${workspaceView === key}" data-action="workspace-view:${key}">${escapeHtml(name)}</button>`).join("")}</div>
+        <div class="task-workspace-meta"><span>${escapeHtml(task.queue === "Default" ? "Default queue" : task.queue)}</span><span>Priority: ${escapeHtml(task.priority || "Normal")}</span><span>${escapeHtml(task.agent || "Unassigned")}</span><span>${escapeHtml(task.repository_name || "This workspace")}</span></div>
+        ${workspaceView === "activity" ? `<div class="task-objective-row"><details class="task-objective"${disclose("objective")}${openAttr("objective")}><summary><b>Objective</b><span class="muted task-objective-hint" dir="auto">${escapeHtml(shortDesc || 'None yet. Add one so ATL knows what “done” means.')}</span></summary><p class="task-detail-description" dir="auto">${escapeHtml(task.desc || "No objective recorded.")}</p></details>${btn(task.desc ? "Edit objective" : "Add objective", `edit:${task.id}`, "sm")}</div>` : ""}
+        <div class="task-workspace-tabs" role="tablist" aria-label="Workspace views">${tabs.map(([key, name]) => `<button type="button" class="task-workspace-tab ${workspaceView === key ? "active" : ""}" role="tab" aria-selected="${workspaceView === key}" data-action="workspace-view:${key}">${key === "changes" ? `Changes${changesCount ? ` <span class="task-files-count">${changesCount} files</span>` : ""}` : escapeHtml(name)}</button>`).join("")}</div>
       </header>
       <div class="task-workspace-viewbody">${viewBody}</div>
-      <section class="task-workspace-actions">${resultSummary}${decisions.join("")}</section>
-      <section class="task-workspace-composer">
-        <div class="task-composer-bar row between">
-          <b>Ask ATL</b>
-          <span class="muted tiny">Provider usage may apply · fixes need independent review</span>
-        </div>
-        <div class="assistant-root task-workspace-assistant" data-workspace-assistant><button type="button" class="task-composer-invite" data-action="assistant-open:${escapeHtml(task.id)}"><span class="task-composer-invite-text">Message ATL about this task…</span><span class="muted tiny">Ask · diagnose · fix in workspace</span></button></div>
-      </section>
-      <section class="task-workspace-tools"><div class="bar">${btn("More actions", `task-actions:${task.id}`, "sm")}${btn("Edit task", `edit:${task.id}`, "sm")}${btn("Workspace access", `access-open:${task.id}`, "sm")}</div></section>
-      <section class="task-workspace-disclosures">${disclosures}</section>
+      ${workspaceView === "activity" ? `<section class="task-workspace-actions">${resultSummary}${decisions.join("")}</section><section class="task-workspace-disclosures">${disclosures}</section><section class="task-workspace-composer"><div class="assistant-root task-workspace-assistant" data-workspace-assistant><label class="sr-only" for="workspaceMessage">Ask ATL about this task</label><textarea id="workspaceMessage" placeholder="Ask ATL about this task... (ask · diagnose · fix)"></textarea><div class="task-composer-foot"><span>Provider usage may apply · fixes need independent review</span>${btn("Send", `workspace-ask:${task.id}`, "primary")}</div></div></section>` : ""}
     </div>`;
   }
 
   // ---- Workspace runtime ---------------------------------------------------
-  function workspaceHost() { return document.querySelector(PLUGIN ? ".plugin-task-pane, .task-detail-screen" : "#taskWorkspace"); }
+  function workspaceHost() { return document.querySelector(PLUGIN ? ".plugin-task-pane, .task-detail-screen" : "#taskWorkspace, .task-detail-screen"); }
   function captureWorkspaceNode() {
-    if (page !== "tasks" && !(PLUGIN && page === "task")) return null;
+    if (page !== "tasks" && page !== "task") return null;
     const node = workspaceHost();
     const body = node?.querySelector(".task-workspace");
     const taskId = body?.dataset.workspaceTaskId;
@@ -3287,7 +3730,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   function paintWorkspaceView(taskId) {
-    const node = document.querySelector(PLUGIN ? ".task-workspace" : "#taskWorkspace .task-workspace");
+    const node = workspaceHost()?.querySelector(".task-workspace");
     if (!node || node.dataset.workspaceTaskId !== taskId) return;
     const view = node.dataset.workspaceView;
     if (view === "changes") return; // the embedded review owns its DOM
@@ -3297,8 +3740,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (!target) return;
     const cached = workspaceProjection.get(taskId);
     target.innerHTML = view === "activity" ? activityMarkup(task, cached?.data) : processMarkup(task, cached?.data);
+    const changesTab = node.querySelector('.task-workspace-tab[data-action="workspace-view:changes"]');
+    if (changesTab) changesTab.innerHTML = `Changes${cached?.data?.files?.length ? ` <span class="task-files-count">${cached.data.files.length} files</span>` : ""}`;
     translateSubtree(target);
-    if (view === "process") void renderImpactDiagram(true);
+    if (view === "process") { void renderImpactDiagram(true); void renderImpactDiagram(false); }
   }
 
   function mountWorkspaceEffects() {
@@ -3310,7 +3755,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const fingerprint = task ? JSON.stringify(task) : "missing";
     const cached = workspaceProjection.get(taskId);
     if (!cached || cached.fingerprint !== fingerprint) void fetchWorkspaceProjection(taskId, fingerprint);
-    if (body.dataset.workspaceView === "process" && cached?.data) void renderImpactDiagram(true);
+    if (body.dataset.workspaceView === "process" && cached?.data) { void renderImpactDiagram(true); void renderImpactDiagram(false); }
     if (body.dataset.workspaceView === "changes" && globalThis.ATL_CHANGE_REVIEW) {
       const mount = node.querySelector("[data-workspace-changes]");
       if (mount && !mount.dataset.embedded) {
@@ -3324,16 +3769,28 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   function selectWorkspaceTask(id, { view } = {}) {
-    if (workspaceTaskId !== id) impactExpanded.clear();
+    const { tasks } = derived();
+    const task = tasks.find(item => item.id === id);
+    if (!task) return;
+    const shipped = shippedTaskIds(tasks).has(id);
+    const standalone = shipped || task.intake_only || task.archived;
+    if (dialogOpen) close();
+    if (workspaceTaskId !== id) { impactExpanded.clear(); workspaceView = "activity"; }
+    if (!standalone && page !== "tasks") {
+      queueFilter = filter = "All";
+      queueFilterTouched = true;
+      query = "";
+    }
     workspaceTaskId = id;
-    if (view) workspaceView = view;
-    if (window.matchMedia("(max-width: 959px)").matches) workspaceNarrowDetail = true;
+    workspaceView = view || workspaceView;
+    workspaceReturnPage = shipped ? "shipped" : "tasks";
+    workspaceNarrowDetail = workspaceNarrowQuery.matches;
     workspacePersist();
-    if (page !== "tasks") page = "tasks";
+    page = standalone ? "task" : "tasks";
     render();
   }
 
-  const assistantWantsInline = (scope) => !PLUGIN && page === "tasks" && workspaceTaskId === scope && document.querySelector("[data-workspace-assistant]");
+  const assistantWantsInline = (scope) => !PLUGIN && (page === "tasks" || page === "task") && workspaceTaskId === scope && document.querySelector("[data-workspace-assistant]");
   async function mountAssistantInline(scope) {
     clearInterval(assistantPoll);
     assistantScope = scope;
@@ -3383,7 +3840,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       <details class="task-detail-disclosure"${disclose("activity")}${openAttr("activity")}><summary>Latest task activity (${task.logs.length})</summary><div><pre class="terminal" dir="auto">${escapeHtml(logs)}</pre></div></details></div>
       <aside class="task-inspector-side"><div class="task-sec-card"><div class="task-sec-title"><span>Task properties</span></div><div class="task-prop-list"><div class="task-prop-row"><span class="task-prop-key">Task ID</span><b>${escapeHtml(task.id)}</b></div><div class="task-prop-row"><span class="task-prop-key">Assigned to</span><b>${escapeHtml(task.agent)}</b></div><div class="task-prop-row"><span class="task-prop-key">Repository</span><b title="${escapeHtml(task.repository_name || "This workspace")}">${escapeHtml(task.repository_name || "This workspace")}</b></div><div class="task-prop-row"><span class="task-prop-key">Queue</span><span class="pill">${escapeHtml(task.queue)}</span></div><div class="task-prop-row"><span class="task-prop-key">Priority</span>${badge(task.priority)}</div></div></div>
       <div class="task-sec-card" data-browser-access><div class="task-sec-title"><span>Browser access</span><span class="pill ${browserAccessFor(task.id).mode === "approved" ? "green" : "amber"}">${browserAccessFor(task.id).mode === "approved" ? "Allowed" : "Needs approval"}</span></div>${browserAccessControls(task.id)}</div>
-      ${executionReportMarkup(task.executionReport)}${resourceSummary(task.resources)}<details class="task-detail-disclosure"${disclose("run-recovery")}${openAttr("run-recovery")}><summary>Run and recovery details</summary><div>${statusNote}${recoveryPanel}${budgetPanel}</div></details>
+      ${testEvidenceMarkup(task.testEvidence, task.id)}${executionReportMarkup(task.executionReport)}${resourceSummary(task.resources)}<details class="task-detail-disclosure"${disclose("run-recovery")}${openAttr("run-recovery")}><summary>Run and recovery details</summary><div>${statusNote}${recoveryPanel}${budgetPanel}</div></details>
       <div class="task-sec-card"><div class="task-sec-title"><span>Operator tools</span></div><div class="task-side-actions">${globalThis.ATL_CHANGE_REVIEW ? btn("<span>▤ Review changes</span><span>→</span>", `task-changes:${task.id}`, "sm") : ""}${btn("<span>⚙ Workspace access</span><span>→</span>", `access-open:${task.id}`, "sm")}${btn("<span>◈ Diagram</span><span>→</span>", `task-diagram:${task.id}`, "sm")}${btn("<span>✎ Edit task</span><span>→</span>", `edit:${task.id}`, "sm")}</div></div></aside></div>`;
     return body;
   }
@@ -3442,7 +3899,8 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const itemCount = (queue.items || []).length;
     const isActive = queue.id === snapshot.queues?.active_queue;
     const isRunning = currentRun.status === "running" && (currentRun.queueId === queue.id || currentRun.queueId === queue.label || (currentRun.queueIds || []).includes(queue.id));
-    popup(`${escapeHtml(queue.label)} / Queue`, `<div class="bar">${badge(isRunning ? "Running" : queue.status)}${isActive ? '<span class="pill green">active</span>' : ""}${queue.plan_draft_id ? '<span class="pill violet">plan queue</span>' : ""}</div><p style="margin-top:14px"><b>${itemCount}</b> queued task${itemCount === 1 ? "" : "s"}. ${isRunning ? "Execution is active; progress and logs update on the Queues page." : "Preview before any run; confirmation is still required."}</p>${executionReportMarkup(queue.execution_report)}<p class="sub">${queue.id === "default" ? "The default queue cannot be deleted, but it can be reset safely." : "Deleting a named queue archives its board entry and keeps its tasks in the portfolio."}</p>`, (isRunning ? btn("Stop safely", "run-stop", "danger") : btn("Review run", `run-confirm:${queue.id}`, "primary")) + btn("View tasks", `queue:${encodeURIComponent(queue.label)}`) + btn("Queue actions", `queue-actions:${queue.id}`));
+    popup(`${escapeHtml(queue.label)} / Queue`, `<div class="bar">${badge(isRunning ? "Running" : queue.status)}${isActive ? '<span class="pill green">active</span>' : ""}${queue.plan_draft_id ? '<span class="pill violet">plan queue</span>' : ""}</div><p style="margin-top:14px"><b>${itemCount}</b> queued task${itemCount === 1 ? "" : "s"}. ${isRunning ? "Execution is active; progress and logs update on the Queues page." : "Preview before any run; confirmation is still required."}</p>${executionReportMarkup(queue.execution_report)}<section><h3>Test Evidence</h3><ul>${(queue.test_evidence || []).map(({ id, verified }) =>
+      `<li>${btn(id, `task-detail:${id}`)} ${verified ? "Verified" : "Unverified"}</li>`).join("") || "<li>No queued tasks</li>"}</ul></section><p class="sub">${queue.id === "default" ? "The default queue cannot be deleted, but it can be reset safely." : "Deleting a named queue archives its board entry and keeps its tasks in the portfolio."}</p>`, (isRunning ? btn("Stop safely", "run-stop", "danger") : btn("Review run", `run-confirm:${queue.id}`, "primary")) + btn("View tasks", `queue:${encodeURIComponent(queue.label)}`) + btn("Queue actions", `queue-actions:${queue.id}`));
   }
   function queueActions(queue) {
     const isDefault = queue.id === "default";
@@ -3610,6 +4068,11 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const accessFailure = !browserFailure && (["runner-tool-policy", "workspace-access"].includes(session.failure?.code) || /read-only sandbox/i.test(session.error || ""));
     return `${messages || '<div class="assistant-empty"><b>What can I help with?</b><p>Ask about this project, investigate a blocker, or work through a task together.</p></div>'}${session.status === "running" ? `<article class="assistant-message from-assistant"><div class="assistant-message-meta"><b><span class="running-mark"></span> ATL is ${session.mode === "fix" ? "investigating and editing" : "investigating"}</b>${session.output ? btn("Copy", "assistant-copy:output", "sm ghost") : ""}</div><div class="assistant-message-content" dir="auto" data-no-translate>${assistantMarkdown(session.output || "Waiting for the first update…")}</div>${session.diagnostic ? `<details><summary>Provider activity</summary><pre dir="auto" data-no-translate>${escapeHtml(session.diagnostic)}</pre></details>` : ""}</article>` : ""}${failure ? `<section class="assistant-failure" role="alert"><b>${escapeHtml(failure.title)}</b><p>${escapeHtml(failure.reason)}</p><p>${escapeHtml(failure.next)}</p><div class="bar">${browserFailure ? btn("Fix browser access", `browser-open:${assistantScope}`, "sm primary") : ""}${accessFailure ? btn("Fix workspace access", `access-open:${assistantScope}`, "sm primary") : ""}${btn("Prepare retry", "assistant-retry", "sm")}${btn("Copy error", "assistant-copy:error", "sm ghost")}</div>${session.diagnostic ? `<details><summary>Provider diagnostic</summary><pre dir="auto" data-no-translate>${escapeHtml(session.diagnostic)}</pre>${btn("Copy diagnostic", "assistant-copy:diagnostic", "sm ghost")}</details>` : ""}</section>` : ""}${session.status === "awaiting-review" ? `<p class="assistant-result">Changes still need independent verification and review. ${session.scope !== "global" ? btn("Review task", `task-detail:${session.scope}`, "sm") : ""}</p>` : ""}${session.status === "interrupted" ? `<p class="assistant-result" role="status">${escapeHtml(session.error || "The session was interrupted.")} ${btn("Prepare retry", "assistant-retry", "sm")}</p>` : ""}`;
   }
+  function assistantConversationReview(session) {
+    const turns = (session?.messages || []).filter((message) => message.text?.trim()).slice(-6);
+    const bullets = turns.map((message) => `- ${message.role === "user" ? "Request" : "ATL finding / proposal"}: ${message.text.trim().slice(0, 700)}${message.text.trim().length > 700 ? "…" : ""}`);
+    return `Conversation review — ${session?.scope === "global" ? "Project" : session?.scope || "ATL"}\n\n${bullets.join("\n") || "- No completed conversation turns yet."}\n\nDecision / open question:\n- (Edit this line with the decision or remaining question.)\n\nNext step:\n- Revisit the task or regenerate the plan using these findings. Verify the evidence and acceptance criteria.`;
+  }
   function assistantRecovery(report) {
     if (!report?.issues?.length) return "";
     return `<details class="assistant-recovery" aria-label="Task recovery plan"><summary>${report.issues.length} recorded issue(s) · View recovery context</summary><p class="muted tiny">Budgets and review gates are preserved.</p><ul>${report.issues.map((issue) => `<li><b>${escapeHtml(issue.cause)}</b> / ${escapeHtml(issue.owner)}<p dir="auto">${escapeHtml(issue.reason)}</p><p dir="auto">${escapeHtml(issue.next_action)}</p></li>`).join("")}</ul></details>`;
@@ -3619,9 +4082,16 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     return `<details class="assistant-guidance" ${session.status === "idle" ? "open" : ""}><summary><span class="muted">Suggested focus</span> ${escapeHtml(guidance.title)}</summary><div class="assistant-guidance-foot">${btn("Use suggested question", "assistant-suggest", "sm")}<span class="muted tiny">Based on ${escapeHtml(guidance.source)} · verify before acting</span></div><p>${escapeHtml(guidance.reason)}</p></details>`;
   }
   async function openAssistant(scope, opts = {}) {
-    clearInterval(assistantPoll); assistantScope = scope;
+    clearInterval(assistantPoll);
+    const request = ++assistantRequest;
+    assistantScope = scope;
+    if (!opts.inline) { if (dialogOpen) close(); page = "assistant"; render(); }
+    const mountSelector = opts.inline ? "[data-workspace-assistant]" : "[data-ask-scope]";
+    const active = () => request === assistantRequest && Boolean($(mountSelector))
+      && (!opts.inline || workspaceTaskId === scope);
     try {
       const result = await assistantRead(scope);
+      if (!active()) return;
       assistantSession = result.session;
       assistantSuggestion = result.guidance?.suggested_message || "";
       const draft = assistantDrafts.get(scope) || {};
@@ -3630,21 +4100,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const models = provider.models?.length ? provider.models : [{ id: provider.defaultModel || "", label: provider.defaultModel || "CLI default" }];
         return models.map((model) => `<option value="${escapeHtml(`${provider.id}|${model.id}`)}" ${`${provider.id}|${model.id}` === preferred ? "selected" : ""} ${!provider.installed || !provider.signedIn ? "disabled" : ""}>${escapeHtml(provider.label)} · ${escapeHtml(model.label || model.id)}${!provider.installed ? " · not installed" : !provider.signedIn ? " · not signed in" : ""}</option>`);
       }).join("");
-      const assistantBody = `<div class="assistant-toolbar"><span id="assistantStatus" role="status">${escapeHtml(assistantStatus(result.session))}</span><div class="bar">${btn("Copy conversation", "assistant-copy:all", "sm ghost")}${btn("Workspace access", `access-open:${scope}`, "sm")}</div></div>${assistantGuidanceMarkup(result.guidance, result.session)}${assistantRecovery(result.recovery)}<div id="assistantTranscript" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Assistant conversation" tabindex="0">${assistantTranscript(result.session)}</div><div class="assistant-latest-wrap"><button type="button" class="btn sm assistant-jump-latest" data-action="assistant-latest" id="assistantLatest" hidden>↓ New output · jump to latest</button></div><div class="assistant-composer"><div class="assistant-options"><label for="assistantProvider">Provider and model<select class="input" id="assistantProvider">${options}</select></label><label for="assistantMode">Mode<select class="input" id="assistantMode">${scope !== "global" ? '<option value="fix">Fix in task workspace</option>' : ""}<option value="diagnose">Diagnose only</option></select></label></div><label class="sr-only" for="assistantMessage">Message</label><textarea class="input" id="assistantMessage" dir="auto" rows="3" placeholder="Message ATL…">${escapeHtml(draft.message || "")}</textarea><div class="assistant-composer-foot"><span class="muted tiny" id="assistantFeedback" role="status">Ctrl + Enter to send · History stays on this machine</span></div></div>`;
-      if (opts.inline) {
-        // Inline composer: re-query the mount AFTER the read await — a live
-        // task repaints the workspace during the fetch and any node captured
-        // earlier would be detached. Query and write happen synchronously.
-        const mount = document.querySelector("[data-workspace-assistant]");
-        if (!mount) {
-          popupWide(`Ask ATL <span class="muted">· ${escapeHtml(scope === "global" ? "Project" : scope)}</span>`, `<div class="assistant-root">${assistantBody}</div>`, `<span class="muted tiny assistant-send-note">Provider usage may apply. Fixes require independent review.</span>${btn("Stop", "assistant-cancel", "assistant-stop")}${btn("Send message", "assistant-send", "primary")}`, "assistant-dialog");
-        } else {
-          mount.innerHTML = `${assistantBody}<div class="task-composer-footbar"><span class="muted tiny assistant-send-note">Provider usage may apply. Fixes require independent review.</span>${btn("Stop", "assistant-cancel", "assistant-stop")}${btn("Send message", "assistant-send", "primary")}</div>`;
-          translateSubtree(mount);
-        }
-      } else {
-        popupWide(`Ask ATL <span class="muted">· ${escapeHtml(scope === "global" ? "Project" : scope)}</span>`, `<div class="assistant-root">${assistantBody}</div>`, `<span class="muted tiny assistant-send-note">Provider usage may apply. Fixes require independent review.</span>${btn("Stop", "assistant-cancel", "assistant-stop")}${btn("Send message", "assistant-send", "primary")}`, "assistant-dialog");
-      }
+      const assistantBody = `<div class="assistant-toolbar"><span id="assistantStatus" role="status">${escapeHtml(assistantStatus(result.session))}</span><div class="bar">${btn("Review & reuse", "assistant-review", "sm primary")}${btn("Copy conversation", "assistant-copy:all", "sm ghost")}${btn("Workspace access", `access-open:${scope}`, "sm")}</div></div>${assistantGuidanceMarkup(result.guidance, result.session)}${assistantRecovery(result.recovery)}<div id="assistantTranscript" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Assistant conversation" tabindex="0">${assistantTranscript(result.session)}</div><div class="assistant-latest-wrap"><button type="button" class="btn sm assistant-jump-latest" data-action="assistant-latest" id="assistantLatest" hidden>↓ New output · jump to latest</button></div><div class="assistant-composer"><div class="assistant-options"><label for="assistantProvider">Provider and model<select class="input" id="assistantProvider">${options}</select></label><label for="assistantMode">Mode<select class="input" id="assistantMode">${scope !== "global" ? '<option value="fix">Fix in task workspace</option>' : ""}<option value="diagnose">Diagnose only</option></select></label></div><label class="sr-only" for="assistantMessage">Message</label><textarea class="input" id="assistantMessage" dir="auto" rows="3" placeholder="Message ATL…">${escapeHtml(draft.message || "")}</textarea><div class="assistant-composer-foot"><span class="muted tiny" id="assistantFeedback" role="status">Ctrl + Enter to send · History stays on this machine</span></div></div>`;
+      const mount = $(mountSelector);
+      mount.innerHTML = `${assistantBody}<div class="task-composer-footbar"><span class="muted tiny assistant-send-note">Provider usage may apply. Fixes require independent review.</span>${btn("Stop", "assistant-cancel", "assistant-stop")}${btn("Send message", "assistant-send", "primary")}</div>`;
+      translateSubtree(mount);
       if (draft.mode && $("#assistantMode")?.querySelector(`option[value="${draft.mode === "fix" ? "fix" : "diagnose"}"]`)) $("#assistantMode").value = draft.mode;
       const transcript = $("#assistantTranscript");
       if (!transcript) throw new Error("The assistant pane left the page while loading. Try again.");
@@ -3655,9 +4114,9 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const pane = $("#assistantTranscript"); if (!pane) return;
         assistantSession = session;
         $("#assistantStatus").textContent = assistantStatus(session);
-        const sendButton = document.querySelector('.assistant-root [data-action="assistant-send"],.assistant-dialog .dialogfoot [data-action="assistant-send"]');
+        const sendButton = mount.querySelector('[data-action="assistant-send"]');
         if (sendButton) sendButton.disabled = session.status === "running";
-        const stopButton = document.querySelector('.assistant-root [data-action="assistant-cancel"],.assistant-dialog .dialogfoot [data-action="assistant-cancel"]');
+        const stopButton = mount.querySelector('[data-action="assistant-cancel"]');
         if (stopButton) stopButton.hidden = session.status !== "running";
         const followLatest = initial || pane.dataset.followLatest !== "false";
         const next = assistantTranscript(session);
@@ -3690,14 +4149,19 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       };
       renderTranscript(result.session, true);
       let guidanceKey = JSON.stringify(result.guidance || null);
-      assistantPoll = setInterval(async () => { if (!$("#assistantTranscript")) { clearInterval(assistantPoll); return; } try { const current = await assistantRead(scope); if (assistantScope === scope) {
+      const poll = assistantPoll = setInterval(async () => { if (!active() || !transcript.isConnected) { clearInterval(poll); return; } try { const current = await assistantRead(scope); if (active() && transcript.isConnected) {
         assistantSuggestion = current.guidance?.suggested_message || "";
         const nextKey = JSON.stringify(current.guidance || null);
         const guidanceNode = $(".assistant-root .assistant-guidance");
         if (nextKey !== guidanceKey && guidanceNode && !guidanceNode.contains(document.activeElement)) { const wasOpen = guidanceNode.open; guidanceNode.outerHTML = assistantGuidanceMarkup(current.guidance, current.session); const nextNode = $(".assistant-root .assistant-guidance"); if (nextNode) nextNode.open = wasOpen; guidanceKey = nextKey; }
         renderTranscript(current.session);
-      } } catch { if ($("#assistantStatus")) $("#assistantStatus").textContent = "Connection interrupted · reconnecting…"; } }, 1500);
-    } catch (error) { popup("Assistant unavailable", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      } } catch { if (transcript.isConnected && active() && $("#assistantStatus")) $("#assistantStatus").textContent = "Connection interrupted · reconnecting…"; } }, 1500);
+    } catch (error) {
+      if (!active()) return;
+      const mount = $(mountSelector);
+      mount.innerHTML = `<p class="red" role="alert">${escapeHtml(error.message)}</p>${btn("Retry conversation", `assistant-open:${scope}`)}`;
+      translateSubtree(mount);
+    }
   }
   async function openAccess(scope) {
     const task = scope && scope !== "global" ? scope : null;
@@ -3705,7 +4169,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const selected = String($("#assistantProvider")?.value || "").split("|")[0] || (assistantScope === scope ? assistantSession?.provider : null);
       accessProbeProvider = ["codex", "gapgpt"].includes(selected) ? selected : "gapgpt";
     }
-    if (!document.querySelector(".access-dialog")) accessBack = document.querySelector(".assistant-dialog") ? `assistant-open:${scope}` : task ? `task-detail:${task}` : "go:settings";
+    if (!document.querySelector(".access-dialog")) accessBack = document.querySelector("#assistantTranscript") ? `assistant-open:${scope}` : task ? `task-detail:${task}` : "go:settings";
     try {
       const access = await loadAccess(task);
       popupWide(`Workspace access${task ? ` · ${escapeHtml(task)}` : " · Project"}`, `<p>Allow ATL to read files, edit code and run commands within ${task ? "this task's workspace" : "each task's workspace"}. This applies to every GapCode and Codex CLI model in this project.</p><label class="label" for="taskAccessMode">${task ? "Task access" : "Project default"}</label><select class="input" id="taskAccessMode">${task ? `<option value="inherit" ${!access.override ? "selected" : ""}>Use project default (${escapeHtml(access.default)})</option>` : ""}<option value="workspace-write" ${(task ? access.override : access.default) === "workspace-write" ? "selected" : ""}>Read, edit and run commands in the task workspace</option><option value="read-only" ${(task ? access.override : access.default) === "read-only" ? "selected" : ""}>Read-only</option></select><div class="notice space"><b>Current: ${access.mode === "workspace-write" ? "Workspace read/write" : "Read-only"}</b><p>Source: ${access.source === "task" ? "task override" : "project default"}. Saving affects future runs. Independent reviews and task budgets still apply.</p><p class="sub">Provider-managed restrictions and external tool approvals are separate. The local check verifies filesystem access without starting a model.</p></div><div id="accessFeedback" role="status" class="space"></div><div class="bar space">${task ? btn("Check workspace access", `access-check:${task}`, "sm") : ""}${btn("Project access defaults", "access-settings", "sm ghost")}</div>`, btn("Back", accessBack) + btn(task ? "Apply task access" : "Save project default", `access-save:${task || "global"}`, "primary"), "access-dialog");
@@ -3732,7 +4196,45 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   async function performAction(value) {
+    if (value.startsWith("workspace-ask:")) {
+      const scope = value.slice(14), message = $("#workspaceMessage")?.value.trim();
+      if (!message) { $("#workspaceMessage")?.focus(); return; }
+      assistantDrafts.set(scope, { ...(assistantDrafts.get(scope) || {}), message, mode: "diagnose" });
+      await openAssistantScoped(scope);
+      return;
+    }
+    if (value.startsWith("workspace-approve:")) {
+      const id = value.slice(18);
+      await apiCommand(`approve ${id}`);
+      await refresh(false, true); render();
+      return;
+    }
     if (value === "assistant-latest") { const pane = $("#assistantTranscript"); if (pane) { pane.dataset.followLatest = "true"; pane.scrollTop = pane.scrollHeight; $("#assistantLatest").hidden = true; } return; }
+    if (value === "assistant-review") {
+      const review = assistantConversationReview(assistantSession);
+      popup("Review conversation and reuse its findings", `<p class="sub">Edit this short memory to capture the evidence, decision, and open question. It stays a draft until you send it to ATL.</p><label class="label" for="assistantReviewText">Conversation memory</label><textarea class="input" id="assistantReviewText" dir="auto" rows="12" maxlength="10000">${escapeHtml(review)}</textarea>`, `${assistantScope !== "global" ? btn("Send to task conversation", "assistant-review-task", "primary") : ""}${btn("Use in Plan Studio", "assistant-review-plan")}${btn("Cancel", "close", "ghost")}`);
+      return;
+    }
+    if (value === "assistant-review-task") {
+      const memory = $("#assistantReviewText")?.value?.trim();
+      if (!memory) return;
+      assistantDrafts.set(assistantScope, { ...(assistantDrafts.get(assistantScope) || {}), message: `Use this conversation review as context. Check its findings against current task evidence, then improve the task's solution or acceptance criteria. Preserve unresolved questions instead of assuming answers.\n\n${memory}`, mode: "diagnose" });
+      await openAssistantScoped(assistantScope);
+      return;
+    }
+    if (value === "assistant-review-plan") {
+      const memory = $("#assistantReviewText")?.value?.trim();
+      if (!memory) return;
+      studioSourceTaskId = null; studioSourceContext = null; studioSourceContextConfirmed = Boolean(studioSourceRepository?.id);
+      studioGoal = `Regenerate or improve the plan using this Ask ATL conversation review. Validate the findings against the selected repository and preserve unresolved questions as assumptions or owner decisions.\n\n${memory}`;
+      currentDraft = null;
+      studioComposerTarget = null;
+      studioMobilePane = "conversation";
+      if (studioFocusedPane === "plan") studioFocusedPane = null;
+      studioNotice = "Conversation findings added to the plan request. Review the objective and repository context, then generate a fresh plan.";
+      close(); page = "studio"; render(); $("#goal")?.focus();
+      return;
+    }
     if (value.startsWith("assistant-copy:")) {
       const key = value.slice(15);
       const text = key === "all" ? (assistantSession?.messages || []).map((message) => `${message.role === "user" ? "You" : "ATL"}\n${message.text}`).join("\n\n") + (assistantSession?.status === "running" ? `\n\nATL\n${assistantSession.output || ""}` : "") : key === "diagnostic" ? assistantSession?.diagnostic : key === "output" ? assistantSession?.output : key === "error" ? [assistantSession?.failure?.summary || assistantSession?.error, assistantSession?.failure?.next_action].filter(Boolean).join("\n\n") : assistantSession?.messages?.[Number(key)]?.text;
@@ -3822,10 +4324,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       }
       return;
     }
-    if (value.startsWith("workspace-view:")) { const view = value.slice(15); if (workspaceViews.includes(view)) { workspaceView = view; workspacePersist(); render(); document.querySelector(`.task-workspace-tab[data-action="workspace-view:${view}"]`)?.focus(); } return; }
+    if (value.startsWith("workspace-view:")) { const view = value.slice(15); if (workspaceViews.includes(view)) { workspaceView = view; if (!PLUGIN && workspaceNarrowQuery.matches) workspaceNarrowDetail = true; workspacePersist(); render(); document.querySelector(`.task-workspace-tab[data-action="workspace-view:${view}"]`)?.focus(); } return; }
     if (value === "process-impact" || value === "process-execution") {
       const flow = document.querySelector(".process-flow");
-      if (flow) { flow.dataset.processView = value === "process-impact" ? "impact" : "execution"; for (const button of flow.querySelectorAll(".process-view-switch button")) { const selected = button.dataset.action === value; button.classList.toggle("primary", selected); button.setAttribute("aria-pressed", String(selected)); } if (value === "process-impact") void renderImpactDiagram(); else void renderImpactDiagram(true); }
+      if (flow) { flow.dataset.processView = value === "process-impact" ? "impact" : "execution"; processViewByTask.set(flow.closest(".task-workspace").dataset.workspaceTaskId, flow.dataset.processView); for (const button of flow.querySelectorAll(".process-view-switch button")) { const selected = button.dataset.action === value; button.classList.toggle("primary", selected); button.setAttribute("aria-pressed", String(selected)); } if (value === "process-impact") void renderImpactDiagram(); else void renderImpactDiagram(true); }
       return;
     }
     if (value === "impact-list") {
@@ -3849,7 +4351,14 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       if (node.kind === "capture") { workspaceView = "changes"; workspacePersist(); render(); workspaceReview?.selectFile?.(null, node.capture_id); }
       return;
     }
-    if (value === "workspace-back") { if (PLUGIN && window.matchMedia("(max-width: 959px)").matches) { await action("plugin-back"); return; } workspaceView = "activity"; workspaceNarrowDetail = false; workspacePersist(); render(); document.querySelector(`[data-task="${CSS.escape(workspaceTaskId || "")}"] .task-main-copy`)?.focus(); return; }
+    if (value === "workspace-back") {
+      if (PLUGIN && (page === "task" || workspaceNarrowQuery.matches)) { await action("plugin-back"); return; }
+      const id = workspaceTaskId, destination = page === "task" ? workspaceReturnPage : "tasks";
+      clearWorkspaceSelection();
+      openPage(destination);
+      document.querySelector(`[data-task="${CSS.escape(id || "")}"] .task-main-copy`)?.focus({ preventScroll: true });
+      return;
+    }
     if (value.startsWith("review-file:")) {
       const [, captureId, fileId] = value.split(":");
       if (workspaceView !== "changes") { workspaceView = "changes"; workspacePersist(); render(); }
@@ -4053,40 +4562,87 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       if (!response.ok) throw new Error(result.error || "batch action failed");
       return result;
     };
-    if (value === "batch-new") {
-      const suggested = (snapshot.queues?.items || []).slice(0, 5).map((item) => item.id).filter(Boolean).join(",");
-      popup("Start a bounded batch", `<p class="sub">One fixed task list, concurrency 1, explicit wall-time and attempt limits. Nothing starts until you confirm.</p><label class="label">Batch id<input id="batchId" class="input" value="overnight-${new Date().toISOString().slice(0, 10)}"></label><label class="label">Task IDs (comma separated)<input id="batchTasks" class="input" value="${escapeHtml(suggested)}"></label><div class="grid three"><label class="label">Minutes<input id="batchMinutes" class="input" type="number" min="1" max="1440" value="240"></label><label class="label">Attempts per task<input id="batchAttempts" class="input" type="number" min="0" max="3" value="2"></label><label class="label">Session cap (blank = host)<input id="batchSessions" class="input" type="number" min="0"></label></div><div id="batchError" class="muted tiny"></div>`, btn("Cancel", "close") + btn("Start batch", "batch-start-save", "primary"));
+    if (value === "batch-new") { openBatchForm(); return; }
+    if (value.startsWith("batch-duplicate:")) {
+      const batch = (snapshot.batches || []).find(entry => entry.id === value.slice(16));
+      if (batch) openBatchForm({ tasks: (batch.items || []).map(item => item.task), limits: batch.limits || {}, failurePolicy: batch.failure_policy });
+      return;
+    }
+    if (value.startsWith("batch-retry-task:")) {
+      const id = decodeURIComponent(value.slice(17));
+      const batch = (snapshot.batches || []).find(entry => entry.id === workflowSelected) || snapshot.batches?.[0];
+      openBatchForm({ tasks: [id], limits: batch?.limits || {}, failurePolicy: batch?.failure_policy });
+      return;
+    }
+    if (value.startsWith("batch-evidence:")) {
+      const id = decodeURIComponent(value.slice(15));
+      const batch = (snapshot.batches || []).find(entry => entry.id === workflowSelected) || snapshot.batches?.[0];
+      const item = batch?.items?.find(entry => entry.task === id);
+      if (item) popup(`Evidence for ${escapeHtml(id)}`, `<p>${escapeHtml(item.reason || "No stop reason recorded.")}</p><p class="sub">${item.attempts} attempts${item.receipt?.verdict?.status ? " / " + escapeHtml(item.receipt.verdict.status) : ""}</p>`, btn("Close", "close") + (snapshot.state?.tasks?.[id] ? btn("Open task evidence", `task-detail:${id}`, "primary") : ""));
+      return;
+    }
+    if (value.startsWith("batch-open-queue:")) {
+      const id = value.slice(17);
+      openPage("queues");
+      const queue = derived().queues.find(entry => entry.id === id);
+      if (queue) queueDetail(queue);
+      return;
+    }
+    if (value.startsWith("batch-order:")) {
+      const [, direction, id] = value.split(":");
+      const from = batchFormOrder.indexOf(id);
+      const to = from + (direction === "up" ? -1 : 1);
+      if (from >= 0 && to >= 0 && to < batchFormOrder.length) {
+        [batchFormOrder[from], batchFormOrder[to]] = [batchFormOrder[to], batchFormOrder[from]];
+        renderBatchTaskList();
+        $(`[data-batch-task="${CSS.escape(id)}"]`)?.focus();
+      }
       return;
     }
     if (value === "batch-start-save") {
+      if (!batchFormOrder.length || !$("#batchAttempts")?.checkValidity()) return;
+      const submit = $('[data-action="batch-start-save"]');
+      if (submit) submit.disabled = true;
       try {
-        await batchRequest({ action: "start", id: $("#batchId")?.value.trim(), tasks: ($("#batchTasks")?.value || "").split(",").map((entry) => entry.trim()).filter(Boolean), max_minutes: Number($("#batchMinutes")?.value || 240), max_attempts: Number($("#batchAttempts")?.value || 2), max_sessions: $("#batchSessions")?.value === "" ? null : Number($("#batchSessions")?.value) });
-        close(); await refresh(); page = "batches"; render();
-      } catch (error) { const node = $("#batchError"); if (node) node.textContent = error.message; else popup("Batch was not created", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+        const id = `batch-${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}`;
+        const result = await batchRequest({ action: "authorize", confirm: true, id, tasks: [...batchFormOrder], start_at: $("#batchStart").value || null, max_minutes: Number($("#batchMinutes").value), max_attempts: Number($("#batchAttempts").value), failure_policy: $("#batchFailure").value });
+        close(); selectBatch(result.summary.id); page = "batches"; await refresh(false, true); render();
+      } catch (error) {
+        const node = $("#batchError");
+        if (node) node.textContent = error.message;
+        if (submit?.isConnected) submit.disabled = false;
+      }
+      return;
+    }
+    if (value.startsWith("batch-resume:")) {
+      const id = value.slice(13);
+      try {
+        await batchRequest({ action: "resume", id });
+        await batchRequest({ action: "run", id, confirm: true });
+        await refresh();
+      } catch (error) { popup("Batch did not resume", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
     if (value.startsWith("workflow-select:")) {
-      const id = value.slice(16);
-      workflowSelected = id;
-      try { sessionStorage.setItem(scopedStorageKey("atl-cp-batch"), id); } catch { /* storage may be unavailable */ }
-      void loadWorkflowDetail(id);
+      selectBatch(value.slice(16));
+      render();
       return;
     }
     if (value.startsWith("batch-run:")) {
       const id = value.slice(10);
-      try { await batchRequest({ action: "run", id, confirm: true }); await refresh(); page = "batches"; render(); if (workflowSelected === id) void loadWorkflowDetail(id); }
+      try { await batchRequest({ action: "run", id, confirm: true }); await refresh(); page = "batches"; render(); }
       catch (error) { popup("Batch did not start", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
     if (value.startsWith("batch-stop:")) {
       const id = value.slice(11);
-      try { await batchRequest({ action: "stop", id, reason: "stopped from Control Plane" }); await refresh(); render(); if (workflowSelected === id) void loadWorkflowDetail(id); }
+      try { await batchRequest({ action: "stop", id, reason: "stopped from Control Plane" }); await refresh(); render(); }
       catch (error) { popup("Batch did not stop", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
     if (value.startsWith("batch-reconcile:")) {
       const id = value.slice(16);
-      try { await batchRequest({ action: "reconcile", id }); await refresh(); render(); if (workflowSelected === id) void loadWorkflowDetail(id); }
+      try { await batchRequest({ action: "reconcile", id }); await refresh(); render(); }
       catch (error) { popup("Reconciliation failed", `<p>${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
@@ -4114,6 +4670,15 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       if (result.snapshot) snapshot = result.snapshot;
       page = "brain"; render(); return result.result;
     };
+    if (value.startsWith("knowledge-tab:")) { knowledgeTab = value.slice(14); knowledgeSource = null; render(); return; }
+    if (value === "knowledge-more") { claimLimit = Infinity; render(); return; }
+    if (value === "knowledge-resource-settings") { settingsSection = "resources"; openPage("settings"); return; }
+    if (value.startsWith("knowledge-source:")) {
+      const id = decodeURIComponent(value.slice(17));
+      const claim = (snapshot.brain?.claims || []).find(entry => entry.claim_id === id);
+      if (claim) { knowledgeSource = { id: claim.source_id, revision: claim.source_revision }; knowledgeTab = "sources"; render(); }
+      return;
+    }
     if (value.startsWith("brain-approve:")) { try { await brainMutation({ action: "approve-claim", claim_id: value.slice(14), note: "Approved in Control Plane" }); } catch (error) { popup("Approval refused", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); } return; }
     if (value.startsWith("approval-approve:") || value.startsWith("approval-deny:")) {
       const id = value.slice(value.indexOf(":") + 1);
@@ -4170,7 +4735,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       if (missing.length) { $("#brainFormError").textContent = `Required: ${missing.join(", ")}.`; return; }
       try { await brainMutation({ action: "register-routine", routine }); close(); } catch (error) { $("#brainFormError").textContent = error.message; } return;
     }
-    if (value === "close") return close();
+    if (value === "close") return dismissDialog();
     if (value === "new") return taskForm();
     if (value.startsWith("save:")) return saveTask(value.slice(5));
     if (value === "palette") { closePluginOverflow(); palette(); return; }
@@ -4180,10 +4745,11 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "plugin-retry") { streamRetry = 1000; connectStream(); void refresh(); return; }
     if (value === "plugin-back") {
       const returningTo = pluginTaskId;
-      pluginTaskId = null;
-      openPage("tasks");
+      const destination = workspaceReturnPage;
+      clearWorkspaceSelection();
+      openPage(destination);
       // Rows cannot take focus directly; restore to the originating row's control.
-      document.querySelector(`[data-task="${returningTo}"]`)?.querySelector(".task-actions button, input")?.focus();
+      document.querySelector(`[data-task="${returningTo}"]`)?.querySelector(".task-main-copy, .task-actions button, input")?.focus();
       return;
     }
     if (value === "refresh") { if (page === "projects") void loadProjectMap(); await refresh(); return; }
@@ -4191,6 +4757,86 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "memory-context") return previewMemoryContext();
     if (value === "mt-refresh") return void loadMyTasks();
     if (value === "mt-projects") return void loadMyTasksProjects();
+    if (value === "inbox-sources" || value === "inbox-import") {
+      intakeTool = value === "inbox-sources" ? "connections" : "import";
+      window.scrollTo(0, 0);
+      openPage("sources");
+      return;
+    }
+    if (value === "inbox-watch") return openMyTasksSettings();
+    if (value === "inbox-reviews") { openPage("mytasks"); return; }
+    if (value === "inbox-check") {
+      if (!myTasksSettingsData?.settings?.projects?.length) return openMyTasksSettings();
+      await requestMyTasksCheck();
+      inboxNotice = myTasksNotice || "Assigned work refreshed.";
+      await loadInbox();
+      return;
+    }
+    if (value.startsWith("inbox-stage:")) { inboxStage = value.slice(12); inboxLimit = inboxPageSize; render(); return; }
+    if (value === "inbox-assigned") { inboxAssigned = !inboxAssigned; inboxLimit = inboxPageSize; render(); return; }
+    if (value === "inbox-more") { inboxLimit += inboxPageSize; render(); return; }
+    if (value === "inbox-clear") { inboxChecked.clear(); render(); return; }
+    if (value === "inbox-close") {
+      const id = inboxSelected;
+      inboxSelected = null;
+      render();
+      $(`.intake-title[data-action="${CSS.escape(`inbox-open:${id}`)}"]`)?.focus();
+      return;
+    }
+    if (value.startsWith("inbox-open:")) {
+      const row = inboxRows().find(entry => entry.id === value.slice(11));
+      if (!row) return;
+      inboxSelected = row.id;
+      inboxRepositoryQuery = "";
+      inboxRepositoryChoices.clear();
+      for (const repo of row.links) inboxRepositoryChoices.add(repo.id);
+      render();
+      $(".intake-inspector")?.focus({ preventScroll: true });
+      if (matchMedia("(max-width: 1000px)").matches) $(".intake-inspector")?.scrollIntoView({ block: "start" });
+      return;
+    }
+    if (value === "inbox-save-links" || value === "inbox-save-send") {
+      if (inboxSending || inboxLinking) return;
+      const row = inboxRows().find(entry => entry.id === inboxSelected);
+      if (!row || (!row.request && !(value === "inbox-save-send" && row.source.type === "azure" && row.item?.prep_status === "ready"))) return;
+      if (value === "inbox-save-send" && !inboxRepositoryChoices.size) {
+        inboxNotice = "Choose at least one repository.";
+        render();
+        return;
+      }
+      inboxLinking = true;
+      try {
+        if (!row.request) {
+          const result = await planApi("/api/my-tasks/preparation/handoff", { key: row.item.key, repository_ids: [...inboxRepositoryChoices] });
+          await loadIssueSources();
+          return await sendInboxRequests([result.handoff.task_id]);
+        }
+        const result = await planApi("/api/intake/repository", { taskId: row.id, repositoryIds: [...inboxRepositoryChoices] });
+        row.request.repositories = result.repositories.map(repo => ({ ...repo, registered: true }));
+        inboxNotice = "Repository links saved.";
+        if (value === "inbox-save-send") return await sendInboxRequests([row.id]);
+        render();
+      } catch (error) { inboxNotice = error.message; render(); }
+      finally { inboxLinking = false; }
+      return;
+    }
+    if (value === "inbox-send-checked") return sendInboxRequests([...inboxChecked]);
+    if (value.startsWith("inbox-send:")) return sendInboxRequests([value.slice(11)]);
+    if (value === "repositories-close") {
+      const id = selectedRepository;
+      selectedRepository = null;
+      render();
+      $(`[data-action="${CSS.escape(`repositories-open:${id}`)}"]`)?.focus();
+      return;
+    }
+    if (value === "repositories-idle") { showIdleRepositories = !showIdleRepositories; render(); return; }
+    if (value.startsWith("repositories-open:")) {
+      selectedRepository = value.slice(18);
+      render();
+      $(".intake-inspector")?.focus({ preventScroll: true });
+      if (matchMedia("(max-width: 1000px)").matches) $(".intake-inspector")?.scrollIntoView({ block: "start" });
+      return;
+    }
     if (value.startsWith("mt-reconnect:")) {
       // Auth recovery from the My Tasks surfaces: open the saved connection's
       // credential entry (the same modal the Issue sources card uses) and
@@ -4210,9 +4856,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value === "mt-settings" || value === "mt-enable") return void openMyTasksSettings();
     if (value === "mt-save") return void saveMyTasksSettings();
     if (value.startsWith("mt-row:")) return myTasksDetail(decodeURIComponent(value.slice(7)));
-    if (value.startsWith("go:")) { close(); page = value.slice(3); render(); if (page === "assistant") void loadAskPage(); if (page === "sources") { render(); void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { if (page === "sources") render(); }); } if (page === "projects" || page === "sources") void loadProjectMap(); if (page === "mytasks") { void loadMyTasks().then(() => { const loaded = myTasksSettingsData; if (loaded && (!loaded.connection?.token_present || !loaded.settings?.enabled)) void loadMyTasksProjects(); }); if (!myTasksTimer) myTasksTimer = setInterval(() => { if (page !== "mytasks") { clearInterval(myTasksTimer); myTasksTimer = null; return; } void loadMyTasks({ silent: true }); }, 5000); } return; }
+    if (value === "go:inbox") { intakeTool = null; openPage("inbox"); return; }
+    if (value.startsWith("go:")) { close(); if (!PLUGIN && value === "go:tasks") clearWorkspaceSelection(); page = value.slice(3); render(); if (page === "assistant") void loadAskPage(); if (page === "sources") { render(); void loadIssueSources().catch((error) => { sourceNotice = error.message; }).finally(() => { if (page === "sources") render(); }); } if (page === "projects" || page === "sources") void loadProjectMap(); if (page === "mytasks") { void loadMyTasks().then(() => { const loaded = myTasksSettingsData; if (loaded && (!loaded.connection?.token_present || !loaded.settings?.enabled)) void loadMyTasksProjects(); }); if (!myTasksTimer) myTasksTimer = setInterval(() => { if (page !== "mytasks") { clearInterval(myTasksTimer); myTasksTimer = null; return; } void loadMyTasks({ silent: true }); }, 5000); } return; }
     if (value.startsWith("filter:")) { filter = value.slice(7); page = "tasks"; render(); return; }
-    if (value === "blockers") { filter = "Blocked"; queueFilter = "All"; page = "tasks"; render(); return; }
+    if (value === "blockers") { filter = "Blocked"; queueFilter = "All"; queueFilterTouched = true; page = "tasks"; render(); return; }
     if (value.startsWith("edit:")) return taskForm(derived().tasks.find((task) => task.id === value.slice(5)));
     if (value.startsWith("task-detail:")) { const task = derived().tasks.find((item) => item.id === value.slice(12)); if (task) { if (PLUGIN) pluginOpenTask(task.id); else selectWorkspaceTask(task.id, { view: workspaceTaskId === task.id && workspaceView === "changes" ? "changes" : "activity" }); } return; }
     if (value.startsWith("task-diagram:")) {
@@ -4225,7 +4872,23 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
     if (value.startsWith("task-actions:")) { const task = derived().tasks.find((item) => item.id === value.slice(13)); if (task) taskActions(task); return; }
     if (value.startsWith("source-remove:")) { const id = value.slice(14); const request = (sourceHistory.requests || []).find((item) => item.id === id); return popup(`Remove imported request ${escapeHtml(id)}?`, `<p><b>${escapeHtml(request?.title || id)}</b> leaves Imported requests and every queue. The original GitHub/Azure item is not changed.</p><p class="sub">This archives the task, so it can be restored from the CLI. Re-importing the same source item brings it back.</p>`, btn("Cancel", "close") + btn("Remove request", `source-remove-confirm:${id}`, "danger")); }
-    if (value.startsWith("source-remove-confirm:")) { const id = value.slice(22); close(); try { await apiCommand(`task archive ${id} --note "imported request removed from Issue sources"`); await refresh(false); await loadIssueSources(); sourceNotice = `${id} removed from imported requests.`; } catch (error) { sourceNotice = `Could not remove ${id}: ${error.message}`; } render(); return; }
+    if (value.startsWith("source-remove-confirm:")) {
+      const id = value.slice(22);
+      close();
+      let notice;
+      try {
+        await apiCommand(`task archive ${id} --note "imported request removed from intake"`);
+        await refresh(false);
+        await loadIssueSources();
+        inboxChecked.delete(id);
+        if (inboxSelected === id) inboxSelected = null;
+        notice = `${id} removed from imported requests.`;
+      } catch (error) { notice = `Could not remove ${id}: ${error.message}`; }
+      if (page === "inbox") inboxNotice = notice;
+      else sourceNotice = notice;
+      render();
+      return;
+    }
     if (value === "source-history-clear") return popup("Clear import history?", "<p>Hides every import record up to now. Imported requests and their tasks stay as they are.</p>", btn("Cancel", "close") + btn("Clear history", "source-history-clear-confirm", "danger"));
     if (value === "source-history-clear-confirm") { close(); try { const response = await fetch("/api/intake/history/clear", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "clear failed"); await loadIssueSources(); sourceNotice = "Import history cleared."; } catch (error) { sourceNotice = `Could not clear history: ${error.message}`; } render(); return; }
     if (value === 'sources-add') { sourceConnectionForm(); return; }
@@ -4270,6 +4933,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         // Capture the recovery-flow decision before close() clears it.
         const returnToSetup = !disconnect && mtReconnectConnection === id;
         close(); await loadIssueSources();
+        if (credentialConnection?.provider === 'azure') {
+          myTasksSetupProjects = null;
+          myTasksSettingsData = null;
+        }
         if (returnToSetup) {
           // My Tasks recovery flow: land back in the setup dialog with the
           // healed credential; the project list reloads on its own because
@@ -4309,7 +4976,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       finally { sourceFormBusy = false; } return;
     }
     if (value === 'sources-clear-selection') { sourceSelectedIndices.clear(); document.querySelectorAll('[data-source-index]').forEach(input => { input.checked = false; }); updateSourcePreview(); return; }
-    if (value.startsWith('sources-browse:')) { selectSource(value.slice(15)); document.querySelector('#sourceConnectionSelect')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+    if (value.startsWith('sources-browse:')) { if (intakeTool) intakeTool = "import"; selectSource(value.slice(15)); document.querySelector('#sourceConnectionSelect')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     if (value.startsWith('sources-toggle:') || value.startsWith('sources-delete:') || value.startsWith('sources-check:') || value === 'sources-check-all') {
       const op = value.split(':')[0];
       const targets = value === 'sources-check-all' ? sourceConnections.filter(c => c.enabled) : [sourceConnections.find(c => c.id === value.split(':')[1])].filter(Boolean);
@@ -4385,8 +5052,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
     if (value.startsWith("task-delete-confirm:")) return mutation(`task archive ${value.slice(20)} --note "deleted from browser control plane"`, "tasks");
     if (value === "tasks-select-visible") {
-      const { tasks } = derived();
-      for (const task of tasks) if (!task.archived && (queueFilter === "All" || task.queue === queueFilter) && (filter === "All" || task.status === filter) && [task.title, task.id, task.agent, task.desc].join(" ").toLowerCase().includes(query.toLowerCase())) selectedTasks.add(task.id);
+      for (const card of document.querySelectorAll(".task-card-list .task-card[data-task]")) selectedTasks.add(card.dataset.task);
       render();
       return;
     }
@@ -4454,7 +5120,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       const associations = request.repositories?.length ? request.repositories : (request.repository?.id ? [request.repository] : []);
       const approvedRepos = new Set((request.plans || []).filter((plan) => plan.approved).map((plan) => plan.repositoryId));
       const options = (snapshot.supervisor?.projects || []).map((project) => { const planned = approvedRepos.has(project.id); const draft = (request.plans || []).find((plan) => plan.repositoryId === project.id); return `<label class="event workmap-row" style="cursor:pointer"><span class="bar" style="gap:9px"><input type="checkbox" data-repo-check="${escapeHtml(project.id)}" ${associations.some((entry) => entry.id === project.id) ? "checked" : ""}> <b>${escapeHtml(project.name)}</b><span class="muted tiny" dir="ltr">${escapeHtml(project.root)}</span></span>${planned ? '<span class="pill green">plan approved</span>' : draft ? '<span class="pill blue">draft exists</span>' : '<span class="muted tiny">no plan yet</span>'}</label>`; }).join("");
-      popup(`Linked repositories · ${escapeHtml(request.title)}`, `<p class="sub">Tick every repository this request affects — for example the storefront and the backend. Each linked repository gets its own plan and plan queue, all linked back to this request. A repository that already has plan work for it cannot be unticked.</p><div style="display:flex;flex-direction:column;gap:7px;margin-top:10px">${options || '<p class="muted">No repositories registered. Register one under Projects first.</p>'}</div>`, btn("Cancel", "close") + btn("Save links", `source-repos-save:${taskId}`, "primary"));
+      popup(`Linked repositories · ${escapeHtml(request.title)}`, `<p class="sub">Tick every repository this request affects — for example the storefront and the backend. Each linked repository gets its own plan and plan queue, all linked back to this request. A repository that already has plan work for it cannot be unticked.</p><div style="display:flex;flex-direction:column;gap:7px;margin-top:10px">${options || '<p class="muted">No repositories registered. Register one under Repositories first.</p>'}</div>`, btn("Cancel", "close") + btn("Save links", `source-repos-save:${taskId}`, "primary"));
       applyLocale();
       return;
     }
@@ -4466,7 +5132,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "linking failed");
         close(); await refresh(false, true); await loadIssueSources(); void loadProjectMap().catch(() => {});
-        sourceNotice = result.repositoryIds?.length ? `Linked to ${result.repositories.map((entry) => entry.name).join(", ")}. Create a plan per repository below or on its Projects card.` : "Request unlinked; planning inspects this workspace.";
+        sourceNotice = result.repositoryIds?.length ? `Linked to ${result.repositories.map((entry) => entry.name).join(", ")}. Create a plan per repository from Inbox or Repositories.` : "Request unlinked; planning inspects this workspace.";
       } catch (error) { popup("Could not save links", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); return; }
       render(); return;
     }
@@ -4503,13 +5169,13 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "assignment failed");
         close(); await refresh(false, true); void loadProjectMap().catch(() => {});
-        if (page === "sources") { await loadIssueSources().catch(() => {}); sourceNotice = `${result.taskId} assigned to ${result.repository.name}. Open its Projects card to plan or queue it.`; }
+        if (page === "sources") { await loadIssueSources().catch(() => {}); sourceNotice = `${result.taskId} assigned to ${result.repository.name}. Open the repository to plan or queue it.`; }
         render();
         popup(`Task ${result.created ? "created" : "assigned"}`, `<p><b>${escapeHtml(result.taskId)}</b> now belongs to <b>${escapeHtml(result.repository.name)}</b>.</p><p class="sub">It appears in the repository's subtask list. Nothing runs until the task is in a queue and you confirm a run.</p>`, btn("Close", "close"));
       } catch (error) { popup("Could not assign", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
       return;
     }
-    if (value === "mode:local" || value === "mode:model") { studioMode = value.slice(5); studioNotice = ""; if (studioMode === "model") await loadProviders(true); render(); return; }
+    if (value === "mode:local" || value === "mode:model") { studioMode = value.slice(5); studioNotice = ""; if (PLUGIN && studioMode === "local") studioSettingsOpen = false; if (studioMode === "model") await loadProviders(true); render(); return; }
     if (value === "plan-source-use-updated") {
       const sourceTask = studioSourceTaskId ? snapshot.state?.tasks?.[studioSourceTaskId] : null;
       if (!sourceTask?.source_refreshed_at) { studioNotice = "The imported request is not refreshed yet."; render(); return; }
@@ -4554,6 +5220,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (value.startsWith("plan-load:")) {
       try {
         currentDraft = (await planApi("/api/plan/drafts", { draftId: value.slice("plan-load:".length) })).draft;
+        page = "studio";
         studioRepairText = currentDraft.recovery?.response || "";
         studioGoal = currentDraft.intent || studioGoal;
         studioSourceTaskId = currentDraft.source_task_id || null;
@@ -4601,6 +5268,22 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       studioMobilePane = "conversation";
       closeCardEditor();
       render();
+      return;
+    }
+    if (value === "studio-load-models") {
+      const id = studioProvider;
+      try {
+        const result = await planApi("/api/providers", { action: "models", id });
+        const provider = studioProviders.find((entry) => entry.id === id);
+        if (provider) provider.models = result.models;
+        if (studioProvider === id) {
+          studioNotice = `Loaded ${result.models.length} models. Choose a suggestion or enter an exact model ID.`;
+          render();
+          $("#providerModel")?.focus();
+        }
+      } catch (error) {
+        if (studioProvider === id) { studioNotice = `Error: ${error.message}`; render(); }
+      }
       return;
     }
     if (value === "provider-manager") { pmRemoveConfirm = null; pmEditingId = null; pmEditingBuiltinId = null; await loadProviders(true); providerManagerModal(null); return; }
@@ -5124,12 +5807,19 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
       render();
       return;
     }
-    if (value.startsWith("ask-task:")) { studioComposerTarget = value.slice(9); studioMobilePane = "conversation"; render(); $("#goal")?.focus(); return; }
+    if (value.startsWith("ask-task:")) { studioComposerTarget = value.slice(9); studioMobilePane = "conversation"; if (studioFocusedPane === "plan") studioFocusedPane = null; render(); $("#goal")?.focus(); return; }
     if (value === "ask-task-clear") { studioComposerTarget = null; render(); return; }
+    if (value === "studio-conversation-focus" || value === "studio-plan-focus") {
+      const pane = value === "studio-plan-focus" ? "plan" : "conversation";
+      studioFocusedPane = studioFocusedPane === pane ? null : pane;
+      render();
+      document.querySelector(`.studio-${pane} .studio-layout-toggle`)?.focus({ preventScroll: true });
+      return;
+    }
     if (value.startsWith("studio-pane:")) { studioMobilePane = value.slice(12); render(); return; }
-    if (value.startsWith("studio-plantab:")) { studioPlanTab = value.slice(15); render(); return; }
-    if (value === "studio-review-chat") { studioMobilePane = "conversation"; render(); $("#goal")?.focus(); return; }
-    if (value === "studio-focus-questions") { studioMobilePane = "conversation"; render(); const first = document.querySelector("[data-studio-question]"); if (first) { first.closest("details").open = true; first.scrollIntoView({ block: "center", behavior: "smooth" }); first.querySelector("input, textarea")?.focus({ preventScroll: true }); } return; }
+    if (value.startsWith("studio-plantab:")) { studioPlanTab = value.slice(15); studioMobilePane = "plan"; if (studioFocusedPane === "conversation") studioFocusedPane = null; render(); return; }
+    if (value === "studio-review-chat") { studioMobilePane = "conversation"; if (studioFocusedPane === "plan") studioFocusedPane = null; render(); $("#goal")?.focus(); return; }
+    if (value === "studio-focus-questions") { studioMobilePane = "conversation"; if (studioFocusedPane === "plan") studioFocusedPane = null; render(); const first = document.querySelector("[data-studio-question]"); if (first) { first.closest("details").open = true; first.scrollIntoView({ block: "center", behavior: "smooth" }); first.querySelector("input, textarea")?.focus({ preventScroll: true }); } return; }
     if (value.startsWith("tc-toggle:")) { const id = value.slice(10); if (studioExpandedCards.has(id)) studioExpandedCards.delete(id); else studioExpandedCards.add(id); render(); return; }
     if (value.startsWith("tc-more:")) { const key = value.slice(8); if (studioExpandedText.has(key)) studioExpandedText.delete(key); else studioExpandedText.add(key); render(); return; }
     if (value.startsWith("tc-resource-detail:")) {
@@ -5268,15 +5958,20 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   }
 
   function openPage(next) {
-    if (next !== page) window.scrollTo(0, 0);
+    if (next !== page) {
+      if (dialogOpen) close();
+      window.scrollTo(0, 0);
+    }
+    if (!PLUGIN && next === "tasks") clearWorkspaceSelection();
     page = next;
     pluginOverflowOpen = false;
     render();
+    if (next === "inbox") void loadInbox();
     // The Settings page renders live provider state — refresh it on arrival.
     if (next === "assistant") void loadAskPage();
     else clearInterval(askPoll);
-    if (next === "sources") void loadIssueSources().then(() => { if (page === 'sources') { render(); if (sourceSelectedId && !sourcePreview) void browseCurrentDefaults(); } }).catch((error) => { sourceNotice = error.message; if (page === 'sources') render(); });
-    if (next === "sources") void loadProjectMap();
+    if (next === "sources") void loadIssueSources().then(() => { if (page === 'sources') { render(); if (intakeTool !== "connections" && sourceSelectedId && !sourcePreview) void browseCurrentDefaults(); } }).catch((error) => { sourceNotice = error.message; if (page === 'sources') render(); });
+    if (next === "sources" && !intakeTool) void loadProjectMap();
     if (next === "projects") void loadProjectMap();
     if (next === "mytasks") {
       void loadMyTasks().then(() => { const loaded = myTasksSettingsData; if (loaded && (!loaded.connection?.token_present || !loaded.settings?.enabled)) void loadMyTasksProjects(); });
@@ -5302,9 +5997,15 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (taskButton) { const task = derived().tasks.find((item) => item.id === taskButton.dataset.task); if (task) { if (PLUGIN) pluginOpenTask(task.id); else selectWorkspaceTask(task.id); } return; }
     const queueCard = event.target.closest("[data-queue]");
     if (queueCard && !event.target.closest("[data-qsel], [data-action]")) { const queue = derived().queues.find((item) => item.id === queueCard.dataset.queue); if (queue) queueDetail(queue); return; }
-    if (event.target.id === "overlay") close();
+    if (event.target.id === "overlay") dismissDialog();
   }, true);
   document.addEventListener("input", (event) => {
+    if (event.target.id === "batchSearch") {
+      batchSearch = event.target.value;
+      render();
+      return;
+    }
+    if (["batchStart", "batchMinutes", "batchAttempts", "batchFailure"].includes(event.target.id)) updateBatchPreview();
     if (event.target.closest?.('.source-design')) updateSourceFormReady();
     if (['sourceLabelFilter','sourceStateFilter'].includes(event.target.id)) { if (event.target.id === 'sourceLabelFilter') sourceLabelFilter = event.target.value; else sourceStateFilter = event.target.value; updateSourcePreview(); return; }
     if (event.target.id === 'sourceConnectionSelect') { selectSource(event.target.value || null); return; }
@@ -5350,6 +6051,15 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     // unexpected repaint can never drop in-progress edits.
     if (event.target.dataset?.pfield && cardDraft) cardDraft[event.target.dataset.pfield] = event.target.value;
     if (event.target.id === "paletteQ") $("#paletteItems").innerHTML = commandOptions(event.target.value);
+    if (["inboxSearch", "inboxRepoSearch"].includes(event.target.id)) {
+      if (event.target.id === "inboxSearch") { inboxQuery = event.target.value; inboxLimit = inboxPageSize; }
+      else {
+        inboxRepositoryQuery = event.target.value.trim().toLowerCase();
+        $("#inboxRepositoryOptions")?.querySelectorAll("[data-inbox-repo-option]").forEach(row => { row.hidden = !row.dataset.inboxRepoOption.includes(inboxRepositoryQuery); });
+      }
+      if (event.target.id === "inboxSearch") { const cursor = event.target.selectionStart; render(); $("#inboxSearch")?.focus(); $("#inboxSearch")?.setSelectionRange(cursor, cursor); }
+      return;
+    }
     if (event.target.id === "projectSearch" || event.target.id === "workmapSearch") { projectQuery = event.target.value; const cursor = event.target.selectionStart; render(); const input = $("#" + event.target.id); input?.focus(); input?.setSelectionRange(cursor, cursor); }
     if (event.target.id === "taskSearch") { query = event.target.value; const cursor = event.target.selectionStart; render(); const input = $("#taskSearch"); input?.focus(); input?.setSelectionRange(cursor, cursor); }
     if (event.target.id === "activitySearch") { activityFilter = event.target.value; const cursor = event.target.selectionStart; render(); const input = $("#activitySearch"); input?.focus(); input?.setSelectionRange(cursor, cursor); }
@@ -5362,6 +6072,16 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (page === "sources" && event.target.matches?.("input, textarea, select")) void refresh(false);
   });
   document.addEventListener("change", (event) => {
+    if (event.target.id === "knowledgeClaimFilter") { claimFilter = event.target.value; claimLimit = 2; render(); return; }
+    if (event.target.matches("[data-batch-task]")) {
+      const id = event.target.dataset.batchTask;
+      if (event.target.checked) batchFormOrder.push(id);
+      else batchFormOrder = batchFormOrder.filter(task => task !== id);
+      renderBatchTaskList();
+      $(`[data-batch-task="${CSS.escape(id)}"]`)?.focus();
+      return;
+    }
+    if (["batchStart", "batchMinutes", "batchAttempts", "batchFailure"].includes(event.target.id)) updateBatchPreview();
     if (event.target.matches("[data-mt-project]")) { if (event.target.checked) myTasksSetupSelected.add(event.target.dataset.mtProject); else myTasksSetupSelected.delete(event.target.dataset.mtProject); return; }
     if (event.target.matches("[data-mt-filter]")) { myTasksFilter[event.target.dataset.mtFilter] = event.target.value; render(); return; }
     if (event.target.id === "mtInterval") { const custom = $("#mtIntervalCustom"); if (custom) custom.hidden = event.target.value !== "custom"; return; }
@@ -5386,6 +6106,21 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     }
     if (event.target.dataset?.tsel) { if (event.target.checked) selectedTasks.add(event.target.dataset.tsel); else selectedTasks.delete(event.target.dataset.tsel); render(); return; }
     if (event.target.id === "brainSkillChoice") { const skill = (snapshot.brain?.installed_skills || [])[Number(event.target.value)]; const details = $("#brainSkillDetails"); if (skill && details) details.innerHTML = `<b>${escapeHtml(skill.id)}</b><p class="sub">${escapeHtml(skill.description)}</p>`; return; }
+    if (event.target.id === "inboxSource" || event.target.id === "inboxProject") {
+      if (event.target.id === "inboxSource") inboxProvider = event.target.value;
+      else inboxProject = event.target.value;
+      inboxLimit = inboxPageSize; render(); return;
+    }
+    if (event.target.matches("[data-inbox-check]")) {
+      const id = event.target.dataset.inboxCheck;
+      if (event.target.checked) inboxChecked.add(id); else inboxChecked.delete(id);
+      render(); return;
+    }
+    if (event.target.matches("[data-inbox-repo]")) {
+      const id = event.target.dataset.inboxRepo;
+      if (event.target.checked) inboxRepositoryChoices.add(id); else inboxRepositoryChoices.delete(id);
+      return;
+    }
     if (event.target.id === "projectSelectAll") { (snapshot.supervisor?.projects || []).filter((project) => `${project.name} ${project.root} ${project.id}`.toLowerCase().includes(projectQuery.toLowerCase())).forEach((project) => event.target.checked ? selectedProjects.add(project.id) : selectedProjects.delete(project.id)); render(); return; }
     if (event.target.dataset?.projectSelect) { if (event.target.checked) selectedProjects.add(event.target.dataset.projectSelect); else selectedProjects.delete(event.target.dataset.projectSelect); render(); return; }
     if (event.target.id === "queueSelect") { queueFilter = event.target.value; queueFilterTouched = true; render(); return; }
@@ -5544,10 +6279,12 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     if (event.key === "Enter" && (event.target.id === "cliInput" || event.target.id === "dockInput")) { const value = event.target.value; event.target.value = ""; void runCommand(value); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); palette(); return; }
     if (event.key === "Escape" && cardDraft) { closeCardEditor(); render(); return; }
-    if (event.key === "Escape" && dialogOpen) { close(); return; }
+    if (event.key === "Escape" && dialogOpen) { dismissDialog(); return; }
     if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-queue]")) { event.preventDefault(); const queue = derived().queues.find((item) => item.id === event.target.dataset.queue); if (queue) queueDetail(queue); return; }
     if (event.target.matches("input,textarea,select") || event.altKey || event.ctrlKey || event.metaKey) return;
     if (cardDraft) return;
+    if (page === "inbox" && event.key === "/") { event.preventDefault(); $("#inboxSearch")?.focus(); return; }
+    if (page === "tasks" && event.key === "/") { event.preventDefault(); $("#taskSearch")?.focus(); return; }
     if (event.key.toLowerCase() === "n") { taskForm(); return; }
     // Digits follow the presented sidebar order (#32): groups render routes in
     // a different order than the canonical list, so the shortcut table is
@@ -5594,6 +6331,17 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   $("#noticesBtn").onclick = () => popup("Notifications", (snapshot.notifications?.items || []).map((item) => `<div class="event">${badge(item.severity || "INFO")} ${escapeHtml(item.title || item.detail || item.id)}</div>`).join("") || '<p class="muted">No notifications are due.</p>', btn("Close", "close"));
 
   document.addEventListener("input", (event) => { if (event.target.id === "planRepairResponse") studioRepairText = event.target.value; });
+  function filterAskHistory() {
+    const query = assistantHistoryQuery.trim().toLowerCase();
+    document.querySelectorAll(".ask-history-item").forEach((item) => {
+      item.hidden = !item.textContent.toLowerCase().includes(query);
+    });
+  }
+  document.addEventListener("input", (event) => {
+    if (event.target.id !== "askHistorySearch") return;
+    assistantHistoryQuery = event.target.value;
+    filterAskHistory();
+  });
   document.addEventListener("toggle", (event) => { if (event.target.matches?.("[data-saved-plans]") && event.target.isConnected) studioSavedPlansOpen = event.target.open; if (event.target.matches?.("[data-studio-settings]") && event.target.isConnected) studioSettingsOpen = event.target.open; if (event.target.matches?.("[data-workmap-section]") && event.target.isConnected) { const key = event.target.dataset.workmapSection; if (event.target.open) workmapOpen.add(key); else workmapOpen.delete(key); } if (event.target.matches?.("[data-mt-toggle]") && event.target.isConnected) myTasksOpen.set(event.target.dataset.mtToggle, event.target.open); if (event.target.matches?.("[data-plugin-disclosure]") && event.target.isConnected) pluginDetailOpen.set(event.target.dataset.pluginDisclosure, event.target.open); if (event.target.matches?.("[data-workspace-disclosure]") && event.target.isConnected) { workspaceOpen.set(event.target.dataset.workspaceDisclosure, event.target.open); workspacePersist(); } }, true);
   // Studio workspace: splitter drag (persisted), double-click reset, and the
   // transcript follow-latest rule (stick to the bottom until the user scrolls up).
@@ -5615,7 +6363,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
   });
   document.addEventListener("dblclick", (event) => {
     if (!event.target.closest?.(".studio-splitter")) return;
-    studioSplit = 40;
+    studioSplit = studioDefaultSplit;
     document.querySelector(".studio-workspace")?.style.setProperty("--studio-split", "40");
     try { localStorage.setItem(scopedStorageKey("atl-cp-studio-split"), "40"); } catch { /* private browsing */ }
   });
@@ -5631,11 +6379,13 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const details = document.querySelector(".studio-settings");
     if (details) details.open = false;
   }, true);
-  void Promise.all([refresh(false), refreshRun(false), loadProviders(true), loadSavedPlans(), ...(page === "sources" ? [loadIssueSources()] : []), ...(page === "projects" ? [loadProjectMap()] : []), ...(page === "mytasks" ? [loadMyTasks()] : []), ...(page === "settings" ? [loadNavigation(), loadAccess(), loadResources()] : [])]).then(() => {
+  void Promise.all([refresh(false), refreshRun(false), loadProviders(true), loadSavedPlans(), ...(page === "sources" ? [loadIssueSources()] : []), ...(page === "mytasks" ? [loadMyTasks()] : []), ...(page === "settings" ? [loadNavigation(), loadAccess(), loadResources()] : [])]).then(() => {
     render();
     connectStream();
+    if (page === "inbox") void loadInbox();
+    if (page === "projects" || (page === "sources" && !intakeTool)) void loadProjectMap();
     if (page === "assistant") void loadAskPage();
-    if (page === 'sources' && sourceSelectedId && !sourcePreview) void browseCurrentDefaults();
+    if (page === 'sources' && intakeTool !== "connections" && sourceSelectedId && !sourcePreview) void browseCurrentDefaults();
     if (page === "mytasks" && !myTasksTimer) myTasksTimer = setInterval(() => { if (page === "mytasks") void loadMyTasks({ silent: true }); }, 5000);
   }).catch(() => {
     // Boot must never leave a blank page: one failed load — a stale session
