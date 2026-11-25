@@ -90,7 +90,7 @@ try {
   await page.locator('[data-action^="sources-form-save:"]').click();
   await page.getByText(/Sprint 74.*saved\./).waitFor();
   const cardAction = async (card, action) => {
-    const target = card.locator(`[data-action^="${action}:"]`).first();
+    const target = card.locator(`[data-action^="${action}:"]:visible`).first();
     // Actions that exist both as the visible CTA and in the kebab resolve to
     // the CTA (the <details> menu precedes .card-actions in the DOM); make the
     // intent explicit — open the menu for hidden actions, close it otherwise.
