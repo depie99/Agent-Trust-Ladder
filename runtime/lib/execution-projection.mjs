@@ -80,6 +80,17 @@ function sessionOutcome(session) {
   return session.exitCode === 0 ? "complete" : "failed";
 }
 
+// Failure records arrive in several shapes: {summary} from attempt failers,
+// {message} from thrown errors, and {kind, reason} from provider failures.
+// Prefer the human-readable field; never let a bare object reach the card as
+// "[object Object]".
+function failureSummary(failure) {
+  if (failure == null) return null;
+  const direct = failure.summary ?? failure.message ?? failure.reason;
+  const text = direct != null ? direct : (typeof failure === "string" ? failure : JSON.stringify(failure));
+  return String(text).slice(0, 400);
+}
+
 function plainEvent(entry) {
   return { at: entry.at || null, actor: entry.actor || null, event: entry.event || null, detail: entry.detail || entry.note || null };
 }
@@ -169,8 +180,8 @@ export function buildExecutionProjection(root, taskId, options = {}) {
       packet_revision: session.packetRevision ?? null,
       checkpoint: session.checkpoint ? { note: session.checkpoint.note || null, summary: session.checkpoint.summary || session.checkpoint.note || null, at: session.checkpoint.at || session.finishedAt || null } : null,
       outcome: sessionOutcome(session),
-      summary: session.failure ? String(session.failure.summary || session.failure.message || session.failure).slice(0, 400) : (session.checkpoint?.summary || session.checkpoint?.note || null),
-      failure: session.failure ? { summary: String(session.failure.summary || session.failure.message || session.failure).slice(0, 400), next_action: session.failure.next_action || null } : null,
+      summary: session.failure ? failureSummary(session.failure) : (session.checkpoint?.summary || session.checkpoint?.note || null),
+      failure: session.failure ? { summary: failureSummary(session.failure), next_action: session.failure.next_action || null } : null,
       tokens: session.tokens && session.tokens.total != null ? { total: session.tokens.total, source: session.usage_source || session.tokens.source || "unknown" } : null,
       events: pageEvents.items.map(plainEvent),
       events_truncated: pageEvents.truncated,
