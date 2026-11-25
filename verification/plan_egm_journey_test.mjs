@@ -68,7 +68,7 @@ try {
   await page.locator('#fDesc').fill("Filter repositories by name. Preserve deletion behavior.");
   await page.getByRole("button", { name: "Create task", exact: true }).click();
   await page.getByText("Search project rooms", { exact: true }).first().click();
-  await page.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("button", { name: "More task actions", exact: true }).click();
   await page.getByRole("button", { name: "Plan task", exact: true }).click();
   await page.locator("#goal").waitFor();
   await page.locator("#goal").fill("Filter repositories by name. Preserve deletion behavior.");
