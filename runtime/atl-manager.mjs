@@ -13,7 +13,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { spawn } from "node:child_process";
+import readline from "node:readline";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   StateError, STATUSES, paths, emptyState, loadState, saveState, mutateState,
@@ -21,10 +23,13 @@ import {
 } from "./lib/state.mjs";
 import { contractFor, renderRole, ROLE_SLOT } from "./lib/roles.mjs";
 import { IntakeError, ghCliAuthenticated, normalizeGitHubRepo, probeGitHubRepo, runIntake } from "./lib/intake.mjs";
+import { loadConnections, saveConnections, validateConnection } from "./lib/issue-connections.mjs";
+import { dpapiSupported, saveAzureConnection } from "./lib/azure-connection.mjs";
 import { WorkspaceError, ensureWorkspace } from "./lib/workspace.mjs";
 import { renderBrief, renderTask, wakeActions, saveBrief, activeTasks } from "./lib/render.mjs";
 import { post as feedPost, renderFeed, renderRoster } from "./lib/feed.mjs";
 import { runDashboard } from "./lib/dashboard.mjs";
+import { taskReviewReport } from "./lib/command-console.mjs";
 import { buildShowMe, saveShowMe } from "./lib/show-me.mjs";
 import { saveVisualPrDescription } from "./lib/visual-pr.mjs";
 import { memoryStatus, safeRecall, safeRemember } from "./lib/memory.mjs";
@@ -60,6 +65,7 @@ import { createWorkerCredential, validateWorkerCredential } from "./lib/session-
 import { acquireLease, leaseAllows, releaseLease, reconcileLeases } from "./lib/leases.mjs";
 import { createBackup, listBackups, restoreBackup } from "./lib/backup.mjs";
 import { repairContract } from "./lib/queue-recovery.mjs";
+import { setVerificationPolicy, setVerifier, testEvidence, verificationPolicy } from "./lib/test-evidence.mjs";
 import { snapshot as contentSnapshot } from "./lib/handoffs.mjs";
 
 // Resolve the owning ATL project from nested folders and managed workspaces.
@@ -193,6 +199,12 @@ async function waitUntilDaemonEnds(root) {
 // lingering forever.
 function runOwnerLifecycle(root, running) {
   process.once("exit", () => releaseOwnerRecord(root));
+  if (process.env.ATL_DAEMON_CHILD === "1") {
+    process.on("unhandledRejection", reason => {
+      const name = reason instanceof Error ? reason.name : typeof reason;
+      process.stderr.write(`[ATL daemon] unhandled background rejection (${String(name).slice(0, 80)}); daemon remains available\n`);
+    });
+  }
   const beat = setInterval(() => beatOwnerRecord(root), 30000);
   beat.unref?.();
   if (process.env.ATL_DAEMON_CHILD !== "1") return;
@@ -234,7 +246,8 @@ for (let i = 1; i < argv.length; i++) {
     }
     return false;
   };
-  if (eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims")) continue;
+  if (a.startsWith("--ttl=")) { flags.ttl = a.slice("--ttl=".length); continue; }
+  if (eat("capture") || eat("file") || eat("cursor") || eat("ttl") || eat("actor") || eat("to") || eat("source") || eat("reason") || eat("priority") || eat("risk") || eat("wake-in") || eat("save") || eat("checkpoint") || eat("task") || eat("n") || eat("title") || eat("label") || eat("caption") || eat("smart") || eat("worker") || eat("provider") || eat("model") || eat("role") || eat("auth") || eat("mode") || eat("max-minutes") || eat("max-sessions") || eat("max-tokens") || eat("confirm") || eat("dry-run") || eat("base-url") || eat("key") || eat("key-env") || eat("template") || eat("repo") || eat("remove") || eat("thread") || eat("port") || eat("host") || eat("symbol") || eat("symbol-id") || eat("limit") || eat("query") || eat("subject") || eat("max-claims") || eat("url") || eat("project") || eat("iteration") || eat("token-env") || eat("name") || eat("token")) continue;
   if (a === "--set") {
     const kv = String(argv[++i]);
     const m = kv.match(/^([\w.]+)=(.*)$/s);
@@ -259,6 +272,9 @@ for (let i = 1; i < argv.length; i++) {
   if (a === "--no-open") { flags.noOpen = true; continue; }
   if (a === "--fresh") { flags.fresh = true; continue; }
   if (a === "--json") { flags.json = true; continue; }
+  if (a === "--expand") { flags.expand = true; continue; }
+  if (a === "--mermaid") { flags.mermaid = true; continue; }
+  if (a.startsWith("--")) process.stderr.write(`Warning: unrecognized option ${a}; it is being preserved as a positional argument for compatibility.\n`);
   pos.push(a);
 }
 
@@ -298,6 +314,9 @@ Intake (pulls new work in)
 
 Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   revision <id>                print the workspace content revision
+  verifier <id> "<check>" <type> verification/<script>.mjs
+  verification-policy <project|id> <block|allow|inherit>
+  test-evidence <id>           report verification attempts and revision freshness
   observe <id> <packet.json>    record complete revision-bound observation evidence
   contract-repair <id> <file>  apply one supervisor-requested Pip contract revision
   update <id> [--set k=v]... [--check "..."]... [--objective "..."]
@@ -381,11 +400,11 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                  add --pause-after-bot to stop after each completed provider session
   providers                     providers, keys (masked), and per-role mapping
   provider templates            pre-filled endpoint presets (zai, bigmodel, custom)
-  provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url]
-                [--key secret | --key-env VAR] [--model model] [--thinking-level level]
+  provider add <id> [--template t] [--worker claude|codex|openai-http] [--protocol openai|anthropic|custom] [--base-url url]
+                [--key-env VAR] [--model model] [--thinking-level level]
                                 store an API provider once per machine in ~/.atl/providers.json
-                                (e.g. GLM: provider add zai --key <key> --model glm-4.6)
-  provider key <id> --key secret | --key-env VAR
+                                (key is prompted without echo; Ctrl+R shows/hides)
+  provider key <id> [--key-env VAR]
                                 update the stored API key
   provider use <id> [--role role]
                                 make a stored provider the project default (or one role's provider)
@@ -396,6 +415,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                 persist the default or per-role provider/model selection
   provider clear --role role    remove a per-role provider override
   show [task-id]                portfolio or one task
+  review <task-id> [--mermaid|--json] [--capture id] [--expand --file id --cursor n]  inspect captured changes
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
@@ -415,6 +435,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   run <task-id> --worker <provider-id> [--model model] [--auth subscription|api] [--confirm]
                                 run one bounded role session
   overnight [<task-id> | --all] --worker <provider-id> [--model model] [--auth subscription|api] --confirm
+  harness <operation> [file]    harness planning/program/run API with a JSON request file
   overnight status              inspect the durable overnight ledger; starts nothing
   overnight recover --confirm   resume only untouched tasks after an interrupted runner
                                 run bounded role sessions until a gate or budget stops it;
@@ -661,6 +682,12 @@ async function runWorkerLoop(taskId, { overnight }) {
   const finalTask = finalState.tasks[taskId];
   console.log(`\nRun stopped after ${budget.sessions} session(s): ${taskId} is ${finalTask?.status || "unknown"}.`);
   console.log(`Reason: ${outcome.reason}.`);
+  if (!opts.dryRun && finalTask) {
+    const evidence = outcome.evidence?.checks ? outcome.evidence : testEvidence(finalTask);
+    console.log(`Test Evidence: ${evidence.verified ? "verified" : "unverified"}`);
+    for (const check of evidence.checks) console.log(`  ${check.status}: ${check.expected}`);
+    console.log(`Evidence details: atl test-evidence ${taskId}`);
+  }
   console.log("Next: atl wake && atl brief --save && atl show " + taskId);
 }
 
@@ -734,7 +761,13 @@ async function runQueueLoop({ overnight }) {
   saveBrief(ROOT, renderBrief(after));
   say("runner", "queue run finished — morning brief saved.");
   console.log(`\nQueue run finished after ${budget.sessions} session(s). Results:`);
-  for (const r of results) console.log(`  ${String(r.id).padEnd(6)} ${String(r.status).padEnd(12)} ${r.reason}`);
+  for (const result of results) {
+    console.log(`  ${String(result.id).padEnd(6)} ${String(result.status).padEnd(12)} ${result.reason}`);
+    const task = after.tasks[result.id];
+    if (!task) continue;
+    const evidence = testEvidence(task, task.verification_revision, ROOT);
+    console.log(`    Test Evidence: ${evidence.verified ? "verified" : "unverified"} (atl test-evidence ${task.id})`);
+  }
   console.log("\nMorning report: atl brief   ·   transcript: atl feed --roster   ·   per task: atl show <id>");
 }
 
@@ -778,7 +811,7 @@ function printProviders(cfg) {
   const registryIds = Object.keys(registry);
   console.log("Your providers (~/.atl/providers.json — API keys stored outside every repo):");
   if (!registryIds.length) {
-    console.log("  (none yet — add one: atl provider add zai --key <glm-api-key> --model glm-4.6)");
+    console.log("  (none yet — add one: atl provider add zai --model glm-4.6, then enter the key at the hidden prompt)");
     console.log("  or in the control room: atl ui → press p → press a");
   }
   for (const id of registryIds) {
@@ -803,7 +836,7 @@ function printProviders(cfg) {
     const p = providerForRole(profile, role);
     console.log(`  ${role.padEnd(7)} ${p.worker} · ${p.model || "provider default"} · auth ${p.auth}  (${p.source})`);
   }
-  console.log("\nAdd a provider:   atl provider add zai --key <glm-api-key> --model glm-5.3 --thinking-level medium");
+  console.log("\nAdd a provider:   atl provider add zai --model glm-5.3 --thinking-level medium");
   console.log("Use it here:      atl provider use zai   (or per role: atl provider use zai --role rowan)");
   console.log("Other commands:   provider key · provider remove · provider templates · atl ui → p");
 }
@@ -890,8 +923,29 @@ async function printIntakeStatus(only = "all") {
     console.log(`  azure    ${az.enabled ? "enabled " : "disabled"}  ${az.org_url || "(no org_url)"} · ${az.project || "(no project)"} · ${az.iteration_path || "(no iteration_path)"}`);
     console.log(`           auth: ${tokenEnv} ${process.env[tokenEnv] ? "set" : "not set"}`);
   }
+  // Saved issue-source connections (what the ATL UI manages). The CLI can
+  // only see durable credentials (DPAPI vaults, environment); session tokens
+  // live inside the running server and are intentionally invisible here.
+  try {
+    const store = loadConnections(ROOT, cfg.intake || {});
+    if (store.connections.length) {
+      console.log("\nSaved connections (Issue sources):");
+      for (const connection of store.connections) {
+        const envName = connection.provider === "jira" ? connection.settings.token_env || "JIRA_TOKEN" : "AZDO_PAT";
+        const durable = connection.credential_ref === "os-protected";
+        const fromEnv = connection.provider !== "github" && Boolean(process.env[envName]);
+        const marker = store.defaults[connection.provider] === connection.id ? " (default)" : "";
+        const credential = durable ? "credential saved on this account" : fromEnv ? "credential from environment" : "no durable credential (session-only or none)";
+        console.log(`  ${connection.provider.padEnd(6)} ${connection.name}${marker} — ${connection.enabled ? "enabled" : "paused"}, ${connection.status || "unchecked"}, ${credential}`);
+        if (connection.provider === "azure" && (connection.status === "needs-auth" || (!durable && !fromEnv))) {
+          console.log("         fix: atl intake connect azure --token -   (or ATL UI → Issue sources → Re-authenticate)");
+        }
+      }
+    }
+  } catch { /* unreadable store — legacy status above still stands */ }
   console.log(`\nEnable:   atl intake enable <file|github|azure> [--repo owner/name]`);
   console.log(`Disable:  atl intake disable <file|github|azure>`);
+  console.log(`Reconnect: atl intake connect azure [--url … --project …] --token -`);
 }
 
 async function intakeConfigCommand(sub) {
@@ -906,6 +960,8 @@ async function intakeConfigCommand(sub) {
     await printIntakeStatus(source);
     return;
   }
+
+  if (sub === "connect") return connectAzureCommand();
 
   if (!INTAKE_SOURCES.includes(source)) {
     throw new StateError(`intake ${sub} needs a source: ${INTAKE_SOURCES.join(" | ")}`);
@@ -988,6 +1044,122 @@ async function intakeConfigCommand(sub) {
 
 // ---------- commands
 
+// Reconnect (or create) the saved Azure connection from the terminal — the
+// same durable surfaces the ATL UI writes: the per-connection DPAPI vault and
+// the connection store, plus the legacy home vault and config.intake.azure
+// that My Tasks and intake pulls read. Session-only credentials cannot cross
+// a process boundary to a running server, so the CLI always persists.
+async function connectAzureCommand() {
+  if (flags.token && flags.token !== "-") {
+    throw new StateError('Passing the PAT as a --token value exposes it in the process list. Use --token - (pipe it via stdin) or run in a terminal for a hidden prompt.');
+  }
+  const cfg = loadConfig();
+  const store = loadConnections(ROOT, cfg.intake || {});
+  let record = store.connections.find((c) => c.id === store.defaults.azure && c.provider === "azure")
+    || store.connections.find((c) => c.provider === "azure" && c.enabled)
+    || null;
+  const url = String(flags.url || "");
+  const project = String(flags.project || "");
+  if (!record && !(url && project)) {
+    throw new StateError("No saved Azure connection found. Add --url https://server/collection and --project NAME to create one, or connect from the ATL UI (Issue sources).");
+  }
+  const validated = validateConnection({
+    provider: "azure",
+    name: String(flags.name || record?.name || `${project || record.settings.project} (Azure Boards)`),
+    org_url: url || record.settings.org_url,
+    project: project || record.settings.project,
+    iteration_path: String(flags.iteration || record?.settings.iteration_path || ""),
+    token_env: String(flags["token-env"] || record?.settings.token_env || "AZDO_PAT"),
+    enabled: true,
+  });
+
+  let token = "";
+  if (flags.token === "-") token = fs.readFileSync(0, "utf8").trim();
+  else if (process.stdin.isTTY && process.stdout.isTTY) token = (await promptSecret(`PAT for ${validated.settings.org_url}`)).trim();
+  else token = String(process.env[validated.settings.token_env] || "").trim();
+  if (!token) {
+    throw new StateError(`No PAT supplied. Pipe one (… | atl intake connect azure --token -), run in a terminal for a hidden prompt, or set ${validated.settings.token_env}.`);
+  }
+  if (token.length > 4096 || /[\r\n]/.test(token)) throw new StateError("Enter a valid Azure PAT.");
+
+  // CLI credentials are always remembered: a session credential could not be
+  // handed to the (separate) server process even if one is running.
+  if (!(await dpapiSupported())) {
+    throw new StateError('Windows credential protection (DPAPI) is unavailable here, so the CLI cannot persist the PAT. Reconnect in the ATL UI (Issue sources → Re-authenticate) without "Remember securely" to keep it for that server session.');
+  }
+
+  if (!record) {
+    record = { id: crypto.randomUUID(), ...validated, status: "unchecked", checked_at: null };
+    store.connections.push(record);
+    store.defaults.azure ||= record.id;
+  } else {
+    Object.assign(record, validated);
+  }
+  record.status = "unchecked";
+  record.checked_at = null;
+  // Write the vaults before the store marks credential_ref, so a failed
+  // DPAPI save can never leave the store pointing at a missing credential.
+  await saveAzureConnection(record.settings, token, { dir: path.join(ROOT, ".trust", "manager", "credentials", record.id) });
+  await saveAzureConnection(record.settings, token);
+  record.credential_ref = "os-protected";
+  saveConnections(ROOT, store, store.revision);
+
+  cfg.intake ||= {};
+  cfg.intake.azure = {
+    ...(cfg.intake.azure || {}),
+    org_url: record.settings.org_url,
+    project: record.settings.project,
+    iteration_path: record.settings.iteration_path || "",
+    token_env: record.settings.token_env,
+    enabled: true,
+  };
+  saveConfig(cfg);
+
+  console.log(`Azure connection "${record.name}" saved for ${record.settings.org_url} · ${record.settings.project}.`);
+  console.log("  Credential encrypted for this Windows account (connection store + legacy vault).");
+  console.log("  A running ATL server picks the new credential up automatically within a few seconds.");
+  console.log("Verify: atl intake --source azure   ·   ATL UI → Issue sources → Check access");
+}
+
+async function promptSecret(prompt) {
+  const input = process.stdin;
+  if (!input.isTTY || !process.stdout.isTTY || typeof input.setRawMode !== "function") {
+    throw new StateError("No provider key supplied. Use --key-env VAR in non-interactive shells, or run this command in a terminal for a hidden prompt.");
+  }
+  readline.emitKeypressEvents(input);
+  return new Promise((resolve, reject) => {
+    let value = "", revealed = false, finished = false;
+    const draw = () => {
+      const shown = revealed ? value : "•".repeat([...value].length);
+      process.stdout.write(`\r\x1b[2K${prompt}: ${shown}`);
+    };
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      input.removeListener("keypress", onKey);
+      input.removeListener("end", onEof);
+      input.removeListener("close", onEof);
+      try { input.setRawMode(false); } catch { /* stdin may already be closed */ }
+      input.pause();
+      process.stdout.write("\r\x1b[2K\n");
+    };
+    const onEof = () => { cleanup(); reject(new StateError("Credential entry ended because stdin closed.")); };
+    const onKey = (text, key = {}) => {
+      if (key.ctrl && key.name === "c") { cleanup(); reject(new StateError("Credential entry cancelled.")); return; }
+      if (key.ctrl && key.name === "r") { revealed = !revealed; draw(); return; }
+      if (key.name === "return" || key.name === "enter") { cleanup(); resolve(value); return; }
+      if (key.name === "backspace" || key.name === "delete") { value = [...value].slice(0, -1).join(""); draw(); return; }
+      if (!key.ctrl && !key.meta && typeof text === "string" && text && !/[\r\n\u0000-\u001f\u007f]/.test(text)) { value += text; draw(); }
+    };
+    process.stdout.write(`${prompt} (hidden; Ctrl+R shows/hides): `);
+    input.on("keypress", onKey);
+    input.once("end", onEof);
+    input.once("close", onEof);
+    input.setRawMode(true);
+    input.resume();
+  });
+}
+
 async function dispatch() {
   switch (cmd) {
     case "--version":
@@ -1001,6 +1173,17 @@ async function dispatch() {
       if (identity.commit) bits.push(`(${String(identity.commit).slice(0, 7)})`);
       if (identity.manifestVersion) bits.push(`manifest ${identity.manifestVersion}`);
       console.log(bits.join(" "));
+      return;
+    }
+    case "harness": {
+      const operation = pos[0];
+      if (!/^(plan\/(context|save|answer|review|approve)|run\/(preview|start|status|stop)|program\/(save|status|approve|reconcile|bind|start|stop)|project\/bootstrap)$/.test(operation || '')) throw new StateError('Use: atl harness <operation> [request.json]');
+      const payload = pos[1] ? JSON.parse(fs.readFileSync(path.resolve(pos[1]), 'utf8')) : {};
+      const daemon = await ensureDaemon(ROOT);
+      const response = await fetch(new URL(`/api/harness/${operation}`, daemon.url), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await response.json();
+      console.log(JSON.stringify(result, null, 2));
+      if (!response.ok || result.ok === false) process.exitCode = 1;
       return;
     }
     case "init": {
@@ -1056,14 +1239,23 @@ async function dispatch() {
 
     case "intake": {
       const sub = pos[0];
-      if (sub === "status" || sub === "enable" || sub === "disable") {
+      if (sub === "status" || sub === "enable" || sub === "disable" || sub === "connect") {
         await intakeConfigCommand(sub);
         return;
       }
       const cfg = loadConfig();
       const state = loadState(ROOT);
       const which = flags.source || "all";
-      const batches = await runIntake({ ...cfg, inbox_dir: path.resolve(ROOT, cfg.inbox_dir) }, which);
+      let batches;
+      try {
+        batches = await runIntake({ ...cfg, inbox_dir: path.resolve(ROOT, cfg.inbox_dir) }, which);
+      } catch (error) {
+        if (/401|403|unauthori|forbidden|credential|token/i.test(String(error?.message))) {
+          // A rejected credential gets the fix path inline, not a bare error.
+          throw new StateError(`${error.message}\n  The saved credential was rejected. Fix it with:\n    atl intake connect azure --token -   (pipe a PAT, or hidden prompt in a terminal)\n    ATL UI → Issue sources → connection card → Re-authenticate`);
+        }
+        throw error;
+      }
       let added = 0, skipped = 0;
       for (const b of batches) {
         const result = importCandidates(ROOT, state, b.tasks, { cfg });
@@ -1205,20 +1397,20 @@ async function dispatch() {
           console.log(`             claude → ${t.baseUrl.claude || "(you supply the endpoint)"}`);
           console.log(`             codex  → ${t.baseUrl.codex || "(you supply the endpoint)"}`);
         }
-        console.log("\nUse one: atl provider add zai --key <api-key> --model glm-5.3 --thinking-level medium   (--template is implied by the id)");
+        console.log("\nUse one: atl provider add zai --model glm-5.3 --thinking-level medium   (key is prompted without echo)");
       } else if (sub === "add") {
         const id = pos[1];
-        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url] [--key secret | --key-env VAR] [--model model] [--thinking-level level]");
+        if (!id) throw new StateError("provider add needs a name: provider add <id> [--template t] [--worker claude|codex|openai-http] [--protocol openai|anthropic|custom] [--base-url url] [--key-env VAR] [--model model] [--thinking-level level]");
         const template = templateById(flags.template || (templateById(id) ? id : "custom"));
         const worker = String(flags.worker || template.worker || "claude").toLowerCase();
-        if (!["claude", "codex"].includes(worker)) throw new StateError("--worker must be claude or codex");
+        if (!["claude", "codex", "openai-http"].includes(worker)) throw new StateError("--worker must be claude, codex, or openai-http");
         const base = flags["base-url"] || template.baseUrl[worker] || "";
-        const key = flags.key !== undefined
-          ? String(flags.key)
-          : flags["key-env"]
+        if (flags.key !== undefined) throw new StateError("--key is not accepted because command arguments may be visible in process lists. Use --key-env VAR or the hidden prompt.");
+        const key = flags["key-env"]
             ? (process.env[String(flags["key-env"])] || "").trim()
-            : "";
+            : await promptSecret("Provider API key / token");
         if (flags["key-env"] && !key) throw new StateError(`--key-env ${flags["key-env"]} is not set in this shell`);
+        if (!key) throw new StateError("No key entered. Use a non-empty key or --key-env VAR.");
         if (worker === "claude" && !base && !flags["base-url"]) {
           throw new StateError("a base URL is required for custom providers: --base-url https://your-endpoint/api/anthropic");
         }
@@ -1243,12 +1435,13 @@ async function dispatch() {
         console.log(`Use it in this project:  atl provider use ${entry.id}`);
       } else if (sub === "key") {
         const id = pos[1];
-        if (!id) throw new StateError("provider key needs a name: provider key <id> --key secret | --key-env VAR");
-        const key = flags.key !== undefined
-          ? String(flags.key)
-          : (process.env[String(flags["key-env"] || "")] || "").trim();
+        if (!id) throw new StateError("provider key needs a name: provider key <id> [--key-env VAR]");
+        if (flags.key !== undefined) throw new StateError("--key is not accepted because command arguments may be visible in process lists. Use --key-env VAR or the hidden prompt.");
+        const key = flags["key-env"]
+            ? (process.env[String(flags["key-env"])] || "").trim()
+            : await promptSecret("Provider API key / token");
         if (flags["key-env"] && !key) throw new StateError(`--key-env ${flags["key-env"]} is not set in this shell`);
-        if (!key) throw new StateError("provider key needs --key <secret> or --key-env <VAR>");
+        if (!key) throw new StateError("No key entered. Use a non-empty key or --key-env VAR.");
         const registry = loadUserProviders();
         const entry = getProvider(registry, id);
         if (!entry) throw new StateError(`no provider named "${id}" — add it first: atl provider add ${id} --key ...`);
@@ -1388,6 +1581,27 @@ async function dispatch() {
       return;
     }
 
+    case "test-evidence": {
+      const { task } = need(pos[0]);
+      const revision = task.workspace ? contentSnapshot(ROOT, task.workspace, { storeBlobs: false }).revision : null;
+      console.log(JSON.stringify({ ...testEvidence(task, revision, ROOT), effective_policy: verificationPolicy(loadState(ROOT), task) }, null, 2));
+      return;
+    }
+    case "verification-policy": {
+      const state = loadState(ROOT);
+      const task = pos[0] === "project" ? null : need(pos[0]).task;
+      if (knownActor(task?.id) !== "manager") throw new StateError("Only the manager can set verification policy");
+      setVerificationPolicy(state, task ? state.tasks[task.id] : null, pos[1]);
+      saveState(ROOT, state);
+      return;
+    }
+    case "verifier": {
+      const { state, task } = need(pos[0]);
+      if (knownActor(task.id) !== "manager") throw new StateError("Only the manager can register executable verifiers");
+      setVerifier(task, pos[1], pos[2], pos.slice(3));
+      saveState(ROOT, state);
+      return;
+    }
     case "revision": {
       const { task } = need(pos[0]);
       console.log(contentSnapshot(ROOT, task.workspace).revision); return;
@@ -1402,6 +1616,9 @@ async function dispatch() {
       if (!["check", "review", "browser-journey"].includes(entry.kind)) throw new StateError("unsupported observation kind");
       if (entry.kind === "review" && !["sage", "manager"].includes(actor)) throw new StateError("Sage owns independent review");
       if (entry.kind === "browser-journey" && !["beacon", "manager"].includes(actor)) throw new StateError("Beacon owns integrated browser verification");
+      // Artifact identifiers are issued by the deterministic runner.
+      delete entry.output_id;
+      delete entry.screenshots;
       addEvidence(state, task.id, entry, actor); saveState(ROOT, state);
       console.log("observation recorded"); return;
     }
@@ -1420,6 +1637,12 @@ async function dispatch() {
       const to = pos[1];
       const from = task.status;
       const actor = knownActor(task.id);
+      if (to === "done" && task.workspace && task.verifiers?.length) {
+        task.verification_revision = contentSnapshot(ROOT, task.workspace, { storeBlobs: false }).revision;
+        if (task.run_verification_policy !== "allow" && !testEvidence(task, task.verification_revision, ROOT).verified) {
+          throw new StateError(`${task.id}: current verification evidence is required`);
+        }
+      }
       transition(state, task.id, to, { actor, note: flags.note?.[0] });
       narrateMove(task, from, to, actor, flags.note?.[0]);
       if (to === "triaged" && task.auto_route && task.assigned_worker) {
@@ -1686,6 +1909,10 @@ async function dispatch() {
       }
       try {
         claimOwnerRecord(ROOT, { port: running.port, url: running.url, runtime: runtimeIdentity(path.dirname(path.dirname(assetRoot || fileURLToPath(import.meta.url)))) });
+        // Rotate the browser owner session only after this process won the
+        // daemon ownership claim; a losing concurrent starter must not revoke
+        // the winning panel's cookie or CSRF token.
+        running.server.rotateOwnerSession?.();
       } catch (error) {
         running.server.close();
         if (error?.statusCode === 409) {
@@ -1729,6 +1956,12 @@ async function dispatch() {
       throw new StateError(`unknown daemon command "${sub}" (status | start | stop)`);
     }
 
+    case "review": {
+      const taskId = pos[0];
+      if (!taskId) throw new StateError("review needs a task id: atl review T-001 [--mermaid|--json]");
+      console.log(taskReviewReport(ROOT, taskId, flags.mermaid ? "mermaid" : flags.json ? "json" : "text", { captureId: flags.capture, fileId: flags.file, cursor: flags.cursor, expand: flags.expand }));
+      return;
+    }
     case "show": {
       const state = loadState(ROOT);
       if (flags.json) {

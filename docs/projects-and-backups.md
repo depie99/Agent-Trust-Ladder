@@ -10,7 +10,7 @@ atl projects list
 atl projects concurrency 2
 ```
 
-Register from the intended application. Inspect **Projects** before using the supervisor. Shared concurrency is bounded; readiness and task gates can permit fewer sessions than the configured cap.
+Register from the intended application. Open **Repositories** to see the registered repositories and their linked requests, plans, queues, and task assignment controls before using the supervisor. Shared concurrency is bounded; readiness and task gates can permit fewer sessions than the configured cap.
 
 ## Review approvals
 
@@ -21,9 +21,10 @@ Open **Approvals**, inspect scope and effects, then approve or reject the exact 
 ```sh
 atl backup create --label before-maintenance
 atl backup list
+atl backup restore <id>
 ```
 
-Choose a known snapshot and inspect restore preview in **Operations**. Restore changes persisted state and requires no active run. A backup is not source control or remote delivery evidence.
+Choose a known snapshot and inspect restore preview in **Operations**, or restore directly with `atl backup restore <id>`. Restore changes persisted state and requires no active run. A backup is not source control or remote delivery evidence.
 
 ## Inspect routines
 

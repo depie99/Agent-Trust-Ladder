@@ -6,7 +6,7 @@ import { registerDeepSeekPanel } from './deepseek-panel.mjs';
 import { applyHostIntegrations } from './deepseek-host.mjs';
 
 export const name = 'agent-trust-ladder';
-export const inject = ['tools'];
+export const inject = ['tools', 'commands', 'jobs', 'actionCards', 'approval', 'directoryPicker', 'workspaceRegistry'];
 // DSH's enforced schema subset omits numeric/item bounds. The shared host
 // still validates those bounds; expose their values as model-facing guidance.
 function nativeSchema(node) {
@@ -21,12 +21,15 @@ export function apply(ctx) {
   const host = createPluginHost();
   ctx.effect(() => () => host.close());
   // Optional: CLI-only profiles keep their tools without waiting for a web host.
-  ctx.inject?.(['connection'], child => registerDeepSeekPanel(child, host));
   // Host-native surfaces (issue #34): sidebar board tab, slash commands,
   // folder-picker repository flow. Feature-detected; a host without them
   // keeps the tool-only behavior, and a failing registration never breaks
   // tool loading.
-  try { applyHostIntegrations(ctx, host); } catch { /* tools remain available */ }
+  let integrationReport;
+  try { integrationReport = applyHostIntegrations(ctx, host); }
+  catch (error) { integrationReport = { error: error.message }; }
+  console.info('[ATL] host integrations', JSON.stringify(integrationReport));
+  ctx.inject?.(['connection'], child => registerDeepSeekPanel(child, host, ctx, integrationReport));
   for (const tool of pluginTools) {
     ctx.tools.register({
       name: tool.name,

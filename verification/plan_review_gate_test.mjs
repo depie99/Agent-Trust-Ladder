@@ -28,7 +28,7 @@ fs.mkdirSync(path.join(root, "verification"), { recursive: true });
 fs.writeFileSync(path.join(root, "verification", "fixture.mjs"), "// evidence v1\n");
 saveState(root, emptyState());
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
-fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "claude", base_url: "https://example.test", api_key: "fixture", model: "fixture" } } }));
+fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "openai-http", protocol: "openai", base_url: "https://example.test/v1", api_key: "fixture", model: "fixture" } } }));
 
 const CONSOLIDATED = "# Consolidated EGM Review Report\n\n## Verdict\n\nnot ready for implementation.\n\n## Action items by priority\n\n### 🔴 Blockers\n\n#### A1 — Bound the scope\n\nState the out-of-scope surface.\n";
 
@@ -41,7 +41,7 @@ const fakeRunner = async (rootArg, { draft }) => {
   return { workdir, exitCode: 0, durationMs: 1, lastMessage: "ok" };
 };
 
-const server = await startControlPlaneServer(root, { egmRunner: fakeRunner });
+const server = await startControlPlaneServer(root, { planningInvoke: async () => ({ code: 1, providerFailure: { reason: 'Fixture intentionally leaves deep-review findings unresolved' } }), egmRunner: fakeRunner });
 const post = async (route, body) => {
   const response = await fetch(`${server.url}${route.replace(/^\//, "")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   return { status: response.status, body: await response.json() };

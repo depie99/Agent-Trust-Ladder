@@ -20,6 +20,9 @@ for (const glmId of ["zai", "bigmodel"]) {
   assert.equal(glm.protocol, "anthropic", `${glmId} template uses the Anthropic wire`);
 }
 const userRegistry = { version: 2, providers: {} };
+const providerBin = fs.mkdtempSync(path.join(os.tmpdir(), "atl-provider-bin-"));
+for (const name of ["claude", "codex"]) fs.writeFileSync(path.join(providerBin, `${name}.cmd`), "@echo off\n", "utf8");
+const providerEnv = { ...process.env, PATH: `${providerBin}${path.delimiter}${process.env.PATH || ""}` };
 upsertProvider(userRegistry, "zai-main", {
   label: "My GLM",
   protocol: "anthropic",
@@ -30,10 +33,13 @@ upsertProvider(userRegistry, "zai-main", {
   models: ["glm-5.3", "glm-5.3-flash"],
   thinking_level: "high",
 });
-const choice = providerChoices(userRegistry)[0];
+const choice = providerChoices(userRegistry, { env: providerEnv })[0];
 assert.deepEqual({ id: choice.id, protocol: choice.protocol, base_url: choice.base_url, model: choice.model, thinking_level: choice.thinking_level }, { id: "zai-main", protocol: "anthropic", base_url: "https://api.z.ai/api/anthropic", model: "glm-5.3", thinking_level: "high" }, "provider choices expose editable connection settings without key material");
 assert.equal(Object.hasOwn(choice, "api_key"), false, "provider choices never expose API keys");
 assert.equal(choice.ready, true, "claude worker on the Anthropic endpoint is a viable provider");
+const missingCliChoice = providerChoices(userRegistry, { env: { PATH: "" }, platform: "win32" })[0];
+assert.equal(missingCliChoice.ready, false, "a configured API provider is not ready when its worker CLI is absent");
+assert.ok(missingCliChoice.problems.some((problem) => problem.includes('claude') && problem.includes('PATH')), "missing CLI readiness names the executable and PATH");
 
 // Wire mismatches must be flagged BEFORE any spend: requireReadyProvider refuses.
 const mismatched = { version: 2, providers: {} };
@@ -44,7 +50,7 @@ upsertProvider(mismatched, "codex-glm", {
 const flagged = providerChoices(mismatched)[0];
 assert.equal(flagged.ready, false, "codex worker on a chat-only endpoint is refused as not ready");
 assert.ok(flagged.problems.some((problem) => problem.includes("claude")), "the refusal names the fix: switch the worker to claude");
-assert.throws(() => requireReadyProvider("codex-glm", { registry: mismatched }), /claude/, "model generation refuses a wire-mismatched provider before spending");
+assert.throws(() => requireReadyProvider("codex-glm", { registry: mismatched, env: providerEnv }), /claude/, "model generation refuses a wire-mismatched provider before spending");
 
 const claudeMismatch = wireMismatches("claude", "https://api.z.ai/api/coding/paas/v4");
 assert.equal(claudeMismatch.length, 1, "claude worker on an OpenAI chat endpoint is flagged");
@@ -58,6 +64,7 @@ assert.match(stagedConfig, /wire_api = "responses"/, "staged codex config declar
 assert.doesNotMatch(stagedConfig, /wire_api = "chat"/, "staged codex config never declares the removed chat wire");
 fs.rmSync(stagedHome, { recursive: true, force: true });
 assert.equal(fs.existsSync(path.join(os.homedir(), ".atl", "codex", "atl-wire-probe")), false, "the probe's staged codex home is cleaned up");
+fs.rmSync(providerBin, { recursive: true, force: true });
 
 const config = {
   providers: {

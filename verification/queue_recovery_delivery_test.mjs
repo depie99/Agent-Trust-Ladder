@@ -141,7 +141,7 @@ try {
   fs.writeFileSync(path.join(c.workspace, "package-lock.json"), '{"lockfileVersion":3}');
   let calls = 0;
   result = dispatchPreflight(root, dep, {}, { provisionLocal: true, execute: (command, args) => { calls++; assert.match(args.join(" "), /--offline/); assert.match(args.join(" "), /--ignore-scripts/); return { status: 1, stderr: "ENOTCACHED: network unavailable" }; } });
-  assert.equal(calls, 1); assert.equal(result.recovery_owner, "owner"); assert.match(result.reason, /local cache; network is not authorized/);
+  assert.equal(calls, 1); assert.equal(result.recovery_owner, "owner"); assert.match(result.reason, /network is not authorized.*ENOTCACHED/);
   result = dispatchPreflight(root, dep, {}, { providerReady: false, execute: () => assert.fail("unavailable provider launched command") });
   assert.equal(result.cause, "provider-unavailable");
 

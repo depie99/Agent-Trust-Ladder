@@ -9,6 +9,7 @@ import {emptyState,saveState} from '../runtime/lib/state.mjs';
 import {buildLaunchPlan} from '../runtime/lib/launch.mjs';
 import {savePlanDraft} from '../runtime/lib/plan-studio.mjs';
 import {legacyLocalPlan} from './plan_local_fixture.mjs';
+import { ownerJson } from './helpers/owner-http.mjs';
 
 const policy={enabled:true,default_sessions:8,max_sessions:18,auto_extend:true,auto_models:true,max_model_tier:'advanced',models:[
   {provider:'small',model:'routine-model',tier:'economy',cost_order:1,enabled:true},
@@ -23,6 +24,11 @@ assert.equal(assessTask(simple).complexity,'simple');
 assert.equal(budgetDecision(config,simple).max_sessions,3);
 assert.equal(budgetDecision(config,complex).max_sessions,12);
 assert.equal(routeTask(config,simple,'rowan',{discover}).model,'routine-model');
+assert.equal(routeTask(config,simple,'beacon',{discover}).model,'routine-model');
+assert.equal(routeTask(config,{...simple,verification_escalation:true},'beacon',{discover}).model,'general-model');
+assert.ok(routeTask({...config,resource_policy:{...policy,max_model_tier:'economy'}},
+  {...simple,verification_escalation:true},'beacon',{discover}).decision.blocked);
+
 assert.equal(routeTask(config,complex,'rowan',{discover}).model,'general-model');
 assert.equal(routeTask(config,{...complex,provider_route:{provider:'strong',model:'review-model'}},'sage',{discover}).model,'review-model','task route applies across roles');
 assert.equal(routeTask(config,{...complex,provider_route:{provider:'strong',model:'review-model'}},'rowan',{discover,overrides:{worker:'normal',model:'general-model'}}).model,'general-model','explicit run choice wins');
@@ -83,7 +89,7 @@ try {
   const carded=savePlanDraft(root,{intent:'Fix a typo in README',artifact:legacyLocalPlan('Fix a typo in README'),stage:'plan'});
   const cardResponse=await fetch(started.url+'api/plan/card',{method:'POST',body:JSON.stringify({draftId:carded.id,action:'add'})}).then(r=>r.json());
   assert.equal(cardResponse.ok,true,cardResponse.error);assert.ok(Object.keys(cardResponse.draft.resources).length,'Plan Studio returns per-card resource previews');
-  const snapshot=await fetch(started.url+'api/snapshot').then(r=>r.json());
+  const snapshot=await ownerJson(new URL('api/snapshot',started.url));
   assert.ok(JSON.stringify(snapshot).includes('resource_preview'));
 } finally {if(server)await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}
 console.log('PASS: adaptive budgets, model routing, owner ceilings, explicit overrides, no-spend blockers and Settings/Plan Studio API');

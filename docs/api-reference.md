@@ -12,6 +12,11 @@ The browser server binds to loopback by default. Browser-origin mutations use sa
 
 Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`, and `verification/owner_session_approval_test.mjs` before integrating. Keep tokens out of logs and URLs.
 
+## Harness planning and execution tools
+
+The bundled MCP host exposes atl_plan_*, atl_run_*, atl_program_*, and atl_project_bootstrap tools. Every tool requires an absolute project path and routes to that project local daemon. The shared internal HTTP adapter is POST /api/harness/<operation>. Plan approval creates a queue; run start consumes a fingerprinted preview and requires exact developer authorization. Program recovery requires evidence for each uncertain dispatch. These routes are internal; harness clients should use the tool contracts in runtime/lib/plugin-host.mjs.
+
+
 ## Literal route index
 
 | Path | Source |
@@ -33,6 +38,8 @@ Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`,
 | `/api/dispatch/preview` | `runtime/lib/control-plane-server.mjs` |
 | `/api/events` | `runtime/lib/control-plane-server.mjs` |
 | `/api/execution-access` | `runtime/lib/control-plane-server.mjs` |
+| `/api/harness/` | `runtime/lib/control-plane-server.mjs` |
+| `/api/harness/program/link` | `runtime/lib/control-plane-server.mjs` |
 | `/api/health` | `runtime/lib/control-plane-server.mjs` |
 | `/api/intake/azure/iterations` | `runtime/lib/control-plane-server.mjs` |
 | `/api/intake/connections` | `runtime/lib/control-plane-server.mjs` |
@@ -76,6 +83,7 @@ Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`,
 | `/api/plan/local` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/publish` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/publish-preview` | `runtime/lib/control-plane-server.mjs` |
+| `/api/plan/question-progress` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/refine` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/regenerate` | `runtime/lib/control-plane-server.mjs` |
 | `/api/plan/repair` | `runtime/lib/control-plane-server.mjs` |
@@ -102,11 +110,15 @@ Read `runtime/lib/session-auth.mjs`, route guards in `control-plane-server.mjs`,
 | `/api/task-changes` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-changes/capture` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-execution` | `runtime/lib/control-plane-server.mjs` |
+| `/api/task-impact-children` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-recovery` | `runtime/lib/control-plane-server.mjs` |
+| `/api/task-review-state` | `runtime/lib/control-plane-server.mjs` |
 | `/api/tasks/provider-route` | `runtime/lib/control-plane-server.mjs` |
 | `/api/tasks/repository` | `runtime/lib/control-plane-server.mjs` |
 | `/api/tasks/session-budget` | `runtime/lib/control-plane-server.mjs` |
+| `/api/test-evidence` | `runtime/lib/control-plane-server.mjs` |
 | `/api/usage/refresh` | `runtime/lib/control-plane-server.mjs` |
+| `/api/verification-policy` | `runtime/lib/control-plane-server.mjs` |
 
 ## Verify behavior
 

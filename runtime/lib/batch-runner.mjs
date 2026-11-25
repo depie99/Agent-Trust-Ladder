@@ -14,7 +14,12 @@ import { renderDeliveryReceipt } from "../../skills/atl/scripts/developer-delive
 
 const TERMINAL_TASK = new Set(["done", "rejected", "archived"]);
 const directory = (root) => path.join(root, ".trust", "manager", "batches");
-const checkpointFile = (root, id) => path.join(directory(root), `${id}.json`);
+const SAFE_BATCH_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const checkpointFile = (root, id) => {
+  const value = String(id || "");
+  if (!SAFE_BATCH_ID.test(value)) throw new Error("batch id must be 1-64 safe characters");
+  return path.join(directory(root), `${value}.json`);
+};
 
 export function readBatch(root, id) {
   try { return JSON.parse(fs.readFileSync(checkpointFile(root, id), "utf8")); } catch { return null; }
@@ -33,7 +38,7 @@ export function listBatches(root) {
   let names = [];
   try { names = fs.readdirSync(directory(root)).filter((name) => name.endsWith(".json") && !name.includes("-summary")); } catch { return []; }
   return names.map((name) => {
-    try { return batchSummary(JSON.parse(fs.readFileSync(path.join(directory(root), name), "utf8"))); }
+    try { return describeBatch(JSON.parse(fs.readFileSync(path.join(directory(root), name), "utf8"))); }
     catch (error) { return { id: name.replace(/\.json$/, ""), valid: false, invalid_reason: error.message, status: "unreadable" }; }
   }).sort((left, right) => String(right.created_at || "").localeCompare(String(left.created_at || "")));
 }
@@ -47,6 +52,54 @@ function readinessFor(state, taskId) {
   return { ready: true, reason: null };
 }
 
+function approvedBatchTask(task) {
+  return Boolean(task?.plan_draft_id && task.plan_queue_id && !task.plan_review_required && !task.intake_only && !task.archived_at && !TERMINAL_TASK.has(task.status));
+}
+
+export function authorizeBatch(root, { id, tasks, limits, startAt = null, failurePolicy, now = Date.now() }) {
+  if (readBatch(root, id)) throw new Error("A batch with this ID already exists.");
+  if (!Array.isArray(tasks) || !tasks.length || tasks.some(id => typeof id !== "string")) throw new Error("Select at least one task.");
+  if (!["continue", "stop"].includes(failurePolicy)) throw new Error("Choose what happens when a task fails.");
+  if (!Number.isInteger(limits.max_minutes) || limits.max_minutes < 1 || limits.max_minutes > 1440
+    || !Number.isInteger(limits.max_attempts) || limits.max_attempts < 1 || limits.max_attempts > 3) {
+    throw new Error("Enter a time limit of 1–1440 minutes and 1–3 attempts per task.");
+  }
+  const due = startAt == null ? now : Date.parse(startAt);
+  if (!Number.isFinite(due) || due < now || due > now + 24 * 60 * 60_000) throw new Error("Choose a start time within the next 24 hours.");
+  const state = loadState(root);
+  for (const task of tasks) {
+    if (!approvedBatchTask(state.tasks[task])) throw new Error(`${task} is not an open task from an approved plan.`);
+  }
+  const batch = createBatch({ id, tasks, limits, now });
+  const name = state.tasks[tasks[0]].title || id;
+  return writeBatch(root, sealBatch({
+    ...batch, name: tasks.length === 1 ? name : `${name} and ${tasks.length - 1} more`, status: "scheduled", authorized_at: new Date(now).toISOString(),
+    scheduled_at: new Date(due).toISOString(), failure_policy: failurePolicy,
+  }));
+}
+
+export function activateScheduledBatch(root, id, { now = Date.now() } = {}) {
+  const batch = readBatch(root, id);
+  const due = Date.parse(batch?.scheduled_at);
+  const unclaimed = batch?.status === "running" && !batch.lease && batch.items?.every(item => item.status === "pending" && item.attempts === 0);
+  if (!(batch?.status === "scheduled" || unclaimed) || !batch.authorized_at || !validateBatch(batch).ok || !Number.isFinite(due) || due > now) return null;
+  const started = new Date(now).toISOString();
+  return writeBatch(root, sealBatch({
+    ...batch, status: "running", started_at: started, updated_at: started,
+    deadline_at: new Date(now + batch.limits.max_minutes * 60_000).toISOString(),
+    log: [...batch.log, { at: started, event: "authorized-start", task: null }],
+  }));
+}
+
+export function describeBatch(batch) {
+  const last = batch.log?.at(-1);
+  const restart = batch.log?.findLast(entry => entry.event === "reconciled");
+  return {
+    ...batchSummary(batch), name: batch.name || batch.id, scheduled_at: batch.scheduled_at || null, started_at: batch.started_at || null,
+    failure_policy: batch.failure_policy || "continue", restart: restart ? { at: restart.at, detail: restart.detail } : null,
+    ...(last?.event === "stopped" && last.detail ? { stop_reason: last.detail } : {}),
+  };
+}
 export function startBatch(root, { id, tasks, limits = {}, project = null, now = Date.now(), holder = `pid-${process.pid}` } = {}) {
   const existing = readBatch(root, id);
   if (existing) {
@@ -86,6 +139,7 @@ export function reconcileBatch(root, id, { now = Date.now(), reason } = {}) {
 export function resumeStoppedBatch(root, id, { now = Date.now(), holder = `pid-${process.pid}` } = {}) {
   const batch = readBatch(root, id);
   if (!batch) throw new Error(`unknown batch ${id}`);
+  if (batch.authorized_at && !batch.started_at) throw new Error("Authorize a new batch to replace a canceled schedule.");
   return writeBatch(root, resumeBatch(batch, { now, holder }));
 }
 
@@ -139,16 +193,15 @@ export async function runBatch(root, id, { launch = executeLaunchQueue, onProgre
         writeBatch(root, batch);
         continue;
       }
-      const unmet = (next.item.depends_on || []).filter((dependency) => loadState(root).tasks?.[dependency]?.status !== "done");
-      if (unmet.length) {
-        batch = settleBatchItem(batch, next.item.task, { status: "blocked", reason: `dependency not done: ${unmet.join(", ")}`, now: clock });
-        writeBatch(root, batch);
-        continue;
-      }
+      const unmet = (next.item.depends_on || []).filter((dependency) => state.tasks?.[dependency]?.status !== "done");
       const readiness = readinessFor(state, next.item.task);
-      if (!readiness.ready) {
-        batch = settleBatchItem(batch, next.item.task, { status: "blocked", reason: readiness.reason, now: clock });
+      const reason = batch.authorized_at && !approvedBatchTask(task) ? "the task no longer has an approved plan"
+        : unmet.length ? `dependency not done: ${unmet.join(", ")}` : readiness.reason;
+      if (reason) {
+        batch = settleBatchItem(batch, next.item.task, { status: "blocked", reason, now: clock });
+        if (batch.failure_policy === "stop") batch = stopBatch(batch, { reason, now: clock });
         writeBatch(root, batch);
+        if (batch.status === "stopped") break;
         continue;
       }
       batch = claimBatchItem(batch, next.item.task, { now: clock, holder });
@@ -158,6 +211,8 @@ export async function runBatch(root, id, { launch = executeLaunchQueue, onProgre
       try {
         outcome = await launch(root, { confirm: true, taskIds: [next.item.task], maxMinutes: remainingMinutes, maxSessions: batch.limits.max_sessions, onProgress: (line) => onProgress(`[${next.item.task}] ${line}`) });
       } catch (error) {
+        const current = readBatch(root, id);
+        if (current && current.status !== "running") { batch = current; break; }
         // An interrupted launch may already have produced an external effect.
         // Stop instead of replaying, and require an owner reconciliation.
         batch = settleBatchItem(batch, next.item.task, { status: "needs_reconciliation", reason: `launch interrupted: ${error.message}`, now: now() });
@@ -166,16 +221,23 @@ export async function runBatch(root, id, { launch = executeLaunchQueue, onProgre
         stopReason = `interrupted while running ${next.item.task}: ${error.message}`;
         break;
       }
+      const current = readBatch(root, id);
+      if (current && current.status !== "running") { batch = current; break; }
       const classification = classify(root, next.item.task, outcome);
       let settled = settleBatchItem(batch, next.item.task, { status: classification.status, reason: classification.reason, now: now() });
       const item = settled.items.find((candidate) => candidate.task === next.item.task);
       if (classification.status === "failed" && repairableBlocker(classification.reason) && item.attempts < settled.limits.max_attempts && (item.repair_attempts || 0) < 1) {
         settled = requeueBatchItem(settled, next.item.task, { reason: `bounded repair retry after: ${classification.reason}`, now: now() });
       }
+      const itemStatus = settled.items.find(candidate => candidate.task === next.item.task).status;
+      if (settled.failure_policy === "stop" && ["failed", "blocked", "exhausted"].includes(itemStatus)) {
+        settled = stopBatch(settled, { reason: classification.reason, now: now() });
+      }
       batch = settled;
       writeBatch(root, batch);
       results.push({ task: next.item.task, status: batch.items.find((candidate) => candidate.task === next.item.task).status, reason: classification.reason });
       onProgress(`[batch ${batch.id}] ${next.item.task}: ${batch.items.find((candidate) => candidate.task === next.item.task).status}`);
+      if (batch.status === "stopped") break;
     }
   } finally {
     if (batch.lease) {
@@ -189,6 +251,7 @@ export async function runBatch(root, id, { launch = executeLaunchQueue, onProgre
 }
 
 export function batchMorningSummary(root, id) {
+  checkpointFile(root, id);
   let batch = readBatch(root, id);
   if (!batch) throw new Error(`unknown batch ${id}`);
   const check = validateBatch(batch);

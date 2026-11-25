@@ -16,9 +16,15 @@ atl launch --confirm --max-minutes 120 --max-sessions 8
 
 These are example limits, not a promise of eight successful tasks. Other gates can constrain execution. See [resource policy](resource-policy.md).
 
+## Create a batch in the Control Plane
+
+Open **Batches → New batch** and pick open tasks from approved plans. Order the selected tasks, choose **Now** or the next local **22:00**, set the time and attempt limits, and choose whether a final task failure stops the batch. Review the preview and select **Authorize and start**. ATL preserves the authorization across a Control Plane restart and starts due batches when the runtime is available. The time limit starts when the batch begins executing.
+
+Use **View evidence** to inspect a stopped task. **Retry in new batch** opens a form for an eligible task and requires authorization for the new attempt. **Workflow runs** shows live queue execution and worker-session activity.
+
 ## Monitor, stop, and recover
 
-Follow **Queues**, **Activity & Logs**, and **Usage & Limits**. Use the exposed stop operation and inspect resulting state. Reconcile an existing run after a restart before launching again. Preserve failed commands, output, revisions, and blockers. Apply bounded repairs and rerun checks; do not reset counters to evade limits. See [queue recovery](queue-recovery.md) and [reliability](task-run-reliability.md).
+Follow **Queues**, **Workflow runs**, and **Usage & Limits**. Use the exposed stop operation and inspect resulting state. Session transcripts live under `.trust/manager/overnight/<task>/session-NN-<role>.log`, and the durable run record at `.trust/manager/overnight/run.json`. Reconcile an interrupted run with `atl overnight status` and `atl overnight recover --confirm` (it resumes only untouched tasks) before launching again. Preserve failed commands, output, revisions, and blockers. Apply bounded repairs and rerun checks; do not reset counters to evade limits. See [queue recovery](queue-recovery.md) and [reliability](task-run-reliability.md).
 
 ## Assess delivery
 

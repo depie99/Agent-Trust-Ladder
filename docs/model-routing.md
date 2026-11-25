@@ -28,7 +28,7 @@ The reviewer should use a different model or an intentionally independent contex
 
 The default orchestration is deliberately conservative: one worker, then one independent review. Parallel workers are capped at three and are allowed only when their write sets are disjoint. Repair cycles are capped at two before escalation. These limits live in the `orchestration` section of the policy.
 
-Keep run records in `.trust/agent-runs/` using the template there. Record exact model/version, tools, rationale, evidence links, outcome, and what should change in the playbook next time.
+Keep run records with the task's evidence and the `.trust/manager/execution-ledger.jsonl` ledger. Record exact model/version, tools, rationale, evidence links, outcome, and what should change in the playbook next time.
 
 ## Apply routing to a task
 

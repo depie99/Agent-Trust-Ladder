@@ -17,7 +17,9 @@ process.env.HOME = fakeHome;
 fs.mkdirSync(path.join(fakeHome, ".atl"), { recursive: true });
 fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({
   providers: {
-    testprov: { id: "testprov", label: "Test Provider", worker: "claude", base_url: "https://example.test/api", api_key: "sk-secret-value", model: "m-1", models: ["m-1", "m-2"] },
+    // Use the built-in HTTP worker so this fixture is ready on every CI host;
+    // readiness for Claude/Codex correctly depends on their CLI being on PATH.
+    testprov: { id: "testprov", label: "Test Provider", worker: "openai-http", protocol: "openai", base_url: "https://example.test/api", api_key: "sk-secret-value", model: "m-1", models: ["m-1", "m-2"] },
   },
 }, null, 2));
 
@@ -52,6 +54,16 @@ const fakeInvoke = async ({ request }) => {
 
 const running = await startControlPlaneServer(root, { planningInvoke: fakeInvoke });
 const post = async (pathname, body) => fetch(`${running.url}${pathname.replace(/^\//, "")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(async (response) => ({ status: response.status, body: await response.json() }));
+const readSnapshot = async () => {
+  const shell = await fetch(running.url);
+  const cookie = shell.headers.getSetCookie().map(value => value.split(';', 1)[0]).join('; ');
+  const html = await shell.text();
+  const csrf = html.match(/<meta\s+name="atl-csrf"\s+content="([^"]+)"/i)?.[1];
+  assert.ok(cookie && csrf, 'Control Plane shell provides owner read credentials');
+  const response = await fetch(`${running.url}api/snapshot`, { headers: { cookie, 'x-atl-csrf': csrf } });
+  assert.equal(response.status, 200);
+  return response.json();
+};
 const command = (text) => post("/api/command", { command: text });
 
 try {
@@ -85,13 +97,16 @@ try {
   assert.ok(providers.templates.some((template) => template.id === "zai"), "the endpoint presets ship to the browser");
 
   // browser provider management: add → key → use → remove; keys never echo
-  const addedProvider = await post("/api/providers", { action: "add", id: "webprov", template: "zai", model: "glm-4.6" });
+  const addedProvider = await post("/api/providers", {
+    action: "add", id: "webprov", worker: "openai-http", protocol: "openai",
+    base_url: "https://example.test/v1", model: "glm-4.6",
+  });
   assert.equal(addedProvider.status, 200, "a provider can be added from the browser");
   assert.ok(addedProvider.body.providers.some((provider) => provider.id === "webprov"), "the added provider appears in the list");
   const webEntry = addedProvider.body.providers.find((provider) => provider.id === "webprov");
   assert.equal(webEntry.ready, false, "a newly added provider is not ready yet");
   assert.ok(webEntry.problems.some((problem) => /API key/.test(problem)), "the added provider waits for its key");
-  assert.ok(!webEntry.problems.some((problem) => /base URL/.test(problem)), "the zai template prefilled the endpoint");
+  assert.ok(!webEntry.problems.some((problem) => /base URL/.test(problem)), "the configured HTTP worker has an endpoint");
   const keyed = await post("/api/providers", { action: "key", id: "webprov", key: "sk-web-secret-value" });
   assert.equal(keyed.body.providers.find((provider) => provider.id === "webprov").ready, true, "storing the key readies the provider");
   assert.ok(!JSON.stringify(keyed.body).includes("sk-web-secret-value"), "the raw key is never echoed back");
@@ -177,7 +192,7 @@ try {
   assert.equal(tmpQueue.body.ok, true, "a disposable queue can be created");
   const deleted = await command("queue archive deleteme");
   assert.equal(deleted.body.ok, true, "queue delete works through the command bridge");
-  const afterDelete = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
+  const afterDelete = await readSnapshot();
   assert.ok(!afterDelete.queues.items.some((queue) => queue.id === "deleteme"), "a deleted queue leaves the board");
   const delDefault = await command("queue archive default");
   assert.equal(delDefault.body.ok, false, "the default queue refuses deletion");
@@ -201,7 +216,7 @@ try {
   process.env.USERPROFILE = fakeHome;
 process.env.HOME = fakeHome;
   fs.mkdirSync(path.join(fakeHome, ".atl"), { recursive: true });
-  fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({ providers: { testprov: { id: "testprov", label: "T", worker: "claude", base_url: "https://example.test", api_key: "sk", model: "m" } } }));
+  fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({ providers: { testprov: { id: "testprov", label: "T", worker: "openai-http", protocol: "openai", base_url: "https://example.test", api_key: "sk", model: "m" } } }));
   let calls = 0;
   let answer = JSON.stringify(validPlan);
   const server = await startControlPlaneServer(root2, { planningInvoke: async ({ logPath }) => {
@@ -255,8 +270,8 @@ process.env.HOME = fakeHome;
   process.env.USERPROFILE = fakeHome;
 process.env.HOME = fakeHome;
   fs.mkdirSync(path.join(fakeHome, ".atl"), { recursive: true });
-  fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({ providers: { testprov: { id: "testprov", label: "T", worker: "claude", protocol: "anthropic", base_url: "https://example.test", api_key: "sk", model: "m" } } }));
-  // a throwaway endpoint that answers the anthropic model-list shape
+  fs.writeFileSync(path.join(fakeHome, ".atl", "providers.json"), JSON.stringify({ providers: { testprov: { id: "testprov", label: "T", worker: "openai-http", protocol: "openai", base_url: "https://example.test", api_key: "sk", model: "m" } } }));
+  // A throwaway endpoint that answers the OpenAI-compatible model-list shape.
   const { createServer: createHttpServer } = await import("node:http");
   const endpoint = createHttpServer((request, response) => {
     response.writeHead(200, { "content-type": "application/json" });

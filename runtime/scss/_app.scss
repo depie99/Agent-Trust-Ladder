@@ -100,7 +100,7 @@ html:not([data-atl-context="plugin"]) .topbar .row:last-child{justify-self:end}
 html.light #themeBtn::before{content:"☾"}
 
 .key{border:1px solid var(--key-edge);background:var(--chip);border-radius:4px;padding:1px 4px;font-size:10px}
-.body{padding:27px;max-width:1590px;margin:auto}
+.body{padding-block:27px;padding-inline:clamp(10px,1vw,16px)}
 .eyebrow{font-size:9.5px;letter-spacing:.15em;color:var(--faint);font-weight:700}
 .pagehead{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}
 .pagehead h1{font-size:24px;letter-spacing:-.5px;line-height:1.2;margin:6px 0}
@@ -251,7 +251,7 @@ textarea.input{resize:vertical;min-height:110px}
   .sidebar{width:185px}
   .four{grid-template-columns:repeat(2,minmax(0,1fr))}
   .twocol{grid-template-columns:minmax(0,1fr)}
-  .body{padding:20px}
+  .body{padding-block:20px}
 }
 @media(max-width:720px){
   .app{display:block}
@@ -261,7 +261,7 @@ textarea.input{resize:vertical;min-height:110px}
   .mobile::-webkit-scrollbar{display:none;height:0}
   .mobile{mask-image:linear-gradient(to left,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%);-webkit-mask-image:linear-gradient(to left,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%)}
   .mobile button{white-space:nowrap}
-  .body{padding:15px}
+  .body{padding-block:15px}
   .four,.three,.two{grid-template-columns:1fr}
   .pagehead h1{font-size:22px}
   .topbar{padding:0 13px}
@@ -280,6 +280,11 @@ textarea.input{resize:vertical;min-height:110px}
 .review-tabs [aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
 .review-files { display: grid; grid-template-columns: minmax(220px, 30%) minmax(0, 1fr); gap: 16px; }
 .review-files > aside { min-width: 0; }
+.review-resize { width: 8px; cursor: col-resize; background: var(--border); border-radius: 5px; touch-action: none; }
+.review-resize:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.review-mobile-back { display: none; }
+.review-reply { margin-inline-start: 16px; padding-inline-start: 10px; border-inline-start: 2px solid var(--border); }
+.split-note { grid-column: 1 / -1; color: var(--muted); padding: 4px 10px; }
 .review-files label { display: block; margin-block: 8px 4px; }
 .review-tree { max-height: 42vh; overflow: auto; }
 .review-tree details { margin-inline-start: 8px; }
@@ -347,7 +352,11 @@ textarea.input{resize:vertical;min-height:110px}
 .review-receipt[data-delivery-verdict="review-required"] .pill[data-delivery-status] { border-color: var(--blue); color: var(--blue); }
 .task-change-review :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 760px) {
-  .review-files { grid-template-columns: minmax(0, 1fr); }
+  .review-files { grid-template-columns: minmax(0, 1fr) !important; }
+  .review-resize { display: none; }
+  .review-files.is-file-open > aside { display: none; }
+  .review-files:not(.is-file-open) > .review-patch { display: none; }
+  .review-mobile-back { display: block; margin-block-end: 8px; }
   .review-tree { max-height: 24vh; }
   .review-patch { max-height: 40vh; }
 }
@@ -601,6 +610,10 @@ textarea.input{resize:vertical;min-height:110px}
 .studio-msg-assistant{align-self:flex-start;background:var(--raised);border:1px solid var(--border)}
 .studio-msg-changes{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:5px;font-size:12px}
 .studio-msg-changes li{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+[data-studio-questions]>summary{cursor:pointer;font-weight:600;padding:10px 0}
+.secret-input{display:flex;align-items:center;gap:6px;width:100%;min-width:0;flex:1}
+.secret-input>.input{flex:1;min-width:0}
+.secret-input>.btn{flex:none}
 .studio-question{border:1px solid var(--accent-edge);background:var(--raised);border-radius:10px;padding:12px 13px;margin-top:4px}
 .studio-question .row.between{gap:8px;flex-wrap:wrap}
 .studio-question-options{display:grid;gap:7px;margin-top:9px}
@@ -634,15 +647,32 @@ textarea.input{resize:vertical;min-height:110px}
 .candidate-changes li{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .studio-mobile-tabs{display:none}
 @media(max-width:959px){
-  .studio-mobile-tabs{display:flex;gap:6px;margin:10px 0 0}
+  // Mobile pane switch (v2 mobile design): full-width underline tabs with
+  // count badges, one pane at a time, sticky bottom composer / next-step.
+  .studio-mobile-tabs{display:flex;gap:6px;margin:10px 0 0;border-bottom:1px solid var(--border)}
+  .studio-mobile-tabs .tasks-seg-btn{flex:1;min-height:46px;justify-content:center;border-radius:8px 8px 0 0;border-bottom:2px solid transparent;font-weight:700;color:var(--muted)}
+  .studio-mobile-tabs .tasks-seg-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:transparent}
+  .studio-mobile-tabs .tasks-seg-count{margin-inline-start:5px}
   .studio-workspace{flex-direction:column;min-height:0}
   .studio-workspace[data-mobile-pane="conversation"] .studio-plan{display:none}
   .studio-workspace[data-mobile-pane="plan"] .studio-conversation{display:none}
   .studio-splitter{display:none}
-  .studio-pane{min-height:0}
-  .studio-transcript{max-height:50vh;flex:none}
+  .studio-pane{min-height:0;width:100%}
+  .studio-conversation{width:100%}
+  .studio-transcript{max-height:none;flex:none;min-height:30vh}
   .studio-plan-body{max-height:none}
   .studio-settings-body{position:fixed;inset-inline:10px;bottom:10px;width:auto}
+  .studio-composer{position:sticky;bottom:0;z-index:5;border-radius:10px 10px 0 0;box-shadow:0 -8px 22px rgba(0,0,0,.22);padding-bottom:max(12px, env(safe-area-inset-bottom))}
+  .studio-composer .btn.primary{min-height:44px}
+  .studio-composer-input{font-size:14px}
+  .studio-nextstep{position:sticky;bottom:0;z-index:5}
+  // Question cards become touch-first: stacked options with large targets
+  // and a full-width send action.
+  .studio-question{padding:14px}
+  .studio-question-option{padding:12px 14px;min-height:46px;font-size:14px}
+  .studio-question-custom{font-size:14px}
+  .studio-question .bar{justify-content:stretch}
+  .studio-question .bar .btn{width:100%;min-height:44px}
 }
 
 /* Agent Team pipeline rail and pod cards */
@@ -776,7 +806,7 @@ textarea.input{resize:vertical;min-height:110px}
 // ---------- Developer-grade diff view (task Changes tab) ----------
 .diff-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .diff-path{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1 1 auto}
-.diff-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:none}
+.diff-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;max-width:100%}
 .diff-kind.kind-add{color:var(--green)}
 .diff-kind.kind-del{color:var(--red)}
 .diff-kind.kind-mod{color:var(--blue)}
@@ -785,7 +815,7 @@ textarea.input{resize:vertical;min-height:110px}
 .diff-view{border:1px solid var(--border);border-radius:9px;overflow:auto;max-height:62vh;background:var(--pane,var(--bg));direction:ltr;scrollbar-width:thin}
 .diff-hunkbar{display:flex;gap:10px;align-items:center;padding:5px 12px;background:color-mix(in srgb,var(--accent) 9%,transparent);border-block:1px solid var(--border);position:sticky;top:0;font-size:11px}
 .diff-hunkbar code{font-family:"Cascadia Mono",Consolas,monospace;font-size:11px;color:var(--muted)}
-.diff-line{display:grid;grid-template-columns:40px 40px 18px minmax(0,1fr);font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre}
+.diff-line{display:grid;grid-template-columns:40px 40px 18px minmax(0,1fr) 24px;font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre}
 .diff-line .diff-no{text-align:end;padding:0 6px;color:var(--faint);user-select:none;border-inline-end:1px solid var(--border)}
 .diff-line .diff-sign{text-align:center;color:var(--faint);user-select:none}
 .diff-line .diff-code{padding-inline:8px;min-width:0}

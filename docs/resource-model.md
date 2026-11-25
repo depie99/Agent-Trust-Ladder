@@ -65,6 +65,8 @@ Paths are relative to the managed project unless stated otherwise. Owner modules
 | Routing | `config/model-routing.json`, `config/skill-routing.json` | Task classes, role models, skill policy | `skill-router.mjs`, `jev.mjs` |
 | Tasks | `.trust/manager/state.json` | IDs, objectives, checks, source, prerequisites, evidence, revision | `state.mjs` |
 | Queues | `.trust/manager/queue.json` | Named work sets, active selection, policy, task references | `queue.mjs` |
+| State-owner record | `.atl/daemon.json` | Running owner daemon's pid, port, URL, heartbeat, and writer lease | `daemon.mjs` |
+| Owner session | `~/.atl/sessions/` (outside the project) | Owner token and CSRF secret for the Control Plane, keyed by project path | `session-auth.mjs` |
 | Plans | `.trust/manager/plan-studio/` | Input, artifact, review bindings, source snapshots, publication mapping | `plan-studio.mjs`, `plan-publish.mjs` |
 | Approvals | `.trust/manager/approvals.json` | Proposals, decisions, grants, action outcomes | `approvals.mjs` |
 | Workspaces | `.trust/manager/workspaces/`, workspace archive | Isolated implementation files and repository context | `workspace.mjs` |
@@ -73,6 +75,10 @@ Paths are relative to the managed project unless stated otherwise. Owner modules
 | Execution ledger | `.trust/manager/execution-ledger.jsonl` | Session IDs, configured provider/model, observed usage | `execution-report.mjs` |
 | Run records | `.trust/manager/overnight/` | Bounded run state and recovery context | `launch.mjs` |
 | Ask ATL | `.trust/manager/assistant/` | Task/global conversations and request context | `control-assistant.mjs` |
+| Composer drafts | `.trust/manager/drafts/<day>/` | Raw Ask ATL composer input, redacted before persistence | `composer.mjs` |
+| Issue connections | `.trust/manager/issue-connections.json` | Saved source connections and credential references (never tokens) | `issue-connections.mjs` |
+| Connection credentials | `.trust/manager/credentials/<connection-id>/` | DPAPI-protected credentials for remembered connections (Windows) | `azure-connection.mjs` |
+| Quota cooldowns | `.trust/manager/provider-quota.json` | Provider/model cooldowns after quota or rate-limit failures | `provider-quota.mjs` |
 | Brain | `.trust/manager/brain/` | Sources, immutable raw snapshots, claims, context packs, events | `brain.mjs` |
 | Resource calibration | `.trust/manager/resource-learning.json` | Qualifying verified history for bounded calibration | `resource-policy.mjs` |
 | Activity | `.trust/manager/feed.jsonl`, `notifications.jsonl` | Narration and attention items, separate from evidence | Feed/notification modules |

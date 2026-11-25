@@ -14,14 +14,30 @@ function feedFile(root) {
   return path.join(path.dirname(paths(root).state), "feed.jsonl");
 }
 
+const FEED_FILE_LIMIT = 2 * 1024 * 1024;
+const FEED_ROTATIONS = 2;
+function rotateFeed(file, incomingBytes = 0) {
+  try { if (fs.statSync(file).size + incomingBytes <= FEED_FILE_LIMIT) return; }
+  catch (error) { if (error.code === "ENOENT") return; throw error; }
+  try { fs.rmSync(`${file}.${FEED_ROTATIONS}`, { force: true }); } catch { /* best effort */ }
+  for (let index = FEED_ROTATIONS - 1; index >= 1; index--) {
+    const older = `${file}.${index}`, newer = `${file}.${index + 1}`;
+    if (fs.existsSync(older)) fs.renameSync(older, newer);
+  }
+  fs.renameSync(file, `${file}.1`);
+}
+
 // Append one message. Feed failures must never fail the command.
 export function post(root, { from, text, task = null, kind = "message", status = null, detail = null }) {
   try {
     const line = {
-      at: new Date().toISOString(), from, kind, text, task,
-      status, detail,
+      at: new Date().toISOString(), from: String(from || "runner").slice(0, 80), kind: String(kind || "message").slice(0, 40),
+      text: String(text || "").slice(0, 12000), task: task == null ? null : String(task).slice(0, 120),
+      status: status == null ? null : String(status).slice(0, 80), detail: detail == null ? null : String(detail).slice(0, 20000),
     };
-    fs.appendFileSync(feedFile(root), JSON.stringify(line) + "\n");
+    const file = feedFile(root), record = `${JSON.stringify(line)}\n`;
+    rotateFeed(file, Buffer.byteLength(record));
+    fs.appendFileSync(file, record);
   } catch (err) {
     /* narration is best-effort */
     if (process.env.ATL_DEBUG) console.error("[feed debug]", err && err.message);
@@ -30,8 +46,7 @@ export function post(root, { from, text, task = null, kind = "message", status =
 
 export function readFeed(root, { task = null, n = 100 } = {}) {
   const file = feedFile(root);
-  if (!fs.existsSync(file)) return [];
-  const lines = fs.readFileSync(file, "utf8").split(/\r?\n/).filter(Boolean);
+  const lines = [`${file}.${FEED_ROTATIONS}`, `${file}.1`, file].filter(name => fs.existsSync(name)).flatMap(name => fs.readFileSync(name, "utf8").split(/\r?\n/).filter(Boolean));
   const out = lines.map((l) => {
     try { return JSON.parse(l); } catch { return null; }
   }).filter(Boolean);

@@ -6,6 +6,7 @@ import { chromium } from "playwright";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 import { memoryPaths, recordFailure, proposePrevention, authorizePrevention, selectContext, failureSignature } from "../skills/atl/scripts/operational-memory.mjs";
+import { ownerJson } from "./helpers/owner-http.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-memory-api-"));
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
@@ -46,7 +47,7 @@ try {
   assert.equal(empty.status, "no-evidence");
   assert.equal(empty.items.length, 0);
 
-  const snapshot = await (await fetch(new URL("/api/snapshot", running.url))).json();
+  const snapshot = await ownerJson(new URL("/api/snapshot", running.url));
   assert.equal(snapshot.operational.recovery.status, "clean");
   assert.equal(snapshot.operational.preventions.enforced.length, 1);
   assert.equal(snapshot.operational.signatures[0].cause_class, "stale-plan-review");

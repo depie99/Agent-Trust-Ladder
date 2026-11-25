@@ -3,7 +3,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { snapshot, readHandoff } from "./handoffs.mjs";
-import { ChangeReviewError, changeSetId, compareSnapshots, safePath, validateSnapshot } from "./task-changes.mjs";
+import { ChangeReviewError, changeSetId, compareSnapshots, fileDiff, safePath, validateSnapshot } from "./task-changes.mjs";
+import { atomicJson, withFileLock } from "./file-transaction.mjs";
 
 const handoffCache = new Map();
 
@@ -73,6 +74,10 @@ export function readChangeReview(root, task, id = null) {
     if (task.handoff) { const record = fromHandoff(root, task); if (record.id === id) return validate(record, task); }
     throw new ChangeReviewError("change_set_missing", "Captured revision is unavailable for this task", 404);
   }
+  if (task.handoff && task.status === "done") {
+    try { return validate(fromHandoff(root, task), task); }
+    catch { throw new ChangeReviewError("handoff_unavailable", "Completed handoff is unavailable or failed validation. Select an earlier inspection explicitly if available.", 409); }
+  }
   const records = fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => /^[a-f0-9]{64}\.json$/.test(name)).map((name) => {
     const file = safePath(directory, name);
     try { return validate(JSON.parse(fs.readFileSync(file, "utf8")), task); }
@@ -90,6 +95,88 @@ export function listChangeReviews(root, task) {
   const records = ids.map((id) => readChangeReview(root, task, id));
   if (task.handoff) { try { records.push(fromHandoff(root, task)); } catch { /* reported by main read when no inspection exists */ } }
   return [...new Map(records.map((record) => [record.id, record])).values()].sort((a, b) => b.captured_at.localeCompare(a.captured_at)).map(({ id, captured_at, source_kind, packet_revision, output }) => ({ id, captured_at, source_kind, packet_revision, output_revision: output.revision }));
+}
+
+// Review notes are separate from immutable capture manifests. Anchors always
+// name a capture and file so newer code cannot silently inherit an old note.
+export function readTaskReviewState(root, task) {
+  const directory = taskDirectory(root, task);
+  const file = safePath(directory, "review-state.json");
+  if (!fs.existsSync(file)) return { version: 1, revision: 0, comments: [], reviewed_files: [] };
+  if (fs.statSync(file).size > 16 * 1024 * 1024) throw new ChangeReviewError("review_state_limit", "Local review state exceeds its 16 MiB limit", 413);
+  let value;
+  try { value = JSON.parse(fs.readFileSync(file, "utf8")); }
+  catch { throw new ChangeReviewError("review_state_corrupt", "Review state cannot be read", 409); }
+  const hash = (item) => typeof item === "string" && /^[a-f0-9]{64}$/.test(item);
+  const text = (item) => typeof item === "string" && item.length > 0 && item.length <= 4000;
+  const comment = (item) => item && typeof item.id === "string" && hash(item.change_set_id) && hash(item.file_id) && text(item.text) && typeof item.resolved === "boolean" && ["file", "old", "new"].includes(item.side) && (item.side === "file" ? item.line === null : Number.isSafeInteger(item.line) && item.line > 0) && (item.replies == null || Array.isArray(item.replies) && item.replies.every((reply) => reply && typeof reply.id === "string" && text(reply.text)));
+  if (value.version !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 1 || !Array.isArray(value.comments) || !value.comments.every(comment) || !Array.isArray(value.reviewed_files) || !value.reviewed_files.every((item) => item && hash(item.change_set_id) && hash(item.file_id) && item.key === `${item.change_set_id}:${item.file_id}`)) throw new ChangeReviewError("review_state_corrupt", "Review state is invalid", 409);
+  return value;
+}
+
+export function writeTaskReviewState(root, task, payload, { diff = fileDiff } = {}) {
+  if (!payload || !Number.isSafeInteger(payload.expected_revision) || payload.expected_revision < 0) throw new ChangeReviewError("invalid_revision", "Expected review-state revision is required");
+  if (!/^[a-f0-9]{64}$/.test(payload.change_set_id || "")) throw new ChangeReviewError("invalid_change_set", "A pinned change set is required");
+  const directory = taskDirectory(root, task); fs.mkdirSync(directory, { recursive: true });
+  const target = safePath(directory, "review-state.json");
+  safePath(directory, "review-state.json.lock");
+  try { return withFileLock(target, () => {
+  const current = readTaskReviewState(root, task);
+  if (current.revision !== payload.expected_revision) throw new ChangeReviewError("review_conflict", "Review state changed. Reload before saving.", 409);
+  if (current.revision === Number.MAX_SAFE_INTEGER) throw new ChangeReviewError("review_state_limit", "Review revision limit reached", 409);
+  const record = readChangeReview(root, task, payload.change_set_id);
+  const files = compareSnapshots(record.baseline, record.output);
+  const byId = new Map(files.map((file) => [file.id, file]));
+  const next = { version: 1, revision: current.revision + 1, comments: current.comments.slice(), reviewed_files: current.reviewed_files.slice() };
+  const action = payload.action;
+  if (action === "comment") {
+    const file = byId.get(payload.file_id);
+    const text = typeof payload.text === "string" ? payload.text.trim() : "";
+    if (!file || !text || text.length > 4000) throw new ChangeReviewError("invalid_comment", "Comment needs a captured file anchor and up to 4,000 characters");
+    const side = payload.side || "file", line = payload.line ?? null;
+    if (!(["file", "old", "new"].includes(side)) || (side === "file" ? line !== null : !Number.isSafeInteger(line) || line < 1)) throw new ChangeReviewError("invalid_anchor", "Comment anchor is invalid");
+    if (side !== "file") {
+      const result = diff(root, record, file.id);
+      if (!result.patch || !result.complete) throw new ChangeReviewError("anchor_unavailable", "Line comments require a complete captured text diff", 409);
+      let oldNo = 0, newNo = 0, found = false, inHunk = false;
+      for (const row of result.patch.split("\n")) {
+        const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(row);
+        if (hunk) { oldNo = Number(hunk[1]); newNo = Number(hunk[3]); inHunk = true; continue; }
+        if (!inHunk) continue;
+        if (row.startsWith("+")) { if (side === "new" && newNo === line) found = true; newNo++; }
+        else if (row.startsWith("-")) { if (side === "old" && oldNo === line) found = true; oldNo++; }
+        else if (row.startsWith(" ")) { if ((side === "old" && oldNo === line) || (side === "new" && newNo === line)) found = true; oldNo++; newNo++; }
+      }
+      if (!found) throw new ChangeReviewError("anchor_missing", "Line is outside the captured diff", 409);
+    }
+    const id = crypto.randomUUID();
+    next.comments.push({ id, change_set_id: record.id, file_id: file.id, side, line, text, resolved: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+  } else if (action === "reply") {
+    const index = next.comments.findIndex((comment) => comment.id === payload.comment_id && comment.change_set_id === record.id && comment.file_id === payload.file_id);
+    const text = typeof payload.text === "string" ? payload.text.trim() : "";
+    if (index < 0) throw new ChangeReviewError("comment_missing", "Comment is unavailable", 404);
+    if (!text || text.length > 4000) throw new ChangeReviewError("invalid_comment", "Reply needs up to 4,000 characters");
+    const item = next.comments[index];
+    next.comments[index] = { ...item, replies: [...(item.replies || []), { id: crypto.randomUUID(), text, created_at: new Date().toISOString() }], updated_at: new Date().toISOString() };
+  } else if (action === "resolve" || action === "reopen") {
+    const item = next.comments.find((comment) => comment.id === payload.comment_id && comment.change_set_id === payload.change_set_id && comment.file_id === payload.file_id);
+    if (!item) throw new ChangeReviewError("comment_missing", "Comment is unavailable", 404);
+    const index = next.comments.indexOf(item);
+    next.comments[index] = { ...item, resolved: action === "resolve", updated_at: new Date().toISOString() };
+  } else if (action === "reviewed") {
+    const file = byId.get(payload.file_id);
+    if (!file) throw new ChangeReviewError("file_not_found", "File does not belong to this change set", 404);
+    const key = `${record.id}:${file.id}`;
+    if (payload.reviewed === false) next.reviewed_files = next.reviewed_files.filter((entry) => entry.key !== key);
+    else if (!next.reviewed_files.some((entry) => entry.key === key)) next.reviewed_files.push({ key, change_set_id: record.id, file_id: file.id, reviewed_at: new Date().toISOString() });
+  } else throw new ChangeReviewError("invalid_action", "Unknown review-state action");
+  if (Buffer.byteLength(JSON.stringify(next)) > 16 * 1024 * 1024) throw new ChangeReviewError("review_state_limit", "Local review state exceeds its 16 MiB limit", 413);
+  atomicJson(target, next);
+  return next;
+  }, 300); } catch (error) {
+    if (error.message.startsWith("Timed out waiting for transaction:")) throw new ChangeReviewError("review_conflict", "Another review update is in progress. Reload before saving.", 409);
+    throw error;
+  }
 }
 export function captureChangeReview(root, task, { takeSnapshot = snapshot } = {}) {
   if (!task.handoff_baseline) throw new ChangeReviewError("baseline_missing", "No captured task baseline exists. The task diff cannot be reconstructed.", 409);

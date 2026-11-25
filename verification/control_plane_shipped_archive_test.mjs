@@ -5,6 +5,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
+import { ownerJson } from "./helpers/owner-http.mjs";
 import { queueAdd, queueCreate } from "../runtime/lib/queue.mjs";
 
 // Shipped archive contract: only real queues become collapsible groups with a
@@ -73,7 +74,7 @@ try {
   await page.locator('[data-action="shipped-delete-selected"]').click();
   await page.locator('[data-action="shipped-delete-selected-confirm"]').click();
   await page.waitForFunction(() => !document.body.innerText.includes("T-201"), null, { timeout: 15000 });
-  let snapshot = await fetch(apiUrl("/api/snapshot")).then((response) => response.json());
+  let snapshot = await ownerJson(new URL("/api/snapshot", running.url));
   assert.equal(snapshot.state.tasks["T-201"].status, "archived", "standalone delete archives the record");
 
   // Per-queue bulk delete removes the whole queue group.
@@ -81,7 +82,7 @@ try {
   await page.locator('[data-action^="shipped-delete-confirm:"]').click();
   await page.waitForFunction(() => !document.body.innerText.includes("T-101"), null, { timeout: 15000 });
   assert.equal(await page.locator(".shipped-queue").count(), 0, "emptied queue group leaves the page");
-  snapshot = await fetch(apiUrl("/api/snapshot")).then((response) => response.json());
+  snapshot = await ownerJson(new URL("/api/snapshot", running.url));
   assert.equal(snapshot.state.tasks["T-101"].status, "archived", "queue bulk delete archives queue tasks");
   assert.equal(snapshot.state.tasks["T-102"].status, "archived", "queue bulk delete archives rejected tasks");
   assert.equal(snapshot.state.tasks["T-301"].status, "new", "active work is never touched by archive deletes");

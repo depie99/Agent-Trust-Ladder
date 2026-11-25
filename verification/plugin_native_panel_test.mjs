@@ -1,3 +1,4 @@
+import { checkPanelPlanningAndAssistant } from "./panel-workflows.mjs";
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,8 +9,8 @@ import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 import { verifyPluginRelease } from '../runtime/lib/plugin-release.mjs';
 
-const installed = process.argv[2];
-if (!installed) throw new Error('Pass the extracted ZCode plugin directory.');
+if (!process.argv[2]) throw new Error('Pass the extracted ZCode plugin directory.');
+const installed = path.resolve(process.argv[2]);
 const release = verifyPluginRelease(installed);
 assert.equal(release.format, 3);
 const manifest = JSON.parse(fs.readFileSync(path.join(installed, '.zcode-plugin/plugin.json')));
@@ -32,6 +33,17 @@ try {
   const origin = content._meta.ui.csp.resourceDomains[0];
   const url = content.text.match(/data-url="([^"]+)"/)?.[1].replaceAll('&amp;', '&');
   assert.ok(url?.startsWith(origin));
+  async function readOwnerSnapshot() {
+    const root = await fetch(url, { redirect: 'error' });
+    assert.equal(root.status, 200, 'valid embedded entry opens an owner session');
+    const cookie = root.headers.getSetCookie().map(value => value.split(';', 1)[0]).join('; ');
+    const html = await root.text();
+    const csrf = html.match(/<meta\s+name="atl-csrf"\s+content="([^"]+)"/i)?.[1];
+    assert.ok(cookie && csrf, 'embedded entry provides owner cookie and CSRF token');
+    const response = await fetch(`${origin}/api/snapshot`, { headers: { cookie, 'x-atl-csrf': csrf } });
+    assert.equal(response.status, 200, 'owner session may read the live snapshot');
+    return response.json();
+  }
   assert.ok(content.text.includes('ATL Control Plane'));
   const panelScript = content.text.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(panelScript, 'panel resource must contain its bundled script');
@@ -88,13 +100,13 @@ try {
     return { status: response.status, body: await response.json() };
   });
   assert.equal(result.status, 200, JSON.stringify(result.body));
-  const snapshot = await fetch(`${origin}/api/snapshot`).then(response => response.json());
+  const snapshot = await readOwnerSnapshot();
   assert.ok(snapshot.queues?.some?.(queue => queue.id === 'native-panel-test') || JSON.stringify(snapshot).includes('native-panel-test'));
   // Plugin presentation contract: the packaged panel marks its context, uses
   // compact navigation, keeps detail navigation working and follows host theme.
   assert.equal(await frame.locator('html').evaluate(el => el.dataset.atlContext), 'plugin', 'panel-entry must mark the plugin presentation context');
   assert.equal(await frame.locator('html').evaluate(el => el.classList.contains('light')), false, 'host without a theme defaults to dark');
-  for (const destination of ['tasks', 'attention', 'studio', 'more']) await frame.locator(`#mobile [data-page="${destination}"]`).first().waitFor();
+  for (const destination of ['tasks', 'attention', 'studio', 'assistant', 'more']) await frame.locator(`#mobile [data-page="${destination}"]`).first().waitFor();
   assert.equal(await frame.locator('.sidebar').evaluate(el => getComputedStyle(el).display), 'none', 'plugin hides the browser sidebar');
   const created = await frame.locator('body').evaluate(async () => {
     const csrf = document.querySelector('meta[name="atl-csrf"]').content;
@@ -105,10 +117,14 @@ try {
   await frame.locator('[data-task] .task-main-copy').first().click();
   await frame.locator('.plugin-task-pane').first().waitFor();
   await page.setViewportSize({ width: 420, height: 760 });
+  // Re-enter the tasks list after resizing so the harness exercises its
+  // narrow-screen task-to-detail navigation rather than stale desktop DOM.
+  await frame.locator('#mobile [data-page="tasks"]').first().click();
   await frame.locator('[data-task] .task-main-copy').first().click();
   await frame.locator('.task-detail-screen').waitFor();
   await frame.locator('[data-action="plugin-back"]').first().click();
   await frame.locator('[data-task]').first().waitFor();
+  await checkPanelPlanningAndAssistant(frame, "Native plugin detail check");
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.evaluate(() => document.querySelector('#panel').contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { theme: 'light', displayMode: 'inline' } }, '*'));
   await frame.locator('html.light').waitFor();

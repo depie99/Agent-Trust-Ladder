@@ -51,9 +51,17 @@ try {
     if (process.env.ATL_MODAL_SCREENSHOT && viewport.width === 390) { await page.evaluate(() => document.documentElement.classList.remove("light")); await workspace.screenshot({ path: process.env.ATL_MODAL_SCREENSHOT }); }
     const titleFont = await workspace.locator(".task-detail-title").evaluate((node) => getComputedStyle(node).fontFamily);
     assert.doesNotMatch(titleFont, /ui-monospace|Consolas/i, "task text uses a reading font");
-    // Blocker surfaces inline above the composer with its recovery actions.
-    await workspace.locator('[data-action="unblock:T-022"]').waitFor();
-    await workspace.locator('[data-action="task-recovery:T-022"]').waitFor();
+    // Blocker surfaces inline with its recovery actions; the redesigned
+    // workspace renders the bar in both the detail decisions and the activity
+    // body, so target the first instance.
+    await workspace.locator('[data-action="unblock:T-022"]').first().waitFor();
+    await workspace.locator('[data-action="task-recovery:T-022"]').first().waitFor();
+    // The recovery popup itself must offer the owner's unblock action (issue #88).
+    await workspace.locator('[data-action="task-recovery:T-022"]').first().click();
+    await dialog.locator('[data-action="unblock:T-022"]').waitFor();
+    assert.match(await dialog.locator("#modalTitle").textContent(), /Recovery proposal · T-022/, "the recovery proposal popup is open");
+    await page.keyboard.press("Escape");
+    assert.equal(await dialog.count(), 0, "closing the recovery popup leaves the task untouched");
     // Operator tools stay reachable; the route flow returns to the workspace.
     await workspace.locator('[data-action="task-actions:T-022"]').click();
     await dialog.locator('[data-action="task-route:T-022"]').click();
@@ -72,25 +80,40 @@ try {
     await page.unroute("**/api/browser-access");
     await workspace.locator("#taskBrowserAccess").selectOption("approved");
     await workspace.locator('[data-action="browser-task-save:T-022"]').click();
-    await workspace.locator('[data-workspace-disclosure="browser"] [data-browser-access] .pill.green').waitFor();
+    // The redesigned disclosure carries the state in its summary text; the
+    // pill card lives only in the task-detail dialog.
+    await workspace.locator('[data-workspace-disclosure="browser"] summary').getByText("allowed", { exact: false }).waitFor();
     const browserConfig = JSON.parse(fs.readFileSync(path.join(root, "config/manager.json"), "utf8"));
     assert.equal(browserConfig.ui_review.browser_access.tasks["T-022"], "approved");
     assert.equal(JSON.stringify(JSON.parse(fs.readFileSync(path.join(root, ".trust/manager/state.json"), "utf8")).tasks["T-022"].execution_budget), budgetBefore);
     await workspace.locator("#taskBrowserAccess").selectOption("inherit");
     await workspace.locator('[data-action="browser-task-save:T-022"]').click();
-    await workspace.locator('[data-workspace-disclosure="browser"] [data-browser-access] .pill.amber').waitFor();
+    await workspace.locator('[data-workspace-disclosure="browser"] summary').getByText("needs approval", { exact: false }).waitFor();
     assert.equal(await workspace.locator("#taskBrowserAccess").inputValue(), "inherit");
-    const taskOverflow = await workspace.locator('[data-workspace-disclosure="browser"] [data-browser-access]').evaluate((node) => node.scrollWidth - node.clientWidth);
+    const taskOverflow = await workspace.locator('[data-workspace-disclosure="browser"]').evaluate((node) => node.scrollWidth - node.clientWidth);
     assert.ok(taskOverflow <= 1, "browser access controls fit the desktop/mobile task inspector");
     await workspace.locator('[data-workspace-disclosure="acceptance"] summary').click();
     assert.equal(await workspace.locator('[data-workspace-disclosure="acceptance"]').getAttribute("open"), "", "acceptance criteria expand on demand");
     // Ask ATL mounts inline in the workspace composer.
+    let verifiedConversation = false;
     await page.route("**/api/assistant", async (route) => {
+      const request = route.request().postDataJSON();
+      if (request.action === "send") {
+        assert.equal(request.scope, "T-022");
+        assert.match(request.message, /What blocks T-022/);
+        verifiedConversation = true;
+        return route.fulfill({ json: { ok: true } });
+      }
       const response = await route.fetch(); const result = await response.json();
       result.providers = [{ id: "codex", label: "Codex", installed: true, signedIn: true, defaultModel: "test-model", models: [{ id: "test-model" }] }];
+      if (verifiedConversation && request.scope === "T-022") {
+        result.session = { ...result.session, status: "complete", output: "", diagnostic: "",
+          messages: [{ role: "assistant", text: "The task workspace lacks the required snapshot. Restore the snapshot and rerun rendered inspection." }] };
+      }
       await route.fulfill({ response, json: result });
     });
-    await workspace.locator('[data-action="assistant-open:T-022"]').click();
+    await workspace.locator("#workspaceMessage").fill("What blocks T-022?");
+    await workspace.locator('[data-action="workspace-ask:T-022"]').click();
     await workspace.locator(".assistant-guidance").waitFor();
     assert.equal(await workspace.locator("#assistantTranscript").count(), 1, "inline assistant lives in the workspace");
     let checkedProvider;
@@ -99,7 +122,10 @@ try {
       checkedProvider = route.request().postDataJSON().provider;
       await route.fulfill({ json: { ok: true, check: { ok: true, detail: "Selected provider verified" } } });
     });
-    await workspace.locator('[data-action="access-open:T-022"]').first().click();
+    // After workspace-ask, the mounted assistant panel carries the Workspace
+    // access control in its toolbar; the activity disclosures stay behind the
+    // takeover, so drive the visible toolbar button.
+    await workspace.locator('.assistant-toolbar [data-action="access-open:T-022"]').click();
     await dialog.locator('[data-action="access-check:T-022"]').click();
     await dialog.getByText("Selected provider verified", { exact: true }).waitFor();
     assert.equal(checkedProvider, "codex", "the probe checks the selected provider, not the unrelated GapCode default");
@@ -110,23 +136,65 @@ try {
     await workspace.locator("#taskBrowserAccess").waitFor();
     assert.equal(await page.evaluate(() => document.activeElement?.id), "taskBrowserAccess", "MCP denial leads directly to the task browser permission control");
 
+    // Workspace assistant round-trip through the redesigned composer:
+    // workspace-ask mounts the panel, then the panel composer sends.
+    await workspace.locator("#assistantMessage").fill("What blocks T-022?");
+    const assistant = workspace.locator("[data-workspace-assistant]");
+    const screenshotDir = process.env.ATL_ASK_TEST_EVIDENCE_DIR;
+    if (screenshotDir && viewport.width === 390) await assistant.screenshot({ path: path.join(screenshotDir, "before.png") });
+    await assistant.locator('[data-action="assistant-send"]').click();
+    await assistant.getByText(/Restore the snapshot and rerun rendered inspection/).waitFor();
+    assert.equal(verifiedConversation, true);
+    if (screenshotDir && viewport.width === 390) await assistant.screenshot({ path: path.join(screenshotDir, "after.png") });
+
+    // The redesigned Ask ATL page: landing hero, chat rail, context picker
+    // (imported tasks only) and the segmented Ask/Diagnose/Fix composer.
     await page.locator('[data-page="assistant"]:visible').first().click();
-    await page.locator('[data-action="assistant-open:global"]').first().click();
-    await dialog.locator("#assistantTranscript").waitFor();
-    if (process.env.ATL_ASSISTANT_SCREENSHOT && viewport.width === 390) await dialog.screenshot({ path: process.env.ATL_ASSISTANT_SCREENSHOT });
-    await dialog.locator(".assistant-guidance").evaluate((node) => { node.open = true; });
-    await dialog.locator('[data-action="assistant-suggest"]').click();
-    assert.match(await dialog.locator("#assistantMessage").inputValue(), /T-022/, "suggestion names the current blocked task");
-    const assistantBounds = await dialog.boundingBox();
-    assert.ok(assistantBounds.y >= 0 && assistantBounds.y + assistantBounds.height <= viewport.height + 1, "Ask ATL modal fits viewport");
-    await dialog.locator('[data-action="access-open:global"]').click();
-    await dialog.waitFor();
-    await dialog.locator('#taskAccessMode').waitFor();
-    const accessBounds = await dialog.boundingBox();
-    assert.ok(accessBounds.y >= 0 && accessBounds.y + accessBounds.height <= viewport.height + 1, "workspace access modal fits viewport");
-    const overflow = await dialog.evaluate((node) => ({ body: node.querySelector(".dialogbody").scrollWidth - node.querySelector(".dialogbody").clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
-    assert.ok(overflow.body <= 1 && overflow.page <= 1, "workspace access has no horizontal overflow");
-    await page.keyboard.press("Escape");
+    await page.locator(".ask-landing").waitFor();
+    await page.locator("#askInput").waitFor();
+    if (viewport.width === 390) {
+      await page.locator(".ask-burger").click();
+      assert.equal(await page.locator(".ask-page.ask-rail-open").count(), 1, "the mobile burger opens the chat drawer");
+      // The drawer covers the viewport's left ~300px, so tap the scrim on
+      // its far side (the pane is ~374px wide; stay inside its box).
+      await page.locator(".ask-scrim").click({ position: { x: 360, y: 300 } });
+      assert.equal(await page.locator(".ask-page.ask-rail-open").count(), 0, "tapping the scrim closes the chat drawer");
+    } else {
+      await page.locator(".ask-rail .ask-new").waitFor();
+    }
+    await page.locator('[data-action="ask-picker"]').first().click();
+    await dialog.locator(".ask-picker").waitFor();
+    assert.match(await dialog.locator(".ask-picker-body").textContent(), /No imported tasks yet/, "the picker lists imported tasks only; native tasks stay out");
+    await dialog.locator('[data-action="ask-picker-tab:project"]').click();
+    await dialog.locator("#askPickerProject").check();
+    await dialog.locator('[data-action="ask-picker-apply"]').click();
+    assert.equal(await dialog.count(), 0, "the picker closes on apply");
+    assert.ok(await page.locator(".ask-composer-chips .ask-chip").count() >= 1, "applied context appears as a composer chip");
+    assert.ok(await page.locator('[data-action="ask-mode:fix"]').isDisabled(), "fix stays disabled without a workspace-capable task context");
+    assert.ok(await page.locator(".ask-attach").count() === 1, "the composer carries the square attach button");
+    if (viewport.width === 390) {
+      // Narrow screens collapse the segmented pills into the mode select.
+      assert.equal(await page.locator("#askModeSelect").count(), 1, "the mobile mode pill renders");
+      assert.ok(await page.locator('#askModeSelect option[value="fix"]').isDisabled(), "fix stays disabled in the mobile mode pill");
+      await page.locator("#askModeSelect").selectOption("diagnose");
+      assert.equal(await page.locator("#askModeSelect").inputValue(), "diagnose", "the mobile mode pill switches mode");
+    } else {
+      await page.locator('[data-action="ask-mode:diagnose"]').click();
+      assert.match(await page.locator(".ask-seg.on").textContent(), /Diagnose/, "mode switches update the segmented control");
+    }
+    // Measure after scroll-reset and two stable frames so a racing snapshot
+    // repaint cannot skew the box (CI runners repaint later than locals).
+    const composerFit = await page.evaluate(() => new Promise((resolve) => {
+      window.scrollTo(0, 0);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const node = document.querySelector(".ask-composer");
+        if (!node) return resolve(false);
+        const rect = node.getBoundingClientRect();
+        resolve(rect.top >= 0 && rect.bottom <= window.innerHeight + 2);
+      }));
+    }));
+    assert.ok(composerFit, "the Ask ATL composer fits the viewport");
+    if (process.env.ATL_ASSISTANT_SCREENSHOT && viewport.width === 390) await page.locator(".ask-page").screenshot({ path: process.env.ATL_ASSISTANT_SCREENSHOT });
     await page.locator('[data-page="settings"]:visible').first().click();
     await page.locator("#browserAccessDefault").waitFor();
     await page.locator("#browserAccessDefault").selectOption("approved");

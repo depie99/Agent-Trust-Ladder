@@ -15,11 +15,13 @@ const reactModules = path.resolve('.tmp-ui-review/deepseek-host/node_modules');
 const { verifyPluginRelease } = await import(pathToFileURL(path.join(installed, 'runtime/lib/plugin-release.mjs')));
 verifyPluginRelease(installed);
 const { apply } = await import(pathToFileURL(path.join(installed, 'plugins/deepseek.mjs')));
+const { stopDaemon } = await import(pathToFileURL(path.join(installed, 'runtime/lib/daemon.mjs')));
 // Pin ATL_HOME so the first-launch auto-open targets a disposable home workspace.
 const atlHome = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-deepseek-home-'));
+const fixtureProject = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-deepseek-project-'));
 process.env.ATL_HOME = atlHome;
 const routes = new Map(), cleanups = [], definitions = new Map();
-const ctx = { effect(fn) { const cleanup = fn(); if (typeof cleanup === 'function') cleanups.push(cleanup); }, tools: { register(tool) { definitions.set(tool.name, tool); } }, connection: { fetch: { register(route) { routes.set(route.path, route); return async () => routes.delete(route.path); } } }, inject(keys, fn) { fn(ctx); } };
+const ctx = { effect(fn) { const cleanup = fn(); if (typeof cleanup === 'function') cleanups.push(cleanup); }, tools: { register(tool) { definitions.set(tool.name, tool); } }, workspaceRegistry: { async list() { return [{ path: fixtureProject, title: 'Recovery fixture' }]; }, async resolveByPath(value) { return value === fixtureProject ? { path: fixtureProject, title: 'Recovery fixture' } : null; } }, connection: { fetch: { register(route) { routes.set(route.path, route); return async () => routes.delete(route.path); } } }, inject(keys, fn) { fn(ctx); } };
 apply(ctx);
 assert.ok(definitions.has('atl_start'));
 const client = fs.readFileSync(path.join(installed, 'plugin-ui/deepseek-client.js'), 'utf8');
@@ -28,7 +30,7 @@ const shell = `<!doctype html><html><head><meta charset="utf-8"></head><body><di
 const registrations=[];window.__ModuleLoader__={load(entry){window.atl=entry.factory(name=>{if(name==='react')return window.fixtureReact;throw Error(name)})}};
 </script><script>${client.replaceAll('</script', '<\\/script')}</script><script>
 const root=fixtureRoot(document.getElementById('root'));const slots={inject(name,fn){return fn()},register(meta,component){registrations.push({meta,component});return()=>{}}};
-let active='plugins';const layout={selectPanel(id){active=id;render()}};atl.apply({slots,layout});
+let active='plugins';const layout={selectPanel(id){active=id;render()}};const hostContext={slots,layout,sidebarRightTabs:{register(){return()=>{}}},effect(fn){const cleanup=fn();return()=>cleanup?.()}};atl.apply(hostContext);
 function render(){const entry=registrations.find(r=>active==='plugins'?r.meta.name==='plugins.bundle.config':r.meta.name==='main'&&r.meta.key===active);window.__remountSeq=(window.__remountSeq||0)+1;root.render(fixtureReact.createElement('main',{style:{height:'100vh'}},fixtureReact.createElement(entry.component,{key:'m'+window.__remountSeq})))}render();window.rerenderMain=()=>render();
 </script></body></html>`;
 const server = http.createServer(async (req, res) => {
@@ -54,9 +56,9 @@ try {
   await page.goto(url);
   // First-launch auto-open: the panel opens the pinned home workspace directly,
   // with no directory form involved.
-  await page.getByRole('button', { name: 'Open Control Plane', exact: true }).click();
+  await page.getByRole('button', { name: 'Open Control Plane', exact: true }).click({ timeout: 3000 }).catch(async () => { throw new Error(`Initial plugin page did not expose its open action: ${await page.locator('body').innerText()}\n${errors.join('\n')}`); });
   const frame = page.frameLocator('iframe[title="ATL Control Plane"]');
-  await frame.locator('#mobile [data-page="tasks"]').waitFor({ timeout: 30000 });
+  await frame.locator('#mobile [data-page="tasks"]').waitFor({ timeout: 12000 }).catch(async () => { throw new Error(`Panel failed to render Tasks: ${JSON.stringify(await Promise.all(page.frames().map(async item => ({ url: item.url(), text: await item.locator('body').innerText().catch(() => '') }))))}\n${errors.join('\n')}`); });
   assert.equal(await page.locator('#atl-project').count(), 0, 'first launch must auto-open without the directory form');
   const framePage = page.frames().find(f => f.url().includes('/api/atl/view'));
   const firstId = new URL(framePage.url()).searchParams.get('id');
@@ -79,5 +81,7 @@ try {
   await browser?.close();
   for (const close of cleanups.reverse()) await close();
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+  await stopDaemon(fixtureProject);
   fs.rmSync(atlHome, { recursive: true, force: true });
+  fs.rmSync(fixtureProject, { recursive: true, force: true });
 }

@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
+import { testEvidence, verificationPolicy } from "./test-evidence.mjs";
 import { activeTasks, wakeActions } from "./render.mjs";
 import { paths, loadState, saveState, logEvent, transition } from "./state.mjs";
 import { AVATARS, NAMES, readFeed, post as feedPost } from "./feed.mjs";
@@ -700,16 +701,14 @@ function renderTaskDetail(snapshot, selected, width, plain, scroll = 0, maxRows 
   if (task.blocker?.reason) {
     if (task.next_wake_at) lines.push(`${paint("wake", "faint", plain)} ${timeOf(task.next_wake_at)}`);
   }
-  if (task.completion_checks?.length) {
-    lines.push("", paint(`CHECKS · ${task.completion_checks.length}`, "faint", plain));
-    for (const check of task.completion_checks.slice(0, 8)) {
-      const evidence = task.evidence?.filter((entry) => entry.kind === "check" && entry.check === check) || [];
-      const pass = evidence.some((entry) => entry.result === "pass");
-      const fail = evidence.some((entry) => entry.result === "fail");
-      const icon = pass ? paint("✓", "mint", plain) : fail ? paint("×", "coral", plain) : paint("·", "amber", plain);
-      lines.push(` ${icon} ${truncate(check, Math.max(10, inner - 4))}`);
-    }
+  const verification = testEvidence(task, task.verification_revision, snapshot.root);
+  const evidencePolicy = verification.policy || verificationPolicy(snapshot.state, task);
+  lines.push("", paint("TEST EVIDENCE", "faint", plain),
+    ...wrap(`${verification.verified ? "Verified" : "Unverified"} | ${evidencePolicy === "allow" ? "Allow completion with evidence gaps" : "Block completion"}`, inner));
+  for (const check of verification.checks.slice(0, 8)) {
+    lines.push(...wrap(` ${check.status}: ${check.expected}`, inner));
   }
+  lines.push(...wrap(`Details: atl test-evidence ${task.id}`, inner));
   const notes = (task.evidence || []).filter((entry) => entry.kind === "note").slice(-2);
   if (notes.length) {
     lines.push("", paint("LATEST NOTES", "faint", plain));
@@ -1509,7 +1508,7 @@ function editorText(editor) {
 function renderEditorScreen(ui, width, height, plain) {
   const e = ui.editor;
   const inner = Math.max(16, width - 4);
-  const display = (line) => (e.mask ? "•".repeat(line.length) : line);
+  const display = (line) => (e.mask && !e.revealed ? "•".repeat([...line].length) : line);
   const lines = [
     paint(e.title, "violet", plain),
     ...wrap(e.hint || "", inner),
@@ -1522,7 +1521,7 @@ function renderEditorScreen(ui, width, height, plain) {
     "",
     paint(e.multiline
       ? "Enter newline · Ctrl+S submit · Esc cancel"
-      : "Enter submit · Esc cancel", "muted", plain),
+      : e.mask ? `Enter submit · Ctrl+R ${e.revealed ? "hide" : "show"} key · Esc cancel` : "Enter submit · Esc cancel", "muted", plain),
   ];
   return panel(`COMPOSE · ${e.kind.toUpperCase()}`, lines, width, height, { accent: "coral", plain }).join("\n");
 }
@@ -3242,6 +3241,7 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
     function handleEditorKey(_input, key = {}) {
       const e = ui.editor;
       const name = key.name || "";
+      if (e.mask && key.ctrl && name === "r") { e.revealed = !e.revealed; return; }
       if (key.ctrl && name === "s" && e.multiline) { submitFromEditor(); return; }
       if (name === "escape") {
         if (e.kind === "compose") {

@@ -60,6 +60,10 @@ export function createTaskTriage(root, { items, invoke, canRun = () => true, now
       data.jobs = data.jobs.filter(j => j.key !== item.key);
       data.jobs.push({ key: item.key, fingerprint: fp });
     }
+    const liveKeys = new Set(records.map(item => item.key));
+    for (const key of Object.keys(data.entries)) if (!liveKeys.has(key)) delete data.entries[key];
+    const cutoff = new Date(now() - 30 * 86400000).toISOString().slice(0, 10);
+    for (const day of Object.keys(data.attempts)) if (day < cutoff) delete data.attempts[day];
     write(file, data);
   }
   function detail(item, entry, locale = 'en-US') {
@@ -70,8 +74,7 @@ export function createTaskTriage(root, { items, invoke, canRun = () => true, now
   function get(key, locale = 'en-US') { return detail(items().find(i => i.key === key), book().entries[key], locale); }
   async function tick() {
     if (active || stopped || !settings().enabled || !canRun()) return;
-    fs.mkdirSync(dir, { recursive: true });
-    try { const fd = fs.openSync(lockFile, 'wx'); fs.writeFileSync(fd, String(process.pid)); fs.closeSync(fd); }
+    try { fs.mkdirSync(dir, { recursive: true }); const fd = fs.openSync(lockFile, 'wx'); fs.writeFileSync(fd, String(process.pid)); fs.closeSync(fd); }
     catch { try { const pid = Number(fs.readFileSync(lockFile, 'utf8')); try { process.kill(pid, 0); return; } catch (error) { if (error.code !== 'ESRCH') return; } fs.unlinkSync(lockFile); } catch {} return; }
     active = true;
     try {
@@ -104,7 +107,7 @@ export function createTaskTriage(root, { items, invoke, canRun = () => true, now
     saveSettings(value) { const cfg = { ...settings(), ...value }; if (typeof cfg.enabled !== 'boolean' || typeof cfg.provider !== 'string' || (cfg.enabled && !/glm.*flash/i.test(cfg.model || '')) || !Number.isInteger(cfg.daily_limit) || cfg.daily_limit < 1 || cfg.daily_limit > 10000) throw Error('Choose a GLM Flash model, provider and daily limit (1–10000).'); write(settingsFile, cfg); ensure(); return cfg; },
     decorate(records) { const data = book(); return records.map(item => { const value = detail(item, data.entries[item.key]); return { ...item, source: item.source || 'azure', source_priority: item.source_priority || { rank: item.priority, label: item.priority ? `P${item.priority}` : null }, triage: value && { score: value.score, level: value.level, status: value.status, stale: value.stale } }; }); },
     status() { const data = book(); return { running: active, queued: data.jobs.length, ready: Object.values(data.entries).filter(e => e.status === 'ready').length, failed: Object.values(data.entries).filter(e => e.status === 'failed').length, settings: settings() }; },
-    start() { stopped = false; ensure(); timer = setInterval(() => void tick(), intervalMs); timer.unref?.(); void tick(); },
+    start() { stopped = false; try { ensure(); } catch { /* next interval retries disk/context reads */ } timer = setInterval(() => { void tick().catch(() => {}); }, intervalMs); timer.unref?.(); void tick().catch(() => {}); },
     stop() { stopped = true; clearInterval(timer); }
   };
 }

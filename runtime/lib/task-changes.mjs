@@ -59,7 +59,7 @@ const sensitiveText = (text) => /-----BEGIN [\w ]*PRIVATE KEY-----|(?:api[_-]?ke
 
 // Bounded line LCS, after removing common prefix/suffix. Large unrelated edits
 // return an explicit limit state rather than freezing the control plane.
-export function unifiedDiff(before, after, name) {
+export function unifiedDiff(before, after, name, { milliseconds = LIMITS.milliseconds, cells = LIMITS.cells } = {}) {
   const started = performance.now();
   const lines = (text) => text === "" ? [] : text.replace(/\n$/, "").split("\n");
   const a = lines(before), b = lines(after);
@@ -68,10 +68,10 @@ export function unifiedDiff(before, after, name) {
   while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix++;
   while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix++;
   const x = a.slice(prefix, a.length - suffix), y = b.slice(prefix, b.length - suffix);
-  if ((x.length + 1) * (y.length + 1) > LIMITS.cells) return { availability: "diff_limit", truncated: true, patch: "", additions: null, deletions: null };
+  if ((x.length + 1) * (y.length + 1) > cells) return { availability: "diff_limit", truncated: true, patch: "", additions: null, deletions: null };
   const width = y.length + 1, table = new Uint32Array((x.length + 1) * width);
   for (let i = x.length - 1; i >= 0; i--) {
-    if (performance.now() - started > LIMITS.milliseconds) return { availability: "timeout", truncated: true, patch: "", additions: null, deletions: null };
+    if (performance.now() - started > milliseconds) return { availability: "timeout", truncated: true, patch: "", additions: null, deletions: null };
     for (let j = y.length - 1; j >= 0; j--) table[i * width + j] = x[i] === y[j] ? 1 + table[(i + 1) * width + j + 1] : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
   }
   const ops = a.slice(0, prefix).map((text) => [" ", text]);
@@ -108,7 +108,7 @@ export function unifiedDiff(before, after, name) {
   if (Buffer.byteLength(patch) > LIMITS.patch) return { availability: "patch_limit", truncated: true, patch: "", additions, deletions };
   return { availability: "available", truncated: false, patch, additions, deletions };
 }
-export function fileDiff(root, record, fileId) {
+export function fileDiff(root, record, fileId, options = {}) {
   const file = compareSnapshots(record.baseline, record.output).find((entry) => entry.id === fileId);
   if (!file) throw new ChangeReviewError("file_not_found", "File does not belong to this change set", 404);
   if (sensitivePath(file.path)) return { file, availability: "redacted", patch: "", truncated: false, complete: false };
@@ -119,7 +119,7 @@ export function fileDiff(root, record, fileId) {
     let a, b;
     try { a = decode.decode(before); b = decode.decode(after); } catch { return { file, availability: "binary", patch: "", complete: false }; }
     if (sensitiveText(a) || sensitiveText(b)) return { file, availability: "redacted", patch: "", complete: false };
-    const diff = unifiedDiff(a, b, file.path);
+    const diff = unifiedDiff(a, b, file.path, options);
     return { file, ...diff, complete: diff.availability === "available", mode_change: file.before_mode !== file.after_mode };
   } catch (error) {
     if (!(error instanceof ChangeReviewError)) throw error;
@@ -148,8 +148,10 @@ function fileStatCached(root, record, file) {
   statCache.set(key, stat);
   return stat;
 }
-export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page, root = null } = {}) {
-  const files = compareSnapshots(record.baseline, record.output), evidence = evidenceFor(task, record), attention = [];
+export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page, root = null, query = "", kind = "all" } = {}) {
+  const allFiles = compareSnapshots(record.baseline, record.output);
+  const files = allFiles.filter((file) => file.path.toLowerCase().includes(String(query).toLowerCase()) && (kind === "all" || file.kind === kind));
+  const evidence = evidenceFor(task, record), attention = [];
   const artifacts = evidence.filter((entry) => entry.artifact_hash).map((entry) => ({ id: `artifact-${digest(String(entry.artifact_hash)).slice(0, 20)}`, hash: entry.artifact_hash, evidence_id: entry.id, code_revision: entry.code_revision || null, packet_revision: entry.packet_revision ?? null, availability: "reference_only" }));
   const add = (code, reason) => attention.push({ id: code, code, reason });
   if (["blocked", "escalated"].includes(task.status)) add("blocked", task.blocker?.reason || `Task is ${task.status}`);
@@ -169,7 +171,7 @@ export function describeChanges(task, record, { cursor = 0, limit = LIMITS.page,
   }
   const withStats = files.slice(offset, offset + size).map((file) => ({ ...file, ...(stats.get(file.id) || { additions: null, deletions: null }) }));
   const computed = [...stats.values()].filter((stat) => stat.additions != null && stat.deletions != null);
-  const additions = computed.reduce((sum, stat) => sum + stat.additions, 0) || null;
-  const deletions = computed.reduce((sum, stat) => sum + stat.deletions, 0) || null;
-  return { version: 1, capability: "task-change-review-v1", availability: "available", id: record.id, task_id: task.id, title: task.title || "", objective: task.objective || "", summary: task.last_checkpoint?.note || task.evidence?.at(-1)?.detail || null, status: task.status, captured_status: record.captured_status || null, packet_revision: record.packet_revision, captured_at: record.captured_at, source_kind: record.source_kind, run_id: record.run_id || null, baseline_revision: record.baseline.revision, output_revision: record.output.revision, input_revisions: record.input_revisions || {}, repository: task.repository_name || null, workspace: task.workspace || null, evidence, artifacts, attention, decisions: [], decisions_availability: "unavailable", total_files: files.length, additions, deletions, stats_complete: files.length > 0 && computed.length === Math.min(size, files.length) && offset + size >= files.length, files: withStats, next_cursor: offset + size < files.length ? offset + size : null, preview_complete: false };
+  const additions = computed.length ? computed.reduce((sum, stat) => sum + stat.additions, 0) : null;
+  const deletions = computed.length ? computed.reduce((sum, stat) => sum + stat.deletions, 0) : null;
+  return { version: 1, capability: "task-change-review-v1", availability: "available", id: record.id, task_id: task.id, title: task.title || "", objective: task.objective || "", summary: task.last_checkpoint?.note || task.evidence?.at(-1)?.detail || null, status: task.status, captured_status: record.captured_status || null, packet_revision: record.packet_revision, captured_at: record.captured_at, source_kind: record.source_kind, run_id: record.run_id || null, baseline_revision: record.baseline.revision, output_revision: record.output.revision, input_revisions: record.input_revisions || {}, repository: task.repository_name || null, workspace: task.workspace || null, evidence, artifacts, attention, decisions: [], decisions_availability: "unavailable", total_files: allFiles.length, matching_files: files.length, query: String(query), filter: kind, additions, deletions, stats_complete: files.length > 0 && computed.length === Math.min(size, files.length) && offset + size >= files.length, files: withStats, next_cursor: offset + size < files.length ? offset + size : null, preview_complete: false };
 }

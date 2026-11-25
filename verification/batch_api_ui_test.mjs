@@ -7,7 +7,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 import { emptyState, createTask, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
-import { claimBatchItem, readBatch, writeBatch } from "../runtime/lib/batch-runner.mjs";
+import { activateScheduledBatch, authorizeBatch, claimBatchItem, readBatch, runBatch, writeBatch } from "../runtime/lib/batch-runner.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-batch-api-"));
 fs.mkdirSync(path.join(root, ".trust", "manager"), { recursive: true });
@@ -16,11 +16,15 @@ const ids = [];
 for (const label of ["first", "second"]) {
   const task = createTask(state, { title: `Batch ${label}` });
   task.status = "assigned";
+  task.plan_draft_id = "approved-fixture";
+  task.plan_queue_id = "approved-fixture-queue";
+  task.plan_review_required = false;
   task.source_origin = { type: "azure", remote_id: 741, iteration: "Demo\\Sprint 74" };
   task.workspace = fs.mkdtempSync(path.join(os.tmpdir(), "atl-batch-api-ws-"));
   fs.writeFileSync(path.join(task.workspace, "value.txt"), `${label}\n`);
   ids.push(task.id);
 }
+const unapproved = createTask(state, { title: "Unapproved task" });
 saveState(root, state);
 
 const post = async (url, body) => {
@@ -54,21 +58,40 @@ try {
     await page.goto(running.url);
     await page.locator('[data-page="batches"]:visible').first().click();
     await page.locator('[data-action="workflow-select:pilot"]').click();
-    await page.locator('.wf-step').first().waitFor();
-    assert.match(await page.locator('.wf-steps').innerText(), /Batch first/);
-    assert.match(await page.locator('.wf-steps').innerText(), /Azure Boards · #741 · Sprint 74/);
-    assert.equal(await page.locator('[aria-label="Import to execution"] button').count(), 3);
+    await page.locator('.batch-step').first().waitFor();
+    assert.match(await page.locator('.batch-detail').innerText(), /Batch first/);
+    assert.equal(await page.locator('.batch-flow button').count(), 3);
+    await page.getByRole("button", { name: "+ New batch", exact: true }).click();
+    assert.equal(await page.locator(`[data-batch-task="${unapproved.id}"]`).count(), 0);
+    await page.locator(`[data-batch-task="${ids[1]}"]`).check();
+    await page.locator(`[data-batch-task="${ids[0]}"]`).check();
+    await page.locator("#batchStart").selectOption({ index: 1 });
+    await page.locator("#batchFailure").selectOption("stop");
+    await page.locator("#batchMinutes").selectOption("480");
+    assert.match(await page.locator("#batchPreview").innerText(), /2 tasks · up to 8 h · at most 4 attempts/);
+    await page.getByRole("button", { name: "Authorize and start" }).click();
+    await page.getByRole("button", { name: "Cancel schedule" }).waitFor();
+    const newBatch = (await fetch(`${running.url}api/batch`).then(r => r.json())).batches.find(batch => batch.id !== "pilot");
+    assert.equal(newBatch.status, "scheduled");
+    assert.equal(newBatch.failure_policy, "stop");
+    assert.deepEqual(newBatch.items.map(item => item.task), [...ids].reverse());
+    assert.equal(newBatch.items.every(item => item.attempts === 0), true);
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'workflow steps and source context fit mobile');
-    await page.locator('[data-action="go:mytasks"]').click();
-    await page.locator('.mtr-root').waitFor();
+    await page.locator('.batch-flow [data-action="go:inbox"]').click();
+    await page.getByRole("heading", { name: "Inbox", exact: true }).waitFor();
   } finally { await browser.close(); }
 
-  const snapshot = await fetch(`${running.url}api/snapshot`).then((response) => response.json());
-  assert.ok(snapshot.batches.some((batch) => batch.id === "pilot"), "the live snapshot carries the batch scope");
+  const unauthenticatedSnapshot = await fetch(`${running.url}api/snapshot`);
+  assert.equal(unauthenticatedSnapshot.status, 403, "snapshot reads require an authenticated owner session");
+  const rootResponse = await fetch(running.url);
+  const ownerCookie = rootResponse.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
+  const csrf = (await rootResponse.text()).match(/<meta name="atl-csrf" content="([^"]+)"/)?.[1] || "";
+  const snapshot = await fetch(`${running.url}api/snapshot`, { headers: { cookie: ownerCookie, "x-atl-csrf": csrf } }).then((response) => response.json());
+  assert.ok(Array.isArray(snapshot.batches) && snapshot.batches.some((batch) => batch.id === "pilot"), "the live snapshot carries the batch scope");
 
   const client = await fetch(`${running.url}control-plane-client.js`).then((response) => response.text());
-  assert.match(client, /OPERATIONS \/ BATCHES/);
+  assert.match(client, /BUILD \/ BATCHES/);
   assert.match(client, /batch-start-save/);
   assert.match(client, /batch-reconcile:/);
 
@@ -101,6 +124,21 @@ try {
   const forgedRun = await post(`${running.url}api/batch`, { action: "run", id: "forged", confirm: true });
   assert.equal(forgedRun.status, 409);
   assert.match(forgedRun.body.error, /invalid|reconciliation|complete/);
+
+  const rejectedTask = await post(`${running.url}api/batch`, { action: "authorize", confirm: true, id: "unapproved", tasks: [unapproved.id], max_minutes: 60, max_attempts: 2, failure_policy: "continue" });
+  assert.equal(rejectedTask.status, 409);
+  const clock = Date.now(), due = clock + 60_000;
+  authorizeBatch(root, { id: "test-failure-policy", tasks: ids, startAt: new Date(due).toISOString(), limits: { max_minutes: 60, max_attempts: 1 }, failurePolicy: "stop", now: clock });
+  assert.equal(activateScheduledBatch(root, "test-failure-policy", { now: clock }), null);
+  const active = activateScheduledBatch(root, "test-failure-policy", { now: due });
+  assert.equal(Date.parse(active.deadline_at), due + 60 * 60_000);
+  const launched = [];
+  const outcome = await runBatch(root, active.id, { now: () => due, onProgress() {}, launch: async (_root, { taskIds }) => {
+    launched.push(...taskIds);
+    return { status: "failed", reason: "fixture failure" };
+  } });
+  assert.equal(outcome.status, "stopped");
+  assert.deepEqual(launched, [ids[0]]);
 
   console.log("PASS: batch API — explicit scope/limits, readiness, duplicate refusal, snapshot exposure, stop/resume, conservative reconcile, morning summary and forged-checkpoint refusal");
 } finally {

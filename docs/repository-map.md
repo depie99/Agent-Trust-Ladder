@@ -32,11 +32,12 @@ Harness adapters and full-runtime distribution contracts.
 | [plugins/deepseek-client.mjs](../plugins/deepseek-client.mjs) | dsh unmounts the keyed main slot on every tab switch and remounts it on return, |
 | [plugins/deepseek-frame.mjs](../plugins/deepseek-frame.mjs) | Runs inside the same-origin DSH frame; all ATL traffic uses the authenticated |
 | [plugins/deepseek-host.mjs](../plugins/deepseek-host.mjs) | Host-native UI for DeepSeek Harness (issue #34): reuse the host's own |
-| [plugins/deepseek-panel.mjs](../plugins/deepseek-panel.mjs) | First launch opens without asking for a directory: the last workspace opened |
+| [plugins/deepseek-panel.mjs](../plugins/deepseek-panel.mjs) | Connection's exact Fetch routes enforce host trust, browser authentication, |
 | [plugins/deepseek.mjs](../plugins/deepseek.mjs) | Native Cordis contribution: tools use the same bridge as the MCP plugins. |
 | [plugins/panel-entry.mjs](../plugins/panel-entry.mjs) | Marks the plugin presentation for the Control Plane client (default browser stays unmarked). |
 | [plugins/panel-template.html](../plugins/panel-template.html) | panel template: source/configuration for its containing feature. |
 | [plugins/README.md](../plugins/README.md) | ATL harness distribution. |
+| [plugins/snapshot-transport.mjs](../plugins/snapshot-transport.mjs) | Cursor-based polling shared by plugin presentation adapters. It has one |
 
 ## config
 
@@ -76,6 +77,13 @@ Developer guides, generated website, visual sources, and historical evidence.
 | [docs/development.md](../docs/development.md) | Development and verification. |
 | [docs/diagrams.html](../docs/diagrams.html) | Generated public route; edit its Markdown source in docs/site.json. |
 | [docs/diagrams.md](../docs/diagrams.md) | Diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.context-picker.png](../docs/diagrams/ask-atl-redesign.after.context-picker.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.conversation-light.png](../docs/diagrams/ask-atl-redesign.after.conversation-light.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.conversation-mobile.png](../docs/diagrams/ask-atl-redesign.after.conversation-mobile.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.conversation-rtl.png](../docs/diagrams/ask-atl-redesign.after.conversation-rtl.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.conversation.png](../docs/diagrams/ask-atl-redesign.after.conversation.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.after.landing.png](../docs/diagrams/ask-atl-redesign.after.landing.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/ask-atl-redesign.before.page.png](../docs/diagrams/ask-atl-redesign.before.page.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/atl-architecture.light.svg](../docs/diagrams/atl-architecture.light.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/atl-architecture.svg](../docs/diagrams/atl-architecture.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/atl-control-plane-real.png](../docs/diagrams/atl-control-plane-real.png) | Visual source or retained historical capture; see the diagram library. |
@@ -122,6 +130,13 @@ Developer guides, generated website, visual sources, and historical evidence.
 | [docs/diagrams/codex-history-bridge-mobile.png](../docs/diagrams/codex-history-bridge-mobile.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/codex-history-bridge.light.svg](../docs/diagrams/codex-history-bridge.light.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/codex-history-bridge.svg](../docs/diagrams/codex-history-bridge.svg) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.after.add-source.png](../docs/diagrams/issue-sources-v2.after.add-source.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.after.page.png](../docs/diagrams/issue-sources-v2.after.page.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.before.add-source.png](../docs/diagrams/issue-sources-v2.before.add-source.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/issue-sources-v2.before.page.png](../docs/diagrams/issue-sources-v2.before.page.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/my-tasks-auth-recovery.after.credential-modal.png](../docs/diagrams/my-tasks-auth-recovery.after.credential-modal.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/my-tasks-auth-recovery.after.setup-401.png](../docs/diagrams/my-tasks-auth-recovery.after.setup-401.png) | Visual source or retained historical capture; see the diagram library. |
+| [docs/diagrams/my-tasks-auth-recovery.before.setup-401.png](../docs/diagrams/my-tasks-auth-recovery.before.setup-401.png) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-compose.svg](../docs/diagrams/tui-compose.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-dashboard.svg](../docs/diagrams/tui-dashboard.svg) | Visual source or retained historical capture; see the diagram library. |
 | [docs/diagrams/tui-launch.svg](../docs/diagrams/tui-launch.svg) | Visual source or retained historical capture; see the diagram library. |
@@ -237,12 +252,13 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/batch-runner.mjs](../runtime/lib/batch-runner.mjs) | Manager-side adapter for one finite sequential batch. The checkpoint rules |
 | [runtime/lib/brain.mjs](../runtime/lib/brain.mjs) | Evidence-linked project memory. Human-readable knowledge may live in |
 | [runtime/lib/browser-access.mjs](../runtime/lib/browser-access.mjs) | browser access: runtime implementation; inspect exports and matching verification. |
-| [runtime/lib/change-review-store.mjs](../runtime/lib/change-review-store.mjs) | change review store: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/change-review-store.mjs](../runtime/lib/change-review-store.mjs) | Review notes are separate from immutable capture manifests. Anchors always |
 | [runtime/lib/codex-bridge.mjs](../runtime/lib/codex-bridge.mjs) | Optional bridge from ATL's durable team state into a persistent Codex thread. |
+| [runtime/lib/codex-models.mjs](../runtime/lib/codex-models.mjs) | codex models: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/command-console.mjs](../runtime/lib/command-console.mjs) | command console: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/composer.mjs](../runtime/lib/composer.mjs) | The control room's composition path: free text or imported candidates in, |
-| [runtime/lib/control-assistant.mjs](../runtime/lib/control-assistant.mjs) | control assistant: runtime implementation; inspect exports and matching verification. |
-| [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | Batch ids with a runner active in this process. The checkpoint lease remains |
+| [runtime/lib/control-assistant.mjs](../runtime/lib/control-assistant.mjs) | Ask ATL page conversations live in their own directory; the embedded |
+| [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | The overnight-run gate serializes planning provider calls (generate, |
 | [runtime/lib/control-plane.mjs](../runtime/lib/control-plane.mjs) | Inventory only: installed skill metadata is not promotion evidence. |
 | [runtime/lib/daemon.mjs](../runtime/lib/daemon.mjs) | One state owner per project (issue #34). |
 | [runtime/lib/dashboard.mjs](../runtime/lib/dashboard.mjs) | Read-only terminal dashboard for the ATL manager. |
@@ -252,13 +268,16 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/dispatcher.mjs](../runtime/lib/dispatcher.mjs) | Supervisor scheduling policy: deterministic, bounded and project-fair. It |
 | [runtime/lib/egm-review.mjs](../runtime/lib/egm-review.mjs) | Bounded EGM deep-review path for Plan Studio. The runner uses exactly the |
 | [runtime/lib/execution-access.mjs](../runtime/lib/execution-access.mjs) | A single permission contract for Ask ATL and built-in queue workers. |
-| [runtime/lib/execution-projection.mjs](../runtime/lib/execution-projection.mjs) | Read-only execution projection: joins what ATL already recorded (state |
+| [runtime/lib/execution-backend.mjs](../runtime/lib/execution-backend.mjs) | Remote implementations must preserve these semantics, never impersonate local paths. |
+| [runtime/lib/execution-projection.mjs](../runtime/lib/execution-projection.mjs) | The same pinned patch powers the reviewer and graph. Expansion pages only |
 | [runtime/lib/execution-report.mjs](../runtime/lib/execution-report.mjs) | execution report: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/feed.mjs](../runtime/lib/feed.mjs) | The team feed: a chat-style narration of everything the bots do. |
 | [runtime/lib/feedback.mjs](../runtime/lib/feedback.mjs) | Durable human feedback for bounded provider sessions. |
+| [runtime/lib/file-transaction.mjs](../runtime/lib/file-transaction.mjs) | Synchronous transactions only: never hold this lock across provider calls. |
 | [runtime/lib/governance.mjs](../runtime/lib/governance.mjs) | governance: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/handoffs.mjs](../runtime/lib/handoffs.mjs) | Content-addressed handoffs include dirty and untracked source, without committing |
 | [runtime/lib/harness-catalog.mjs](../runtime/lib/harness-catalog.mjs) | Connection profiles only; worker-provider capability is a separate contract. |
+| [runtime/lib/harness-planning.mjs](../runtime/lib/harness-planning.mjs) | Establish an initial revision without staging or committing developer files. |
 | [runtime/lib/history.mjs](../runtime/lib/history.mjs) | history.mjs — the unified chat-history viewer for the agent CLIs on this machine. |
 | [runtime/lib/intake.mjs](../runtime/lib/intake.mjs) | Intake adapters: local bullet files, GitHub issues, Azure Boards work items. |
 | [runtime/lib/issue-connections.mjs](../runtime/lib/issue-connections.mjs) | Locks carry their holder's pid so a crashed writer's lock is reclaimed |
@@ -281,6 +300,8 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/plugin-host.mjs](../runtime/lib/plugin-host.mjs) | Shared full-runtime bridge for native harness plugins and stdio MCP. |
 | [runtime/lib/plugin-panel.mjs](../runtime/lib/plugin-panel.mjs) | Same Control Plane HTTP contract, carried over the host's MCP App bridge. |
 | [runtime/lib/plugin-release.mjs](../runtime/lib/plugin-release.mjs) | One content identity for the Control Plane and every harness distribution. |
+| [runtime/lib/program-runner.mjs](../runtime/lib/program-runner.mjs) | program runner: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/programs.mjs](../runtime/lib/programs.mjs) | Charged before provider spawn. A crash retains the charge rather than refunding unknown work. |
 | [runtime/lib/project-map.mjs](../runtime/lib/project-map.mjs) | Projects work map: how imported requests, plans, plan queues and executable |
 | [runtime/lib/provider-quota.mjs](../runtime/lib/provider-quota.mjs) | provider quota: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/providers.mjs](../runtime/lib/providers.mjs) | Provider discovery and per-role provider profiles for the control room. |
@@ -294,6 +315,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/resources.mjs](../runtime/lib/resources.mjs) | Task resources are durable references, not prompt noise. Local files are |
 | [runtime/lib/roles.mjs](../runtime/lib/roles.mjs) | Role contracts for the ATL digital team. |
 | [runtime/lib/routines.mjs](../runtime/lib/routines.mjs) | Durable routine scheduler. It only creates internal ATL run records; |
+| [runtime/lib/run-authorization.mjs](../runtime/lib/run-authorization.mjs) | run authorization: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/session-auth.mjs](../runtime/lib/session-auth.mjs) | session auth: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/show-me.mjs](../runtime/lib/show-me.mjs) | show me: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/skill-install.mjs](../runtime/lib/skill-install.mjs) | Parse supported skills CLI syntax as data. Never execute the pasted command. |
@@ -308,6 +330,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/task-statechart.mjs](../runtime/lib/task-statechart.mjs) | Project recorded transitions only; never invent steps from the workflow contract. |
 | [runtime/lib/task-triage.mjs](../runtime/lib/task-triage.mjs) | task triage: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/task-workspace.mjs](../runtime/lib/task-workspace.mjs) | task workspace: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/test-evidence.mjs](../runtime/lib/test-evidence.mjs) | test evidence: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/tui-components.mjs](../runtime/lib/tui-components.mjs) | tui components: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/tui-layout.mjs](../runtime/lib/tui-layout.mjs) | tui layout: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/tui-theme.mjs](../runtime/lib/tui-theme.mjs) | tui theme: runtime implementation; inspect exports and matching verification. |
@@ -328,9 +351,16 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/prompts/sage.md](../runtime/prompts/sage.md) | Role prompt defining responsibilities and evidence requirements. |
 | [runtime/README.md](../runtime/README.md) | ATL runtime. |
 | [runtime/scss/_app.scss](../runtime/scss/_app.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_ask-atl.scss](../runtime/scss/_ask-atl.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_batches-knowledge.scss](../runtime/scss/_batches-knowledge.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_intake.scss](../runtime/scss/_intake.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_my-tasks.scss](../runtime/scss/_my-tasks.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_plugin.scss](../runtime/scss/_plugin.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_source-design.scss](../runtime/scss/_source-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_source-fonts.scss](../runtime/scss/_source-fonts.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_sources.scss](../runtime/scss/_sources.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_studio-design.scss](../runtime/scss/_studio-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_tasks-design.scss](../runtime/scss/_tasks-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_tokens.scss](../runtime/scss/_tokens.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_workspace.scss](../runtime/scss/_workspace.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/control-plane.scss](../runtime/scss/control-plane.scss) | Stylesheet source or theme token; rebuild through its package script. |
@@ -356,7 +386,7 @@ Build, installation, validation, and maintenance programs.
 | [scripts/check-relative-imports.mjs](../scripts/check-relative-imports.mjs) | check relative imports: source/configuration for its containing feature. |
 | [scripts/check-tracked-paths.mjs](../scripts/check-tracked-paths.mjs) | check tracked paths: source/configuration for its containing feature. |
 | [scripts/docs-preview.mjs](../scripts/docs-preview.mjs) | Read-only synthetic UI for documentation captures. No real issue adapters. |
-| [scripts/docs-reference.mjs](../scripts/docs-reference.mjs) | Regenerate source-derived references before building the public website. |
+| [scripts/docs-reference.mjs](../scripts/docs-reference.mjs) | docs reference: source/configuration for its containing feature. |
 | [scripts/install-atl.cmd](../scripts/install-atl.cmd) | install atl: source/configuration for its containing feature. |
 | [scripts/install-atl.sh](../scripts/install-atl.sh) | ATL team installer — puts the `atl` CLI in ~/.atl. |
 | [scripts/install.mjs](../scripts/install.mjs) | ATL team installer — puts the atl CLI in ~/.atl for the current user. |
@@ -579,6 +609,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | File | Purpose |
 |---|---|
 | [verification/approval_test.mjs](../verification/approval_test.mjs) | Executable regression check for approval. |
+| [verification/ask_atl_conversations_test.mjs](../verification/ask_atl_conversations_test.mjs) | Executable regression check for ask atl conversations. |
 | [verification/atl_lazy_pipeline_test.py](../verification/atl_lazy_pipeline_test.py) | atl lazy pipeline test: source/configuration for its containing feature. |
 | [verification/atl_lifecycle_model.py](../verification/atl_lifecycle_model.py) | atl lifecycle model: source/configuration for its containing feature. |
 | [verification/atl_manager_lifecycle_model.py](../verification/atl_manager_lifecycle_model.py) | atl manager lifecycle model: source/configuration for its containing feature. |
@@ -622,6 +653,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/dependencies_model.py](../verification/dependencies_model.py) | name -> (tasks [(id, priority)], edges {id: [dep ids]}) — "depends on". |
 | [verification/developer_delivery_contract_test.mjs](../verification/developer_delivery_contract_test.mjs) | Executable regression check for developer delivery contract. |
 | [verification/developer_delivery_receipt_test.mjs](../verification/developer_delivery_receipt_test.mjs) | Executable regression check for developer delivery receipt. |
+| [verification/dispatch_preflight_test.mjs](../verification/dispatch_preflight_test.mjs) | Executable regression check for dispatch preflight. |
 | [verification/dispatcher_test.mjs](../verification/dispatcher_test.mjs) | Executable regression check for dispatcher. |
 | [verification/docs_site_test.mjs](../verification/docs_site_test.mjs) | Executable regression check for docs site. |
 | [verification/e2e/dsh_zero_to_hero_journey.mjs](../verification/e2e/dsh_zero_to_hero_journey.mjs) | DSH zero-to-hero journey — live end-to-end proof of the ATL plugin inside a |
@@ -663,13 +695,19 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/full_e2e_playwright_test.mjs](../verification/full_e2e_playwright_test.mjs) | Executable regression check for full e2e playwright. |
 | [verification/github_adapter_contract_test.mjs](../verification/github_adapter_contract_test.mjs) | Executable regression check for github adapter contract. |
 | [verification/governance_test.mjs](../verification/governance_test.mjs) | Executable regression check for governance. |
+| [verification/harness_api_test.mjs](../verification/harness_api_test.mjs) | Executable regression check for harness api. |
+| [verification/harness_planning_test.mjs](../verification/harness_planning_test.mjs) | Executable regression check for harness planning. |
+| [verification/helpers/owner-http.mjs](../verification/helpers/owner-http.mjs) | Read Control Plane owner-only endpoints with the same cookie + CSRF pair |
 | [verification/history_test.mjs](../verification/history_test.mjs) | Executable regression check for history. |
 | [verification/import_plan_revision_journey_test.mjs](../verification/import_plan_revision_journey_test.mjs) | Executable regression check for import plan revision journey. |
 | [verification/install_test.mjs](../verification/install_test.mjs) | Executable regression check for install. |
 | [verification/intake_azure_iterations_test.mjs](../verification/intake_azure_iterations_test.mjs) | Executable regression check for intake azure iterations. |
+| [verification/intake_connect_cli_test.mjs](../verification/intake_connect_cli_test.mjs) | Executable regression check for intake connect cli. |
 | [verification/intake_test.mjs](../verification/intake_test.mjs) | Executable regression check for intake. |
 | [verification/issue_connections_test.mjs](../verification/issue_connections_test.mjs) | Executable regression check for issue connections. |
+| [verification/issue_source_browse_test.mjs](../verification/issue_source_browse_test.mjs) | Executable regression check for issue source browse. |
 | [verification/issue_source_journey_test.mjs](../verification/issue_source_journey_test.mjs) | Executable regression check for issue source journey. |
+| [verification/issue_source_reference_ui_test.mjs](../verification/issue_source_reference_ui_test.mjs) | Executable regression check for issue source reference ui. |
 | [verification/issue_source_ui_journey_test.mjs](../verification/issue_source_ui_journey_test.mjs) | Executable regression check for issue source ui journey. |
 | [verification/jev_router_test.mjs](../verification/jev_router_test.mjs) | Executable regression check for jev router. |
 | [verification/jira_adapter_contract_test.mjs](../verification/jira_adapter_contract_test.mjs) | Executable regression check for jira adapter contract. |
@@ -697,6 +735,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/owner_session_approval_test.mjs](../verification/owner_session_approval_test.mjs) | Executable regression check for owner session approval. |
 | [verification/owner_session_storage_test.mjs](../verification/owner_session_storage_test.mjs) | Executable regression check for owner session storage. |
 | [verification/package_smoke_test.mjs](../verification/package_smoke_test.mjs) | Executable regression check for package smoke. |
+| [verification/panel-workflows.mjs](../verification/panel-workflows.mjs) | panel workflows: source/configuration for its containing feature. |
 | [verification/plan_contract_fixture.json](../verification/plan_contract_fixture.json) | plan contract fixture: source/configuration for its containing feature. |
 | [verification/plan_contract_test.mjs](../verification/plan_contract_test.mjs) | Executable regression check for plan contract. |
 | [verification/plan_draft_archive_ui_test.mjs](../verification/plan_draft_archive_ui_test.mjs) | Executable regression check for plan draft archive ui. |
@@ -717,6 +756,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plan_review_process_test.mjs](../verification/plan_review_process_test.mjs) | Executable regression check for plan review process. |
 | [verification/plan_review_run_gate_test.mjs](../verification/plan_review_run_gate_test.mjs) | Executable regression check for plan review run gate. |
 | [verification/plan_source_refresh_test.mjs](../verification/plan_source_refresh_test.mjs) | Executable regression check for plan source refresh. |
+| [verification/plan_studio_accuracy_test.mjs](../verification/plan_studio_accuracy_test.mjs) | Executable regression check for plan studio accuracy. |
 | [verification/plan_studio_api_test.mjs](../verification/plan_studio_api_test.mjs) | Executable regression check for plan studio api. |
 | [verification/plan_studio_cards_test.mjs](../verification/plan_studio_cards_test.mjs) | Executable regression check for plan studio cards. |
 | [verification/plan_studio_journey_test.mjs](../verification/plan_studio_journey_test.mjs) | Executable regression check for plan studio journey. |
@@ -728,8 +768,10 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/plugin_connect_test.mjs](../verification/plugin_connect_test.mjs) | Executable regression check for plugin connect. |
 | [verification/plugin_native_panel_test.mjs](../verification/plugin_native_panel_test.mjs) | Executable regression check for plugin native panel. |
 | [verification/portable_overnight_batch_test.mjs](../verification/portable_overnight_batch_test.mjs) | Executable regression check for portable overnight batch. |
+| [verification/program_orchestration_test.mjs](../verification/program_orchestration_test.mjs) | Executable regression check for program orchestration. |
 | [verification/project_readiness_verifier_test.mjs](../verification/project_readiness_verifier_test.mjs) | Executable regression check for project readiness verifier. |
 | [verification/project_workmap_ui_test.mjs](../verification/project_workmap_ui_test.mjs) | Executable regression check for project workmap ui. |
+| [verification/provider_openai_http_test.mjs](../verification/provider_openai_http_test.mjs) | Executable regression check for provider openai http. |
 | [verification/provider_quota_failover_test.mjs](../verification/provider_quota_failover_test.mjs) | Executable regression check for provider quota failover. |
 | [verification/provider_registry_test.mjs](../verification/provider_registry_test.mjs) | Executable regression check for provider registry. |
 | [verification/providers_home_test.mjs](../verification/providers_home_test.mjs) | Executable regression check for providers home. |
@@ -764,6 +806,8 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/task_preparation_api_test.mjs](../verification/task_preparation_api_test.mjs) | Executable regression check for task preparation api. |
 | [verification/task_preparation_store_test.mjs](../verification/task_preparation_store_test.mjs) | Executable regression check for task preparation store. |
 | [verification/task_preparation_ui_journey_test.mjs](../verification/task_preparation_ui_journey_test.mjs) | Executable regression check for task preparation ui journey. |
+| [verification/task_reference_ui_test.mjs](../verification/task_reference_ui_test.mjs) | Executable regression check for task reference ui. |
+| [verification/task_review_acceptance_test.mjs](../verification/task_review_acceptance_test.mjs) | Executable regression check for task review acceptance. |
 | [verification/task_statechart_test.mjs](../verification/task_statechart_test.mjs) | Executable regression check for task statechart. |
 | [verification/task_triage_test.mjs](../verification/task_triage_test.mjs) | Executable regression check for task triage. |
 | [verification/task_ui_workspace_test.mjs](../verification/task_ui_workspace_test.mjs) | Executable regression check for task ui workspace. |
@@ -781,6 +825,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/worker_channel_test.mjs](../verification/worker_channel_test.mjs) | Executable regression check for worker channel. |
 | [verification/worker_test.mjs](../verification/worker_test.mjs) | Executable regression check for worker. |
 | [verification/worker_windows_timeout_test.mjs](../verification/worker_windows_timeout_test.mjs) | Executable regression check for worker windows timeout. |
+| [verification/workflow_verification_e2e_test.mjs](../verification/workflow_verification_e2e_test.mjs) | Executable regression check for workflow verification e2e. |
 | [verification/workspace_test.mjs](../verification/workspace_test.mjs) | Executable regression check for workspace. |
 
 ## research

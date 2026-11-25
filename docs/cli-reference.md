@@ -43,6 +43,9 @@ Intake (pulls new work in)
 
 Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   revision <id>                print the workspace content revision
+  verifier <id> "<check>" <type> verification/<script>.mjs
+  verification-policy <project|id> <block|allow|inherit>
+  test-evidence <id>           report verification attempts and revision freshness
   observe <id> <packet.json>    record complete revision-bound observation evidence
   contract-repair <id> <file>  apply one supervisor-requested Pip contract revision
   update <id> [--set k=v]... [--check "..."]... [--objective "..."]
@@ -126,11 +129,11 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                  add --pause-after-bot to stop after each completed provider session
   providers                     providers, keys (masked), and per-role mapping
   provider templates            pre-filled endpoint presets (zai, bigmodel, custom)
-  provider add <id> [--template t] [--worker claude|codex] [--protocol openai|anthropic|custom] [--base-url url]
-                [--key secret | --key-env VAR] [--model model] [--thinking-level level]
+  provider add <id> [--template t] [--worker claude|codex|openai-http] [--protocol openai|anthropic|custom] [--base-url url]
+                [--key-env VAR] [--model model] [--thinking-level level]
                                 store an API provider once per machine in ~/.atl/providers.json
-                                (e.g. GLM: provider add zai --key <key> --model glm-4.6)
-  provider key <id> --key secret | --key-env VAR
+                                (key is prompted without echo; Ctrl+R shows/hides)
+  provider key <id> [--key-env VAR]
                                 update the stored API key
   provider use <id> [--role role]
                                 make a stored provider the project default (or one role's provider)
@@ -141,6 +144,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
                                 persist the default or per-role provider/model selection
   provider clear --role role    remove a per-role provider override
   show [task-id]                portfolio or one task
+  review <task-id> [--mermaid|--json] [--capture id] [--expand --file id --cursor n]  inspect captured changes
   feed [--task id] [--n 50] [--roster]   the team chat: what every bot did
   routines                      configured when/then triggers
   memory status                 show the optional Mem0 graph-memory provider state
@@ -160,6 +164,7 @@ Control room (spec 014 — compose/import/review/queue/preview/launch)
   run <task-id> --worker <provider-id> [--model model] [--auth subscription|api] [--confirm]
                                 run one bounded role session
   overnight [<task-id> | --all] --worker <provider-id> [--model model] [--auth subscription|api] --confirm
+  harness <operation> [file]    harness planning/program/run API with a JSON request file
   overnight status              inspect the durable overnight ledger; starts nothing
   overnight recover --confirm   resume only untouched tasks after an interrupted runner
                                 run bounded role sessions until a gate or budget stops it;
@@ -406,6 +411,12 @@ async function runWorkerLoop(taskId, { overnight }) {
   const finalTask = finalState.tasks[taskId];
   console.log(`\nRun stopped after ${budget.sessions} session(s): ${taskId} is ${finalTask?.status || "unknown"}.`);
   console.log(`Reason: ${outcome.reason}.`);
+  if (!opts.dryRun && finalTask) {
+    const evidence = outcome.evidence?.checks ? outcome.evidence : testEvidence(finalTask);
+    console.log(`Test Evidence: ${evidence.verified ? "verified" : "unverified"}`);
+    for (const check of evidence.checks) console.log(`  ${check.status}: ${check.expected}`);
+    console.log(`Evidence details: atl test-evidence ${taskId}`);
+  }
   console.log("Next: atl wake && atl brief --save && atl show " + taskId);
 }
 
@@ -479,7 +490,13 @@ async function runQueueLoop({ overnight }) {
   saveBrief(ROOT, renderBrief(after));
   say("runner", "queue run finished — morning brief saved.");
   console.log(`\nQueue run finished after ${budget.sessions} session(s). Results:`);
-  for (const r of results) console.log(`  ${String(r.id).padEnd(6)} ${String(r.status).padEnd(12)} ${r.reason}`);
+  for (const result of results) {
+    console.log(`  ${String(result.id).padEnd(6)} ${String(result.status).padEnd(12)} ${result.reason}`);
+    const task = after.tasks[result.id];
+    if (!task) continue;
+    const evidence = testEvidence(task, task.verification_revision, ROOT);
+    console.log(`    Test Evidence: ${evidence.verified ? "verified" : "unverified"} (atl test-evidence ${task.id})`);
+  }
   console.log("\nMorning report: atl brief   ·   transcript: atl feed --roster   ·   per task: atl show <id>");
 }
 
@@ -520,11 +537,13 @@ Enter these inside the Control Plane CLI console or the terminal command console
 | `help` | read | list commands |
 | `why [task-id]` | read | explain blockers and next actions |
 | `show [task-id]` | read | inspect a task or active portfolio |
+| `review <task-id> [--mermaid / --json]` | read | inspect captured diffs and execution impact |
 | `brief` | read | render the manager brief |
 | `wake` | read | show the next role actions |
 | `feed [--task T-001]` | read | read the team feed |
 | `queue list / create / use / rename / reorder / pause / resume / archive / inspect / dry-run / add / remove / clear` | mutation | manage named execution queues |
 | `task create / edit / archive / restore ...` | mutation | manage task records safely |
+| `program list / show <id>` | read | inspect phased programs and morning reports |
 | `plan generate / list / show / frame / card / feedback / approve` | mutation | generate, edit, and approve plan drafts with typed task cards |
 | `unblock <task-id> [--to triaged / assigned] [--note text]` | mutation | recover a blocked task |
 | `approve <task-id> [--note text]` | confirm | record owner approval and queue |

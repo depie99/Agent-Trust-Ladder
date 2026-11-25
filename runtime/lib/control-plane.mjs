@@ -1,3 +1,5 @@
+import { testEvidence, verificationPolicy } from "./test-evidence.mjs";
+import { listPrograms, programReport } from './programs.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { loadState, paths } from "./state.mjs";
@@ -161,22 +163,25 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
   const resourceConfig=readManagerConfig(root);
   const resourceProfile=providerProfile(resourceConfig);
   const reports=executionReports(root,state,queues);
+  const evidence = Object.fromEntries(Object.entries(state.tasks).map(([id, task]) =>
+    [id, { ...testEvidence(task, task.verification_revision, root), effective_policy: verificationPolicy(state, task), override: task.verification_policy || null }]));
   return {
     version: CONTROL_PLANE_VERSION,
     captured_at: new Date().toISOString(),
+    verification_policy: verificationPolicy(state),
     browser_access: browserAccessPolicy(root),
     resource_policy: resourcePolicy(resourceConfig),
     state: {
       version: state.version,
       updated_at: state.updated_at,
       task_count: Object.keys(state.tasks || {}).length,
-      tasks: Object.fromEntries(Object.entries(state.tasks).map(([id,task])=>[id,{...task,execution_report:reports.tasks[id],resource_preview:taskResourcePreview(resourceConfig,task,null,{profile:resourceProfile})}])),
+      tasks: Object.fromEntries(Object.entries(state.tasks).map(([id,task])=>[id,{...task,test_evidence: evidence[id],execution_report:reports.tasks[id],resource_preview:taskResourcePreview(resourceConfig,task,null,{profile:resourceProfile})}])),
       log_tail: (state.log || []).slice(-50),
     },
     queues: {
       active_queue: activeQueueId,
       book_updated_at: queueBook.updated_at,
-      items: queues.map(queue=>({...queue,execution_report:reports.queues[queue.id]})),
+      items: queues.map(queue=>({...queue,execution_report:reports.queues[queue.id],test_evidence: queue.items.filter(({ id }) => evidence[id]).map(({ id }) => ({ id, verified: evidence[id].verified }))})),
     },
     notifications: {
       unread: notificationUnreadCount(root),
@@ -246,6 +251,7 @@ export function createControlPlaneSnapshot(root, { queueId = null, notificationL
       }
     })(),
     approvals: approvalSnapshot(root),
+    programs: listPrograms(root).map(program => { try { return programReport(root, program.id); } catch(error) { return { id: program.id, outcome: program.outcome, status: 'unavailable', error: error.message, milestones: [] }; } }),
     supervisor: supervisorSnapshot(),
     leases: reconcileLeases(root),
     backups: listBackups(root),

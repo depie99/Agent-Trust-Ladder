@@ -91,7 +91,7 @@
       "note": "leftover from the 2026-10-20 intake test; repo is private and gh is unauthenticated. Re-enable only after gh auth login (or GITHUB_TOKEN), otherwise intake 404s."
     },
     "azure": {
-      "enabled": true,
+      "enabled": false,
       "org_url": "https://devops.example.invalid/example-org",
       "project": "example-project",
       "team": "example-project Team",

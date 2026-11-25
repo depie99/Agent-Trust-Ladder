@@ -19,6 +19,21 @@ try {
     await page.addInitScript(()=>sessionStorage.setItem('atl-cp-page','settings'));
     await page.goto(started.url);
     await page.locator('#resourceDefault').waitFor();
+    await page.locator('#resourceModels').uncheck();
+    await page.locator('.resource-routes-table').waitFor({state:'hidden'});
+    assert.equal(await page.locator('#resourceCeiling').isVisible(),false,'Manual selection hides automatic route controls');
+    assert.equal(await page.locator('[data-action="resource-add"]').isVisible(),false,'Manual selection hides the add route action');
+    await page.locator('#resourceModels').check();
+    await page.locator('.resource-routes-table').waitFor({state:'visible'});
+    assert.equal(await page.locator('[data-resource-row]').count(),2,'Toggling automatic selection preserves configured routes');
+    const paired=await page.evaluate(()=>{
+      const access=document.querySelector('#settings-access').getBoundingClientRect();
+      const browser=document.querySelector('#settings-browser').getBoundingClientRect();
+      return Math.abs(access.top-browser.top)<2;
+    });
+    assert.equal(paired,viewport.width>1100,'Access cards pair on desktop and stack on mobile');
+    assert.equal(await page.locator('#settings-browser .set-card-sub').count(),1,'Browser access has one card description');
+    assert.equal(await page.locator('#settings-browser .set-card-body > .sub').count(),0,'Browser access controls do not repeat the card description');
     await page.locator('#resourceDefault').fill('9');await page.locator('#resourceMax').fill('18');
     await page.locator('#resourceCeiling').selectOption('standard');
     await page.locator('[data-action="resource-save"]').click();

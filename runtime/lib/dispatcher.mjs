@@ -1,3 +1,4 @@
+import { programTaskReady } from './programs.mjs';
 // Supervisor scheduling policy: deterministic, bounded and project-fair. It
 // produces dispatch decisions; launch.mjs remains the only process spawner.
 import { loadState } from "./state.mjs";
@@ -5,7 +6,7 @@ import { queueList } from "./queue.mjs";
 import { selectProjects } from "./supervisor.mjs";
 const rank = { urgent: 0, high: 1, normal: 2, low: 3 };
 function eligible(task, tasks) {
-  return task && ["assigned", "in_progress", "in_review", "verifying"].includes(task.status)
+  return task && programTaskReady(task) && ["assigned", "in_progress", "in_review", "verifying"].includes(task.status)
     && task.recovery?.status !== "exhausted"
     && !(task.recovery?.recovery_owner === "owner" && task.recovery.status !== "resolved")
     && (!task.execution_budget || task.execution_budget.used < task.execution_budget.max_sessions)

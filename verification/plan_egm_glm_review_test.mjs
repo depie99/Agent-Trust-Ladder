@@ -75,7 +75,7 @@ fs.mkdirSync(path.join(root, "verification"), { recursive: true });
 fs.writeFileSync(path.join(root, "verification", "fixture.mjs"), "// evidence v1\n");
 saveState(root, emptyState());
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
-fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { gapgpt: { id: "gapgpt", label: "GLM fixture", worker: "claude", base_url: "https://example.test", api_key: "fixture", model: "glm-fake" } } }));
+fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { gapgpt: { id: "gapgpt", label: "GLM fixture", worker: "openai-http", protocol: "openai", base_url: "https://example.test/v1", api_key: "fixture", model: "glm-fake" } } }));
 
 // Fake planning seam: resolves each stage by looking at the request.
 const calls = [];
@@ -108,7 +108,9 @@ try {
   assert.equal(review.egm.version_sha, config.egmReview.versionSha);
   assert.match(review.provider, /gapgpt/);
 
-  assert.equal(calls.length, 6, `expected six single-shot calls, got ${calls.length}`);
+  assert.equal(calls.filter(call => !call.accuracy_context).length, 6, 'six independent protocol calls');
+  assert.equal(calls.filter(call => call.accuracy_context).length, 1, 'one bounded correction follows the blocked protocol review');
+  assert.equal(reviewResult.body.draft.accuracy_followup.status, 'retry', 'a non-JSON correction retains the blocked deep review and offers retry');
   const taskOf = (index) => calls[index].task || "";
   assert.match(taskOf(0), /Zoom Out Reviewer/);
   assert.match(taskOf(1), /Comprehension Reviewer/);

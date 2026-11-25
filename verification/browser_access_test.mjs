@@ -6,6 +6,7 @@ import { browserAccess, browserAccessPolicy, saveBrowserAccess } from "../runtim
 import { probeUiReviewRuntime, uiReviewProviderArgs, UI_BROWSER_TOOLS } from "../runtime/lib/ui-review-runtime.mjs";
 import { emptyState, saveState, loadState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
+import { ownerJson } from "./helpers/owner-http.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-browser-access-"));
 try {
@@ -62,7 +63,7 @@ try {
     assert.equal((await post({ action: "save", mode: "all-tools" }, owner)).status, 400);
     assert.equal((await post({ action: "save", task: "T-999", mode: "approved" }, owner)).status, 400);
     assert.equal((await post({ action: "check", task: "T-001" }, owner)).status, 400, "a missing task workspace cannot launch a check");
-    const snapshot = await fetch(`${running.url}api/snapshot`).then((r) => r.json());
+    const snapshot = await ownerJson(new URL("api/snapshot", running.url));
     assert.deepEqual(snapshot.browser_access, browserAccessPolicy(root));
     assert.equal(JSON.stringify(loadState(root)), initialState);
   } finally { await new Promise((resolve) => running.server.close(resolve)); }

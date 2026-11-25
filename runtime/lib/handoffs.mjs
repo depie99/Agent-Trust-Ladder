@@ -1,3 +1,4 @@
+import { withFileLock } from './file-transaction.mjs';
 // Content-addressed handoffs include dirty and untracked source, without committing
 // or changing the user's branch. Records are published only after their blobs.
 import fs from "node:fs";
@@ -26,7 +27,7 @@ function safeFile(dir, name) {
   return target;
 }
 function fileHash(file) { return fs.existsSync(file) ? hash(fs.readFileSync(file)) : null; }
-export function snapshot(root, workspace) {
+export function snapshot(root, workspace, { storeBlobs = true } = {}) {
   let names;
   const trackedModes = {};
   try {
@@ -50,8 +51,8 @@ export function snapshot(root, workspace) {
     if (!fs.existsSync(file) || !fs.lstatSync(file).isFile()) continue;
     const bytes = fs.readFileSync(file); const digest = hash(bytes);
     const blob = path.join(store(root), "blobs", digest);
-    fs.mkdirSync(path.dirname(blob), { recursive: true });
-    if (fileHash(blob) !== digest) {
+    if (storeBlobs && fileHash(blob) !== digest) {
+      fs.mkdirSync(path.dirname(blob), { recursive: true });
       const temporary = `${blob}.${process.pid}.tmp`;
       fs.writeFileSync(temporary, bytes); fs.renameSync(temporary, blob);
     }
@@ -213,6 +214,9 @@ export function deliveryGate(root, tasks, integratedTask) {
 }
 
 export function createDeliveryBranch(root, tasks, integratedTask) {
+  return withFileLock(path.join(store(root), 'integration'), () => createDeliveryBranchLocked(root, tasks, integratedTask));
+}
+function createDeliveryBranchLocked(root, tasks, integratedTask) {
   const gate = deliveryGate(root, tasks, integratedTask);
   if (!gate.ready) throw new Error("integrated review, predecessor checks and browser journey are required");
   const workspace = integratedTask.workspace;

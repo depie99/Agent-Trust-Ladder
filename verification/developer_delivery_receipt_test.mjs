@@ -155,6 +155,7 @@ const click = async (action) => {
   await flush();
 };
 await context.window.ATL_CHANGE_REVIEW.open({ id: "T-018" }, { popupWide() {}, btn: () => "" });
+await click("tab:overview");
 assert.match(mount.innerHTML, /data-delivery-verdict="verified-local"/);
 assert.match(mount.innerHTML, /Delivery receipt/);
 assert.match(mount.innerHTML, /capture-018/);

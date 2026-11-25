@@ -9,7 +9,19 @@ $('#theme-toggle').addEventListener('click', () => {
   const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = theme;
   try { localStorage.setItem('atl-docs-theme',theme); } catch {}
+  applyDiagramImages();
 });
+/* Diagram artwork ships dark SVGs plus generated .light.svg variants; the
+   generator marks images that have a variant so the swap needs no probing. */
+function applyDiagramImages() {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  for (const img of document.images) {
+    const light = img.dataset.lightSrc;
+    if (!light) continue;
+    img.src = dark ? img.getAttribute('src').replace(/\.light\.svg$/, '.svg') : light;
+  }
+}
+applyDiagramImages();
 $('#menu-toggle').addEventListener('click', event => {
   const open = event.currentTarget.getAttribute('aria-expanded') !== 'true';
   event.currentTarget.setAttribute('aria-expanded',String(open));

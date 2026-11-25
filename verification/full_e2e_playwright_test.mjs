@@ -6,13 +6,15 @@ import { chromium } from "playwright";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-playwright-e2e-"));
+const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-playwright-e2e-"));
+const root = path.join(home, "application");
 // The supervisor registry is machine state (~/.atl): pin it so the test's
 // "E2E Project" registration never lands in the owner's Projects page.
-process.env.USERPROFILE = root;
-process.env.HOME = root;
-process.env.ATL_HOME = path.join(root, ".atl");
+process.env.USERPROFILE = home;
+process.env.HOME = home;
+process.env.ATL_HOME = path.join(home, ".atl");
 fs.mkdirSync(process.env.ATL_HOME, { recursive: true });
+fs.mkdirSync(root, { recursive: true });
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1 }));
 saveState(root, emptyState());
@@ -23,6 +25,8 @@ page.setDefaultTimeout(5000);
 const failures = [];
 page.on("console", (message) => { if (message.type() === "error") failures.push(message.text()); });
 await page.goto(url, { waitUntil: "domcontentloaded" });
+const evidenceDir = process.env.ATL_TEST_EVIDENCE_DIR;
+if (evidenceDir) await page.screenshot({ path: path.join(evidenceDir, "before.png") });
 await page.locator('[data-page="studio"]').first().click();
 await page.getByRole("button", { name: /Generate local/i }).click();
 await page.locator('[data-page="projects"]').first().click();
@@ -30,14 +34,19 @@ await page.getByRole("button", { name: /Register repository/i }).first().click()
 await page.locator("#projectRoot").fill(root);
 await page.locator("#projectName").fill("E2E Project");
 await page.getByRole("button", { name: "Register", exact: true }).click();
-await page.locator('[data-page="operations"]').first().click();
+await page.locator("#modal").waitFor({ state: "hidden" });
+await page.locator('[data-page="operations"]').first().click().catch(async () => { throw new Error(`Operations navigation blocked by modal: ${await page.locator("#modal").innerText()}`); });
 await page.getByRole("button", { name: /Create backup/i }).click();
 await page.waitForTimeout(300);
-const snapshot = await page.evaluate(() => fetch("/api/snapshot").then((response) => response.json()));
+const snapshot = await page.evaluate(() => {
+  const csrf = document.querySelector('meta[name="atl-csrf"]')?.content || "";
+  return fetch("/api/snapshot", { headers: { "x-atl-csrf": csrf } }).then((response) => response.json());
+});
 assert.ok(snapshot.supervisor.projects.some((project) => project.root === root));
 assert.ok(snapshot.backups.length >= 1);
 assert.equal(failures.length, 0, `browser console failures: ${failures.join("; ")}`);
+if (evidenceDir) await page.screenshot({ path: path.join(evidenceDir, "after.png") });
 await browser.close(); server.close();
 delete process.env.ATL_HOME;
-fs.rmSync(root, { recursive: true, force: true });
+fs.rmSync(home, { recursive: true, force: true });
 console.log("PASS: Playwright full Control Plane journey covers Plan Studio, projects, operations, and backup");

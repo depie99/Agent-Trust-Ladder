@@ -16,7 +16,7 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), "atl-egm-journey-home-"));
 const oldHome = process.env.USERPROFILE; const oldHomePosix = process.env.HOME;
 process.env.USERPROFILE = home; process.env.HOME = home;
 fs.mkdirSync(path.join(home, ".atl"), { recursive: true });
-fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "claude", base_url: "https://example.test", api_key: "test-key", model: "test-model" } } }));
+fs.writeFileSync(path.join(home, ".atl", "providers.json"), JSON.stringify({ providers: { test: { id: "test", label: "Test", worker: "openai-http", protocol: "openai", base_url: "https://example.test/v1", api_key: "test-key", model: "test-model" } } }));
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1, egmReview: { enabled: true, backend: "glm-goldfish", versionSha: "5ba5afa03f62627639fa4f71b7ac3bd4d8d07e24", maxReviewsPerDay: 10 } }));
 saveState(root, emptyState());
@@ -41,6 +41,7 @@ Replace vague terms with observable behavior.
 
 let mode = "blocked";
 const planningInvoke = async ({ request }) => {
+  if (request.accuracy_context) return { code: 1, providerFailure: { reason: 'Fixture intentionally retains unresolved deep-review concerns' } };
   if (request.review) return { code: 0, provider: "test", model: "test-model", text: JSON.stringify({ verdict: "passed", findings: [] }) };
   return { code: 0, provider: "test", model: "test-model", text: JSON.stringify({ plan_contract_version: 2, title: "Search project rooms", objective: request.intent, requirements: [{ id: "r1", text: "Search filters by repository name", source: "original request" }], constraints: [], observed_evidence: [{ description: "Verifier", path: "test/search.mjs" }], assumptions: [], open_questions: [], risks: [], completion_checks: ["Search filters by repository name"], acceptance_examples: [{ given: "two repositories", when: "the user searches Alpha", then: "only Alpha is shown" }], selected_skills: ["atl-implement"], skill_route: [], proposed_worker: "pip", implementation_steps: [{ step: "Implement search", files: ["test/search.mjs"], verify: "node test/search.mjs" }], verifier_commands: ["node test/search.mjs"], task_proposals: [{ id: "p1", title: "Implement repository search", objective: request.intent, instructions: "Add repository name filtering with bounded scope.", deliverables: ["search behavior"], requirement_ids: ["r1"], completion_checks: ["node test/search.mjs"], proposed_worker: "pip", selected_skills: ["atl-implement"], skill_reasons: { "atl-implement": "Implements the bounded behavior." }, depends_on: [], files: ["test/search.mjs"], verify: "node test/search.mjs" }] }) };
 };
@@ -67,7 +68,7 @@ try {
   await page.locator('#fDesc').fill("Filter repositories by name. Preserve deletion behavior.");
   await page.getByRole("button", { name: "Create task", exact: true }).click();
   await page.getByText("Search project rooms", { exact: true }).first().click();
-  await page.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("button", { name: "More task actions", exact: true }).click();
   await page.getByRole("button", { name: "Plan task", exact: true }).click();
   await page.locator("#goal").waitFor();
   await page.locator("#goal").fill("Filter repositories by name. Preserve deletion behavior.");
@@ -90,8 +91,8 @@ try {
   assert.equal(blockedResponse.status(), 200, `blocked deep review HTTP: ${JSON.stringify(blockedBody).slice(0, 300)}`);
 
   // Scenario A: blocked deep review keeps the approval gate shut.
-  await page.getByText("Changes needed before approval", { exact: false }).waitFor();
-  await page.locator(".review-verdict").filter({ hasText: blockedBody.review.verdict }).waitFor();
+  await page.getByRole("heading", { name: "Continue the review conversation" }).waitFor();
+  await page.locator(".review-verdict").filter({ hasText: "Continue planning" }).waitFor();
   await page.getByText("A1 — Strengthen the verifier", { exact: false }).waitFor();
   const approveButton = page.getByRole("region", { name: "Plan review" }).getByRole("button", { name: "Approve → Plan Queue" });
   assert.equal(await approveButton.isDisabled(), true, "a blocked deep review keeps the approve button disabled");

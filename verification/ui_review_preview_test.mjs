@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startUiReviewPreview } from "../runtime/lib/ui-review-preview.mjs";
+import { ownerFetch } from "./helpers/owner-http.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-ui-preview-"));
 let running;
@@ -11,7 +12,7 @@ try {
   fs.mkdirSync(path.join(root, "runtime"));
   for (const name of ["control-plane.html", "control-plane-client.js", "control-plane-i18n.js", "control-plane-changes.js"]) fs.copyFileSync(fileURLToPath(new URL(`../runtime/${name}`, import.meta.url)), path.join(root, "runtime", name));
   running = await startUiReviewPreview(root);
-  const response = await fetch(`${running.url}api/snapshot`);
+  const response = await ownerFetch(new URL("api/snapshot", running.url));
   assert.equal(response.status, 200, "empty task workspace receives valid isolated preview state");
   const snapshot = await response.json();
   assert.ok(JSON.stringify(snapshot).includes(running.sentence), "UTF-8 sample reaches the actual snapshot consumer");

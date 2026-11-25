@@ -18,7 +18,7 @@ process.env.ATL_HOME = path.join(fakeHome, ".atl");
 process.env.AZDO_PAT = "synthetic-ui-token";
 fs.mkdirSync(process.env.ATL_HOME, { recursive: true });
 fs.writeFileSync(path.join(process.env.ATL_HOME, "providers.json"), JSON.stringify({
-  providers: { testprov: { id: "testprov", label: "Test Provider", worker: "claude", base_url: "https://example.test/api", api_key: "sk-secret-value", model: "m-1", models: ["m-1"] } },
+  providers: { testprov: { id: "testprov", label: "Test Provider", worker: "openai-http", protocol: "openai", base_url: "https://example.test/api", api_key: "sk-secret-value", model: "m-1", models: ["m-1"] } },
 }, null, 2));
 
 const CONNECTION = "https://devops.example.invalid/Collection";
@@ -63,7 +63,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(running.url, { waitUntil: "domcontentloaded" });
-  await page.click('[data-page="mytasks"]');
+  await page.goto(new URL("?page=mytasks", page.url()).href);
   await page.waitForSelector(".mt-row");
 
   // 1. Preparation chips on cards; filter narrows by state; Done is historical.
@@ -129,7 +129,7 @@ try {
   assert.ok(goal.includes("Cart lost after login"), "studio goal prefilled from the handed-off request");
 
   // 6. Back on My Tasks: the chip reflects the linked state after refresh.
-  await page.click('[data-page="mytasks"]');
+  await page.goto(new URL("?page=mytasks", page.url()).href);
   await page.waitForSelector(".mt-row");
   assert.ok(await page.locator('.mt-row:has-text("Cart lost after login") .pill:has-text("Ready to plan")').count() === 1, "chip persists across navigation");
 

@@ -1,3 +1,5 @@
+import { listPrograms, programReport } from './programs.mjs';
+import { harnessPlanContext } from './harness-planning.mjs';
 import { buildLaunchPlan, queueDryRun } from "./launch.mjs";
 import { renderBrief, renderTask, wakeActions, activeTasks } from "./render.mjs";
 import { loadState, logEvent, saveState } from "./state.mjs";
@@ -8,17 +10,22 @@ import { submitFeedback } from "./feedback.mjs";
 import { wrapLine } from './tui-layout.mjs';
 import { listNotifications, snoozeNotification, updateNotification } from "./notifications.mjs";
 import { archiveTask, createTaskInWorkspace, editTaskInWorkspace, restoreTask } from "./task-workspace.mjs";
+import { readChangeReview, readTaskReviewState } from "./change-review-store.mjs";
+import { compareSnapshots, fileDiff } from "./task-changes.mjs";
+import { buildExecutionProjection, readImpactChildren } from "./execution-projection.mjs";
 import { addProposal, addProposalFeedback, approvePlanDraft, editProposal, frameIntent, generateLocalPlan, listPlanDrafts, loadPlanDraft, normalizeProposals, planDraftLabel, removeProposal, reorderProposals, savePlanDraft } from "./plan-studio.mjs";
 
 export const TUI_COMMANDS = Object.freeze([
   { name: "help", usage: "help", kind: "read", summary: "list commands" },
   { name: "why", usage: "why [task-id]", kind: "read", summary: "explain blockers and next actions" },
   { name: "show", usage: "show [task-id]", kind: "read", summary: "inspect a task or active portfolio" },
+  { name: "review", usage: "review <task-id> [--mermaid|--json]", kind: "read", summary: "inspect captured diffs and execution impact" },
   { name: "brief", usage: "brief", kind: "read", summary: "render the manager brief" },
   { name: "wake", usage: "wake", kind: "read", summary: "show the next role actions" },
   { name: "feed", usage: "feed [--task T-001]", kind: "read", summary: "read the team feed" },
   { name: "queue", usage: "queue list|create|use|rename|reorder|pause|resume|archive|inspect|dry-run|add|remove|clear", kind: "mutation", summary: "manage named execution queues" },
   { name: "task", usage: "task create|edit|archive|restore ...", kind: "mutation", summary: "manage task records safely" },
+  { name: "program", usage: "program list|show <id>", kind: "read", summary: "inspect phased programs and morning reports" },
   { name: "plan", usage: "plan generate|list|show|frame|card|feedback|approve", kind: "mutation", summary: "generate, edit, and approve plan drafts with typed task cards" },
   { name: "unblock", usage: "unblock <task-id> [--to triaged|assigned] [--note text]", kind: "mutation", summary: "recover a blocked task" },
   { name: "approve", usage: "approve <task-id> [--note text]", kind: "confirm", summary: "record owner approval and queue" },
@@ -90,6 +97,59 @@ function formatWhy(root, id) {
   return lines;
 }
 
+export function taskReviewReport(root, taskId, format = "text", options = {}) {
+  const task = requireTask(root, taskId);
+  const record = readChangeReview(root, task, options.captureId || null);
+  if (!record) {
+    const message = `No captured change set is available for ${taskId}. A baseline is required before a diff can be reconstructed.`;
+    if (format === "mermaid") return "flowchart LR\n  missing[No captured change set]";
+    if (format === "json") return JSON.stringify({ version: 1, task: { id: taskId, title: task.title }, availability: task.handoff_baseline ? "capture_required" : "baseline_missing", message }, null, 2);
+    return message;
+  }
+  if (options.expand || options.fileId || options.cursor != null) {
+    const children = readImpactChildren(root, task, { captureId: record.id, fileId: options.fileId || null, cursor: options.cursor || 0 });
+    if (format === "json") return JSON.stringify(children, null, 2);
+    if (format === "mermaid") return reviewGraphMermaid(children);
+    return [`Capture ${record.id}`, `Availability: ${children.availability}`, ...children.nodes.map((node) => `${node.kind}: ${node.label}`), `Next cursor: ${children.next_cursor ?? "none"}`].join("\n");
+  }
+  const projection = buildExecutionProjection(root, taskId, { captureId: record.id });
+  const files = compareSnapshots(record.baseline, record.output).map((file) => {
+    const diff = fileDiff(root, record, file.id);
+    return { id: file.id, path: file.path, kind: file.kind, availability: diff.availability, additions: diff.additions ?? null, deletions: diff.deletions ?? null, hunks: diff.patch ? (diff.patch.match(/^@@/gm) || []).length : 0 };
+  });
+  const review = readTaskReviewState(root, task);
+  const report = { version: 1, task: { id: taskId, title: task.title, objective: task.objective || task.objective_hint || null, status: task.status }, capture: { id: record.id, captured_at: record.captured_at, baseline_revision: record.baseline.revision, output_revision: record.output.revision }, files, comments: review.comments, reviewed_files: review.reviewed_files, execution: projection.stages.flatMap((stage) => stage.attempts.map((attempt) => ({ stage: stage.label, actor: attempt.actor, started_at: attempt.started_at, outcome: attempt.outcome, failure: attempt.failure?.summary || null }))).sort((a, b) => String(a.started_at || "").localeCompare(String(b.started_at || ""))), checks: projection.checks.items, graph: projection.graph };
+  if (format === "json") return JSON.stringify(report, null, 2);
+  if (format === "mermaid") {
+    return reviewGraphMermaid(report.graph);
+  }
+  return [
+    `${taskId} · ${task.title} · ${task.status}`,
+    `Capture ${record.id} · ${record.captured_at}`,
+    `Baseline ${record.baseline.revision} → Output ${record.output.revision}`,
+    `Objective: ${report.task.objective || "Not recorded"}`,
+    "",
+    "Changed files:",
+    ...(files.length ? files.map((file) => `  ${file.kind} ${file.path} · +${file.additions ?? "?"}/-${file.deletions ?? "?"} · ${file.hunks} hunk(s) · ${file.availability}`) : ["  No changed files"]),
+    "",
+    "Execution attempts:",
+    ...(report.execution.length ? report.execution.map((attempt) => `  ${attempt.started_at || "time unknown"} · ${attempt.stage} · ${attempt.actor || "actor unknown"} · ${attempt.outcome || "recorded"}${attempt.failure ? ` · ${attempt.failure}` : ""}`) : ["  No attempts recorded"]),
+    "Checks:",
+    ...(report.checks.length ? report.checks.map((check) => `  ${check.result || "unknown"} · ${check.check} · ${check.coverage || "coverage unknown"}`) : ["  No checks recorded"]),
+    `Review notes: ${review.comments.length} · Reviewed files: ${review.reviewed_files.length}`,
+    "",
+    `Graph edges: ${report.graph.edges.length} (recorded/inferred/unknown provenance retained). Use: atl review ${taskId} --mermaid`,
+    `Expand pinned files or hunks: atl review ${taskId} --capture ${record.id} --expand [--file <file-id>] [--cursor <offset>] --json`,
+  ].join("\n");
+}
+
+function reviewGraphMermaid(graph) {
+  const safeId = (value) => `n_${Buffer.from(String(value)).toString("hex")}`;
+  const safeLabel = (value) => String(value || "").replace(/["\\\n\r<>|{}]/g, " ").slice(0, 140);
+  const nodes = [...(graph.parent ? [graph.parent] : []), ...(graph.nodes || [])];
+  return ["flowchart LR", ...nodes.map((node) => `${safeId(node.id)}["${safeLabel(node.kind + ": " + node.label)}"]`), ...(graph.edges || []).map((edge) => `${safeId(edge.from)} -. "${safeLabel(edge.provenance + ": " + edge.label)}" .-> ${safeId(edge.to)}`)].join("\n");
+}
+
 function formatQueue(root) {
   const queues = queueList(root, { includeArchived: false });
   const lines = [`Queues · active ${loadQueueBook(root).active_queue || "default"}`, ""];
@@ -138,6 +198,7 @@ export function dispatchTuiCommand(root, input, { selectedTaskId = null } = {}) 
   try {
     if (command === "help" || command === "?") return result(commandHelp());
     if (command === "why") return result(formatWhy(root, args[0] || selectedTaskId));
+    if (command === "review") { const taskId = args[0] || selectedTaskId; if (!taskId) throw new Error("review needs a task id"); return result(taskReviewReport(root, taskId, flags.mermaid ? "mermaid" : flags.json ? "json" : "text", { captureId: flags.capture, fileId: flags.file, cursor: flags.cursor, expand: flags.expand })); }
     if (command === "show") {
       const state = loadState(root);
       if (args[0]) return result(renderTask(requireTask(root, args[0])));
@@ -250,8 +311,14 @@ export function dispatchTuiCommand(root, input, { selectedTaskId = null } = {}) 
       }
       throw new Error("task expects create, edit, archive, or restore");
     }
+    if (command === "program") {
+      if (args[0] === 'list') return result(listPrograms(root).map(p => `${p.id} [${p.status}] ${p.outcome}`));
+      if (args[0] === 'show' && args[1]) return result(JSON.stringify(programReport(root, args[1]), null, 2));
+      throw new Error('program expects list or show <id>');
+    }
     if (command === "plan") {
       const sub = args.shift();
+      if (sub === "context") return result(JSON.stringify(harnessPlanContext(root, args[0] ? { draftId: args[0] } : {}), null, 2));
       if (sub === "generate") {
         const intent = args.join(" ").trim();
         if (!intent) throw new Error("plan generate needs an intent");

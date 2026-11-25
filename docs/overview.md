@@ -32,8 +32,8 @@ A queue coordinates work; it does not turn an unclear request into a verified fi
 
 ## What is available
 
-The browser includes project overview, issue sources, task management, Plan Studio, named queues, agent roles, activity, usage, providers, approvals, operations, knowledge, and settings. Task details include Ask ATL, relationships, evidence, and captured change review. The runtime adds CLI automation, isolated workspaces, recovery, history transport, research records, source navigation, backups, and a multi-project supervisor.
+The browser includes Overview, Tasks, Shipped, Issue sources, My Tasks, Ask ATL, Plan Studio, Queues, Workflow runs, Agent Team, Projects, Approvals, Operations, Batches, Knowledge, Activity & Logs, Usage & Limits, and Settings. A task opens a workspace with **Activity**, **Changes** (embedded change review), and **Process** tabs (execution detail plus a code-impact graph), with Ask ATL available as a composer inside the workspace. The runtime adds CLI automation, isolated workspaces, recovery, history transport, research records, source navigation, backups, and a multi-project supervisor.
 
 Use the [feature map](guides.md) to find each procedure, implementing module, and verifier. Search indexes every public guide. Diagrams render locally without a CDN and remain readable as Mermaid source in Markdown.
 
-This documentation describes the October 29, 2026 source snapshot and package version 0.1.3. Screenshots use synthetic local data. See the [verification record](docs-refresh-verification.md) for checks and limits.
+This documentation describes the November 22, 2026 source snapshot and package version 0.2.0. Screenshots use synthetic local data. See the [verification record](docs-refresh-verification.md) for checks and limits.

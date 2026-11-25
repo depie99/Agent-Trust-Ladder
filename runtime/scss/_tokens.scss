@@ -47,3 +47,26 @@ html.light {
   color-scheme: light;
   @include emit(light.$theme);
 }
+
+// Exact light palette from the Tasks reference; scoped to the tasks page
+// content (.body) so the app shell keeps the committed theme palette.
+html.light body.tasks-design .body {
+  --bg:#f5f5fb; --pane:#fff; --text:#202342;
+  --muted:#555b80; --faint:#686d90;
+  --border:#d6d8f1; --row-line:#e4e5f5; --btn-edge:#c8cbea;
+  --btn-ink:#202342; --field-edge:#aeb3dd; --field-bg:#fff;
+  --accent:#6341e5; --accent-strong:#5b3cc9; --accent-bg:#eee9fb;
+  --nav-on:#eee9fb; --chip:#e9e9f3;
+  --tasks-count-bg:#e5e7ff; --tasks-count-ink:#3944bd;
+  --tasks-selected:#b9aaee; --tasks-canvas:#fafaff; --tasks-scrollbar:#909090;
+  --green:#176f3d; --green-bg:#daf6e6;
+  --amber:#704211; --notice-bg:#ffedc6; --notice-edge:#ffca6a;
+  --tasks-diff-add:#e5f5eb; --tasks-diff-del:#fde6e6;
+  --tasks-unknown:#9196bf; --tasks-recorded:#5034ff;
+}
+body.tasks-design {
+  --tasks-count-bg:var(--accent-bg); --tasks-count-ink:var(--accent);
+  --tasks-selected:var(--accent-bg); --tasks-canvas:var(--raised); --tasks-scrollbar:var(--muted);
+  --tasks-diff-add:var(--green-bg); --tasks-diff-del:var(--notice-bg);
+  --tasks-unknown:var(--faint); --tasks-recorded:var(--accent);
+}

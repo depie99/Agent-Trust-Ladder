@@ -4,13 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { startControlPlaneServer } from '../runtime/lib/control-plane-server.mjs';
+import { ownerJson } from './helpers/owner-http.mjs';
 import { emptyState, loadState, saveState } from '../runtime/lib/state.mjs';
 import { buildLaunchPlan } from '../runtime/lib/launch.mjs';
 
 // Exercise the real client projection and markup without starting providers.
 const source = fs.readFileSync(new URL('../runtime/control-plane-client.js', import.meta.url), 'utf8');
-const functions = ['statusLabel', 'badge', 'taskProgress', 'taskProgressMarkup', 'taskExecution', 'liveRunState', 'taskOutcome', 'taskDetail', 'syncRunSnapshot', 'refreshTaskDetail'];
-const scope = vm.createContext({ currentRun: {}, snapshot: { queues: { items: [] } }, selectedTasks: new Set(),
+const functions = ['statusLabel', 'badge', 'taskProgress', 'taskProgressMarkup', 'taskExecution', 'liveRunState', 'taskOutcome', 'taskDetailBody', 'taskDetail', 'syncRunSnapshot', 'refreshTaskDetail'];
+const scope = vm.createContext({ PLUGIN: false, currentRun: {}, snapshot: { queues: { items: [] } }, selectedTasks: new Set(),
   escapeHtml: (v) => String(v ?? ''), btn: (text) => text, meter: (value) => `<div class="track" data-value="${value}"></div>`, taskRowActions: () => '', lifecycleDiagram: () => '', executionTokenBadge: () => '', executionReportMarkup: () => '', resourceSummary: () => '', popup: (_title, html) => { scope.detail = html; },
 });
 for (const name of functions) {
@@ -132,7 +133,7 @@ assert.equal(i18n.window.ATL_I18N.translateText('Acceptance progress · 1/4 gate
 
 if (process.env.ATL_UI_URL) {
   const liveUrl = new URL(process.env.ATL_UI_URL);
-  const live = await fetch(new URL('api/snapshot', liveUrl)).then((response) => response.json());
+  const live = await ownerJson(new URL('api/snapshot', liveUrl));
   const served = await fetch(new URL('control-plane-client.js', liveUrl)).then((response) => response.text());
   assert.equal(served, source, 'the live server serves the tested progress implementation');
   for (const id of ['T-018', 'T-026']) {
