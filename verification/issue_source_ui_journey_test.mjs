@@ -99,6 +99,7 @@ try {
     const open = await menu.getAttribute('open') !== null;
     if (inMenu && !open) await menu.locator('summary').click();
     if (!inMenu && open) await menu.locator('summary').click();
+    await target.waitFor({ state: 'visible' });
     return target;
   };
   const azureCard = page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' });
