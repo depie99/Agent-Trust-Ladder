@@ -54,6 +54,12 @@ try {
     // Blocker surfaces inline above the composer with its recovery actions.
     await workspace.locator('[data-action="unblock:T-022"]').waitFor();
     await workspace.locator('[data-action="task-recovery:T-022"]').waitFor();
+    // The recovery popup itself must offer the owner's unblock action (issue #88).
+    await workspace.locator('[data-action="task-recovery:T-022"]').click();
+    await dialog.locator('[data-action="unblock:T-022"]').waitFor();
+    assert.match(await dialog.locator("#modalTitle").textContent(), /Recovery proposal · T-022/, "the recovery proposal popup is open");
+    await page.keyboard.press("Escape");
+    assert.equal(await dialog.count(), 0, "closing the recovery popup leaves the task untouched");
     // Operator tools stay reachable; the route flow returns to the workspace.
     await workspace.locator('[data-action="task-actions:T-022"]').click();
     await dialog.locator('[data-action="task-route:T-022"]').click();
