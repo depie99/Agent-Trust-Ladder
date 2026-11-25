@@ -1144,6 +1144,38 @@ ${feedbackLine}
     return reason;
   }
 
+  function blockerDetailMarkup(task) {
+    if (!task.blockerDetail) return "";
+    const actions = (task.blockerActions || []).map((action, index) => {
+      if (action.kind === "inspect-log") return `<div class="row between"><span>${escapeHtml(action.instruction)}</span>${btn("Inspect log", `blocker-inspect:${task.id}`, "sm")}</div>`;
+      if (!["package-install", "provider-model", "provider-install"].includes(action.kind)) return "";
+      const exact = action.command ? `<code dir="ltr">${escapeHtml(action.command)}</code>` : action.model ? `<code dir="ltr">${escapeHtml(`${action.provider || "provider"}/${action.model}`)}</code>` : "";
+      return `<div class="row between"><span>${escapeHtml(action.instruction)}${exact ? `<br>${exact}` : ""}</span>${btn(action.label || "Apply fix", `blocker-fix:${task.id}:${index}`, "sm")}</div>`;
+    }).filter(Boolean).join("");
+    return `<div class="notice blocker-detail"><b>What happened</b><p dir="auto">${escapeHtml(task.blockerDetail)}</p>${task.blockerLogPath ? `<p class="sub" dir="ltr">Log: ${escapeHtml(task.blockerLogPath)}</p>${btn("Inspect log", `blocker-inspect:${task.id}`, "sm")}` : ""}${actions ? `<b>Fix</b>${actions}` : ""}</div>`;
+  }
+
+  // Build the one exact request a fix button may submit. The action must still
+  // be recorded on the current blocker; no free-form command is accepted.
+  function blockerFixRequest(value) {
+    const prefix = value.startsWith("blocker-fix-confirm:") ? "blocker-fix-confirm:" : "blocker-fix:";
+    if (!value.startsWith(prefix)) return null;
+    const [, id, indexText] = value.split(":");
+    const task = derived().tasks.find((row) => row.id === id);
+    const action = task?.blockerActions?.[Number(indexText)];
+    if (!action || !["package-install", "provider-model", "provider-install"].includes(action.kind)) return null;
+    const fix = { kind: action.kind };
+    if (action.command) fix.command = action.command;
+    if (action.provider) fix.provider = action.provider;
+    if (action.model) fix.model = action.model;
+    return { id, action, fix };
+  }
+
+  function blockerFixPreview(id, action) {
+    const exact = action.command ? `<p><b>Exact command</b><br><code dir="ltr">${escapeHtml(action.command)}</code></p>` : action.model ? `<p><b>Exact route</b><br><code dir="ltr">${escapeHtml(`${action.provider || "provider"}/${action.model}`)}</code></p>` : "";
+    return `<p>${escapeHtml(action.instruction)}</p>${exact}<p class="sub">This runs only the recorded allowlisted action in the app. It does not unblock the task, start a provider, approve review, or bypass any gate.</p>`;
+  }
+
   function derived() {
     const queueByTask = new Map();
     for (const queue of snapshot.queues?.items || []) for (const item of queue.items || []) queueByTask.set(item.id, queue.name || queue.id);
@@ -1155,6 +1187,7 @@ ${feedbackLine}
       progressDetails: taskProgress(task), completion_checks: task.completion_checks || [], packet_revision: task.packet_revision || 1, review_required: task.review_required,
       logs: (snapshot.state?.log_tail || []).filter((entry) => entry.task === task.id).slice(-8),
       evidence: task.evidence || [], lastCheckpoint: task.last_checkpoint || null, workspace: task.workspace || null,
+      blockerDetail: task.blocker?.detail || "", blockerActions: task.blocker?.next_actions || [], blockerEvidence: task.blocker?.evidence || [], blockerLogPath: task.blocker?.log_path || null, blockerSessionId: task.blocker?.session_id || null,
       browserAccess: browserAccessFor(task.id),
       inputRevisions: task.input_revisions || {}, recovery: task.recovery || null, waitingReason: (task.status === "blocked" && taskBlockerReason(task)) || task.waiting_reason || "", executionBudget: task.execution_budget || null, providerRoute: task.provider_route || null, resources: task.resource_preview || task.resource_decision || null, executionReport: task.execution_report || null, testEvidence: task.test_evidence || null, updatedAt: task.updated_at || null,
     })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
@@ -3315,9 +3348,10 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     return attempt.summary || "Recorded events";
   }
   const workspaceOutcomePill = (outcome) => {
-    const tone = outcome === "complete" ? "green" : outcome === "failed" ? "red" : outcome === "running" ? "green" : "";
-    const text = outcome === "complete" ? "Complete" : outcome === "failed" ? "Failed" : outcome === "running" ? "Running" : outcome === "unknown" ? "Unknown result" : "Recorded";
-    const mark = outcome === "complete" ? "✓ " : outcome === "failed" ? "✕ " : outcome === "running" ? '<span class="running-mark"></span> ' : "";
+    const noState = outcome === "no-state-change";
+    const tone = outcome === "complete" ? "green" : outcome === "failed" || noState ? "red" : outcome === "running" ? "green" : "";
+    const text = outcome === "complete" ? "Complete" : outcome === "failed" ? "Failed" : noState ? "No state change" : outcome === "running" ? "Running" : outcome === "unknown" ? "Unknown result" : "Recorded";
+    const mark = outcome === "complete" ? "✓ " : outcome === "failed" || noState ? "✕ " : outcome === "running" ? '<span class="running-mark"></span> ' : "";
     return `<span class="pill ${tone}">${mark}${text}</span>`;
   };
   const workspaceRange = (attempt) => {
@@ -3650,7 +3684,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const resultSummary = isDone
       ? `<div class="notice task-result"><b class="green">✓ ${escapeHtml(outcome.summary)}</b><p class="sub">${outcome.total ? `${outcome.passed}/${outcome.total} checks passed` : "No checks recorded"}</p></div>`
       : isBlocked && task.block
-        ? `<div class="notice task-result" style="border-color:var(--red)"><b class="red">◈ Blocker</b><p dir="auto">${escapeHtml(task.block)}</p></div>`
+        ? `<div class="notice task-result" style="border-color:var(--red)"><b class="red">◈ Blocker</b><p dir="auto">${escapeHtml(task.block)}</p>${blockerDetailMarkup(task)}</div>`
         : isRunning && task.stage
           ? `<div class="notice task-result"><b><span class="running-mark"></span> <span dir="auto">${escapeHtml(task.stage)}</span></b></div>`
           : "";
@@ -3832,7 +3866,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const checks = `<div class="progress-evidence">${progress.checks.map((item) => `<div class="row between"><span>${escapeHtml(item.check)}</span>${badge(item.result)}</div>`).join("")}${progress.reviewRequired ? `<div class="row between"><span>Required review</span>${badge(progress.reviewPassed ? "Approved" : "Pending")}</div>` : ""}<div class="row between"><span>Final completion</span>${badge(progress.finished ? "Done" : "Pending")}</div></div>`;
     const statusNote = task.rawStatus === "done" ? `<div class="notice"><b class="green">✓ Accomplished</b><p>${escapeHtml(outcome.summary)}</p></div>` : `<div class="notice"><b>${liveRunState(task) === "running" ? '<span class="running-mark"></span>Running now' : escapeHtml(task.status)}</b><p class="sub">${escapeHtml(task.stage)}</p></div>`;
     const body = `<div class="task-inspector-layout"><div class="task-inspector-main"><div><div class="task-detail-meta">${badge(task.status)}${badge(task.priority)}<span class="pill">${escapeHtml(task.queue)}</span><span class="muted tiny">Packet rev #${escapeHtml(task.packet_revision || 1)}</span></div><h2 class="task-detail-title" data-no-translate dir="auto">${escapeHtml(task.title)}</h2></div>
-      ${task.plan_review_required || task.block ? `<section aria-label="Attention required">${task.plan_review_required ? `<div class="notice"><b class="amber">Imported request · needs a plan</b><p>This is source material for planning. Create a plan, review it, then approve the executable tasks.</p>${btn('Create plan', `plan:${task.id}`, 'primary')}</div>` : ""}${task.block ? `<div class="notice" style="border-color:var(--red)"><div class="row between"><b class="red">◈ BLOCKER</b><span class="pill red">${escapeHtml(statusLabel(task.rawStatus))}</span></div><p dir="auto" style="margin:8px 0 10px">${escapeHtml(task.block)}</p><div class="bar">${btn("Unblock task", `unblock:${task.id}`, "sm primary")}${btn("Review recovery", `task-recovery:${task.id}`, "sm")}</div></div>` : ""}</section>` : ""}
+      ${task.plan_review_required || task.block ? `<section aria-label="Attention required">${task.plan_review_required ? `<div class="notice"><b class="amber">Imported request · needs a plan</b><p>This is source material for planning. Create a plan, review it, then approve the executable tasks.</p>${btn('Create plan', `plan:${task.id}`, 'primary')}</div>` : ""}${task.block ? `<div class="notice" style="border-color:var(--red)"><div class="row between"><b class="red">◈ BLOCKER</b><span class="pill red">${escapeHtml(statusLabel(task.rawStatus))}</span></div><p dir="auto" style="margin:8px 0 10px">${escapeHtml(task.block)}</p>${blockerDetailMarkup(task)}<div class="bar">${btn("Unblock task", `unblock:${task.id}`, "sm primary")}${btn("Review recovery", `task-recovery:${task.id}`, "sm")}</div></div>` : ""}</section>` : ""}
       ${task.source && ['azure','github','jira'].includes(task.source.type) ? `<section class="task-sec-card" aria-label="Import provenance"><b>Imported from ${escapeHtml(task.source.type)} #${escapeHtml(task.source.remote_id)}</b><p>Revision ${escapeHtml(task.source.revision ?? 'unknown')} · ${escapeHtml(task.source.iteration || '')}</p><p>Imported: ${escapeHtml(task.imported_at || 'Not recorded by this older import')}</p>${/^https:\/\//i.test(task.source.url || '') ? `<a href="${escapeHtml(task.source.url)}" target="_blank" rel="noopener noreferrer">Open original work item</a>` : ''}<details${disclose("import")}${openAttr("import")}><summary>Original imported content</summary><p style="white-space:pre-wrap">${escapeHtml(task.intake_snapshot?.objective || task.desc || 'No description was returned. Refresh this item from Issue sources.')}</p><ul>${(task.intake_snapshot?.completion_checks || task.completion_checks).map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul></details></section>` : ''}
       <div><div class="task-sec-title"><span>Objective & specification</span></div><p class="task-detail-description" dir="auto">${escapeHtml(task.desc || "No objective recorded.")}</p></div>
       <div class="task-sec-card"><div class="task-sec-title"><span>SDD / TDD lifecycle</span><span class="muted tiny">${escapeHtml(statusLabel(task.rawStatus))}</span></div>${lifecycleDiagram(task)}</div>
@@ -4543,10 +4577,41 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
         const response = await fetch(`/api/task-recovery?taskId=${encodeURIComponent(id)}`, { cache: "no-store" });
         const result = await response.json(); if (!response.ok) throw new Error(result.error || "Recovery inventory unavailable");
         const proposal = result.proposal;
-        const items = proposal.items.map((item) => `<div class="notice" style="margin-top:10px"><b>${escapeHtml(item.id)} · ${escapeHtml(item.title || "Unknown prerequisite")}</b><p>${escapeHtml(item.handoff || item.status)} · ${escapeHtml(item.reason || "Handoff verified")}</p><p>Workspace: ${item.workspaceAvailable ? "available" : "unavailable"} · baseline: ${item.baselineAvailable ? "recorded" : "not recorded"} · ${item.evidenceCount || 0} evidence records</p><p>Checks: ${escapeHtml((item.checks || []).join("; ") || "none recorded")}</p><details><summary>Workspace changes (${(item.files || []).length}${item.filesUnavailable ? "; unavailable" : ""})</summary><pre class="terminal">${escapeHtml((item.files || []).join("\n") || "No changes reported")}</pre></details></div>`).join("");
+        const items = proposal.items.map((item) => {
+          const fixRows = (item.next_actions || []).map((action) => `<li><b>${escapeHtml(action.label)}</b> — ${escapeHtml(action.instruction)}</li>`).join("");
+          return `<div class="notice" style="margin-top:10px"><b>${escapeHtml(item.id)} · ${escapeHtml(item.title || "Unknown prerequisite")}</b><p>Status: <b>${escapeHtml(item.status)}</b> · handoff: <b>${escapeHtml(item.handoff || "unavailable")}</b></p><p><b>Why:</b> ${escapeHtml(item.reason || "Handoff verified")}</p><p>Workspace: ${item.workspaceAvailable ? "available" : "unavailable"} · baseline: ${item.baselineAvailable ? "recorded" : "not recorded"} · ${item.evidenceCount || 0} evidence records</p><p>Checks: ${escapeHtml((item.checks || []).join("; ") || "none recorded")}</p>${fixRows ? `<b>Next actions</b><ul>${fixRows}</ul>` : ""}<details><summary>Workspace changes (${(item.files || []).length}${item.filesUnavailable ? "; unavailable" : ""})</summary><pre class="terminal">${escapeHtml((item.files || []).join("\n") || "No changes reported")}</pre></details></div>`;
+        }).join("");
         const blockedTask = derived().tasks.some((row) => row.id === id && row.rawStatus === "blocked");
-        popupWide(`Recovery proposal · ${escapeHtml(id)}`, `<p class="sub">Read-only inventory. No task was reopened, no evidence was fabricated, and no provider was started. Provider usage is unknown until a specific recovery run is reviewed. Unblocking is a separate owner action.</p>${items || "<p>No prerequisites recorded.</p>"}<h3>Proposed steps</h3><ol>${proposal.actions.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>`, (blockedTask ? btn("Unblock task", `unblock:${id}`, "primary") : "") + btn("Back", `task-detail:${id}`) + btn("Close", "close"));
+        const guardrails = (proposal.guardrails || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("");
+        popupWide(`Recovery proposal · ${escapeHtml(id)}`, `<p class="sub">Read-only inventory. No task was reopened, no evidence was fabricated, and no provider was started. Provider usage is unknown until a specific recovery run is reviewed. Unblocking is a separate owner action.</p>${items || "<p>No prerequisites recorded.</p>"}<h3>Guardrails</h3><ol>${guardrails}</ol>`, (blockedTask ? btn("Unblock task", `unblock:${id}`, "primary") : "") + btn("Back", `task-detail:${id}`) + btn("Close", "close"));
       } catch (error) { popup("Recovery inventory unavailable", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value.startsWith("blocker-inspect:")) {
+      const id = value.slice(16);
+      try {
+        const response = await fetch(`/api/task-diagnosis?taskId=${encodeURIComponent(id)}`, { cache: "no-store" });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || "Diagnosis unavailable");
+        const tails = (result.log_tails || []).map((tail) => `<details${tail === result.log_tails[0] ? " open" : ""}><summary>${escapeHtml(tail.name)}${tail.truncated ? " (tail)" : ""}</summary><pre class="terminal" dir="auto">${escapeHtml(tail.tail)}</pre></details>`).join("");
+        popupWide(`Blocker diagnosis · ${escapeHtml(id)}`, `<p><b>Reason</b><br>${escapeHtml(result.diagnosis.reason)}</p><p><b>What happened</b><br>${escapeHtml(result.diagnosis.detail || "No structured detail was recorded for this blocker.")}</p><p class="sub">Source: ${escapeHtml(result.diagnosis.source)} · session: ${escapeHtml(result.diagnosis.session_id || "none")} · log: ${escapeHtml(result.diagnosis.log_path || "none")}</p><h3>Bounded worker log</h3>${tails || "<p>No bounded log tail is available.</p>"}`, btn("Close", "close"));
+      } catch (error) { popup("Blocker diagnosis unavailable", `<p class="red">${escapeHtml(error.message)}</p>`, btn("Close", "close")); }
+      return;
+    }
+    if (value.startsWith("blocker-fix:")) {
+      const request = blockerFixRequest(value);
+      if (!request) { popup("Fix unavailable", `<p>This fix is no longer recorded on the blocker. Refresh the task and review it again.</p>`, btn("Close", "close")); return; }
+      popup(`Apply recorded fix · ${escapeHtml(request.id)}`, blockerFixPreview(request.id, request.action), `${btn("Confirm and apply", `blocker-fix-confirm:${request.id}:${value.split(":")[2]}`, "primary")}${btn("Cancel", "close", "ghost")}`);
+      return;
+    }
+    if (value.startsWith("blocker-fix-confirm:")) {
+      const request = blockerFixRequest(value);
+      if (!request) return;
+      try {
+        const response = await fetch("/api/task-recovery/fix", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId: request.id, confirm: true, fix: request.fix }) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || "Fix failed");
+        await refresh(false, true);
+        popup("Fix applied", `<p>${escapeHtml(result.detail)}</p><p class="sub">The blocker remains. Review the evidence and use Unblock task when the gate is resolved.</p>`, btn("Close", "close"));
+      } catch (error) { popup("Fix failed", `<p class="red">${escapeHtml(error.message)}</p><p>The blocker is unchanged. No action was silently retried.</p>`, btn("Close", "close")); }
       return;
     }
     if (value === "toggle-locale") {

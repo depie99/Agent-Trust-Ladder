@@ -11,6 +11,12 @@ export function recordBlocker(task, failure) {
     record = { version: 1, id, cause, reason: failure.reason, evidence: failure.evidence || [], recovery_owner: failure.recovery_owner || "mira", attempts: [], status: "waiting" };
     task.recovery_records.push(record);
   }
+  // Diagnosis is additive: it never contributes to the stable identity hash.
+  if (failure.detail) record.detail = failure.detail;
+  if (failure.next_actions?.length) record.next_actions = failure.next_actions;
+  if (failure.log_path) record.log_path = failure.log_path;
+  if (failure.session_id) record.session_id = failure.session_id;
+  if (failure.evidence?.length) record.evidence = failure.evidence;
   task.recovery = record;
   if (failure.recovery_owner && record.recovery_owner !== "owner") record.recovery_owner = failure.recovery_owner;
   if (record.status === "resolved") {
@@ -18,7 +24,11 @@ export function recordBlocker(task, failure) {
     record.escalation = "unchanged failure recurred after a successful repair preflight";
   }
   task.waiting_reason = failure.reason;
-  task.blocker = { ...(typeof task.blocker === "object" ? task.blocker : {}), version: 1, recovery_id: id, reason: failure.reason, cause, evidence: record.evidence, recovery_owner: record.recovery_owner, since: task.blocker?.since || new Date().toISOString(), actor: task.blocker?.actor || "mira" };
+  task.blocker = { ...(typeof task.blocker === "object" ? task.blocker : {}), version: 1, recovery_id: id, reason: failure.reason, cause, evidence: record.evidence, recovery_owner: record.recovery_owner, since: task.blocker?.since || new Date().toISOString(), actor: task.blocker?.actor || "mira",
+    ...(record.detail ? { detail: record.detail } : {}),
+    ...(record.next_actions?.length ? { next_actions: record.next_actions } : {}),
+    ...(record.log_path ? { log_path: record.log_path } : {}),
+    ...(record.session_id ? { session_id: record.session_id } : {}) };
   return record;
 }
 export function attemptsRemaining(record) { return record.status === "exhausted" ? 0 : Math.max(0, 2 - record.attempts.length); }

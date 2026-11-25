@@ -117,7 +117,22 @@ export function inspectHandoffChain(root, task, tasks, { includeFiles = false } 
     items.push(item);
   };
   for (const id of task.plan_depends_on || []) visit(id);
-  return { taskId: task.id, ready: items.every((item) => item.handoff === "verified"), items, actions: ["Preserve existing workspaces and acceptance checks.", "Review each unavailable handoff in dependency order; recover only evidence-backed baselines or revalidate the output.", "Obtain approval before reopening tasks or starting provider work.", "Verify each handoff and rerun dispatch preflight before resuming."] };
+  const actions = [];
+  for (const item of items) {
+    item.next_actions = [];
+    if (item.status !== "done") item.next_actions.push({ kind: "inspect-task", label: "Inspect prerequisite", instruction: `Open ${item.id} (${item.status}) and resolve its current gate before reviewing its handoff.`, task: item.id });
+    if (item.handoff === "legacy" || item.handoff === "invalid" || !item.handoff) item.next_actions.push({ kind: "revalidate-handoff", label: "Revalidate output", instruction: item.reason || `${item.id} needs a verified baseline and revision-bound evidence before its output can be handed off.`, task: item.id });
+    if (!item.workspaceAvailable) item.next_actions.push({ kind: "inspect-workspace", label: "Restore workspace", instruction: `The recorded workspace for ${item.id} is unavailable. Inspect it before revalidating the output; do not overwrite existing work.`, task: item.id });
+    if (item.filesUnavailable) item.next_actions.push({ kind: "inspect-workspace", label: "Inspect changed files", instruction: `Changed files for ${item.id} could not be listed. Inspect its workspace before relying on this inventory.`, task: item.id });
+    if (item.next_actions.length) actions.push({ task: item.id, title: item.title, status: item.status, handoff: item.handoff, reason: item.reason || "", next_actions: item.next_actions });
+  }
+  return {
+    taskId: task.id,
+    ready: items.every((item) => item.handoff === "verified"),
+    items,
+    actions,
+    guardrails: ["Preserve existing workspaces and acceptance checks.", "Obtain approval before reopening tasks or starting provider work.", "Verify each handoff and rerun dispatch preflight before resuming."],
+  };
 }
 export function prepareInputs(root, task, tasks) {
   const inputs = {}; const operations = new Map(); const conflicts = [];

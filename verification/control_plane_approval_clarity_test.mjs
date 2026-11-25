@@ -23,12 +23,25 @@ const scope = vm.createContext({
 });
 const escapeLine = source.split('\n').find((line) => line.startsWith('  const escapeHtml ='));
 vm.runInContext(escapeLine, scope);
-for (const name of ['statusLabel', 'badge', 'approvalSummary', 'approvalCard', 'approvalCenter', 'showRunApproval', 'applyApprovalDecision']) {
+for (const name of ['statusLabel', 'badge', 'approvalSummary', 'approvalCard', 'approvalCenter', 'showRunApproval', 'applyApprovalDecision', 'blockerFixRequest', 'blockerFixPreview']) {
   let start = source.indexOf(`  function ${name}(`);
   if (start < 0) start = source.indexOf(`  async function ${name}(`);
   assert.ok(start >= 0, `${name} exists`);
   vm.runInContext(source.slice(start, source.indexOf('\n  }', start) + 4), scope);
 }
+
+// Blocker fixes are derived from the recorded action only. The UI cannot be
+// talked into submitting an arbitrary command or an action that disappeared.
+scope.derived = () => ({ tasks: [{ id: 'T-018', blockerActions: [
+  { kind: 'package-install', label: 'Install / repair dependencies', instruction: 'Run the offline lockfile installer.', command: 'npm ci --offline --ignore-scripts --no-audit --no-fund' },
+] }] });
+const fixRequest = scope.blockerFixRequest('blocker-fix:T-018:0');
+assert.equal(fixRequest.fix.kind, 'package-install');
+assert.equal(fixRequest.fix.command, 'npm ci --offline --ignore-scripts --no-audit --no-fund');
+assert.match(scope.blockerFixPreview(fixRequest.id, fixRequest.action), /Exact command/);
+assert.match(scope.blockerFixPreview(fixRequest.id, fixRequest.action), /npm ci --offline --ignore-scripts --no-audit --no-fund/);
+assert.equal(scope.blockerFixRequest('blocker-fix:T-018:9'), null, 'a stale fix index is refused');
+assert.equal(scope.blockerFixRequest('blocker-fix:T-018:0;rm -rf /'), null, 'free-form shell text is refused');
 
 let card = scope.approvalCard(pending);
 assert.match(card, /Build Persian catalog/);

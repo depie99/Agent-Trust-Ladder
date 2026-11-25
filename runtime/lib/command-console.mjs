@@ -17,7 +17,7 @@ import { addProposal, addProposalFeedback, approvePlanDraft, editProposal, frame
 
 export const TUI_COMMANDS = Object.freeze([
   { name: "help", usage: "help", kind: "read", summary: "list commands" },
-  { name: "why", usage: "why [task-id]", kind: "read", summary: "explain blockers and next actions" },
+  { name: "why", usage: "why [task-id]", kind: "read", summary: "full blocker reason, diagnosis and next actions" },
   { name: "show", usage: "show [task-id]", kind: "read", summary: "inspect a task or active portfolio" },
   { name: "review", usage: "review <task-id> [--mermaid|--json]", kind: "read", summary: "inspect captured diffs and execution impact" },
   { name: "brief", usage: "brief", kind: "read", summary: "render the manager brief" },
@@ -89,6 +89,8 @@ function formatWhy(root, id) {
     lines.push(`${task.id} [${task.status}] (${task.priority}${task.risk === "risky" ? "/risky" : ""}) ${task.title}`);
     lines.push(`  why: ${row.why}`);
     if (row.since) lines.push(`  blocked ${row.since}${row.actor ? ` by ${row.actor}` : ""}`);
+    for (const line of row.diagnosis_lines || []) lines.push(`  ${line}`);
+    for (const line of row.handoff_lines || []) lines.push(`  ${line}`);
     if (row.fix) lines.push(`  fix: ${row.fix}`);
     lines.push("");
   }

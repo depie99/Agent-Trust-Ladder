@@ -16,6 +16,8 @@ import { applyDeterministicRoute, composeTask, importCandidates, normalizeDraftT
 import { loadQueue, queueAdd, queueIds, queueRemove, queueArchive, queueCreate, queuePause, queueRename, queueResume, queueSetActive } from "./queue.mjs";
 import { buildLaunchPlan, executeLaunchQueue, requestRunAbort, requestSessionInterrupt } from "./launch.mjs";
 import { unblockTask } from "./recovery.mjs";
+import { inspectHandoffChain } from "./handoffs.mjs";
+import { formatBlockerDiagnosis, formatHandoffActions, taskBlockerDetail } from "./task-diagnostics.mjs";
 import { addResourceToTask } from "./resources.mjs";
 import { submitFeedback } from "./feedback.mjs";
 import { intakeFromFiles, intakeFromAzure, intakeFromGitHub } from "./intake.mjs";
@@ -501,7 +503,19 @@ export function createDashboardSnapshot(root) {
   } catch {
     // State remains useful even if optional config is absent.
   }
-  const tasks = Object.values(state.tasks).sort(taskSort);
+  // Terminal diagnosis is a read-only projection. Keep it off state.json so
+  // legacy blockers can be enriched from bounded log tails without mutating
+  // the authoritative task record.
+  const tasks = Object.values(state.tasks).sort(taskSort).map((task) => {
+    if (task.status !== "blocked") return task;
+    const diagnosis = taskBlockerDetail(root, task);
+    const handoffs = (task.plan_depends_on || []).length ? inspectHandoffChain(root, task, state.tasks) : null;
+    return {
+      ...task,
+      blocker_diagnosis: diagnosis,
+      blocker_handoffs: handoffs?.actions || [],
+    };
+  });
   const counts = statusCounts(tasks);
   const active = activeTasks(state);
   const feed = readFeed(root, { n: 80 });
@@ -677,10 +691,15 @@ function renderTaskDetail(snapshot, selected, width, plain, scroll = 0, maxRows 
   ];
   if (task.blocker?.reason) {
     const recovery = task.assigned_worker || task.proposed_worker;
-    lines.push("", paint("RECOVERY · NEXT ACTION", "amber", plain), ...wrap(`${paint("blocked", "amber", plain)} · ${task.blocker.reason}`, inner));
+    lines.push("", paint("RECOVERY · WHY + NEXT ACTION", "amber", plain), ...wrap(`${paint("blocked", "amber", plain)} · ${task.blocker.reason}`, inner));
+    for (const line of formatBlockerDiagnosis(task.blocker_diagnosis || task.blocker)) lines.push(...wrap(paint(line, "muted", plain), inner));
+    if (task.blocker_handoffs?.length) {
+      lines.push("", paint("HANDOFFS", "amber", plain));
+      for (const line of formatHandoffActions(task.blocker_handoffs)) lines.push(...wrap(paint(line, "muted", plain), inner));
+    }
     lines.push(...wrap(recovery
-      ? `${paint("u", "amber", plain)} unblock → ${recovery}; then ${paint("x", "mint", plain)} queue → ${paint("l", "mint", plain)} run`
-      : `${paint("u", "amber", plain)} unblock → triage; then assign a worker before queueing`, inner));
+      ? `${paint("u", "amber", plain)} unblock → ${recovery}; then ${paint("x", "mint", plain)} queue → ${paint("l", "mint", plain)} run  ·  ${paint("w", "coral", plain)} full why`
+      : `${paint("u", "amber", plain)} unblock → triage; then assign a worker before queueing  ·  ${paint("w", "coral", plain)} full why`, inner));
   }
   if (task.resources?.length) {
     lines.push("", paint(`RESOURCES · ${task.resources.length}`, "mint", plain));
@@ -1712,6 +1731,7 @@ export function renderQueueScreen(snapshot, ui, width, height, plain) {
       lines.push(`${mark} ${paint(String(index + 1), "faint", plain)} ${paint(item.taskId, "ink", plain)} ${statusLine(state, plain, true)} ${paint(`→ ${item.role || "-"}`, "faint", plain)} ${paint(`${item.provider.worker} · ${item.provider.model || "provider default"} · ${item.provider.auth}`, "violet", plain)}`);
       lines.push(`    ${truncate(item.title, Math.max(10, inner - 4))}`);
       for (const b of item.blockers) lines.push(`    ${paint(`BLOCKED: ${truncate(b, Math.max(10, inner - 12))}`, "coral", plain)}`);
+      for (const line of (item.diagnosis_lines || []).slice(0, 2)) lines.push(...wrap(`    ${paint(line, "amber", plain)}`, inner));
     });
     lines.push("", paint("d remove highlighted · l launch preview · gate states refresh live · Esc back", "muted", plain));
   }
@@ -1733,6 +1753,7 @@ export function renderLaunchPreviewScreen(ui, width, height, plain) {
       lines.push(paint(`  ws: ${truncate(item.workspace || item.workspaceNote || "-", inner - 6)} · logs: ${item.sessionLogs}`, "faint", plain));
       if (item.command) lines.push(paint(`  cmd: ${truncate(item.command, inner - 6)}`, "faint", plain));
       for (const b of item.blockers) lines.push(...wrap(paint(`  BLOCKED: ${b}`, "coral", plain), inner));
+      for (const line of item.diagnosis_lines || []) lines.push(...wrap(paint(`  ${line}`, "amber", plain), inner));
     }
     lines.push("");
     lines.push(paint(`Press Enter / y to run now:  ${plan.confirmCommand}`, "mint", plain));
@@ -2301,11 +2322,13 @@ export async function runDashboard(root, { once = false, plain = false } = {}) {
         ui.notice = task ? `${task.id} is ${task.status}; only blocked tasks need recovery.` : "Select a task first.";
         return;
       }
+      const firstAction = task.blocker_diagnosis?.next_actions?.[0];
+      const exact = firstAction?.command ? ` Exact command: ${firstAction.command}` : firstAction?.model ? ` Exact route: ${firstAction.provider || "provider"}/${firstAction.model}` : "";
       ui.editor = newEditor({
         kind: "recovery",
         taskId: task.id,
         title: `Resolve blocker for ${task.id}`,
-        hint: `Blocker: ${task.blocker?.reason || "No blocker reason recorded."} Write what changed or what approval/input is now available. This note is required before ATL reopens the task.`,
+        hint: `Blocker: ${task.blocker?.reason || "No blocker reason recorded."}${task.blocker_diagnosis?.detail ? ` What happened: ${task.blocker_diagnosis.detail}` : ""}${firstAction ? ` Next: ${firstAction.instruction}${exact}` : ""} Write what changed or what approval/input is now available. This note is required before ATL reopens the task.`,
         multiline: true,
       });
     };

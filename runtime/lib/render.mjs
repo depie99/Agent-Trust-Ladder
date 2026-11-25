@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { paths } from "./state.mjs";
-import { latestTaskEvidence } from "./task-diagnostics.mjs";
+import { formatBlockerDiagnosis, latestTaskEvidence } from "./task-diagnostics.mjs";
 import { requiresHumanAction } from "./recovery.mjs";
 
 const AGE = (iso) => {
@@ -162,6 +162,10 @@ export function renderTask(task) {
     for (const r of reviews) L.push(`    ${r.result}: ${r.detail} (${r.actor}, ${AGE(r.at)} ago)`);
   }
   if (t.blocker) L.push(`  blocker: ${t.blocker.reason} (since ${AGE(t.blocker.since)} ago, by ${t.blocker.actor})`);
+  if (t.blocker?.detail || t.blocker?.next_actions?.length) {
+    L.push("  blocker diagnosis:");
+    for (const line of formatBlockerDiagnosis(t.blocker)) L.push(`    ${line}`);
+  }
   if (t.next_wake_at) L.push(`  next wake: ${t.next_wake_at}`);
   if (t.last_checkpoint) L.push(`  checkpoint: ${t.last_checkpoint.note || "-"} (${AGE(t.last_checkpoint.at)} ago)`);
   const notes = t.evidence.filter((e) => e.kind === "note");

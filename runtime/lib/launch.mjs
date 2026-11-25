@@ -31,7 +31,7 @@ import { recordHandoff, readHandoff, deliveryGate, startBaseline, snapshot as co
 import { dispatchPreflight } from "./dispatch-preflight.mjs";
 import { recordBlocker, repairBlocker, validateContracts, selectedContracts } from "./queue-recovery.mjs";
 import { recordIntegratedDelivery } from "./delivery.mjs";
-import { latestTaskEvidence, stalledTaskFailure } from "./task-diagnostics.mjs";
+import { formatBlockerDiagnosis, latestTaskEvidence, stalledTaskFailure, providerFailureGuidance, taskBlockerDetail, workerStallFailure } from "./task-diagnostics.mjs";
 import { createWorkerChannel } from "./worker-channel.mjs";
 import { resourcePolicy, budgetDecision, routeTask, readResourceConfig } from "./resource-policy.mjs";
 import {recordExecution,learnFromExecution} from './execution-report.mjs';
@@ -626,14 +626,15 @@ export async function driveTaskUntilGate(root, taskId, budget, {
           if(alternative.decision?.blocked)return {status:nextTask?.status||task.status,reason:`${alternative.decision.blocked}. Exhausted route ${executionStart.provider}/${executionStart.model||'provider default'} is on cooldown until ${quota.retryAt}.`,failed:true,blockedLaunch:true,blocker:'provider-quota'};
         }
       }
-      return { status: nextTask?.status || task.status, reason: result.providerFailure.reason, failed: true, blockedLaunch: true, blocker: result.providerFailure.kind };
+      const providerGuidance = providerFailureGuidance(result.providerFailure, { provider: executionStart.provider, model: executionStart.model });
+      return { status: nextTask?.status || task.status, reason: providerGuidance.detail, failed: true, blockedLaunch: true, blocker: result.providerFailure.kind, preflight: { cause: result.providerFailure.kind, reason: providerGuidance.detail, recovery_owner: "owner", ...providerGuidance } };
     }
     if (result.timedOut || result.code !== 0) {
       return { status: nextTask?.status || task.status, reason: `worker ended unsuccessfully (code ${result.code}${result.timedOut ? ", timeout" : ""})`, failed: true };
     }
     if (!nextTask || nextTask.status === task.status) {
-      let failure = null;
-      try { failure = stalledHandoffFailure(fs.readFileSync(logPath, "utf8")); } catch { /* preserve generic stall when transcript is unavailable */ }
+      let failure = null; let logText = "";
+      try { logText = fs.readFileSync(logPath, "utf8"); failure = stalledHandoffFailure(logText); } catch { /* preserve generic stall when transcript is unavailable */ }
       if (failure) return { status: task.status, reason: failure.reason, stalled: true, blockedLaunch: true, blocker: failure.cause, preflight: failure };
       const recordedFailure = stalledTaskFailure(task, nextTask);
       if (role === "beacon" && !recordedFailure && !verificationEscalation && pick.decision?.automatic
@@ -650,6 +651,8 @@ export async function driveTaskUntilGate(root, taskId, budget, {
         }
       }
       if (recordedFailure) return { status: task.status, reason: recordedFailure.reason, stalled: true, blocker: recordedFailure.cause, preflight: recordedFailure };
+      const diagnosed = workerStallFailure(root, taskId, logText, task.status);
+      if (diagnosed) return { status: task.status, reason: diagnosed.reason, stalled: true, blockedLaunch: true, blocker: diagnosed.cause, preflight: diagnosed };
       return { status: task.status, reason: `worker did not advance ${taskId} from ${task.status}; inspect the log and feed`, stalled: true };
     }
     if (!overnight) return { status: nextTask.status, reason: "one-shot session complete" };
@@ -691,6 +694,7 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
   const items = [];
   for (const task of ordered) {
     const role = nextRole(task);
+    const diagnosis = task.status === "blocked" ? taskBlockerDetail(root, task) : null;
     const provider = routeTask(resourceConfig,task,role,{profile,discover,overrides:providerDefaults});
     const allocation = budgetDecision(resourceConfig,task,{runLimit:maxSessions});
     const spec = role ? provider.provider : null;
@@ -738,6 +742,8 @@ export function buildLaunchPlan(root, { taskIds, maxMinutes = 120, maxSessions =
       sessionLogs: `.trust/manager/overnight/${task.id}/session-NN-${role || "-"}.log`,
       containment: CONTAINMENT_RULES,
       brainContext: invocation ? buildContextPack(root, { query: `${task.title} ${task.objective || ""}`, subjects: task.brain_subjects || [], maxClaims: 12 }) : null,
+      diagnosis: diagnosis ? { detail: diagnosis.detail, next_actions: diagnosis.next_actions, log_path: diagnosis.log_path, session_id: diagnosis.session_id } : null,
+      diagnosis_lines: diagnosis ? formatBlockerDiagnosis(diagnosis) : [],
       blockers,
     });
   }
