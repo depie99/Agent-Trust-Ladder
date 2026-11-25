@@ -80,6 +80,17 @@ function sessionOutcome(session) {
   return session.exitCode === 0 ? "complete" : "failed";
 }
 
+// Failure records arrive in several shapes: {summary} from attempt failers,
+// {message} from thrown errors, and {kind, reason} from provider failures.
+// Prefer the human-readable field; never let a bare object reach the card as
+// "[object Object]".
+function failureSummary(failure) {
+  if (!failure) return null;
+  const direct = failure.summary ?? failure.message ?? failure.reason;
+  const text = direct ?? (typeof failure === "string" ? failure : JSON.stringify(failure));
+  return String(text).slice(0, 400);
+}
+
 function plainEvent(entry) {
   return { at: entry.at || null, actor: entry.actor || null, event: entry.event || null, detail: entry.detail || entry.note || null };
 }
@@ -169,8 +180,8 @@ export function buildExecutionProjection(root, taskId, options = {}) {
       packet_revision: session.packetRevision ?? null,
       checkpoint: session.checkpoint ? { note: session.checkpoint.note || null, summary: session.checkpoint.summary || session.checkpoint.note || null, at: session.checkpoint.at || session.finishedAt || null } : null,
       outcome: sessionOutcome(session),
-      summary: session.failure ? String(session.failure.summary || session.failure.message || session.failure).slice(0, 400) : (session.checkpoint?.summary || session.checkpoint?.note || null),
-      failure: session.failure ? { summary: String(session.failure.summary || session.failure.message || session.failure).slice(0, 400), next_action: session.failure.next_action || null } : null,
+      summary: session.failure ? failureSummary(session.failure) : (session.checkpoint?.summary || session.checkpoint?.note || null),
+      failure: session.failure ? { summary: failureSummary(session.failure), next_action: session.failure.next_action || null } : null,
       tokens: session.tokens && session.tokens.total != null ? { total: session.tokens.total, source: session.usage_source || session.tokens.source || "unknown" } : null,
       events: pageEvents.items.map(plainEvent),
       events_truncated: pageEvents.truncated,
@@ -290,7 +301,11 @@ export function buildExecutionProjection(root, taskId, options = {}) {
       }
       const graphCaptures = captures.slice(0, 20);
       if (fileCaptureId && !graphCaptures.some((capture) => capture.id === fileCaptureId)) graphCaptures.push({ id: fileCaptureId });
-      for (const capture of graphCaptures) nodes.push({ id: `capture:${capture.id}`, kind: "capture", label: `Capture ${capture.id.slice(0, 8)} · ${capture.id === currentCaptureId ? "current" : "historical"}`, capture_id: capture.id, files_next_cursor: capture.id === fileCaptureId ? (totalFiles > files.length ? files.length : null) : 0 });
+      for (const capture of graphCaptures) {
+        const id = `capture:${capture.id}`;
+        nodes.push({ id, kind: "capture", label: `Capture ${capture.id.slice(0, 8)} · ${capture.id === currentCaptureId ? "current" : "historical"}`, capture_id: capture.id, files_next_cursor: capture.id === fileCaptureId ? (totalFiles > files.length ? files.length : null) : 0 });
+        edges.push({ from: `task:${taskId}`, to: id, provenance: "recorded", label: "task capture" });
+      }
       for (const file of files) {
         const id = `file:${file.capture_id}:${file.id}`;
         const fileNode = { id, kind: "file", label: file.path, file_id: file.id, capture_id: file.capture_id, hunks_loaded: false };
@@ -304,6 +319,8 @@ export function buildExecutionProjection(root, taskId, options = {}) {
           if (capture && hunkFilesProcessed < 24 && hunkCount < 250) {
             hunkFilesProcessed++;
             const diff = fileDiff(root, capture, file.id, { milliseconds: 100 });
+            fileNode.additions = diff.additions ?? null;
+            fileNode.deletions = diff.deletions ?? null;
             const patch = diff.patch || "";
             if (diff.availability !== "available" || diff.truncated) hunksTruncated = true;
             const headers = [...patch.matchAll(/^@@[^\n]*/gm)];

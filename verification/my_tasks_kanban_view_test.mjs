@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
+import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 
 // Owner feedback 2026-11-15: kanban looked identical to a closed list.
@@ -43,6 +44,9 @@ const transport = async (url) => {
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-mytasks-kanban-root-"));
 fs.mkdirSync(path.join(root, "config"), { recursive: true });
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1, intake: { azure: { enabled: true, org_url: base, project: "Alpha", token_env: "AZDO_PAT", tls_allow_untrusted: true } } }));
+// Keep the snapshot endpoint healthy; without a valid project state the client
+// goes offline and disables every action button (same setup as the UI journey).
+saveState(root, emptyState());
 let running, browser;
 try {
   running = await startControlPlaneServer(root, { myTasksFetch: transport });
@@ -51,7 +55,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(running.url, { waitUntil: "domcontentloaded" });
-  await page.click('[data-page="mytasks"]');
+  await page.goto(new URL("?page=mytasks", page.url()).href);
   await page.waitForSelector(".mtr-status-group");
   await page.click('[data-action="mt-settings"]');
   await page.check('[data-mt-project="Beta"]');

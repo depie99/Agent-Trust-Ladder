@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { chromium } from "playwright";
 import { emptyState, loadState, saveState, createTask } from "../runtime/lib/state.mjs";
+import { planDraftIndex } from "../runtime/lib/plan-studio.mjs";
 import { registerProject } from "../runtime/lib/supervisor.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 
@@ -58,98 +59,88 @@ try {
   running = await startControlPlaneServer(root);
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  page.on("pageerror", error => console.error(error.message));
+  const planTraffic = [];
+  page.on("request", request => { if (request.url().includes("/api/plan/")) planTraffic.push(`${request.method()} ${new URL(request.url()).pathname}`); });
+  page.on("response", response => { if (response.url().includes("/api/plan/")) planTraffic.push(`${response.status()} ${new URL(response.url()).pathname}`); });
   page.setDefaultTimeout(9000);
   await page.goto(running.url);
 
-  // Projects page is a work map: one card per repository with its relations.
-  await page.locator('[data-page="projects"]:visible').first().click();
+  const nav = id => page.locator(`[data-page="${id}"]:visible`).first();
+  const openRepo = id => page.locator(`[data-action="repositories-open:${id}"]`).click();
+  const inspector = page.getByRole("complementary", { name: "Repository details" });
+  await nav("projects").waitFor();
+  await page.keyboard.press("7");
+  await page.getByRole("heading", { name: "Repositories", exact: true }).waitFor();
   await page.locator(`[data-repo-card="${backend.id}"]`).waitFor();
-  assert.equal(await page.locator("[data-repo-card]").count(), 3, "one card per registered repository (active or idle)");
-  const storefrontCard = page.locator(`[data-repo-card="${frontend.id}"]`);
-  assert.match(await storefrontCard.innerText(), /cart item lost after login/, "the shared request appears on the storefront card");
-  assert.match(await storefrontCard.innerText(), /Shared w\/ Backend/, "the card badge names the sibling repositories");
-  assert.ok(await page.locator(`[data-repo-card="${backend.id}"] [data-action="plan:${sharedId}:${backend.id}"]`).first().isVisible(), "each card offers planning in its own repository");
-  assert.ok(await storefrontCard.locator(`[id="repoAssignTitle-${frontend.id}"]`).isVisible(), "each active card carries the direct assignment bar");
-  assert.match(await page.locator(`[data-repo-card="${vendor.id}"]`).innerText(), /IDLE|Assign task/, "a repository with no work shows as an idle card");
-  assert.equal(await page.locator("[data-repo-card]").count(), 3, "one card per registered repository");
-
-  // Direct assignment from an active card: new task bound to the repository.
-  await storefrontCard.locator(`[id="repoAssignTitle-${frontend.id}"]`).fill("Align the wishlist badge color with the theme");
-  await storefrontCard.locator(`[id="repoAssignWorker-${frontend.id}"]`).selectOption("rowan");
-  await page.locator(`[data-action="repo-assign:${frontend.id}"]`).click();
+  assert.equal(await page.locator("[data-repo-card]").count(), 3);
+  await openRepo(backend.id);
+  assert.match(await inspector.innerText(), /cart item lost after login/);
+  await openRepo(frontend.id);
+  assert.match(await inspector.innerText(), /Shared w\/ Backend/);
+  await inspector.locator(`[id="repoAssignTitle-${frontend.id}"]`).fill("Align the wishlist badge color with the theme");
+  await inspector.locator(`[data-action="repo-assign:${frontend.id}"]`).click();
   await page.getByText(/now belongs to/).waitFor();
-  const assigned = Object.values(loadState(root).tasks).find((task) => task.title === "Align the wishlist badge color with the theme");
-  assert.ok(assigned, "assignment creates the task");
-  assert.equal(assigned.repository_id, frontend.id, "the new task is bound to the repository");
-  assert.equal(assigned.proposed_worker, "rowan", "the chosen worker is honored");
+  const assigned = Object.values(loadState(root).tasks).find(task => task.title === "Align the wishlist badge color with the theme");
+  assert.equal(assigned.repository_id, frontend.id);
   await page.getByRole("button", { name: "Close", exact: true }).click();
+  await inspector.getByRole("button", { name: "Close repository details" }).click();
+  assert.equal(await inspector.count(), 0);
+  await openRepo(vendor.id);
+  assert.match(await inspector.innerText(), /No linked requests/);
 
-  // Requests without a repository can be linked from the Projects page, even
-  // before the Issue sources page has ever been opened in this tab.
-  assert.match(await page.locator("#content").innerText(), /Requests without a repository/);
-  await page.locator(`[data-action="source-repos:${lonelyId}"]`).click();
-  await page.locator(`[data-repo-check="${frontend.id}"]`).check();
-  await page.locator(`[data-action="source-repos-save:${lonelyId}"]`).click();
-  await storefrontCard.getByText("wishlist badge wrong").first().waitFor();
-  assert.deepEqual(loadState(root).tasks[lonelyId].repository_ids, [frontend.id], "assignment links the request to the chosen repository");
-  assert.doesNotMatch(await page.locator("#content").innerText(), /Requests without a repository/, "the unassigned strip disappears once every request is linked");
+  await nav("inbox").click();
+  const requestPanel = page.getByRole("complementary", { name: "Request details" });
+  await page.locator('[data-action="inbox-stage:Needs repos"]').click();
+  await page.getByRole("button", { name: "Choose repos", exact: true }).click();
+  await requestPanel.locator("#inboxRepoSearch").fill("Storefront");
+  assert.equal(await requestPanel.locator("[data-inbox-repo-option]:visible").count(), 1);
+  await requestPanel.locator(`[data-inbox-repo="${frontend.id}"]`).check();
+  await requestPanel.getByRole("button", { name: "Save links" }).click();
+  await page.getByText("Repository links saved.").waitFor();
+  assert.deepEqual(loadState(root).tasks[lonelyId].repository_ids, [frontend.id]);
 
-  // Plan here opens Plan Studio already targeting that repository.
-  await page.locator(`[data-action="plan:${sharedId}:${backend.id}"]`).first().click();
-  assert.match(await page.locator("[data-plan-source-context]").innerText(), /Planning in Backend/, "Plan here targets the card's repository");
-  assert.match(await page.locator("#goal").inputValue(), /cart item lost after login/);
+  await page.locator('[data-action="inbox-stage:All"]').click();
+  await page.locator(`[data-inbox-check="${lonelyId}"]`).check();
+  await page.locator(`[data-inbox-check="${sharedId}"]`).check();
+  await page.locator('[data-action="inbox-send-checked"]').click();
+  await page.getByText("3 repository drafts are ready in Saved plans.").waitFor().catch(async error => {
+    throw new Error(`Bulk planning did not reach Plan Studio. ${await page.locator("#content [role=status], #content [data-studio-notice]").allTextContents()} · saved ${planDraftIndex(root).length} · ${planTraffic.join(", ")}`, { cause: error });
+  });
+  const index = planDraftIndex(root);
+  assert.deepEqual(index.filter(draft => draft.source_task_id === sharedId).map(draft => draft.repository.id).sort(), [backend.id, frontend.id].sort());
+  assert.equal(index.filter(draft => draft.source_task_id === lonelyId).length, 1);
+  assert.equal(index.filter(draft => draft.approved).length, 0);
 
-  // Opening the multi-repository request without a target asks which repository to plan.
-  await page.evaluate((id) => { const button = document.createElement("button"); button.dataset.action = `plan:${id}`; button.id = "probePlan"; document.body.append(button); }, sharedId);
-  await page.locator("#probePlan").click();
-  assert.match(await page.locator("[data-plan-source-context]").innerText(), /affects 2 repositories/, "a request linked to two repositories never silently picks one");
-  await page.locator(`[data-action="studio-pick-repo:${frontend.id}"]`).click();
-  assert.match(await page.locator("[data-plan-source-context]").innerText(), /Planning in Storefront/);
+  await nav("inbox").click();
+  await page.locator(`.intake-title[data-action="inbox-open:${sharedId}"]`).click();
+  assert.equal(await requestPanel.locator(`[data-inbox-repo="${backend.id}"]`).isDisabled(), true);
+  const replay = await page.evaluate(async ({ sourceTaskId, repositoryId }) => {
+    const response = await fetch("/api/plan/local", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ intent: "Restore the cart after login", sourceTaskId, repositoryId, fromInbox: true }) });
+    return response.json();
+  }, { sourceTaskId: sharedId, repositoryId: backend.id });
+  assert.equal(replay.reused, true);
+  assert.equal(planDraftIndex(root).length, 3);
 
-  // Issue sources: chips per linked repository and one Plan button per repository.
-  await page.locator('[data-page="sources"]:visible').first().click();
-  const sharedRow = page.locator(`[data-import-request="${sharedId}"]`);
-  await sharedRow.waitFor();
-  assert.match(await sharedRow.innerText(), /Storefront[\s\S]*Backend/, "the row shows every linked repository");
-  assert.equal(await sharedRow.locator(`[data-action^="plan:${sharedId}:"]`).count(), 2, "one Plan button per linked repository");
+  await page.getByRole("button", { name: /^Sources/ }).click();
+  await page.getByRole("heading", { name: "Connected sources" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Watch settings" }).isVisible(), true);
+  await page.getByRole("button", { name: "Back to Inbox" }).click();
+  await page.getByRole("button", { name: "+ Import issues", exact: true }).click();
+  await page.getByRole("heading", { name: "Import issues", exact: true }).waitFor();
+  assert.equal(await page.locator("#sourceConnectionSelect").isVisible(), true);
+  await page.getByRole("button", { name: "Back to Inbox" }).click();
 
-  // Link a second repository through the Repositories dialog.
-  await page.locator(`[data-action="source-repos:${lonelyId}"]`).click();
-  await page.locator(`[data-repo-check="${backend.id}"]`).check();
-  await page.locator(`[data-action="source-repos-save:${lonelyId}"]`).click();
-  await page.locator(`[data-import-request="${lonelyId}"] [data-action="plan:${lonelyId}:${backend.id}"]`).waitFor();
-  assert.deepEqual(loadState(root).tasks[lonelyId].repository_ids, [frontend.id, backend.id], "the dialog saves the full ordered link list");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(`.intake-title[data-action="inbox-open:${lonelyId}"]`).click();
+  assert.equal(await requestPanel.isVisible(), true);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await nav("projects").click();
+  await openRepo(backend.id);
+  assert.equal(await inspector.isVisible(), true);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  console.log("PASS: Inbox and Repositories desktop/mobile, filters, links, assignment, idempotent bulk planning, source and import tools");
 
-  // A repository that already has plan work for the request cannot be unlinked.
-  const draft = await page.evaluate(async ({ taskId, repositoryId }) => {
-    const response = await fetch("/api/plan/local", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ intent: "Restore the cart after login", sourceTaskId: taskId, repositoryId }) });
-    return { status: response.status, body: await response.json() };
-  }, { taskId: sharedId, repositoryId: backend.id });
-  assert.equal(draft.status, 200, JSON.stringify(draft.body));
-  await page.locator(`[data-action="source-repos:${sharedId}"]`).click();
-  await page.locator(`[data-repo-check="${backend.id}"]`).uncheck();
-  await page.locator(`[data-action="source-repos-save:${sharedId}"]`).click();
-  await page.getByText("Could not save links").waitFor();
-  assert.match(await page.locator("#dialog, .dialog, [role=dialog]").first().innerText(), /Cannot unlink Backend/, "the refusal names the pinned repository");
-  assert.deepEqual(loadState(root).tasks[sharedId].repository_ids, [frontend.id, backend.id], "a refused unlink leaves the links untouched");
-  await page.keyboard.press("Escape");
-
-  // The draft shows up on the Backend card; Plan new work targets a repository directly.
-  await page.locator('[data-page="projects"]:visible').first().click();
-  const backendCard = page.locator(`[data-repo-card="${backend.id}"]`);
-  await backendCard.getByText("draft in progress").first().waitFor();
-  // Idle card: direct task through the popup.
-  await page.locator(`[data-action="direct-task:${vendor.id}"]`).click();
-  await page.locator("#directTaskTitle").fill("Sweep stale vendor sessions nightly");
-  await page.locator(`[data-action="direct-task-save:${vendor.id}"]`).click();
-  await page.getByText(/now belongs to/).waitFor();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
-  assert.equal(Object.values(loadState(root).tasks).find((task) => task.title === "Sweep stale vendor sessions nightly")?.repository_id, vendor.id, "the idle-card popup binds the task to its repository");
-  await page.locator(`[data-action="plan-repo:${frontend.id}"]`).click();
-  assert.match(await page.locator("[data-plan-source-context]").innerText(), /Planning in Storefront/, "Plan new work opens Plan Studio visibly bound to that repository");
-  assert.match(await page.locator("[data-studio-notice]").innerText(), /Planning new work in Storefront/);
-
-  console.log("PASS: Projects work map — per-repository relations, assignment, multi-repository linking, per-repository planning, pinned links");
 } finally {
   await browser?.close();
   if (running) await new Promise((resolve) => running.server.close(resolve));

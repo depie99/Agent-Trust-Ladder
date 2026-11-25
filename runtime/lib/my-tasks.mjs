@@ -508,12 +508,15 @@ export async function runMyTasksCheck(root, { settings, token, cfg, requestImpl 
 
 // ---------- scheduler engine (owned by the control plane server process)
 
-export function createMyTasksEngine(root, { token: tokenProvider = null, requestImpl = requestJson, readConfig = null, now = () => new Date(), intervalMs = 60_000, onSynced = () => {} } = {}) {
+export function createMyTasksEngine(root, { token: tokenProvider = null, connection = null, requestImpl = requestJson, readConfig = null, now = () => new Date(), intervalMs = 60_000, onSynced = () => {} } = {}) {
   let timer = null;
   let active = null; // in-flight run → a manual request during it joins, never doubles
   const readSettings = () => readMyTasksSettings(root, { readConfig });
   const azureCfg = () => (readConfig ? readConfig(root) : readManagerConfigFile(root))?.intake?.azure || {};
-  const resolveToken = async () => (tokenProvider ? await tokenProvider() : process.env[azureCfg().token_env || "AZDO_PAT"]);
+  const resolveConnection = connection || (async () => {
+    const cfg = azureCfg();
+    return { cfg, token: tokenProvider ? await tokenProvider() : process.env[cfg.token_env || "AZDO_PAT"] };
+  });
   const dueAt = (settings, store, at) => {
     if (!settings.enabled || !settings.schedule_on || store.runs.paused) return null;
     // A transient failure replaces the normal polling interval with its
@@ -537,9 +540,9 @@ export function createMyTasksEngine(root, { token: tokenProvider = null, request
     try {
       const settings = readSettings();
       if (!settings.projects.length) throw new Error("Select at least one project before checking.");
-      const token = await resolveToken();
+      const { cfg, token } = await resolveConnection();
       if (!token) { const error = new Error("No Azure connection token is available. Connect from Issue sources or My Tasks setup."); error.code = "ATL_MYTASKS_AUTH"; throw error; }
-      const result = await runMyTasksCheck(root, { settings, token, cfg: azureCfg(), requestImpl, now: at, reason, runId: runIdValue });
+      const result = await runMyTasksCheck(root, { settings, token, cfg, requestImpl, now: at, reason, runId: runIdValue });
       try { onSynced(); } catch { /* review scheduling never fails the Azure sync */ }
       return { run_id: result.id, joined: false, status: result.status, summary: result.summary };
     } finally {
@@ -562,13 +565,16 @@ export function createMyTasksEngine(root, { token: tokenProvider = null, request
       store.runs.paused = null;
       writeMyTasksStore(root, store);
     },
-    async projects() {
-      const token = await resolveToken();
+    async projects(resolved = null) {
+      const { cfg, token } = resolved || await resolveConnection();
       if (!token) { const error = new Error("No Azure connection token is available."); error.code = "ATL_MYTASKS_AUTH"; throw error; }
-      const cfg = azureCfg();
-      const response = await requestImpl(`${collectionBase(cfg)}/_apis/projects?api-version=${MY_TASKS_API_VERSION}`, { headers: azureHeaders(token), allowUntrusted: cfg.tls_allow_untrusted === true });
-      const identity = await fetchMyTasksIdentity(cfg, { token, requestImpl });
-      return { identity, projects: (response.data?.value || []).map((project) => ({ id: project.id, name: project.name, state: project.state })) };
+      const [identity, response] = await Promise.allSettled([
+        fetchMyTasksIdentity(cfg, { token, requestImpl }),
+        requestImpl(`${collectionBase(cfg)}/_apis/projects?api-version=${MY_TASKS_API_VERSION}`, { headers: azureHeaders(token), allowUntrusted: cfg.tls_allow_untrusted === true }),
+      ]);
+      if (identity.status === "rejected") throw classifyError(identity.reason);
+      if (response.status === "rejected") throw classifyError(response.reason);
+      return { identity: identity.value, projects: (response.value.data?.value || []).map((project) => ({ id: project.id, name: project.name, state: project.state })) };
     },
     status() {
       const settings = readSettings();

@@ -1,3 +1,4 @@
+import { checkPanelPlanningAndAssistant } from "./panel-workflows.mjs";
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,8 +9,8 @@ import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 import { verifyPluginRelease } from '../runtime/lib/plugin-release.mjs';
 
-const installed = process.argv[2];
-if (!installed) throw new Error('Pass the extracted ZCode plugin directory.');
+if (!process.argv[2]) throw new Error('Pass the extracted ZCode plugin directory.');
+const installed = path.resolve(process.argv[2]);
 const release = verifyPluginRelease(installed);
 assert.equal(release.format, 3);
 const manifest = JSON.parse(fs.readFileSync(path.join(installed, '.zcode-plugin/plugin.json')));
@@ -105,7 +106,7 @@ try {
   // compact navigation, keeps detail navigation working and follows host theme.
   assert.equal(await frame.locator('html').evaluate(el => el.dataset.atlContext), 'plugin', 'panel-entry must mark the plugin presentation context');
   assert.equal(await frame.locator('html').evaluate(el => el.classList.contains('light')), false, 'host without a theme defaults to dark');
-  for (const destination of ['tasks', 'attention', 'studio', 'more']) await frame.locator(`#mobile [data-page="${destination}"]`).first().waitFor();
+  for (const destination of ['tasks', 'attention', 'studio', 'assistant', 'more']) await frame.locator(`#mobile [data-page="${destination}"]`).first().waitFor();
   assert.equal(await frame.locator('.sidebar').evaluate(el => getComputedStyle(el).display), 'none', 'plugin hides the browser sidebar');
   const created = await frame.locator('body').evaluate(async () => {
     const csrf = document.querySelector('meta[name="atl-csrf"]').content;
@@ -123,6 +124,7 @@ try {
   await frame.locator('.task-detail-screen').waitFor();
   await frame.locator('[data-action="plugin-back"]').first().click();
   await frame.locator('[data-task]').first().waitFor();
+  await checkPanelPlanningAndAssistant(frame, "Native plugin detail check");
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.evaluate(() => document.querySelector('#panel').contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { theme: 'light', displayMode: 'inline' } }, '*'));
   await frame.locator('html.light').waitFor();

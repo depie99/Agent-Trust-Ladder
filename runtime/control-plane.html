@@ -129,6 +129,51 @@ html.light {
   --green-fade: rgba(14, 138, 109, 0);
 }
 
+html.light body.tasks-design .body {
+  --bg:#f5f5fb;
+  --pane:#fff;
+  --text:#202342;
+  --muted:#555b80;
+  --faint:#686d90;
+  --border:#d6d8f1;
+  --row-line:#e4e5f5;
+  --btn-edge:#c8cbea;
+  --btn-ink:#202342;
+  --field-edge:#aeb3dd;
+  --field-bg:#fff;
+  --accent:#6341e5;
+  --accent-strong:#5b3cc9;
+  --accent-bg:#eee9fb;
+  --nav-on:#eee9fb;
+  --chip:#e9e9f3;
+  --tasks-count-bg:#e5e7ff;
+  --tasks-count-ink:#3944bd;
+  --tasks-selected:#b9aaee;
+  --tasks-canvas:#fafaff;
+  --tasks-scrollbar:#909090;
+  --green:#176f3d;
+  --green-bg:#daf6e6;
+  --amber:#704211;
+  --notice-bg:#ffedc6;
+  --notice-edge:#ffca6a;
+  --tasks-diff-add:#e5f5eb;
+  --tasks-diff-del:#fde6e6;
+  --tasks-unknown:#9196bf;
+  --tasks-recorded:#5034ff;
+}
+
+body.tasks-design {
+  --tasks-count-bg:var(--accent-bg);
+  --tasks-count-ink:var(--accent);
+  --tasks-selected:var(--accent-bg);
+  --tasks-canvas:var(--raised);
+  --tasks-scrollbar:var(--muted);
+  --tasks-diff-add:var(--green-bg);
+  --tasks-diff-del:var(--notice-bg);
+  --tasks-unknown:var(--faint);
+  --tasks-recorded:var(--accent);
+}
+
 :root {
   font: 14px/1.55 "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Noto Sans Arabic", Tahoma, Arial, sans-serif;
   font-variant-numeric: tabular-nums;
@@ -619,9 +664,8 @@ html.light #themeBtn::before {
 }
 
 .body {
-  padding: 27px;
-  max-width: 1590px;
-  margin: auto;
+  padding-block: 27px;
+  padding-inline: clamp(10px, 1vw, 16px);
 }
 
 .eyebrow {
@@ -1575,7 +1619,7 @@ textarea.input {
     grid-template-columns: minmax(0, 1fr);
   }
   .body {
-    padding: 20px;
+    padding-block: 20px;
   }
 }
 @media (max-width: 720px) {
@@ -1608,7 +1652,7 @@ textarea.input {
     white-space: nowrap;
   }
   .body {
-    padding: 15px;
+    padding-block: 15px;
   }
   .four, .three, .two {
     grid-template-columns: 1fr;
@@ -5684,25 +5728,124 @@ html:not(.light) .studio-nextstep {
   opacity: 0.45;
 }
 
-/* ---------- composer ---------- */
-.studio-composer {
+/* ---------- conversation and composer ---------- */
+.studio-layout-toggle {
+  margin-inline-start: auto;
+  flex: none;
+}
+
+.studio-plan .studio-pane-head > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.studio-plan .planpane-tabs {
+  flex-wrap: wrap;
+}
+
+.studio-transcript {
+  min-height: 0;
+  padding: 24px max(18px, (100% - 820px) / 2);
+  gap: 20px;
+}
+
+.studio-empty:only-child {
+  margin: auto;
+  text-align: center;
+}
+
+.studio-empty h3 {
+  margin: 0 0 8px;
+  font-size: clamp(20px, 3vw, 30px);
+  color: var(--text);
+}
+
+.studio-empty .sub {
+  font-size: 14px;
+}
+
+.studio-transcript .studio-msg {
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.studio-transcript .studio-msg-manager {
+  max-width: 84%;
+}
+
+.studio-transcript .studio-msg-assistant {
+  align-self: stretch;
+  max-width: none;
+  background: transparent;
+  padding-inline: 0;
+}
+
+.studio-conversation .studio-composer {
+  flex: none;
+  width: min(820px, 100% - 32px);
+  margin: 0 auto 16px;
   padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.studio-attachments:empty {
+  display: none;
 }
 
 .studio-composer-input {
-  min-height: 70px;
+  min-height: 82px;
   border-radius: 10px;
+  font-size: 15px;
 }
 
 .studio-composer-foot {
   margin-top: 10px;
   align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.studio-composer-foot > .bar:last-child {
+  margin-inline-start: auto;
+  justify-content: flex-end;
 }
 
 .studio-provider-select {
-  max-width: 250px;
+  max-width: min(250px, 100%);
 }
 
+.studio-plan-body {
+  min-height: 0;
+}
+
+@media (min-width: 960px) {
+  .studio-workspace {
+    height: max(460px, 100dvh - 235px);
+    min-height: 0;
+  }
+  .studio-conversation {
+    width: min(var(--studio-split, 46) * 1%, 100% - 380px);
+  }
+  .studio-conversation-focused .studio-conversation {
+    width: 100%;
+  }
+  .studio-conversation-focused .studio-plan,
+  .studio-plan-focused .studio-conversation,
+  .studio-workspace:is(.studio-conversation-focused, .studio-plan-focused) .studio-splitter {
+    display: none;
+  }
+}
+@media (max-width: 959px) {
+  .studio-layout-toggle {
+    display: none;
+  }
+  .studio-transcript {
+    min-height: 32vh;
+  }
+  .studio-conversation .studio-composer {
+    margin-bottom: 8px;
+  }
+}
 /* ---------- settings redesign ---------- */
 .settings-banner {
   display: flex;
@@ -6185,8 +6328,8 @@ html:not(.light) .studio-nextstep {
 }
 .task-workspace-layout {
   display: grid;
-  grid-template-columns: minmax(min(100%, 400px), 5fr) minmax(0, 7fr);
-  gap: 14px;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
 }
 
@@ -6226,16 +6369,66 @@ html:not(.light) .studio-nextstep {
   background: var(--pane);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 16px 18px 18px;
+  padding: 22px 24px 24px;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
+.tasks-pagehead {
+  margin-bottom: 16px;
+}
+
+.tasks-pagehead h1 {
+  margin: 0 0 4px;
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.tasks-pagehead .sub {
+  margin: 0;
+  font-size: 13px;
+}
+
+.tasks-pagehead .bar {
+  gap: 12px;
+}
+
+.tasks-pagehead .btn {
+  min-height: 44px;
+  padding-inline: 16px;
+}
+
+.body:has(.task-workspace-layout.review-focused) > .tasks-pagehead,
+.body:has(.plugin-tasks-split .task-workspace[data-workspace-view=changes]) > .tasks-pagehead,
+.body:has(.plugin-tasks-split .task-workspace[data-workspace-view=process]) > .tasks-pagehead {
+  display: none;
+}
+
 .task-workspace-head {
-  border-bottom: 1px solid var(--row-line);
-  padding-bottom: 12px;
+  padding-bottom: 0;
+}
+
+.task-workspace-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.task-workspace-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.task-workspace-identity .task-id-badge {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 10px;
 }
 
 .task-workspace-context {
@@ -6247,8 +6440,9 @@ html:not(.light) .studio-nextstep {
 }
 
 .task-workspace .task-detail-title {
-  margin: 2px 0 0;
-  font-size: 19px;
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
   letter-spacing: -0.2px;
   overflow-wrap: anywhere;
 }
@@ -6257,20 +6451,61 @@ html:not(.light) .studio-nextstep {
   flex: none;
 }
 
+.task-workspace-primary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.task-workspace-more {
+  min-width: 38px;
+  padding-inline: 9px;
+  font-size: 16px;
+}
+
+.task-workspace-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.task-workspace-meta > span + span::before {
+  content: none;
+}
+
+.task-objective-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--chip);
+}
+
+.task-objective-row > .btn {
+  flex: none;
+  margin-inline-start: auto;
+}
+
 .task-objective {
-  margin-top: 10px;
+  min-width: 0;
+  flex: 1;
 }
 
 .task-objective > summary {
   cursor: pointer;
   list-style: none;
   display: flex;
-  gap: 10px;
-  align-items: baseline;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: var(--chip);
-  border: 1px solid var(--row-line);
+  gap: 12px;
+  align-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 .task-objective > summary::-webkit-details-marker {
@@ -6278,13 +6513,7 @@ html:not(.light) .studio-nextstep {
 }
 
 .task-objective > summary::before {
-  content: "▸";
-  color: var(--faint);
-  font-size: 11px;
-}
-
-.task-objective[open] > summary::before {
-  content: "▾";
+  content: none;
 }
 
 .task-objective-hint {
@@ -6297,8 +6526,8 @@ html:not(.light) .studio-nextstep {
 
 .task-workspace-tabs {
   display: flex;
-  gap: 2px;
-  margin-top: 12px;
+  gap: 4px;
+  margin-top: 18px;
   border-bottom: 1px solid var(--row-line);
 }
 
@@ -6311,9 +6540,19 @@ html:not(.light) .studio-nextstep {
   font: inherit;
   font-weight: 600;
   font-size: 13px;
-  padding: 8px 12px 9px;
-  border-radius: 8px 8px 0 0;
-  border-bottom: 2px solid transparent;
+  padding: 12px 16px;
+  border-radius: 0;
+  border-bottom: 3px solid transparent;
+}
+
+.task-files-count {
+  margin-inline-start: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .task-workspace-tab:hover {
@@ -6329,6 +6568,21 @@ html:not(.light) .studio-nextstep {
 
 .task-workspace-viewbody {
   min-height: 120px;
+}
+
+.process-view-switch {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+}
+
+.process-impact > .row h3 {
+  margin: 0;
+}
+
+.process-impact > .row .bar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .task-main-copy {
@@ -6352,12 +6606,23 @@ html:not(.light) .studio-nextstep {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.task-workspace-layout.review-focused .task-workspace {
+  position: relative;
+  margin-top: 34px;
+}
+
 .task-workspace-layout.review-focused .task-workspace-side {
   display: none;
 }
 
 .task-workspace-layout.review-focused .task-workspace-back {
   display: inline-flex;
+  position: absolute;
+  inset-inline-start: 0;
+  top: -34px;
+  padding: 0;
+  text-decoration: underline;
+  font-size: 12px;
 }
 
 .plugin-tasks-split:has(.task-workspace[data-workspace-view=changes]),
@@ -6501,8 +6766,14 @@ html:not(.light) .studio-nextstep {
 }
 
 .split-line code {
-  white-space: pre;
-  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.split-absent {
+  color: var(--muted);
+  font-weight: 400;
+  margin-inline-start: 8px;
 }
 
 .split-line.del {
@@ -6908,7 +7179,7 @@ html:not(.light) .studio-nextstep {
   border: 0;
   cursor: pointer;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto 92px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 4px 10px;
   align-items: center;
   padding: 8px 14px;
@@ -6924,6 +7195,14 @@ html:not(.light) .studio-nextstep {
 }
 .process-attempt:last-child {
   border-bottom: 0;
+}
+.process-attempt > b {
+  white-space: nowrap;
+}
+.process-attempt > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .process-attempt .attempt-glyph {
@@ -6974,7 +7253,7 @@ html:not(.light) .studio-nextstep {
 
 .process-check {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px 10px;
   align-items: center;
   padding: 6px 14px;
@@ -6983,6 +7262,14 @@ html:not(.light) .studio-nextstep {
 }
 .process-check:last-child {
   border-bottom: 0;
+}
+.process-check > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.process-check > b {
+  white-space: nowrap;
 }
 .process-check .muted.tiny {
   font-variant-numeric: tabular-nums;
@@ -7129,6 +7416,142 @@ html:not(.light) .studio-nextstep {
     padding-inline-start: 12px;
   }
 }
+@media (max-width: 600px) {
+  .task-workspace {
+    padding: 14px;
+  }
+  .task-workspace-titlebar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .task-workspace-identity {
+    flex: 1 1 100%;
+  }
+  .task-workspace .task-detail-title {
+    font-size: 19px;
+  }
+  .task-objective-row {
+    flex-wrap: wrap;
+  }
+  .task-workspace-primary-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .task-workspace-meta {
+    gap: 6px 10px;
+  }
+  .task-workspace-meta > span + span::before {
+    margin-inline-end: 10px;
+  }
+  .task-workspace-tab {
+    padding-inline: 9px;
+  }
+}
+.test-evidence {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 13px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 16px;
+}
+.test-evidence h3, .test-evidence p, .test-evidence ul, .test-evidence ol {
+  margin: 0;
+}
+.test-evidence .evidence-header, .test-evidence .evidence-checks summary, .test-evidence .evidence-controls, .test-evidence .evidence-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.test-evidence .evidence-header {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.test-evidence .evidence-header h3 {
+  font-size: 16px;
+  margin-bottom: 3px;
+}
+.test-evidence .evidence-header p, .test-evidence small {
+  color: var(--muted);
+}
+.test-evidence .evidence-checks, .test-evidence .evidence-checks ol {
+  padding: 0;
+  list-style: none;
+}
+.test-evidence .evidence-checks > li, .test-evidence .evidence-controls {
+  border-block-start: 1px solid var(--border);
+}
+.test-evidence .evidence-checks summary {
+  padding: 12px 0;
+  cursor: pointer;
+}
+.test-evidence .evidence-checks summary::-webkit-details-marker {
+  display: none;
+}
+.test-evidence .evidence-checks summary::before {
+  content: "+";
+  color: var(--muted);
+}
+.test-evidence .evidence-checks details[open] > summary::before {
+  content: "−";
+}
+.test-evidence .evidence-scenario {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.test-evidence .evidence-status {
+  text-transform: capitalize;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  flex: none;
+}
+.test-evidence .evidence-status[data-outcome=passed] {
+  color: var(--green);
+}
+.test-evidence .evidence-status[data-outcome=failed] {
+  color: var(--red);
+}
+.test-evidence .evidence-checks ol > li {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-block-end: 8px;
+  border-inline-start: 2px solid var(--border);
+}
+.test-evidence .evidence-attempt-title {
+  font-weight: 600;
+}
+.test-evidence .evidence-links, .test-evidence .evidence-controls {
+  flex-wrap: wrap;
+}
+.test-evidence .evidence-controls {
+  align-items: end;
+  padding-block-start: 12px;
+}
+.test-evidence .evidence-controls label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.test-evidence .evidence-controls select {
+  max-width: 100%;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px;
+}
+.test-evidence .evidence-controls small {
+  flex-basis: 100%;
+}
+
 .issue-sources .pagehead {
   align-items: flex-start;
   gap: 16px;
@@ -9803,6 +10226,14 @@ html[data-atl-context=plugin] .task-row:focus-visible {
 }
 
 @media (max-width: 639px) {
+  html[data-atl-context=plugin] {
+    scroll-padding-block-end: calc(72px + env(safe-area-inset-bottom));
+  }
+  html[data-atl-context=plugin] .studio-settings-body {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 96px - env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
   html[data-atl-context=plugin] .mobile {
     position: fixed;
     inset-inline: 0;
@@ -9958,6 +10389,7 @@ html[data-atl-context=plugin] .approval-request {
   margin-bottom: 10px;
 }
 
+html[data-atl-context=plugin] .body,
 html[data-atl-context=plugin] .mobile {
   max-width: 1590px;
   margin-inline: auto;
@@ -10862,9 +11294,7 @@ body:has(.source-v2) .main {
 }
 
 body:has(.source-v2) #content {
-  padding: 32px 34px 40px;
-  max-width: 1600px;
-  margin: auto;
+  padding-block: 32px 40px;
 }
 
 body:has(.source-v2) .topbar {
@@ -11022,7 +11452,7 @@ html:not(.light) .source-design .source-advanced {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   body:has(.source-v2) #content {
-    padding: 25px 24px;
+    padding-block: 25px;
   }
 }
 @media (max-width: 760px) {
@@ -11030,7 +11460,7 @@ html:not(.light) .source-design .source-advanced {
     display: none;
   }
   body:has(.source-v2) #content {
-    padding: 24px 16px;
+    padding-block: 24px;
   }
   body:has(.source-v2) .topbar {
     padding-inline: 18px;
@@ -12130,5 +12560,1965 @@ html:not(.light) .source-design .source-advanced {
   src: url(data:font/woff2;base64,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) format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-</style></head><body><div class="app"><aside class="sidebar"><div class="brand"><span class="brandicon"><img src="./assets/atl-logo.svg" width="30" height="30" alt="ATL"></span><span class="brandtext">ATL <span class="subbrand">/ CONTROL</span></span><span class="brandgrow"></span><button id="sideToggle" class="side-toggle" type="button" aria-label="Collapse navigation" aria-expanded="true" title="Collapse navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M9.5 4.5v15"/><path d="m15.7 9.9-2.1 2.1 2.1 2.1"/></svg></button></div><div class="workspace"><div class="row between"><strong data-ws-name>agent-trust-ladder</strong><span class="green">●</span></div><div class="muted tiny" data-ws-root>local project</div></div><div id="navA"></div><div id="navB"></div><div class="sidebottom" id="provider-status"><button class="provider-summary" type="button" data-action="provider-manager" aria-label="Manage providers"><span class="row between tiny"><span class="muted">PROVIDER STATUS</span><span class="pill amber">Unknown</span></span><strong>Configured provider · demo</strong><span class="muted tiny status-detail">No authoritative quota connected</span></button><button class="provider-manager lined row" type="button" data-action="go:settings"><span class="avatar">M</span><span><b>Workspace Manager</b><span class="tiny muted" style="display:block">Owner / approvals · Settings</span></span></button></div></aside><main class="main"><header class="topbar"><div class="row"><b class="muted">ATL /</b><span id="crumb">Overview</span><span class="pill hotkey" data-mode-pill>LOCAL</span></div><button id="searchBtn" class="cmdbar" type="button" aria-label="Search or run a command"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.3"/><path d="m15.6 15.6 4.4 4.4"/></svg><span class="cmdbar-label">Search or run a command…</span><span class="grow"></span><span class="key cmdbar-key">Ctrl K</span></button><div class="row"><button id="themeBtn" class="btn ghost" aria-label="Toggle theme" title="Toggle theme" aria-pressed="false"></button><button id="noticesBtn" class="btn ghost" aria-label="Notifications">Notifications</button><button id="newBtn" class="btn primary">+ New task</button></div></header><div id="mobile" class="mobile"></div><div class="body" id="content"><div class="pad muted" role="status">Loading the Control Plane…</div></div><div class="cliDock"><span class="green">atl ›</span><input id="dockInput" aria-label="ATL command input" placeholder="Type help, tasks, plan, queues, team, usage..." autocomplete="off"><span class="kbdcaption">↵ run</span></div><footer class="footer"><span data-live-label>Starting the local Control Plane…</span><span>Ctrl K commands · N new task · 1–9 pages · Esc close</span></footer></main></div><div id="modal"></div>
-<script src="./control-plane-client.js"></script><script>(()=>{const d=document.documentElement,b=document.getElementById("themeBtn");const sync=()=>{const l=d.classList.contains("light");if(b)b.setAttribute("aria-pressed",String(l));const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#f4f4f9":"#0d0d13")};if(b)b.addEventListener("click",()=>{const l=d.classList.toggle("light");try{localStorage.setItem("atl-cp-theme",l?"light":"dark")}catch(e){}sync()});sync()})();</script></body></html>
+body.tasks-design .body {
+  padding-block: 28px;
+  font: 14px/1.4 "Segoe UI", Arial, sans-serif;
+}
+body.tasks-design .body button, body.tasks-design .body input, body.tasks-design .body select, body.tasks-design .body textarea {
+  font-family: inherit;
+}
+body.tasks-design .body .btn {
+  border-radius: 10px;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+body.tasks-design .body .btn.sm {
+  min-height: 36px;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+body.tasks-design .body .btn.primary {
+  font-weight: 700;
+}
+body.tasks-design .body .pill {
+  border: 0;
+  font-size: 12px;
+  padding: 4px 10px;
+  background: var(--chip);
+  color: var(--muted);
+  line-height: 1.3;
+}
+body.tasks-design .body .pill.green {
+  background: var(--green-bg);
+  color: var(--green);
+}
+body.tasks-design .body .pill.amber {
+  background: var(--notice-bg);
+  color: var(--amber);
+}
+body.tasks-design .body .pill.blue {
+  background: var(--tasks-count-bg);
+  color: var(--tasks-count-ink);
+}
+body.tasks-design .tasks-pagehead {
+  min-height: 53px;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+body.tasks-design .tasks-pagehead h1 {
+  font-size: 28px;
+  line-height: 34px;
+  margin: 0;
+  letter-spacing: 0;
+}
+body.tasks-design .tasks-pagehead .sub {
+  font-size: 13px;
+  margin-top: 3px;
+}
+body.tasks-design .tasks-pagehead .bar {
+  gap: 12px;
+  margin-top: 2px;
+}
+body.tasks-design .task-workspace-layout {
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 20px;
+}
+body.tasks-design .task-workspace-layout.review-focused {
+  grid-template-columns: minmax(0, 1fr);
+}
+body.tasks-design .task-workspace-main, body.tasks-design .task-workspace-side, body.tasks-design .plugin-task-pane, body.tasks-design .task-workspace-viewbody {
+  min-width: 0;
+}
+body.tasks-design .task-detail-screen > [data-action=workspace-back] {
+  margin-block-end: 12px;
+}
+body.tasks-design .tasks-import-notice {
+  margin-block: 0 16px;
+}
+body.tasks-design .body:has(.task-workspace-layout.show-detail.review-focused, .plugin-tasks-split .task-workspace:is([data-workspace-view=changes], [data-workspace-view=process])) > .tasks-import-notice {
+  display: none;
+}
+body.tasks-design .tasks-shell {
+  display: block;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+body.tasks-design .tasks-command-bar {
+  padding: 0;
+  gap: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+body.tasks-design #taskSearch {
+  height: 44px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+body.tasks-design .tasks-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+body.tasks-design .tasks-seg-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  gap: 3px;
+  font-weight: 700;
+  background: var(--chip);
+  white-space: nowrap;
+}
+body.tasks-design .tasks-seg-btn.active {
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  box-shadow: none;
+}
+body.tasks-design .tasks-seg-count {
+  padding: 0;
+  font-size: 12px;
+  color: inherit;
+  background: transparent;
+}
+body.tasks-design .tasks-seg-btn.active .tasks-seg-count {
+  color: inherit;
+}
+body.tasks-design .task-queue-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+body.tasks-design .task-queue-context .linklike {
+  color: inherit;
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  padding: 0;
+  font-size: 13px;
+}
+body.tasks-design .task-queue-picker {
+  margin-inline-start: auto;
+  position: relative;
+}
+body.tasks-design .task-queue-picker summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+}
+body.tasks-design .task-queue-picker select {
+  position: absolute;
+  z-index: 2;
+  inset-inline-end: 0;
+  width: 180px;
+}
+body.tasks-design .task-card-list {
+  display: grid;
+  gap: 10px;
+}
+body.tasks-design .task-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--pane);
+}
+body.tasks-design .task-card .task-main-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  width: 100%;
+  overflow: visible;
+}
+body.tasks-design .task-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 13px;
+}
+body.tasks-design .task-card .task-title-text {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+body.tasks-design .task-list-empty {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--pane);
+  color: var(--muted);
+}
+body.tasks-design .task-list-empty p {
+  margin: 0 0 10px;
+}
+body.tasks-design .tasks-shell .tasks-bulk-bar {
+  margin-block-start: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--pane);
+}
+body.tasks-design .task-card.is-selected {
+  background: var(--tasks-selected);
+  border-color: var(--border);
+  box-shadow: none;
+}
+body.tasks-design .task-workspace-side .task-card.is-selected .task-title-text {
+  color: var(--text);
+}
+body.tasks-design .task-card.is-running {
+  margin-bottom: 12px;
+}
+body.tasks-design .task-card-progress {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline: 0;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--tasks-count-bg);
+  overflow: hidden;
+}
+body.tasks-design .task-card-progress span {
+  height: 100%;
+  display: block;
+  background: var(--accent);
+  border-radius: 99px;
+}
+body.tasks-design .task-workspace {
+  border-radius: 16px;
+  padding: 24px;
+  gap: 16px;
+}
+body.tasks-design .task-workspace-titlebar {
+  min-height: 44px;
+  gap: 16px;
+}
+body.tasks-design .task-workspace-identity {
+  gap: 12px;
+}
+body.tasks-design .task-workspace .task-detail-title {
+  font: 700 22px/28px "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0;
+}
+body.tasks-design .task-id-badge, body.tasks-design .task-workspace-identity .task-id-badge {
+  border: 0;
+  border-radius: 999px;
+  background: var(--tasks-count-bg);
+  color: var(--tasks-count-ink);
+  font-size: 13px;
+  line-height: 18px;
+  padding: 3px 10px;
+  font-weight: 700;
+}
+body.tasks-design .task-workspace-primary-actions {
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+body.tasks-design .task-workspace-more {
+  width: 46px;
+  min-width: 46px;
+  padding: 0;
+}
+body.tasks-design .task-workspace-meta {
+  margin-top: 16px;
+  gap: 14px;
+  font-size: 13px;
+  line-height: 18px;
+}
+body.tasks-design .task-objective-row {
+  margin-top: 16px;
+  padding: 10px 14px;
+  min-height: 64px;
+  background: var(--bg);
+  border-radius: 10px;
+}
+body.tasks-design .task-objective-row .btn {
+  min-height: 44px;
+}
+body.tasks-design .task-objective summary {
+  font-size: 13px;
+  gap: 12px;
+}
+body.tasks-design .task-objective summary b {
+  font-size: 14px;
+}
+body.tasks-design .task-workspace-head {
+  border: 0;
+}
+body.tasks-design .task-workspace-tabs {
+  margin-top: 16px;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  height: 45px;
+  align-items: stretch;
+}
+body.tasks-design .task-workspace-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+}
+body.tasks-design .task-workspace-tab.active {
+  color: var(--accent);
+  font-weight: 700;
+}
+body.tasks-design .task-files-count {
+  margin: 0;
+  padding: 3px 10px;
+  color: var(--tasks-count-ink);
+  background: var(--tasks-count-bg);
+  font-size: 12px;
+  line-height: 16px;
+}
+body.tasks-design .task-workspace-viewbody {
+  min-height: 0;
+}
+body.tasks-design .task-workspace-planned {
+  padding: 0;
+}
+body.tasks-design .task-workspace-planned > b {
+  font-size: 16px;
+  line-height: 22px;
+}
+body.tasks-design .task-workspace-planned .sub {
+  font-size: 13px;
+  line-height: 18px;
+  margin: 2px 0 16px;
+}
+body.tasks-design .activity-planned-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+body.tasks-design .activity-stage.is-planned {
+  height: 79px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--pane);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+body.tasks-design .activity-stage.is-planned .activity-stage-glyph {
+  font-size: 16px;
+  line-height: 18px;
+  color: var(--text);
+}
+body.tasks-design .activity-stage.is-planned b {
+  font-size: 14px;
+}
+body.tasks-design .task-workspace-actions:empty {
+  display: none;
+}
+body.tasks-design .task-browser-decision {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  min-height: 70px;
+  background: var(--notice-bg);
+  border: 1px solid var(--notice-edge);
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--amber);
+}
+body.tasks-design .task-browser-decision .btn {
+  flex: none;
+  background: var(--pane);
+}
+body.tasks-design .task-workspace-disclosures {
+  gap: 8px;
+}
+body.tasks-design .task-workspace-disclosures .task-detail-disclosure {
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+body.tasks-design .task-detail-disclosure > summary {
+  padding: 0 14px;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  list-style: none;
+}
+body.tasks-design .task-detail-disclosure > summary::before, body.tasks-design .task-detail-disclosure > summary::after {
+  content: none;
+}
+body.tasks-design .task-detail-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+body.tasks-design .task-disclosure-summary {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: end;
+}
+body.tasks-design .task-disclosure-chevron {
+  font-size: 12px;
+  color: var(--muted);
+}
+body.tasks-design .task-detail-disclosure[open] .task-disclosure-chevron {
+  transform: rotate(180deg);
+}
+body.tasks-design .task-workspace-composer {
+  padding: 12px;
+  background: var(--pane);
+  border: 1px solid var(--field-edge);
+  border-radius: 12px;
+}
+body.tasks-design #workspaceMessage {
+  display: block;
+  resize: vertical;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  outline-offset: 0;
+  font-size: 14px;
+}
+body.tasks-design .task-composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+body.tasks-design .task-workspace-layout.review-focused .task-workspace {
+  margin-top: 31px;
+}
+body.tasks-design .task-workspace-layout.review-focused .task-workspace-back {
+  top: -36px;
+  color: var(--muted);
+  padding: 0;
+  min-height: 20px;
+  font-size: 13px;
+  font-weight: 400;
+}
+body.tasks-design .task-workspace[data-workspace-view=changes] .task-workspace-tabs, body.tasks-design .task-workspace[data-workspace-view=process] .task-workspace-tabs {
+  margin-top: 16px;
+  height: 46px;
+}
+body.tasks-design .review-reference-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 13px;
+}
+body.tasks-design .review-revision-picker select {
+  background: var(--chip);
+  border: 0;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  max-width: 190px;
+  height: 36px;
+}
+body.tasks-design .review-revision-picker {
+  position: relative;
+  flex: none;
+}
+body.tasks-design .review-revision-picker > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+}
+body.tasks-design .review-revision-picker > summary::-webkit-details-marker {
+  display: none;
+}
+body.tasks-design .review-revision-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-start: 0;
+  z-index: 5;
+  width: min(300px, 100vw - 72px);
+  padding: 16px;
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px var(--dialog-shadow);
+}
+body.tasks-design .review-revision-menu select {
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin-top: 6px;
+}
+body.tasks-design .review-total-add {
+  color: var(--green);
+  font-size: 14px;
+}
+body.tasks-design .review-total-del {
+  color: var(--red);
+  font-size: 14px;
+}
+body.tasks-design .review-reviewed-count {
+  margin-inline-start: auto;
+}
+body.tasks-design .review-mode-toggle {
+  display: flex;
+  height: 44px;
+  border: 1px solid var(--btn-edge);
+  border-radius: 11px;
+  overflow: hidden;
+}
+body.tasks-design .review-mode-toggle button {
+  border: 0;
+  padding: 0 16px;
+  color: var(--text);
+  font-size: 13px;
+  background: var(--pane);
+}
+body.tasks-design .review-mode-toggle button + button {
+  border-inline-start: 1px solid var(--btn-edge);
+}
+body.tasks-design .review-mode-toggle [aria-pressed=true] {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+body.tasks-design .review-files {
+  display: grid;
+  gap: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+body.tasks-design .review-files > aside {
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: transparent;
+}
+body.tasks-design #reviewSearch {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--field-edge);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+}
+body.tasks-design .review-tree {
+  margin: 12px 0;
+  padding: 0;
+  max-height: 500px;
+  overflow: auto;
+}
+body.tasks-design .review-tree details {
+  padding: 0;
+  margin: 0 0 16px;
+  border: 0;
+}
+body.tasks-design .review-tree details > summary {
+  padding: 0 8px 6px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+body.tasks-design .review-tree details > summary::-webkit-details-marker {
+  display: none;
+}
+body.tasks-design .review-tree .review-path {
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.tasks-design .review-tree details > summary .review-path {
+  font-weight: 700;
+}
+body.tasks-design .review-tree .review-file {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  margin: 0 0 4px;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 13px;
+}
+body.tasks-design .review-tree .review-file.selected {
+  background: var(--accent-bg);
+}
+body.tasks-design .review-file .review-file-kind {
+  font-size: 13px;
+  width: 22px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  flex: none;
+  font-weight: 700;
+}
+body.tasks-design .review-file .kind-modified, body.tasks-design .review-file .kind-mode_changed {
+  background: var(--notice-bg);
+  color: var(--amber);
+}
+body.tasks-design .review-file .kind-added {
+  background: var(--green-bg);
+  color: var(--green);
+}
+body.tasks-design .review-file .review-file-reviewed {
+  margin-inline-start: auto;
+  font-size: 13px;
+  padding: 0;
+  width: 22px;
+  height: 18px;
+}
+body.tasks-design .review-file-comments {
+  margin-inline-start: auto;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+body.tasks-design .review-resize {
+  background: transparent;
+  border: 0;
+  width: 8px;
+  cursor: col-resize;
+}
+body.tasks-design .review-key-hint {
+  padding: 0 8px;
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+body.tasks-design .review-more-tools {
+  margin: 12px 8px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+body.tasks-design .review-more-tools > summary {
+  cursor: pointer;
+}
+body.tasks-design .review-more-tools .bar {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+body.tasks-design .review-patch {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--pane);
+  padding: 0;
+  overflow: auto;
+  max-height: 700px;
+}
+body.tasks-design .diff-head {
+  padding: 10px 14px;
+  min-height: 56px;
+  gap: 12px;
+  background: var(--bg);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+body.tasks-design .diff-path {
+  font: 700 12px/18px Consolas, monospace;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body.tasks-design .diff-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+body.tasks-design .diff-head .diff-stat {
+  padding: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+}
+body.tasks-design .diff-head .diff-stat.add {
+  color: var(--green);
+}
+body.tasks-design .diff-head .diff-stat.del {
+  color: var(--red);
+}
+body.tasks-design .diff-head [data-review-action=file-reviewed] {
+  background: var(--accent-strong);
+  color: var(--on-accent);
+  border-color: var(--accent-strong);
+  font-weight: 700;
+}
+body.tasks-design .diff-view {
+  border: 0;
+  padding: 0;
+  overflow: auto;
+  font: 12px/26px Consolas, monospace;
+}
+body.tasks-design .diff-hunkbar {
+  display: block;
+  background: var(--tasks-count-bg);
+  color: var(--tasks-count-ink);
+  padding: 0 14px;
+  min-height: 26px;
+  border: 0;
+  font: 11px/26px Consolas, monospace;
+  white-space: pre;
+}
+body.tasks-design .diff-line {
+  display: grid;
+  grid-template-columns: 48px 48px 20px minmax(0, 1fr) 22px;
+  padding: 0;
+  gap: 0;
+  min-height: 26px;
+  line-height: 26px;
+  font-size: 12px;
+}
+body.tasks-design .diff-no {
+  color: var(--muted);
+  padding: 0 8px;
+  text-align: right;
+}
+body.tasks-design .diff-code {
+  white-space: pre;
+  overflow: visible;
+}
+body.tasks-design .diff-line.add, body.tasks-design .split-line.add {
+  background: var(--tasks-diff-add);
+}
+body.tasks-design .diff-line.del, body.tasks-design .split-line.del {
+  background: var(--tasks-diff-del);
+}
+body.tasks-design .diff-comment-add {
+  width: 20px;
+  padding: 0;
+}
+body.tasks-design .review-comment {
+  margin: 8px 14px 8px 112px;
+  padding: 10px 12px;
+  border: 1px solid var(--btn-edge);
+  border-radius: 10px;
+  background: var(--pane);
+  color: var(--text);
+  font: 14px/20px "Segoe UI", Arial, sans-serif;
+}
+body.tasks-design .review-comment-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+body.tasks-design .review-comment-heading .muted {
+  font-size: 13px;
+}
+body.tasks-design .review-comment-heading .pill {
+  margin-inline-start: auto;
+  font-size: 12px;
+}
+body.tasks-design .review-comment p {
+  margin: 4px 0 6px;
+}
+body.tasks-design .review-comment .bar {
+  display: flex;
+  gap: 12px;
+}
+body.tasks-design .review-comment .btn {
+  min-height: 36px;
+}
+body.tasks-design .review-comment-draft {
+  margin: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+body.tasks-design .review-comment-draft textarea {
+  display: block;
+  margin: 8px 0;
+  width: 100%;
+}
+body.tasks-design .review-notice {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 12px;
+}
+body.tasks-design .review-notice:empty {
+  display: none;
+}
+body.tasks-design .review-mobile-back {
+  display: none;
+}
+body.tasks-design .diff-split {
+  border: 0;
+}
+body.tasks-design .process-flow {
+  display: block;
+}
+body.tasks-design .process-flow > .process-impact {
+  display: none;
+}
+body.tasks-design .process-flow[data-process-view=impact] > .process-impact {
+  display: block;
+}
+body.tasks-design .process-flow[data-process-view=impact] > .process-execution-diagram,
+body.tasks-design .process-flow[data-process-view=impact] > .process-execution-evidence {
+  display: none;
+}
+body.tasks-design .process-reference-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+body.tasks-design .process-view-switch {
+  display: flex;
+  margin: 0;
+  gap: 0;
+  border: 1px solid var(--btn-edge);
+  border-radius: 10px;
+  overflow: hidden;
+  flex: none;
+}
+body.tasks-design .process-view-switch .btn {
+  border: 0;
+  border-radius: 0;
+  background: var(--pane);
+  padding: 12px 16px;
+  height: 42px;
+  font-weight: 600;
+}
+body.tasks-design .process-view-switch .btn + .btn {
+  border-inline-start: 1px solid var(--btn-edge);
+}
+body.tasks-design .process-view-switch .btn.primary {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+body.tasks-design .process-graph-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+body.tasks-design .process-zoom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--btn-edge);
+  border-radius: 10px;
+  height: 44px;
+  min-width: 94px;
+  padding: 0 10px;
+  gap: 3px;
+  font-size: 13px;
+  font-weight: 600;
+}
+body.tasks-design .process-zoom button {
+  background: transparent;
+  border: 0;
+  min-width: 28px;
+  min-height: 32px;
+  padding: 4px;
+  font-size: 16px;
+}
+body.tasks-design .process-zoom [data-graph-zoom] {
+  min-width: 4ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+body.tasks-design .process-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+body.tasks-design .process-legend-unknown {
+  color: var(--tasks-unknown);
+}
+body.tasks-design .process-impact-canvas {
+  width: 100%;
+  min-height: 340px;
+  max-height: 440px;
+  border: 1px solid var(--row-line);
+  border-radius: 12px;
+  padding: 0;
+  background: var(--tasks-canvas);
+  overflow: auto;
+  scrollbar-color: var(--tasks-scrollbar) var(--tasks-canvas);
+  scrollbar-width: auto;
+}
+body.tasks-design .process-execution-diagram .process-impact-canvas {
+  min-height: 114px;
+}
+body.tasks-design .process-impact-mermaid {
+  min-width: 0;
+}
+body.tasks-design .process-impact-mermaid svg {
+  display: block;
+  max-width: none;
+  margin-inline: auto;
+}
+body.tasks-design .process-graph-node rect {
+  fill: var(--pane);
+  stroke: var(--field-edge);
+  stroke-width: 1;
+}
+body.tasks-design .process-graph-node.objective rect, body.tasks-design .process-graph-node.attempt rect {
+  stroke: var(--tasks-recorded);
+}
+body.tasks-design .process-graph-node.passed rect, body.tasks-design .process-graph-node.outcome rect {
+  stroke: var(--green);
+}
+body.tasks-design .process-graph-node.failed rect {
+  stroke: var(--red);
+}
+body.tasks-design .process-graph-node text {
+  fill: var(--text);
+  font: 700 13px "Segoe UI", Arial, sans-serif;
+}
+body.tasks-design .process-graph-node[role=button] {
+  cursor: pointer;
+}
+body.tasks-design .process-graph-node[role=button]:focus-visible rect {
+  stroke-width: 3;
+}
+body.tasks-design .process-graph-edge {
+  fill: none;
+  stroke: var(--tasks-recorded);
+  stroke-width: 2;
+  cursor: pointer;
+}
+body.tasks-design .process-graph-edge.inferred {
+  stroke: var(--amber);
+  stroke-dasharray: 7 5;
+}
+body.tasks-design .process-graph-edge.unknown {
+  stroke: var(--tasks-unknown);
+  stroke-dasharray: 2 5;
+}
+body.tasks-design .process-graph-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  cursor: pointer;
+}
+body.tasks-design .process-graph-edge:focus-visible {
+  outline: 0;
+  stroke-width: 4;
+}
+body.tasks-design [data-impact-status]:empty {
+  display: none;
+}
+body.tasks-design .process-edge-card {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 13px;
+}
+body.tasks-design .process-edge-card .row {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+body.tasks-design .process-edge-card b {
+  min-width: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+body.tasks-design .process-edge-card p {
+  margin: 8px 0;
+  color: var(--muted);
+}
+body.tasks-design .process-edge-card .bar {
+  display: flex;
+  gap: 12px;
+}
+body.tasks-design .process-execution-evidence {
+  margin-top: 16px;
+}
+
+@media (max-width: 1200px) {
+  body.tasks-design .task-workspace-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+  body.tasks-design .task-workspace-layout.review-focused {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  body.tasks-design .task-workspace-titlebar {
+    flex-wrap: wrap;
+  }
+  body.tasks-design .task-workspace-primary-actions {
+    margin-inline-start: auto;
+  }
+}
+@media (max-width: 959px) {
+  body.tasks-design .task-workspace-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  body.tasks-design .task-workspace-titlebar {
+    flex-wrap: wrap;
+  }
+  body.tasks-design .body {
+    padding-block: 20px;
+  }
+  body.tasks-design .review-files {
+    grid-template-columns: minmax(160px, 220px) 8px minmax(0, 1fr) !important;
+  }
+  body.tasks-design .diff-head {
+    flex-wrap: wrap;
+  }
+  body.tasks-design .diff-meta {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  body.tasks-design .process-reference-toolbar {
+    flex-wrap: wrap;
+  }
+  body.tasks-design .process-graph-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+@media (max-width: 600px) {
+  body.tasks-design .body {
+    padding-block: 16px;
+  }
+  body.tasks-design .tasks-segmented {
+    flex-wrap: wrap;
+  }
+  body.tasks-design .task-workspace {
+    padding: 16px;
+  }
+  body.tasks-design .tasks-pagehead {
+    height: auto;
+    gap: 12px;
+  }
+  body.tasks-design .tasks-pagehead .bar {
+    width: auto;
+  }
+  body.tasks-design .task-workspace-identity {
+    flex-wrap: wrap;
+  }
+  body.tasks-design .task-workspace .task-detail-title {
+    font-size: 20px;
+  }
+  body.tasks-design .activity-planned-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body.tasks-design .task-disclosure-summary {
+    max-width: 50%;
+    font-size: 11px;
+  }
+  body.tasks-design .task-browser-decision {
+    flex-wrap: wrap;
+  }
+  body.tasks-design .task-composer-foot {
+    font-size: 11px;
+  }
+  body.tasks-design .task-workspace-tabs {
+    gap: 0;
+  }
+  body.tasks-design .task-workspace-tab {
+    padding-inline: 10px;
+  }
+  body.tasks-design .review-reference-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  body.tasks-design .review-total-label {
+    display: none;
+  }
+  body.tasks-design .review-mode-toggle {
+    margin-inline-start: auto;
+  }
+  body.tasks-design .review-files {
+    display: block;
+  }
+  body.tasks-design .review-resize {
+    display: none;
+  }
+  body.tasks-design .review-files:not(.is-file-open) .review-patch {
+    display: none;
+  }
+  body.tasks-design .review-files.is-file-open > aside {
+    display: none;
+  }
+  body.tasks-design .review-mobile-back {
+    display: block;
+    padding: 8px;
+  }
+  body.tasks-design .review-comment {
+    margin-inline-start: 12px;
+  }
+  body.tasks-design .process-legend {
+    gap: 8px;
+  }
+  body.tasks-design .process-graph-toolbar .btn {
+    padding-inline: 10px;
+  }
+}
+.intake-back {
+  margin-block-end: 14px;
+}
+
+.intake-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+  margin-block-start: 16px;
+}
+
+.intake-layout.has-inspector {
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 34%);
+}
+
+.intake-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.intake-list > h2 {
+  font-size: 14px;
+  margin: 12px 0 2px;
+}
+
+.intake-list > h2:first-child {
+  margin-block-start: 0;
+}
+
+.intake-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.55fr) auto auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 65px;
+  padding: 12px 14px;
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.intake-row.is-selected, .intake-repo-option:has(:checked) {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+.intake-row-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.intake-row-copy > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.intake-row small, .intake-repo-option small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.intake-row .btn, .intake-filters .btn {
+  min-height: 38px;
+}
+
+.intake-row > .pill {
+  white-space: nowrap;
+}
+
+.intake-title {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.intake-title:hover {
+  text-decoration: underline;
+}
+
+.intake-row.inbox-row {
+  grid-template-columns: auto 30px minmax(0, 1fr) auto auto;
+}
+
+.intake-source {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: #454b63;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.intake-source.azure {
+  background: #085bca;
+}
+
+.intake-source.github {
+  background: #24292f;
+}
+
+.intake-source.jira {
+  background: #0052cc;
+}
+
+.intake-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-end: 14px;
+}
+
+.intake-tabs button {
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.intake-tabs .active {
+  background: var(--accent-strong);
+  border-color: transparent;
+  color: #fff;
+}
+
+.intake-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+  gap: 8px;
+}
+
+.intake-filters select {
+  max-width: 180px;
+}
+
+.intake-page .notice {
+  margin-block: 12px;
+}
+
+.intake-repo-tools {
+  gap: 10px;
+}
+
+.intake-repo-tools .input {
+  width: min(100%, 420px);
+}
+
+.intake-related-request {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  margin-block-end: 8px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+
+.intake-inspector {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--pane);
+  overflow-wrap: anywhere;
+}
+
+.intake-inspector h2 {
+  flex: 1;
+  font-size: 17px;
+  margin: 0;
+}
+
+.intake-inspector h3 {
+  font-size: 14px;
+  margin: 18px 0 8px;
+}
+
+.intake-inspector .workmap-assign {
+  display: flex;
+  flex-wrap: wrap;
+  margin-block-end: 12px;
+}
+
+.intake-inspector .workmap-assign input {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.intake-inspector .workmap-assign select {
+  width: auto;
+  flex: 0 1 45%;
+  min-width: 100px;
+}
+
+.intake-inspector :is(.workmap-request-head, .workmap-planbox-body, .workmap-queuebar, .workmap-subtask, .workmap-needbox) {
+  flex-wrap: wrap;
+}
+
+.intake-review {
+  padding: 12px;
+  margin-block-start: 12px;
+  background: var(--bg);
+  border-radius: 9px;
+}
+
+.intake-review h3 {
+  margin-block-start: 0;
+}
+
+.intake-original {
+  margin-block-start: 14px;
+}
+
+.intake-original > summary {
+  cursor: pointer;
+}
+
+.intake-repo-options {
+  display: grid;
+  gap: 7px;
+  max-height: 255px;
+  overflow: auto;
+  margin-block: 10px;
+}
+
+.intake-repo-option, .intake-inspector-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.intake-repo-option[hidden] {
+  display: none;
+}
+
+.intake-inspector-row {
+  justify-content: space-between;
+  margin-block-end: 7px;
+}
+
+.intake-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: #1b2039;
+  color: #fff;
+}
+
+.intake-selection > b {
+  margin-inline-end: auto;
+}
+
+.intake-selection .btn:not(.primary) {
+  color: #fff;
+  border-color: #7a82ab;
+  background: transparent;
+}
+
+.btn.intake-more {
+  width: 100%;
+  border-style: dashed;
+}
+
+.intake-tool-connections :is(.intake-issue-browser, .intake-imported-requests, .source-workstream-details),
+.intake-tool-import :is(.intake-connection-list, .intake-imported-requests, .source-workstream-details) {
+  display: none;
+}
+
+@media (max-width: 1000px) {
+  .intake-layout.has-inspector {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .intake-inspector {
+    grid-row: 1;
+  }
+}
+@media (max-width: 620px) {
+  .intake-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .intake-filters > input {
+    grid-column: 1/-1;
+  }
+  .intake-filters > select {
+    width: 100%;
+    max-width: none;
+  }
+  .intake-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .intake-row.inbox-row {
+    grid-template-columns: auto 30px minmax(0, 1fr);
+  }
+  .inbox-row > .pill {
+    grid-column: 2/4;
+    justify-self: start;
+  }
+  .inbox-row > .btn {
+    grid-column: 2/4;
+    justify-self: start;
+  }
+}
+.batches-design, .knowledge-design {
+  min-height: calc(100vh - 132px);
+  padding-inline: 24px 28px;
+  font-size: 14px;
+}
+.batches-design .pagehead, .knowledge-design .pagehead {
+  margin-block-end: 16px;
+}
+.batches-design .pagehead h1, .knowledge-design .pagehead h1 {
+  font-size: clamp(25px, 3vw, 30px);
+}
+.batches-design .btn, .knowledge-design .btn {
+  min-height: 42px;
+  padding-inline: 15px;
+}
+.batches-design .sub, .knowledge-design .sub {
+  margin-block: 4px 0;
+  font-size: 13px;
+}
+.batches-design .panel, .knowledge-design .panel {
+  border-radius: 15px;
+}
+.batches-design .pill.amber, .knowledge-design .pill.amber {
+  background: var(--notice-bg);
+  border-color: transparent;
+}
+.batches-design .pill.green, .knowledge-design .pill.green {
+  background: var(--green-bg);
+  border-color: transparent;
+}
+.batches-design .pill.blue, .knowledge-design .pill.blue {
+  background: var(--accent-bg);
+  border-color: transparent;
+}
+
+.batch-flow, .batch-limits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  margin-block-end: 16px;
+}
+
+.batch-flow b, .batch-limits b {
+  color: var(--text);
+}
+
+.batch-flow .btn.ghost {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  text-decoration: underline;
+  font: inherit;
+  color: inherit;
+  border: 0;
+}
+
+.batch-layout, .knowledge-board {
+  display: grid;
+  align-items: start;
+  gap: 20px;
+}
+
+.batch-layout {
+  grid-template-columns: minmax(225px, 28.5%) minmax(0, 1fr);
+}
+
+.batch-list, .knowledge-rail {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.batch-list > .input {
+  height: 44px;
+}
+
+.batch-card {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 13px 14px;
+  text-align: start;
+  color: var(--text);
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.batch-card.active, .knowledge-stat-active > .stat {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.batch-card .row {
+  gap: 8px;
+}
+
+.batch-card :is(b, .sub) {
+  overflow-wrap: anywhere;
+}
+
+.batch-detail, .batch-empty {
+  min-width: 0;
+  padding: 24px;
+}
+
+.batch-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.batch-detail h2, .batch-empty h2 {
+  font-size: 21px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-limits {
+  margin-block: 14px;
+  gap: 18px;
+}
+
+.batch-progress {
+  margin-block: 12px;
+}
+
+.batch-progress progress {
+  display: block;
+  margin-block-start: 7px;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px;
+  background: var(--chip);
+}
+
+.batch-progress progress::-webkit-progress-bar {
+  background: var(--chip);
+}
+
+.batch-progress progress::-webkit-progress-value {
+  background: var(--green);
+  border-radius: 20px;
+}
+
+.batch-progress progress::-moz-progress-bar {
+  background: var(--green);
+  border-radius: 20px;
+}
+
+.batch-step {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-height: 73px;
+  padding-block: 13px;
+  border-block-start: 1px solid var(--row-line, var(--border));
+}
+
+.batch-step-id {
+  color: var(--muted);
+  font-weight: 650;
+  padding-block-start: 4px;
+}
+
+.batch-step-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-step-actions {
+  justify-content: end;
+}
+
+.batch-note {
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.batch-empty .bar {
+  margin-block-start: 14px;
+}
+
+.dialog.batch-form-dialog {
+  width: min(648px, 100vw - 28px);
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.batch-form-dialog .dialoghead {
+  padding-block-end: 0;
+  border: 0;
+}
+
+.batch-form-dialog .dialoghead h2 {
+  font-size: 22px;
+}
+
+.batch-form-dialog .sub {
+  font-size: 13px;
+}
+
+.batch-form-dialog .dialogbody {
+  padding-block-start: 0;
+}
+
+.batch-form-dialog .dialogfoot {
+  border: 0;
+  justify-content: end;
+}
+
+.batch-form-dialog .dialogfoot .btn {
+  min-height: 42px;
+}
+
+.batch-form {
+  display: grid;
+  gap: 10px;
+  margin-block-start: 18px;
+}
+
+#batchTaskList {
+  display: grid;
+  gap: 6px;
+  max-height: min(33vh, 236px);
+  overflow: auto;
+}
+
+.batch-task-choice {
+  position: relative;
+  border: 1px solid var(--field-edge, var(--border));
+  border-radius: 10px;
+}
+
+.batch-task-choice:has(:checked) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.batch-task-choice label {
+  display: grid;
+  align-items: center;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 11px;
+  min-height: 46px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.batch-task-choice label :is(b, small) {
+  color: var(--muted);
+}
+
+.batch-task-choice label span {
+  overflow-wrap: anywhere;
+}
+
+.batch-reorder {
+  display: flex;
+  position: absolute;
+  inset-inline-end: 6px;
+  inset-block-start: 6px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.batch-task-choice:is(:hover, :focus-within) .batch-reorder {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.batch-task-choice:is(:hover, :focus-within):has(.batch-reorder) label small {
+  margin-inline-end: 53px;
+}
+
+.batch-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 15px;
+  margin-block: 5px;
+}
+
+.batch-form-grid label {
+  display: grid;
+  gap: 6px;
+  font-weight: 650;
+}
+
+.batch-form-grid .input {
+  width: 100%;
+  min-height: 43px;
+  font-weight: 400;
+}
+
+.batch-preview {
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+#batchError:empty {
+  display: none;
+}
+
+.knowledge-learning {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 13px 18px;
+  margin-block: 14px 16px;
+}
+
+.knowledge-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.knowledge-stats .stat {
+  padding: 14px;
+  height: 100%;
+}
+
+.knowledge-stats .stat strong {
+  font-size: 27px;
+}
+
+.knowledge-tabs {
+  display: flex;
+  gap: 4px;
+  margin-block: 15px 16px;
+  border-block-end: 1px solid var(--border);
+}
+
+.knowledge-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  min-height: 44px;
+  border: 0;
+  border-block-end: 3px solid transparent;
+  background: var(--pane);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.knowledge-tabs button.active {
+  border-block-end-color: var(--accent);
+  color: var(--accent);
+}
+
+.knowledge-board {
+  grid-template-columns: minmax(0, 1fr) minmax(245px, 30%);
+}
+
+.knowledge-main, .knowledge-rail-card {
+  min-width: 0;
+  padding: 20px;
+}
+
+.knowledge-rail {
+  gap: 16px;
+}
+
+.knowledge-main h2, .knowledge-rail h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.knowledge-panel-head, .knowledge-record-title, .knowledge-record-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.knowledge-panel-head select {
+  width: auto;
+  min-height: 35px;
+  border-radius: 24px;
+}
+
+.knowledge-record {
+  padding-block: 15px;
+  border-block-start: 1px solid var(--row-line, var(--border));
+  overflow-wrap: anywhere;
+}
+
+.knowledge-record-footer {
+  margin-block-start: 8px;
+}
+
+.knowledge-record-details {
+  display: inline-block;
+  margin-inline-start: 10px;
+}
+
+.knowledge-record-details[open] {
+  display: block;
+  margin-inline-start: 0;
+}
+
+.knowledge-record-details summary {
+  cursor: pointer;
+  text-decoration: underline;
+  color: var(--muted);
+  list-style: none;
+}
+
+.knowledge-record-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.knowledge-rail-card > summary {
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.knowledge-rail-card .bar, .knowledge-rail-card > .btn {
+  margin-block-start: 9px;
+}
+
+.knowledge-design .knowledge-more {
+  display: block;
+  margin-inline: auto;
+  text-decoration: underline;
+}
+
+@media (max-width: 850px) {
+  .batches-design, .knowledge-design {
+    min-height: 0;
+    padding-inline: 0;
+  }
+  .batch-layout, .knowledge-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .batch-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .batch-list > .input {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 520px) {
+  .batch-list, .batch-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .batch-detail, .batch-empty, .knowledge-main, .knowledge-rail-card {
+    padding: 14px;
+  }
+  .batch-step {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .batch-step-actions {
+    grid-column: 2;
+    justify-content: start;
+  }
+  .knowledge-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .knowledge-tabs {
+    flex-wrap: wrap;
+  }
+  .batch-task-choice:has(.batch-reorder) label small {
+    margin-inline-end: 53px;
+  }
+  .batch-reorder {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+</style></head><body><div class="app"><aside class="sidebar"><div class="brand"><span class="brandicon"><img src="./assets/atl-logo.svg" width="30" height="30" alt="ATL"></span><span class="brandtext">ATL <span class="subbrand">/ CONTROL</span></span><span class="brandgrow"></span><button id="sideToggle" class="side-toggle" type="button" aria-label="Collapse navigation" aria-expanded="true" title="Collapse navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><path d="M9.5 4.5v15"/><path d="m15.7 9.9-2.1 2.1 2.1 2.1"/></svg></button></div><div class="workspace"><div class="row between"><strong>agent-trust-ladder</strong><span class="green">●</span></div><div class="muted tiny">main · control-plane / demo</div></div><div id="navA"></div><div id="navB"></div><div class="sidebottom" id="provider-status"><button class="provider-summary" type="button" data-action="provider-manager" aria-label="Manage providers"><span class="row between tiny"><span class="muted">PROVIDER STATUS</span><span class="pill amber">Unknown</span></span><strong>Configured provider · demo</strong><span class="muted tiny status-detail">No authoritative quota connected</span></button><button class="provider-manager lined row" type="button" data-action="go:settings"><span class="avatar">M</span><span><b>Workspace Manager</b><span class="tiny muted" style="display:block">Owner / approvals · Settings</span></span></button></div></aside><main class="main"><header class="topbar"><div class="row"><b class="muted">ATL /</b><span id="crumb">Overview</span><span class="pill hotkey">INTERACTIVE DEMO</span></div><button id="searchBtn" class="cmdbar" type="button" aria-label="Search or run a command"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.3"/><path d="m15.6 15.6 4.4 4.4"/></svg><span class="cmdbar-label">Search or run a command…</span><span class="grow"></span><span class="key cmdbar-key">Ctrl K</span></button><div class="row"><button id="themeBtn" class="btn ghost" aria-label="Toggle theme" title="Toggle theme" aria-pressed="false"></button><button id="noticesBtn" class="btn ghost">◈ <span class="amber">3</span></button><button id="newBtn" class="btn primary">+ New task</button></div></header><div id="mobile" class="mobile"></div><div class="body" id="content"></div><div class="cliDock"><span class="green">atl ›</span><input id="dockInput" aria-label="ATL command input" placeholder="Type help, tasks, plan, queues, team, usage..." autocomplete="off"><span class="kbdcaption">↵ run</span></div><footer class="footer"><span>● Interactive mock · No provider calls, skill execution or real ATL actions</span><span>Ctrl K commands · N new task · 1–9 pages · Esc close</span></footer></main></div><div id="modal"></div>
+<script type="application/x-atl-legacy-disabled">
+(()=>{'use strict';const $=s=>document.querySelector(s),escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const routes=[['overview','▦','Overview'],['tasks','☷','Tasks'],['studio','◇','Plan Studio'],['queues','≡','Queues'],['team','♙','Agent Team'],['activity','▤','Activity & Logs'],['usage','◉','Usage & Limits'],['settings','⚙','Settings']];let page='overview',filter='All',query='',queueFilter='All',dialogOpen=false,notifications=[['Blocker','T-001 needs user-level installation access'],['Approval','T-005 requires owner approval'],['Usage','Provider quota unavailable: unknown']];let tasks=[{id:'T-001',title:'Refresh user installation and verify integrity',desc:'Refresh the user ATL installation and prove it matches repository artifacts.',status:'Blocked',agent:'Rowan',priority:'High',queue:'Release',block:'EPERM while replacing protected user installation files.'},{id:'T-003',title:'Commit runtime verification workspace',desc:'Commit verified workspace changes without unrelated metadata churn.',status:'Blocked',agent:'Rowan',priority:'High',queue:'Engineering',block:'Shared workspace metadata cannot be written.'},{id:'T-005',title:'Smoke-test owner approval gates',desc:'Validate privileged approval paths before autonomous execution.',status:'Blocked',agent:'Vale',priority:'High',queue:'Quality',block:'Waiting for explicit owner approval.'},{id:'T-002',title:'Synchronize architecture and CLI docs',desc:'Bring documentation and CLI usage examples in line with runtime behavior.',status:'Queued',agent:'Mira',priority:'Medium',queue:'Documentation',block:''},{id:'T-004',title:'Run feedback verification',desc:'Verify end-to-end feedback and recovery behavior.',status:'Done',agent:'Nova',priority:'Medium',queue:'Quality',block:''},{id:'T-006',title:'Publish control-plane improvements',desc:'Expose live execution state and progress to the operator.',status:'Running',agent:'Rowan',priority:'High',queue:'Engineering',stage:'Implementing UI state',progress:64,stats:'12/18 checks � 4m 12s elapsed',block:''}];let queues=['Release','Engineering','Quality','Documentation'];let agents=[['Rowan','Executor','Blocked','T-001 · Installation verification',58],['Mira','Planner','Idle','Ready for next specification',0],['Vale','Reviewer','Review','T-005 · Approval gates',76],['Sage','Researcher','Idle','Research queue clear',0],['Nova','Verifier','Idle','Verification queue ready',0]];let events=[['18:53:12','BLOCKED','Rowan','T-001: EPERM while replacing installation files'],['18:53:04','INFO','Manager','Queue paused for owner intervention'],['18:52:31','VERIFY','Nova','User-install and source parity: mismatch'],['18:51:18','BLOCKED','Rowan','T-003: shared index write denied'],['18:47:05','PASS','Vale','Workspace scope review completed'],['18:42:10','INFO','Mira','Architecture proposal completed'],['02:13:07','PASS','Nova','Overnight verification: 46 passed, 2 skipped']];let cliHistory=['ATL CLI demo ready. Type help.'];const badge=s=>'<span class="pill '+({Blocked:'red',High:'amber',Running:'green',Done:'green',Queued:'blue',Review:'violet',PASS:'green',VERIFY:'violet',INFO:'blue',Idle:'blue'}[s]||'')+'">'+escape(s)+'</span>';const btn=(text,action,cls='')=>'<button class="btn '+cls+'" data-action="'+action+'">'+text+'</button>';const head=(label,title,subtitle,buttons='')=>'<div class="pagehead"><div><div class="eyebrow">'+label+'</div><h1>'+title+'</h1><p class="sub">'+subtitle+'</p></div><div class="bar">'+buttons+'</div></div>';const card=(title,html,extra='')=>'<section class="panel"><div class="paneltitle"><h2>'+title+'</h2>'+extra+'</div>'+html+'</section>';const meter=(n,color='var(--accent)')=>'<div class="track"><div class="fill" style="width:'+n+'%;background:'+color+'"></div></div>';const taskrow=t=>'<div class="tableitem" data-task="'+t.id+'"><div><b class="truncate" style="display:block">'+escape(t.title)+'</b><div class="muted tiny">'+t.id+' · '+escape(t.queue)+'</div></div>'+badge(t.status)+'<div class="muted tiny">'+escape(t.agent)+'</div></div>';const evt=e=>'<div class="event"><span class="muted tiny" style="white-space:nowrap">'+e[0]+'</span><div>'+badge(e[1])+' <span class="muted">'+escape(e[2])+'</span><div style="margin-top:5px">'+escape(e[3])+'</div></div></div>';const stat=(name,value,detail)=>'<div class="panel stat"><small>'+name+'</small><strong>'+value+'</strong><div class="muted tiny">'+detail+'</div></div>';const panels={overview:()=>head('WORKSPACE / CONTROL ROOM','Overview','Tasks, execution health, decisions and live agent activity.',btn('⌕ Commands','palette')+btn('CLI console','cli'))+'<div class="bar" style="margin-bottom:14px"><span class="pill green">● Manager online · demo</span><span class="pill amber">3 blocked</span><span class="pill blue">SDD / TDD</span></div><div class="grid four">'+stat('Portfolio',tasks.length,'Tracked tasks')+stat('Active / available','2 / 5','Agent snapshot')+stat('Blocked',tasks.filter(t=>t.status==='Blocked').length,'Need intervention')+stat('Shipped',tasks.filter(t=>t.status==='Done').length,'Verified sample')+'</div><div class="grid twocol space"><div>'+card('Task portfolio',tasks.slice(0,5).map(taskrow).join(''),btn('Open tasks →','go:tasks','sm'))+'<div class="space">'+card('SDD / TDD lifecycle','<div class="pad"><div class="flow">'+['Intake','Triaged','Spec','Tests','Assigned','Run','Review','Verify','Done'].map((s,i)=>'<span class="step '+(i===5?'current':'')+'">'+s+'</span>').join('')+'</div><p class="sub" style="margin-top:13px">Every delivery is traceable from requirement to test and evidence.</p></div>')+'</div></div><div>'+card('Attention required','<div class="pad"><b class="red">3 actionable blockers</b><p class="sub" style="margin:10px 0 15px">Installation permissions, worktree access and owner approval prevent completion.</p>'+btn('Inspect blockers','blockers')+'</div>')+'<div class="space">'+card('Live activity','<div class="pad">'+events.slice(0,4).map(evt).join('')+'</div>',btn('All events →','go:activity','sm'))+'</div></div></div>',tasks:()=>{let visible=tasks.filter(t=>(filter==='All'||t.status===filter)&&(queueFilter==='All'||t.queue===queueFilter)&&[t.title,t.id,t.agent,t.desc].join(' ').toLowerCase().includes(query.toLowerCase()));return head('WORKSPACE / TASKS','Task management','Author, prioritize, assign and inspect work without leaving the UI.',btn('+ Create task','new','primary'))+'<div class="panel"><div class="pad"><div class="bar"><input style="flex:1;min-width:180px" class="input" id="taskSearch" placeholder="Search tasks..." value="'+escape(query)+'"><select id="queueSelect" class="input" style="width:165px"><option>All</option>'+queues.map(q=>'<option '+(q===queueFilter?'selected':'')+'>'+escape(q)+'</option>').join('')+'</select></div><div class="bar" style="margin-top:13px">'+['All','Queued','Running','Blocked','Review','Done'].map(s=>btn(s+' '+(s==='All'?tasks.length:tasks.filter(t=>t.status===s).length),'filter:'+s,'sm '+(filter===s?'primary':''))).join('')+'</div></div>'+(visible.map(taskrow).join('')||'<div class="pad muted">No matching tasks.</div>')+'</div>'},studio:()=>head('WORKSPACE / PLANNING','Plan Studio','Natural-language task intake → ATL skills → reviewed spec → tests → execution.',btn('Generate local preview','generate','primary'))+'<div class="grid two"><section class="panel pad"><h2>01 / Your objective</h2><p class="sub" style="margin:9px 0 14px">Describe a feature or change. Real provider calls require explicit approval.</p><div class="field"><label class="label" for="goal">Goal and constraints</label><textarea id="goal" class="input" rows="8">Create a multipage terminal-native developer control plane with task editing, skill-driven planning, five-agent orchestration, multiple queues, overnight runs, notifications, logs and verified provider telemetry.</textarea></div><div class="field"><label class="label">Provider</label><select class="input"><option>Configured provider · demo only</option><option>Offline planning preview</option></select></div><div class="label">ATL skill route (proposed)</div><div class="bar">'+['atl-plan','atl-ui-review','atl-implement'].map(s=>'<span class="pill violet">◇ '+s+'</span>').join('')+'</div><p class="sub" style="margin-top:12px">No skill is executed by this standalone HTML file.</p></section>'+card('02 / Planned specification pipeline','<div class="pad">'+['Intake and clarify requirements','Product brief and scope','UI evidence and design system','Acceptance criteria and tests','Implementation work packages','Owner review and approval','Queue dispatch and verification'].map((s,i)=>'<div class="event"><span class="pill">'+(i+1)+'</span>'+s+'</div>').join('')+'</div>')+'</div><div class="space">'+card('03 / Artifact preview','<div class="pad"><div class="grid two">'+['brief.md','ui-review.md','design-system.md','plan.md'].map(s=>'<div class="pill blue" style="padding:13px">▤ '+s+' · proposed</div>').join('')+'</div><div id="planOutput" class="planout muted">Generate to see a local, deterministic breakdown. No provider calls or files are produced.</div></div>')+'</div>',queues:()=>head('OPERATIONS / DISPATCH','Multi-queue manager','Isolated workstreams with fair dispatch, dependency gates and explicit concurrency limits.',btn('+ New queue','newqueue','primary'))+'<div class="grid three">'+stat('Global concurrency','1','Conservative default')+stat('Runnable',tasks.filter(t=>t.status==='Queued').length,'Pending dependency checks')+stat('Paused / blocked','3','Require intervention')+'</div><div class="grid two space">'+queues.map(q=>'<section class="panel pad"><div class="row between"><h2 style="font-size:16px">'+escape(q)+'</h2>'+badge(q==='Quality'?'Running':'Queued')+'</div><p class="sub">Sequential / resource-aware scheduling</p><div class="lined row between"><span class="muted">Items</span><b>'+tasks.filter(t=>t.queue===q).length+'</b></div><div class="row between" style="margin:14px 0"><span class="muted">Worker slot</span><span>0 / 1</span></div>'+meter(q==='Quality'?50:0)+'<div class="actionrow">'+btn('View tasks','queue:'+encodeURIComponent(q),'sm')+(tasks.some(t=>t.queue===q&&t.status==='Running')?'':btn('Run queue','run:'+encodeURIComponent(q),'sm'))+'</div></section>').join('')+'</div>',team:()=>head('OPERATIONS / TEAM','Five-agent team','Understand what each bot is doing, why it is blocked and what comes next.',btn('Agent events →','go:activity'))+'<div class="grid three">'+agents.map(a=>'<section class="panel pad"><div class="row between"><span class="avatar">'+a[0][0]+'</span>'+badge(a[2])+'</div><h2 style="font-size:16px;margin-top:12px">'+a[0]+'</h2><p class="sub">'+a[1]+'</p><div class="lined muted tiny">CURRENT WORK</div><p style="min-height:42px">'+a[3]+'</p><div class="row between tiny"><span class="muted">Progress · sample</span><b>'+a[4]+'%</b></div><div style="margin:9px 0 13px">'+meter(a[4],a[2]==='Blocked'?'var(--amber)':'var(--accent)')+'</div>'+btn('Read agent brief','agent:'+a[0],'sm')+'</section>').join('')+'</div>',activity:()=>head('OPERATIONS / EVIDENCE','Activity & Logs','Searchable decisions, feedback, blockers, verification and overnight handoffs.',btn('Overnight brief','overnight')+btn('Export sample','export'))+'<div class="grid three">'+stat('Events',events.length,'Sample event history')+stat('Blockers','3','Actions awaiting owner')+stat('Overnight tests','46 / 48','46 pass · 2 skip')+'</div><div class="grid twocol space">'+card('Timeline','<div class="pad">'+events.map(evt).join('')+'</div>')+card('Night-shift report','<div class="pad"><div class="row between"><strong>Nightly verification</strong>'+badge('PASS')+'</div><p class="sub">Example, not a real current report</p><div class="lined row between"><span>Passed</span><b class="green">46</b></div><div class="lined row between"><span>Skipped</span><b class="amber">2</b></div><div class="lined row between"><span>Escalations</span><b>0</b></div><div style="margin-top:20px">'+btn('Handoff report','overnight')+'</div></div>')+'</div>',usage:()=>head('OPERATIONS / RESOURCE MONITOR','Usage & Limits','Consumption by agent, provider quota provenance and dispatch risk controls.',btn('Refresh snapshot','refresh'))+'<div class="notice"><b class="amber">◈ No authoritative provider quota attached</b><p class="sub">The prototype never invents live remaining capacity. Real usage requires provider adapters, timestamps and provenance.</p></div><div class="grid three space">'+stat('Provider','Unlinked','Demo configuration only')+stat('Quota remaining','Unknown','Provider has not reported it')+stat('Reset window','Unknown','Cannot infer without source')+'</div><div class="grid two space">'+card('Metrics contract','<div class="pad">'+['Input/output tokens · per run','Cache usage · if reported','Cost · only if provider exposes pricing','Rate limit and retry-after headers','Remaining capacity and reset timestamp','Age of last authoritative sample'].map(s=>'<div class="event"><span class="green">○</span>'+s+'</div>').join('')+'</div>')+card('Preflight safeguards','<div class="pad"><div class="row between"><span>Provider limit</span>'+badge('Unknown')+'</div><div class="lined row between"><span>Dispatch policy</span><span class="amber">Confirm risks</span></div><div class="lined row between"><span>Stop on rate-limit</span><span class="green">Required</span></div><p class="sub" style="margin-top:18px">Distinguish exact provider quota, per-run token counts and local forecasts. Warn before starvation and checkpoint safely.</p></div>')+'</div>',settings:()=>head('WORKSPACE / SETTINGS','Settings','Safety defaults, skills, behavior and accessible terminal keybindings.')+'<div class="grid two">'+card('Proposed execution defaults','<div class="pad">'+[['Global concurrency','1'],['Planning provider calls','Owner confirms'],['Delete behavior','Archive before hard delete'],['Minimum supported columns','60'],['Unreported quota','Unknown']].map(r=>'<div class="event between" style="justify-content:space-between"><span class="muted">'+r[0]+'</span><b>'+r[1]+'</b></div>').join('')+'</div>')+card('Keyboard reference','<div class="pad">'+[['Ctrl / Cmd K','Command palette'],['N','New task'],['1–7','Navigate pages'],['Enter','Run CLI command'],['Esc','Dismiss dialog']].map(r=>'<div class="event between" style="justify-content:space-between"><span class="key">'+r[0]+'</span><span class="muted">'+r[1]+'</span></div>').join('')+'</div>')+'</div>'};function nav(){let row=routes.map(r=>'<button class="nav '+(page===r[0]?'on':'')+'" data-page="'+r[0]+'"><span class="ico">'+r[1]+'</span>'+r[2]+'</button>');$('#navA').innerHTML=row.slice(0,4).join('');$('#navB').innerHTML=row.slice(4).join('');$('#mobile').innerHTML=routes.map(r=>'<button class="btn sm '+(page===r[0]?'primary':'')+'" data-page="'+r[0]+'">'+r[2]+'</button>').join('')}function go(p){if(!panels[p])return;page=p;nav();$('#crumb').textContent=routes.find(r=>r[0]===p)[2];$('#content').innerHTML=panels[p]()}function popup(title,body,actions=''){dialogOpen=true;$('#modal').innerHTML='<div class="overlay" id="overlay"><section class="dialog" role="dialog" aria-modal="true"><div class="dialoghead"><h2 style="font-size:16px">'+title+'</h2>'+btn('✕','close','ghost')+'</div><div class="dialogbody">'+body+'</div>'+(actions?'<div class="dialogfoot">'+actions+'</div>':'')+'</section></div>'}function close(){dialogOpen=false;$('#modal').innerHTML=''}function form(t){popup(t?'Edit '+t.id:'New ATL task','<div class="field"><label class="label">Task title</label><input class="input" id="fTitle" value="'+escape(t?.title||'')+'" placeholder="Describe the task"></div><div class="field"><label class="label">Description and acceptance criteria</label><textarea class="input" id="fDesc">'+escape(t?.desc||'')+'</textarea></div><div class="grid two"><div class="field"><label class="label">Queue</label><select class="input" id="fQueue">'+queues.map(q=>'<option '+(q===t?.queue?'selected':'')+'>'+escape(q)+'</option>').join('')+'</select></div><div class="field"><label class="label">Agent</label><select class="input" id="fAgent">'+agents.map(a=>'<option '+(a[0]===t?.agent?'selected':'')+'>'+a[0]+'</option>').join('')+'</select></div><div class="field"><label class="label">Status</label><select class="input" id="fStatus">'+['Queued','Running','Blocked','Review','Done'].map(s=>'<option '+(s===(t?.status||'Queued')?'selected':'')+'>'+s+'</option>').join('')+'</select></div><div class="field"><label class="label">Priority</label><select class="input" id="fPriority">'+['Low','Medium','High','Critical'].map(s=>'<option '+(s===(t?.priority||'Medium')?'selected':'')+'>'+s+'</option>').join('')+'</select></div></div><p class="sub">Changes remain in memory only; reload resets demo data.</p>',btn('Cancel','close')+btn('Save task','save:'+(t?.id||''),'primary'));$('#fTitle').focus()}function detail(t){popup(t.id+' / Task details','<div class="bar">'+badge(t.status)+badge(t.priority)+'<span class="muted">'+escape(t.queue)+' · '+escape(t.agent)+'</span></div><h2 style="font-size:18px;margin:17px 0">'+escape(t.title)+'</h2><p>'+escape(t.desc)+'</p>'+(t.block?'<div class="notice"><b class="red">BLOCKER</b><p>'+escape(t.block)+'</p></div>':'')+'<div class="lined muted tiny">Skill path: atl-plan → atl-implement → verification</div>',btn('Archive','archive:'+t.id,'danger')+btn('Edit','edit:'+t.id)+btn('Plan task','plan:'+t.id,'primary'))}function commandOptions(q=''){return [...routes.map(r=>['Go to '+r[2],'go:'+r[0]]),['New task','new'],['CLI console','cli'],['Review blockers','blockers']].filter(x=>x[0].toLowerCase().includes(q.toLowerCase())).map(x=>'<button class="nav" data-action="'+x[1]+'">› '+x[0]+'</button>').join('')||'<p class="muted">No matching command</p>'}function palette(){popup('Command palette <span class="muted tiny">Ctrl K</span>','<input class="input" id="paletteQ" placeholder="Find a page or action..."><div id="paletteItems">'+commandOptions()+'</div>');$('#paletteQ').focus()}function cli(){popup('ATL CLI · simulated','<div class="terminal">'+escape(cliHistory.join('\n'))+'</div><div class="row space"><span class="green">atl ›</span><input id="cliInput" class="input" style="flex:1" placeholder="help"></div>');$('#cliInput').focus()}function command(raw){let c=raw.trim().toLowerCase();cliHistory.push('atl › '+raw);if(c==='help')cliHistory.push('Commands: help, tasks, team, queues, plan, usage, new, clear');else if(c==='tasks')cliHistory.push(tasks.map(t=>t.id+' ['+t.status+'] '+t.title).join('\n'));else if(c==='team')cliHistory.push(agents.map(a=>a[0]+' / '+a[1]+' / '+a[2]).join('\n'));else if(c==='queues')cliHistory.push(queues.join(' · '));else if(c==='usage')cliHistory.push('Quota unknown; no authoritative provider telemetry.');else if(c==='new'){close();form();return}else if(c==='plan'){close();go('studio');return}else if(c==='clear')cliHistory=[];else if(c)cliHistory.push('Unknown command. Type help.');cliHistory=cliHistory.slice(-35);cli()}function alertDemo(s){popup('Demo operation','<p>'+escape(s)+'</p>',btn('Close','close'))}function action(a){if(a==='close'){close();return}if(a==='new'){form();return}if(a==='palette'){palette();return}if(a==='cli'){cli();return}if(a.startsWith('go:')){close();go(a.slice(3));return}if(a.startsWith('filter:')){filter=a.slice(7);go('tasks');return}if(a==='blockers'){filter='Blocked';queueFilter='All';close();go('tasks');return}if(a.startsWith('edit:')){form(tasks.find(t=>t.id===a.slice(5)));return}if(a.startsWith('archive:')){tasks=tasks.filter(t=>t.id!==a.slice(8));close();go('tasks');return}if(a.startsWith('plan:')){let t=tasks.find(t=>t.id===a.slice(5));close();go('studio');$('#goal').value=t.desc;return}if(a.startsWith('save:')){let name=$('#fTitle').value.trim();if(!name){$('#fTitle').focus();return}let id=a.slice(5),t=tasks.find(t=>t.id===id);if(!t){t={id:'T-'+String(Math.max(...tasks.map(x=>Number(x.id.slice(2))),0)+1).padStart(3,'0'),block:''};tasks.unshift(t)}Object.assign(t,{title:name,desc:$('#fDesc').value,status:$('#fStatus').value,priority:$('#fPriority').value,queue:$('#fQueue').value,agent:$('#fAgent').value});close();go('tasks');return}if(a==='generate'){let goal=$('#goal').value.trim();$('#planOutput').innerHTML='<b class="green">Local draft breakdown</b><p>'+escape(goal)+'</p><ol><li>Define state and persistence contracts.</li><li>Specify UI pages and interaction behavior.</li><li>Write acceptance and recovery tests.</li><li>Implement bounded tasks with owner approval gates.</li><li>Verify runtime logs, accessibility and provider-limit provenance.</li></ol><span class="muted tiny">Mock only; ATL skills and provider have not been called.</span>';return}if(a.startsWith('queue:')){queueFilter=decodeURIComponent(a.slice(6));filter='All';go('tasks');return}if(a.startsWith('run:')){alertDemo('Real execution requires ATL manager connectivity, an approved plan and queue permissions.');return}if(a.startsWith('agent:')){let agent=agents.find(x=>x[0]===a.slice(6));popup(agent[0]+' / Agent brief','<div class="bar">'+badge(agent[2])+'<span>'+agent[1]+'</span></div><p>Current assignment: '+agent[3]+'</p>'+meter(agent[4])+'<p class="sub space">A production agent brief also links its session, model usage, latest log lines, handoffs, test evidence and checkpoint.</p>',btn('Logs','go:activity')+btn('Close','close'));return}if(a==='newqueue'){popup('Create named queue','<label class="label">Queue name</label><input class="input" id="queueName" placeholder="e.g. Security">',btn('Cancel','close')+btn('Create','savequeue','primary'));return}if(a==='savequeue'){let x=$('#queueName').value.trim();if(x&&!queues.includes(x)){queues.push(x);close();go('queues')}return}if(a==='overnight'){popup('Overnight handoff · sample','<h2>46 tests passed · 2 skipped</h2><p class="sub">Example report. In production include run IDs, code changes, test evidence, failure causes, retries and resume checkpoints.</p>',btn('Close','close'));return}if(a==='refresh'){alertDemo('Authoritative usage sampling requires a connected provider adapter. Remaining capacity is unknown.');return}if(a==='export'){let blob=new Blob([events.map(e=>e.join(' | ')).join('\n')],{type:'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='atl-demo-activity.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return}}
+document.addEventListener('click',e=>{let p=e.target.closest('[data-page]');if(p){go(p.dataset.page);return}let t=e.target.closest('[data-task]');if(t){let found=tasks.find(x=>x.id===t.dataset.task);if(found)detail(found);return}let a=e.target.closest('[data-action]');if(a){action(a.dataset.action);return}if(e.target.id==='overlay')close()});document.addEventListener('input',e=>{if(e.target.id==='paletteQ')$('#paletteItems').innerHTML=commandOptions(e.target.value);if(e.target.id==='taskSearch'){query=e.target.value;let i=e.target.selectionStart;go('tasks');let el=$('#taskSearch');el.focus();el.setSelectionRange(i,i)}});document.addEventListener('change',e=>{if(e.target.id==='queueSelect'){queueFilter=e.target.value;go('tasks')}});document.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.target.id==='cliInput'||e.target.id==='dockInput')){let val=e.target.value;e.target.value='';command(val);return}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();palette();return}if(e.key==='Escape'&&dialogOpen){close();return}if(e.target.matches('input,textarea,select')||e.altKey||e.ctrlKey||e.metaKey)return;if(e.key.toLowerCase()==='n'){form();return}let n=Number(e.key);if(n>=1&&n<=7)go(routes[n-1][0])});$('#searchBtn').onclick=palette;$('#newBtn').onclick=()=>form();$('#noticesBtn').onclick=()=>popup('Notifications',notifications.map(n=>'<div class="event">'+badge(n[0])+' '+escape(n[1])+'</div>').join(''),btn('Close','close'));go('overview');})();
+</script><script src="./control-plane-client.js"></script><script>(()=>{const d=document.documentElement,b=document.getElementById("themeBtn");const sync=()=>{const l=d.classList.contains("light");if(b)b.setAttribute("aria-pressed",String(l));const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",l?"#f4f4f9":"#0d0d13")};if(b)b.addEventListener("click",()=>{const l=d.classList.toggle("light");try{localStorage.setItem("atl-cp-theme",l?"light":"dark")}catch(e){}sync()});sync()})();</script></body></html>

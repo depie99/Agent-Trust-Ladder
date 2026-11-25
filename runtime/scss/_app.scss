@@ -100,7 +100,7 @@ html:not([data-atl-context="plugin"]) .topbar .row:last-child{justify-self:end}
 html.light #themeBtn::before{content:"☾"}
 
 .key{border:1px solid var(--key-edge);background:var(--chip);border-radius:4px;padding:1px 4px;font-size:10px}
-.body{padding:27px;max-width:1590px;margin:auto}
+.body{padding-block:27px;padding-inline:clamp(10px,1vw,16px)}
 .eyebrow{font-size:9.5px;letter-spacing:.15em;color:var(--faint);font-weight:700}
 .pagehead{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}
 .pagehead h1{font-size:24px;letter-spacing:-.5px;line-height:1.2;margin:6px 0}
@@ -251,7 +251,7 @@ textarea.input{resize:vertical;min-height:110px}
   .sidebar{width:185px}
   .four{grid-template-columns:repeat(2,minmax(0,1fr))}
   .twocol{grid-template-columns:minmax(0,1fr)}
-  .body{padding:20px}
+  .body{padding-block:20px}
 }
 @media(max-width:720px){
   .app{display:block}
@@ -261,7 +261,7 @@ textarea.input{resize:vertical;min-height:110px}
   .mobile::-webkit-scrollbar{display:none;height:0}
   .mobile{mask-image:linear-gradient(to left,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%);-webkit-mask-image:linear-gradient(to left,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%)}
   .mobile button{white-space:nowrap}
-  .body{padding:15px}
+  .body{padding-block:15px}
   .four,.three,.two{grid-template-columns:1fr}
   .pagehead h1{font-size:22px}
   .topbar{padding:0 13px}

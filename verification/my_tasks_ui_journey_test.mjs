@@ -75,7 +75,7 @@ try {
   await page.goto(running.url, { waitUntil: "domcontentloaded" });
 
   const errors = []; page.on('pageerror', error => errors.push(error.message));
-  await page.click('[data-page="mytasks"]');
+  await page.goto(new URL("?page=mytasks", page.url()).href);
   await page.waitForSelector('.mtr-status-group');
   assert.equal(await page.locator('[data-mtr-group]').count(), 3, 'three state groups');
   assert.equal(await page.locator('[data-mtr-group="complete"]').getAttribute('open'), null, 'Done starts collapsed');
@@ -159,7 +159,7 @@ try {
   });
   const page2 = await browser.newPage({ viewport: { width: 820, height: 900 } }); // narrow: mobile-ish
   await page2.goto(emptyServer.url, { waitUntil: "domcontentloaded" });
-  await page2.click('[data-page="mytasks"]');
+  await page2.goto(new URL("?page=mytasks", page2.url()).href);
   await page2.waitForSelector('.mtr-empty', { timeout: 20000 });
   await page2.click('[data-action="mt-settings"]');
   await page2.waitForSelector('.dialog [data-mt-setup]', { timeout: 15000 });
@@ -194,7 +194,7 @@ try {
       await (await fetch(new URL("/api/my-tasks/settings", wipeServer.url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled: false, interval_minutes: 30, projects: ["Alpha", "Beta"] }) })).json();
       const page3 = await browser.newPage({ viewport: { width: 1440, height: 900 } });
       await page3.goto(wipeServer.url, { waitUntil: "domcontentloaded" });
-      await page3.click('[data-page="mytasks"]');
+      await page3.goto(new URL("?page=mytasks", page3.url()).href);
       await page3.click('[data-action="mt-settings"]');
       await page3.waitForSelector('.dialog [data-mt-setup]', { timeout: 15000 });
       await page3.waitForSelector('.dialog:has-text("Could not list projects")', { timeout: 15000 });
@@ -240,13 +240,13 @@ try {
     try {
       const page4 = await browser.newPage({ viewport: { width: 1440, height: 900 } });
       await page4.goto(authServer.url, { waitUntil: "domcontentloaded" });
-      await page4.click('[data-page="mytasks"]');
+      await page4.goto(new URL("?page=mytasks", page4.url()).href);
       await page4.waitForSelector('.mtr-status-group, .mtr-empty', { timeout: 20000 });
       await page4.click('[data-action="mt-settings"]');
       await page4.waitForSelector('.dialog:has-text("Could not list projects")', { timeout: 15000 });
       assert.equal(await page4.locator('.dialog [data-action^="mt-reconnect:"]').count(), 1, "auth failure offers Re-authenticate exactly once");
       assert.equal(await page4.locator('.dialog [data-action="mt-projects"]').count(), 1, "Retry is still offered");
-      assert.match(await page4.locator('.dialog').innerText(), /Re-authenticate with a PAT/);
+      assert.match(await page4.locator('.dialog').innerText(), /Reconnect with a PAT/);
       await page4.click('.dialog [data-action^="mt-reconnect:"]');
       await page4.waitForSelector('.dialog #sourceConnectionPat', { timeout: 15000 });
       await page4.fill('#sourceConnectionPat', 'fresh-pat-value');

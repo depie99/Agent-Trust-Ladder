@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { latestTaskEvidence } from "./task-diagnostics.mjs";
+import { testEvidence } from "./test-evidence.mjs";
 import { writerGate } from "./daemon.mjs";
 
 const contractFile = new URL("../../config/manager-state-contract.json", import.meta.url);
@@ -242,10 +243,12 @@ function fail(required, task) {
           return !e || e.result !== "pass" || e.coverage === "partial" || rejected || (task.evidence_contract === 2 && (e.coverage !== "complete" || !e.code_revision));
         }
       );
-      if (missing.length > 0)
+      if (missing.length > 0 && task.run_verification_policy !== "allow")
         throw new StateError(
           `${task.id}: cannot finish, these checks have no passing evidence: ${missing.join(" | ")}`
         );
+      if (task.verifiers?.length && task.run_verification_policy !== "allow" && !testEvidence(task).verified)
+        throw new StateError(`${task.id}: current verification evidence is required`);
       if ((task.review_required || false) && latestTaskEvidence(task, "review")?.result !== "approve")
         throw new StateError(`${task.id}: review_required is set but no approved review exists`);
     }
@@ -302,6 +305,8 @@ export function addEvidence(state, taskId, entry, actor) {
     code_revision: entry.code_revision || null, session_id: entry.session_id || null,
     command: entry.command || null, exit_code: entry.exit_code ?? null, artifact_hash: entry.artifact_hash || null,
     coverage: entry.coverage || null,
+    test_type: entry.test_type || null, duration_ms: entry.duration_ms ?? null, output_id: entry.output_id || null,
+    screenshots: entry.screenshots || null, run_id: entry.run_id || null,
   });
   task.updated_at = new Date().toISOString();
   logEvent(state, { task: taskId, actor, event: `evidence:${entry.kind}`, detail: entry.detail || entry.check || "" });

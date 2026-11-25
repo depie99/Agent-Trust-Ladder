@@ -13,6 +13,8 @@ Open **Plan Studio** with a request or imported issue. State the outcome, constr
 ## Generate and review
 
 1. Inspect planning provider readiness (compact provider selector beside the composer; model, thinking effort, attachments, and skeleton mode live in **⚙ Settings**).
+   For a Codex ChatGPT sign-in, the picker uses the installed Codex CLI's model list. If your configured default is unavailable, Plan Studio selects the CLI's listed default.
+   For key-based providers, **Load models** refreshes suggestions from the configured endpoint. You can also enter an exact model ID directly.
 2. **Generate plan** sends one bounded provider call (or a free deterministic local skeleton) and the plan appears beside the conversation.
 3. Open **Questions** in the conversation whenever convenient. Numbered cards offer suggested answers and free text, show progress, and retain unfinished responses across closing, reopening, and reloading. Planning stays available while questions are open.
 4. Refine conversationally: with a draft open, the composer submits **Update plan** — one bounded refinement call that proposes a full candidate plan. The proposal lands in the Tasks tab as **Proposed changes · based on rev N** with added, changed, and removed task cards. **Apply changes** writes it against its originating revision (a manual edit in between makes it stale and refused with a reload-and-retry message; applying clears review readiness). **Discard** drops it. Manual edits and failed calls never touch the saved plan.
@@ -25,7 +27,7 @@ The persistent next-step control (header and plan-pane bar) offers questions, pr
 
 ![Plan Studio in the synthetic documentation project](assets/screenshots/studio.jpg)
 
-Expected result: an approved plan creates bounded task packets in a queue. Editing after review invalidates its binding. A stale source revision blocks approval. A description or local preview is insufficient evidence. Below 960 px the workspace switches to Conversation/Plan tabs; the split is drag-resizable on desktop.
+Expected result: an approved plan creates bounded task packets in a queue. Editing after review invalidates its binding. A stale source revision blocks approval. A description or local preview is insufficient evidence. On desktop, Plan gets slightly more space in the resizable split. Use **Focus Plan** for full-width task and review details or **Focus conversation** for a single-pane chat. Below 960 px, use the Conversation and Plan tabs.
 
 ## Publish deliberately
 

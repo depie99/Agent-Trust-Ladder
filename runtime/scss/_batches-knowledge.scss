@@ -1,0 +1,141 @@
+.batches-design, .knowledge-design {
+  min-height: calc(100vh - 132px);
+  padding-inline: 24px 28px;
+  font-size: 14px;
+  .pagehead { margin-block-end: 16px; }
+  .pagehead h1 { font-size: clamp(25px, 3vw, 30px); }
+  .btn { min-height: 42px; padding-inline: 15px; }
+  .sub { margin-block: 4px 0; font-size: 13px; }
+  .panel { border-radius: 15px; }
+  .pill.amber { background: var(--notice-bg); border-color: transparent; }
+  .pill.green { background: var(--green-bg); border-color: transparent; }
+  .pill.blue { background: var(--accent-bg); border-color: transparent; }
+}
+
+.batch-flow, .batch-limits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  margin-block-end: 16px;
+}
+
+.batch-flow b, .batch-limits b { color: var(--text); }
+.batch-flow .btn.ghost {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  text-decoration: underline;
+  font: inherit;
+  color: inherit;
+  border: 0;
+}
+
+.batch-layout, .knowledge-board {
+  display: grid;
+  align-items: start;
+  gap: 20px;
+}
+.batch-layout { grid-template-columns: minmax(225px, 28.5%) minmax(0, 1fr); }
+.batch-list, .knowledge-rail { display: grid; gap: 10px; min-width: 0; }
+.batch-list > .input { height: 44px; }
+.batch-card {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 13px 14px;
+  text-align: start;
+  color: var(--text);
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.batch-card.active, .knowledge-stat-active > .stat { border-color: var(--accent); background: var(--accent-bg); }
+.batch-card .row { gap: 8px; }
+.batch-card :is(b, .sub) { overflow-wrap: anywhere; }
+.batch-detail, .batch-empty { min-width: 0; padding: 24px; }
+.batch-detail-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.batch-detail h2, .batch-empty h2 { font-size: 21px; margin: 0; overflow-wrap: anywhere; }
+.batch-limits { margin-block: 14px; gap: 18px; }
+.batch-progress { margin-block: 12px; }
+.batch-progress progress { display: block; margin-block-start: 7px; width: 100%; height: 8px; overflow: hidden; border: 0; border-radius: 20px; background: var(--chip); }
+.batch-progress progress::-webkit-progress-bar { background: var(--chip); }
+.batch-progress progress::-webkit-progress-value { background: var(--green); border-radius: 20px; }
+.batch-progress progress::-moz-progress-bar { background: var(--green); border-radius: 20px; }
+.batch-step { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: start; gap: 12px; min-height: 73px; padding-block: 13px; border-block-start: 1px solid var(--row-line, var(--border)); }
+.batch-step-id { color: var(--muted); font-weight: 650; padding-block-start: 4px; }
+.batch-step-copy { min-width: 0; overflow-wrap: anywhere; }
+.batch-step-actions { justify-content: end; }
+.batch-note { padding: 11px 14px; border-radius: 10px; background: var(--bg); color: var(--muted); }
+.batch-empty .bar { margin-block-start: 14px; }
+
+.dialog.batch-form-dialog {
+  width: min(648px, calc(100vw - 28px));
+  padding: 12px;
+  border-radius: 18px;
+}
+.batch-form-dialog .dialoghead { padding-block-end: 0; border: 0; }
+.batch-form-dialog .dialoghead h2 { font-size: 22px; }
+.batch-form-dialog .sub { font-size: 13px; }
+.batch-form-dialog .dialogbody { padding-block-start: 0; }
+.batch-form-dialog .dialogfoot { border: 0; justify-content: end; }
+.batch-form-dialog .dialogfoot .btn { min-height: 42px; }
+.batch-form { display: grid; gap: 10px; margin-block-start: 18px; }
+#batchTaskList { display: grid; gap: 6px; max-height: min(33vh, 236px); overflow: auto; }
+.batch-task-choice { position: relative; border: 1px solid var(--field-edge, var(--border)); border-radius: 10px; }
+.batch-task-choice:has(:checked) { border-color: var(--accent); background: var(--accent-bg); }
+.batch-task-choice label { display: grid; align-items: center; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 11px; min-height: 46px; padding: 8px 12px; cursor: pointer; }
+.batch-task-choice label :is(b, small) { color: var(--muted); }
+.batch-task-choice label span { overflow-wrap: anywhere; }
+.batch-reorder { display: flex; position: absolute; inset-inline-end: 6px; inset-block-start: 6px; opacity: 0; pointer-events: none; }
+.batch-task-choice:is(:hover, :focus-within) .batch-reorder { opacity: 1; pointer-events: auto; }
+.batch-task-choice:is(:hover, :focus-within):has(.batch-reorder) label small { margin-inline-end: 53px; }
+.batch-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 15px; margin-block: 5px; }
+.batch-form-grid label { display: grid; gap: 6px; font-weight: 650; }
+.batch-form-grid .input { width: 100%; min-height: 43px; font-weight: 400; }
+.batch-preview { padding: 13px 14px; border-radius: 12px; background: var(--bg); }
+#batchError:empty { display: none; }
+
+.knowledge-learning { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 13px 18px; margin-block: 14px 16px; }
+.knowledge-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.knowledge-stats .stat { padding: 14px; height: 100%; }
+.knowledge-stats .stat strong { font-size: 27px; }
+.knowledge-tabs { display: flex; gap: 4px; margin-block: 15px 16px; border-block-end: 1px solid var(--border); }
+.knowledge-tabs button { display: inline-flex; align-items: center; gap: 7px; padding: 10px 14px; min-height: 44px; border: 0; border-block-end: 3px solid transparent; background: var(--pane); color: var(--text); font: inherit; cursor: pointer; }
+.knowledge-tabs button.active { border-block-end-color: var(--accent); color: var(--accent); }
+.knowledge-board { grid-template-columns: minmax(0, 1fr) minmax(245px, 30%); }
+.knowledge-main, .knowledge-rail-card { min-width: 0; padding: 20px; }
+.knowledge-rail { gap: 16px; }
+.knowledge-main h2, .knowledge-rail h2 { margin: 0; font-size: 16px; }
+.knowledge-panel-head, .knowledge-record-title, .knowledge-record-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 9px; }
+.knowledge-panel-head select { width: auto; min-height: 35px; border-radius: 24px; }
+.knowledge-record { padding-block: 15px; border-block-start: 1px solid var(--row-line, var(--border)); overflow-wrap: anywhere; }
+.knowledge-record-footer { margin-block-start: 8px; }
+.knowledge-record-details { display: inline-block; margin-inline-start: 10px; }
+.knowledge-record-details[open] { display: block; margin-inline-start: 0; }
+.knowledge-record-details summary { cursor: pointer; text-decoration: underline; color: var(--muted); list-style: none; }
+.knowledge-record-details summary::-webkit-details-marker { display: none; }
+.knowledge-rail-card > summary { font-weight: 700; cursor: pointer; }
+.knowledge-rail-card .bar, .knowledge-rail-card > .btn { margin-block-start: 9px; }
+.knowledge-design .knowledge-more { display: block; margin-inline: auto; text-decoration: underline; }
+
+@media (max-width: 850px) {
+  .batches-design, .knowledge-design { min-height: 0; padding-inline: 0; }
+  .batch-layout, .knowledge-board { grid-template-columns: minmax(0, 1fr); }
+  .batch-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .batch-list > .input { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .batch-list, .batch-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .batch-detail, .batch-empty, .knowledge-main, .knowledge-rail-card { padding: 14px; }
+  .batch-step { grid-template-columns: auto minmax(0, 1fr); }
+  .batch-step-actions { grid-column: 2; justify-content: start; }
+  .knowledge-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .knowledge-tabs { flex-wrap: wrap; }
+  .batch-task-choice:has(.batch-reorder) label small { margin-inline-end: 53px; }
+  .batch-reorder { opacity: 1; pointer-events: auto; }
+}

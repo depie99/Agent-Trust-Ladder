@@ -65,6 +65,7 @@ import { createWorkerCredential, validateWorkerCredential } from "./lib/session-
 import { acquireLease, leaseAllows, releaseLease, reconcileLeases } from "./lib/leases.mjs";
 import { createBackup, listBackups, restoreBackup } from "./lib/backup.mjs";
 import { repairContract } from "./lib/queue-recovery.mjs";
+import { setVerificationPolicy, setVerifier, testEvidence, verificationPolicy } from "./lib/test-evidence.mjs";
 import { snapshot as contentSnapshot } from "./lib/handoffs.mjs";
 
 // Resolve the owning ATL project from nested folders and managed workspaces.
@@ -321,6 +322,9 @@ Intake (pulls new work in)
 
 Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   revision <id>                print the workspace content revision
+  verifier <id> "<check>" <type> verification/<script>.mjs
+  verification-policy <project|id> <block|allow|inherit>
+  test-evidence <id>           report verification attempts and revision freshness
   observe <id> <packet.json>    record complete revision-bound observation evidence
   contract-repair <id> <file>  apply one supervisor-requested Pip contract revision
   update <id> [--set k=v]... [--check "..."]... [--objective "..."]
@@ -686,6 +690,12 @@ async function runWorkerLoop(taskId, { overnight }) {
   const finalTask = finalState.tasks[taskId];
   console.log(`\nRun stopped after ${budget.sessions} session(s): ${taskId} is ${finalTask?.status || "unknown"}.`);
   console.log(`Reason: ${outcome.reason}.`);
+  if (!opts.dryRun && finalTask) {
+    const evidence = outcome.evidence?.checks ? outcome.evidence : testEvidence(finalTask);
+    console.log(`Test Evidence: ${evidence.verified ? "verified" : "unverified"}`);
+    for (const check of evidence.checks) console.log(`  ${check.status}: ${check.expected}`);
+    console.log(`Evidence details: atl test-evidence ${taskId}`);
+  }
   console.log("Next: atl wake && atl brief --save && atl show " + taskId);
 }
 
@@ -759,7 +769,13 @@ async function runQueueLoop({ overnight }) {
   saveBrief(ROOT, renderBrief(after));
   say("runner", "queue run finished — morning brief saved.");
   console.log(`\nQueue run finished after ${budget.sessions} session(s). Results:`);
-  for (const r of results) console.log(`  ${String(r.id).padEnd(6)} ${String(r.status).padEnd(12)} ${r.reason}`);
+  for (const result of results) {
+    console.log(`  ${String(result.id).padEnd(6)} ${String(result.status).padEnd(12)} ${result.reason}`);
+    const task = after.tasks[result.id];
+    if (!task) continue;
+    const evidence = testEvidence(task, task.verification_revision, ROOT);
+    console.log(`    Test Evidence: ${evidence.verified ? "verified" : "unverified"} (atl test-evidence ${task.id})`);
+  }
   console.log("\nMorning report: atl brief   ·   transcript: atl feed --roster   ·   per task: atl show <id>");
 }
 
@@ -1581,6 +1597,27 @@ async function dispatch() {
       return;
     }
 
+    case "test-evidence": {
+      const { task } = need(pos[0]);
+      const revision = task.workspace ? contentSnapshot(ROOT, task.workspace, { storeBlobs: false }).revision : null;
+      console.log(JSON.stringify({ ...testEvidence(task, revision, ROOT), effective_policy: verificationPolicy(loadState(ROOT), task) }, null, 2));
+      return;
+    }
+    case "verification-policy": {
+      const state = loadState(ROOT);
+      const task = pos[0] === "project" ? null : need(pos[0]).task;
+      if (knownActor(task?.id) !== "manager") throw new StateError("Only the manager can set verification policy");
+      setVerificationPolicy(state, task ? state.tasks[task.id] : null, pos[1]);
+      saveState(ROOT, state);
+      return;
+    }
+    case "verifier": {
+      const { state, task } = need(pos[0]);
+      if (knownActor(task.id) !== "manager") throw new StateError("Only the manager can register executable verifiers");
+      setVerifier(task, pos[1], pos[2], pos.slice(3));
+      saveState(ROOT, state);
+      return;
+    }
     case "revision": {
       const { task } = need(pos[0]);
       console.log(contentSnapshot(ROOT, task.workspace).revision); return;
@@ -1595,6 +1632,9 @@ async function dispatch() {
       if (!["check", "review", "browser-journey"].includes(entry.kind)) throw new StateError("unsupported observation kind");
       if (entry.kind === "review" && !["sage", "manager"].includes(actor)) throw new StateError("Sage owns independent review");
       if (entry.kind === "browser-journey" && !["beacon", "manager"].includes(actor)) throw new StateError("Beacon owns integrated browser verification");
+      // Artifact identifiers are issued by the deterministic runner.
+      delete entry.output_id;
+      delete entry.screenshots;
       addEvidence(state, task.id, entry, actor); saveState(ROOT, state);
       console.log("observation recorded"); return;
     }
@@ -1613,6 +1653,12 @@ async function dispatch() {
       const to = pos[1];
       const from = task.status;
       const actor = knownActor(task.id);
+      if (to === "done" && task.workspace && task.verifiers?.length) {
+        task.verification_revision = contentSnapshot(ROOT, task.workspace, { storeBlobs: false }).revision;
+        if (task.run_verification_policy !== "allow" && !testEvidence(task, task.verification_revision, ROOT).verified) {
+          throw new StateError(`${task.id}: current verification evidence is required`);
+        }
+      }
       transition(state, task.id, to, { actor, note: flags.note?.[0] });
       narrateMove(task, from, to, actor, flags.note?.[0]);
       if (to === "triaged" && task.auto_route && task.assigned_worker) {

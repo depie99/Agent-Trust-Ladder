@@ -63,7 +63,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(running.url, { waitUntil: "domcontentloaded" });
-  await page.click('[data-page="mytasks"]');
+  await page.goto(new URL("?page=mytasks", page.url()).href);
   await page.waitForSelector(".mt-row");
 
   // 1. Preparation chips on cards; filter narrows by state; Done is historical.
@@ -129,7 +129,7 @@ try {
   assert.ok(goal.includes("Cart lost after login"), "studio goal prefilled from the handed-off request");
 
   // 6. Back on My Tasks: the chip reflects the linked state after refresh.
-  await page.click('[data-page="mytasks"]');
+  await page.goto(new URL("?page=mytasks", page.url()).href);
   await page.waitForSelector(".mt-row");
   assert.ok(await page.locator('.mt-row:has-text("Cart lost after login") .pill:has-text("Ready to plan")').count() === 1, "chip persists across navigation");
 

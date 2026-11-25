@@ -19,9 +19,10 @@ import { dispatchTuiCommand } from "./command-console.mjs";
 import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, multiQueueDryRun, queueDryRun, readManagerConfig, reconcileOvernightRun, readRunLock, requestRunAbort } from "./launch.mjs";
 import { addProposal, addProposalFeedback, editProposal, generateLocalPlan, savePlanDraft, normalizeProposals, loadPlanDraft, listPlanDrafts, archivePlanDraft, repairPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider, reviewPlanArtifact, answerPlanQuestion, answerCandidateQuestion, applyPlanCandidate, discardPlanCandidate, refinePlanDraft, planningEvidence, approvePlanDraft, validatePlanArtifact, validatePlanGrounding, resolvePlanRepository, repositoryStamp, planDraftIndex, requestRepositoryIds } from "./plan-studio.mjs";
 import { invokePlanningProvider } from "./plan-model.mjs";
+import { withCodexModelCatalog } from "./codex-models.mjs";
 import { builtinProviderStatus, discoverProvider, logoutBuiltin, providerProfile, providerNames, resolvePlanningModel } from "./providers.mjs";
 import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLATES, providerChoices, removeProvider, requireReadyProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
-import { paths, loadState, saveState, logEvent, createTask } from "./state.mjs";
+import { paths, loadState, saveState, mutateState, logEvent, createTask } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
 import { approveClaim, registerRoutine, validateSkill } from "./governance.mjs";
 import { addClaim } from "./brain.mjs";
@@ -32,11 +33,11 @@ import { createBackup, listBackups, previewRestore, restoreBackup, scheduledBack
 import { listRoutineRuns, recoverScheduler, runRoutine, schedulerStatus, schedulerTick } from "./routines.mjs";
 import { buildDispatchPlan } from "./dispatcher.mjs";
 import { executeSupervisor, requestSupervisorStop } from "./supervisor-runner.mjs";
-import { batchMorningSummary, batchSummary, listBatches, readBatch, reconcileBatch, resumeStoppedBatch, runBatch, startBatch, stopBatchRun, validateBatch } from "./batch-runner.mjs";
+import { activateScheduledBatch, authorizeBatch, batchMorningSummary, batchSummary, describeBatch, listBatches, readBatch, reconcileBatch, resumeStoppedBatch, runBatch, startBatch, stopBatchRun, validateBatch } from "./batch-runner.mjs";
 import { latestFailureSignatures, preventionStatus, recoverMemory, selectContext } from "./operational-memory.mjs";
 import { clearOwnerSession, ensureOwnerSession, ownerSessionCookie, rotateOwnerSession, validateOwnerSession } from "./session-auth.mjs";
 import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDeliveryReceiptFromRecord } from "./delivery.mjs";
-import { inspectHandoffChain } from "./handoffs.mjs";
+import { inspectHandoffChain, snapshot as verificationSnapshot } from "./handoffs.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview, readTaskReviewState, writeTaskReviewState } from "./change-review-store.mjs";
 import { buildExecutionProjection, readImpactChildren } from "./execution-projection.mjs";
@@ -49,6 +50,7 @@ import { installSkill, designateSkill } from "./skill-install.mjs";
 import { executionAccess, saveExecutionAccess, probeWorkspaceAccess } from "./execution-access.mjs";
 import { browserAccess, saveBrowserAccess, checkBrowserRuntime } from "./browser-access.mjs";
 import { resourcePolicy, resourceView, saveResourcePolicy, taskResourcePreview, routeTask, assertModelAllowed } from "./resource-policy.mjs";
+import { testEvidence, verificationArtifact, verificationPolicy, setVerificationPolicy } from "./test-evidence.mjs";
 import {recordExecution,publishPlanningExecution} from './execution-report.mjs';
 import {recordQuotaFailure, quotaStatus} from './provider-quota.mjs';
 import { resolveTaskRef, qualifyTaskId } from './task-refs.mjs';
@@ -66,9 +68,6 @@ import { assertPreparationReady, addManualInvestigation, addPreparationQuestion,
 const RUNTIME_DIR = path.dirname(fileURLToPath(import.meta.url));
 const CONTROL_PLANE_FILE = path.join(RUNTIME_DIR, "..", "control-plane.html");
 const builtinOperations = new Map();
-// Batch ids with a runner active in this process. The checkpoint lease remains
-// the durable authority across processes.
-const runningBatches = new Set();
 
 function startBuiltinOperation(id, action, config) {
   if (!["codex", "claude", "gapgpt"].includes(id)) throw new Error("Unknown built-in provider");
@@ -177,9 +176,9 @@ function serverOrigin(server) {
   return `http://${hostHeader}`;
 }
 
-function hasOwnerSession(req, root) {
+function hasOwnerSession(req, root, { navigation = false } = {}) {
   const token = String(req.headers.cookie || "").split(";").map((part) => part.trim()).find((part) => part.startsWith("atl_owner="))?.slice("atl_owner=".length) || "";
-  try { return validateOwnerSession(root, decodeURIComponent(token), String(req.headers["x-atl-csrf"] || "")); }
+  try { return validateOwnerSession(root, decodeURIComponent(token), String(req.headers["x-atl-csrf"] || (navigation ? ensureOwnerSession(root).csrf : ""))); }
   catch { return false; }
 }
 
@@ -306,7 +305,7 @@ async function accuracyReviewOnce(root, loaded, payload, seam, { transient = fal
   validatePlanArtifact(loaded.artifact);
   validatePlanGrounding(root, loaded.artifact, { repoRoot });
   const provider = payload.provider || loaded.provider;
-  const entry = planningEntry(root, payload, loaded.artifact, 'planning-review', provider);
+  const entry = await planningEntry(root, payload, loaded.artifact, 'planning-review', provider);
   const projectEvidence = planningEvidence(root, loaded.artifact, { repoRoot });
   const sourceRevision = loaded.source_task_id ? await verifyImportedSource(root, loaded.source_task_id, { fetchImpl: seam.publishFetch, azureToken: await seam.azureToken?.() }) : null;
   const response = await planningCall(seam, entry, { logPath: path.join(loaded.dir, 'review.log'), request: { review: true, task: "Independently review the updated plan. Return JSON {verdict:'passed'|'blocked',findings:[{severity,message,correction}]}. Optional questions with recorded usable defaults do not block approval. Consequential unresolved issues do. Never claim checks ran.", intent: loaded.intent, artifact: loaded.artifact, project_evidence: { ...projectEvidence, external_source: sourceRevision }, required: ['verdict', 'findings'] } });
@@ -318,7 +317,7 @@ async function accuracyReviewOnce(root, loaded, payload, seam, { transient = fal
 
 async function accuracyContinue(root, loaded, payload, seam, questionId = null, target = 'artifact') {
   const provider = payload.provider || loaded.provider;
-  return continueAccuracyConversation(root, loaded, { questionId, target, provider, model: payload.model || null, invoke: (call) => planningCall(seam, planningEntry(root, payload, loaded.artifact, 'planning', provider), call), review: async (draft) => {
+  return continueAccuracyConversation(root, loaded, { questionId, target, provider, model: payload.model || null, invoke: async (call) => planningCall(seam, await planningEntry(root, payload, loaded.artifact, 'planning', provider), call), review: async (draft) => {
     if (target !== 'candidate') return accuracyReviewOnce(root, draft, payload, seam);
     const reviewed = await accuracyReviewOnce(root, { ...draft, artifact: draft.pending_candidate.artifact, review: null }, payload, seam, { transient: true });
     return saveCandidateAccuracyReview(root, draft, reviewed);
@@ -360,7 +359,7 @@ async function planningCall({ planningInvoke, planningRoot }, entry, call) {
   }catch(error){recordExecution(planningRoot,{...start,finishedAt:new Date().toISOString(),exitCode:1});throw error;}
 }
 
-function planningEntry(root,payload,task,role='planning',fallback=null) {
+async function planningEntry(root,payload,task,role='planning',fallback=null) {
   const config=readManagerConfig(root),p=resourcePolicy(config);
   const id=payload.provider||fallback;
   if(id==='auto' || p.enabled&&p.auto_models) {
@@ -374,7 +373,7 @@ function planningEntry(root,payload,task,role='planning',fallback=null) {
     const worker = builtinProviderStatus({providers:providerConfig(root)}).find((item)=>item.id===route.worker);
     if(!worker?.installed)throw Error(`${route.worker} CLI is not installed — see Settings → Providers`);
     if(!worker.signedIn)throw Error(`${route.worker} CLI is not signed in — see Settings → Providers`);
-    return {id:route.worker,worker:route.worker,model:resolvePlanningModel(worker,route.model),builtin:true,command:route.provider.command,resource_decision:route.decision};
+    return {id:route.worker,worker:route.worker,model:resolvePlanningModel(await withCodexModelCatalog(worker),route.model),builtin:true,command:route.provider.command,resource_decision:route.decision};
   }
   const registry=loadUserProviders();
   // Signed-in subscription CLIs (codex / gapgpt / claude) plan directly with
@@ -383,7 +382,7 @@ function planningEntry(root,payload,task,role='planning',fallback=null) {
     const worker=builtinProviderStatus({providers:providerConfig(root)}).find((item)=>item.id===id);
     if(!worker?.installed)throw Error(`${id} CLI is not installed — see Settings → Providers`);
     if(!worker.signedIn)throw Error(`${id} CLI is not signed in — see Settings → Providers`);
-    return {id,worker:id,model:resolvePlanningModel(worker,payload.model),builtin:true,command:worker.command};
+    return {id,worker:id,model:resolvePlanningModel(await withCodexModelCatalog(worker),payload.model),builtin:true,command:worker.command};
   }
   return requireReadyProvider(id,{registry}).withModel(payload.model);
 }
@@ -449,12 +448,14 @@ function clearProviderDefault(root, id) {
   }
 }
 
-function providerView(root) {
+async function providerView(root) {
   // `builtin` carries the built-in subscription workers (codex/claude) with
   // their sign-in state — the zero-key connection path the registry section
-  // cannot show. Read-only local evidence; no secret material is included.
+  // cannot show. Codex model discovery uses the installed CLI without a model turn.
   const config = providerConfig(root);
-  const builtin = builtinProviderStatus({ providers: config }).map((worker) => ({ ...worker, operation: builtinOperations.get(worker.id) || null }));
+  const builtin = await Promise.all(builtinProviderStatus({ providers: config }).map(async (worker) => ({
+    ...await withCodexModelCatalog(worker), operation: builtinOperations.get(worker.id) || null,
+  })));
   return { providers: providerChoices(loadUserProviders()), templates: sanitizedTemplates(), defaultProvider: config.use || null, builtin };
 }
 
@@ -500,7 +501,7 @@ async function handleProvidersEndpoint(root, res, req) {
     if (action === "builtin-login" || action === "builtin-install") {
       const id = String(payload.id || "").trim().toLowerCase();
       startBuiltinOperation(id, action === "builtin-login" ? "login" : "install", providerConfig(root));
-      return json(res, 200, { ok: true, ...providerView(root) });
+      return json(res, 200, { ok: true, ...await providerView(root) });
     }
     if (action === "builtin-logout") {
       const id = String(payload.id || "").trim().toLowerCase();
@@ -528,7 +529,7 @@ async function handleProvidersEndpoint(root, res, req) {
         api_key: payload.key ? String(payload.key).trim() : undefined,
       });
       saveUserProviders(registry);
-      return json(res, 200, { ok: true, ...providerView(root) });
+      return json(res, 200, { ok: true, ...await providerView(root) });
     }
     if (action === "key") {
       const id = String(payload.id || "").trim();
@@ -537,21 +538,21 @@ async function handleProvidersEndpoint(root, res, req) {
       if (!getProvider(registry, id)) return json(res, 400, { ok: false, error: `no provider named "${id}" — add it first` });
       upsertProvider(registry, id, { api_key: key });
       saveUserProviders(registry);
-      return json(res, 200, { ok: true, ...providerView(root) });
+      return json(res, 200, { ok: true, ...await providerView(root) });
     }
     if (action === "use") {
       const id = String(payload.id || "").trim();
       const builtin = new Set(["codex", "claude", "gapgpt"]);
       if (!getProvider(registry, id) && !builtin.has(id.toLowerCase())) return json(res, 400, { ok: false, error: `no provider named "${id}" in the registry or built-in workers` });
       writeProviderDefault(root, id);
-      return json(res, 200, { ok: true, ...providerView(root) });
+      return json(res, 200, { ok: true, ...await providerView(root) });
     }
     if (action === "update") {
       const id = String(payload.id || "").trim();
       if (!getProvider(registry, id) && ["codex", "claude", "gapgpt"].includes(id.toLowerCase())) {
         if (payload.model === undefined || !String(payload.model).trim()) return json(res, 400, { ok: false, error: "built-in provider update needs a model" });
         writeBuiltinModel(root, id.toLowerCase(), String(payload.model).trim());
-        return json(res, 200, { ok: true, ...providerView(root) });
+        return json(res, 200, { ok: true, ...await providerView(root) });
       }
       if (!getProvider(registry, id)) return json(res, 400, { ok: false, error: `no provider named "${id}" in the registry` });
       const patch = {};
@@ -567,7 +568,7 @@ async function handleProvidersEndpoint(root, res, req) {
       const wireProblems = wireMismatches(updated.worker, updated.base_url);
       if (wireProblems.length) return json(res, 400, { ok: false, error: `refusing to update "${id}": ${wireProblems.join("; ")}` });
       saveUserProviders(registry);
-      return json(res, 200, { ok: true, ...providerView(root) });
+      return json(res, 200, { ok: true, ...await providerView(root) });
     }
     // 9router-style model discovery: query the endpoint's model list with the
     // STORED key, server-side only, so the manager picks a real model id
@@ -609,7 +610,7 @@ async function handleProvidersEndpoint(root, res, req) {
       removeProvider(registry, id);
       saveUserProviders(registry);
       clearProviderDefault(root, id);
-      return json(res, 200, { ok: true, ...providerView(root) });
+      return json(res, 200, { ok: true, ...await providerView(root) });
     }
     return json(res, 400, { ok: false, error: "provider action must be add, update, key, models, use, or remove" });
   } catch (error) {
@@ -671,6 +672,15 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       // the explicitly chosen linked repository) so later model completion,
       // review, and approval ground against that repo.
       const repository = payload.sourceTaskId || payload.repositoryId ? repositoryStamp(root, { source_task_id: payload.sourceTaskId || null, repository_id: payload.repositoryId ? String(payload.repositoryId) : null }) : null;
+      if (payload.fromInbox === true) {
+        const source = loadState(root).tasks[payload.sourceTaskId];
+        if (!source || source.status === "archived" || source.status === "rejected" || !["azure", "github", "jira"].includes(source.source?.type)
+          || !repository || !requestRepositoryIds(source).includes(repository.id)) {
+          throw new Error("Link this request to a registered repository before sending it to Plan Studio.");
+        }
+        const existing = planDraftIndex(root).find(plan => plan.source_task_id === source.id && plan.repository?.id === repository.id);
+        if (existing) return json(res, 200, { ok: true, reused: true, draft: draftResponse(loadPlanDraft(root, existing.id), root) });
+      }
       const draft = savePlanDraft(root, { intent, artifact: generateLocalPlan(intent), stage: "frame", sourceTaskId: payload.sourceTaskId || null, repository });
       return json(res, 200, { ok: true, draft: draftResponse(draft, root) });
     }
@@ -690,7 +700,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       // Provider-backed generation is always an explicit, bounded spend: the
       // provider must be configured and ready, no queue run may be active,
       // and the call itself is one confirmed planning session with a timeout.
-      const entry = planningEntry(root,payload,{title:intent});
+      const entry = await planningEntry(root,payload,{title:intent});
       if (payload.thinking_level !== undefined && payload.thinking_level !== null) entry.thinking_level = normalizeThinkingLevel(payload.thinking_level);
       const draft = await runPlanProvider(root, intent, {
         confirm: payload.confirm === true,
@@ -757,7 +767,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
         const projectEvidence = planningEvidence(root, artifact, { repoRoot });
         const configOnly = readManagerConfig(root);
         const run = config.backend === "glm-goldfish"
-          ? await (seam.egmRunner || runGlmGoldfishReview)(root, { draft: loaded, config, call: ({ stage, request, logPath }) => { void stage; const providerId = payload.provider || loaded.provider; if (!providerId) { const refusal = new Error("select a configured provider for the glm-goldfish EGM review"); refusal.statusCode = 400; throw refusal; } const entry = planningEntry(root, payload, { ...artifact, title: artifact.title || loaded.intent }, "planning-review", providerId); return planningCall(seam, entry, { logPath, request }); } })
+          ? await (seam.egmRunner || runGlmGoldfishReview)(root, { draft: loaded, config, call: async ({ stage, request, logPath }) => { void stage; const providerId = payload.provider || loaded.provider; if (!providerId) { const refusal = new Error("select a configured provider for the glm-goldfish EGM review"); refusal.statusCode = 400; throw refusal; } const entry = await planningEntry(root, payload, { ...artifact, title: artifact.title || loaded.intent }, "planning-review", providerId); return planningCall(seam, entry, { logPath, request }); } })
           : await (seam.egmRunner || runEgmReview)(root, { cfg: configOnly, draft: loaded });
         if (run.timedOut || run.exitCode !== 0) {
           const failure = new Error(`EGM review failed (exit ${run.exitCode}). The raw run is preserved at ${run.workdir}; no review was recorded.`);
@@ -806,7 +816,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       if (artifact.plan_contract_version !== 2) return json(res, 409, { ok: false, error: "local skeleton and legacy drafts need a version 2 model plan first — use Complete with model, then review" });
       validatePlanArtifact(artifact);
       validatePlanGrounding(root, artifact, { repoRoot });
-      const entry = planningEntry(root,payload,{...artifact,title:artifact.title||loaded.intent},'planning-review',providerId);
+      const entry = await planningEntry(root,payload,{...artifact,title:artifact.title||loaded.intent},'planning-review',providerId);
       if (!planningConcurrentAllowed(root) && planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — plan review waits until the run gate is free (or set planning.concurrentWithQueueRun=true in manager settings)" });
       acquireReviewLock(loaded.dir);
       reviewKey = "acquired";
@@ -865,7 +875,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       if (!providerId) return json(res, 400, { ok: false, error: "this draft has no retained provider — select one before refining" });
       if (!planningConcurrentAllowed(root) && planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — planning calls wait until the run gate is free (or set planning.concurrentWithQueueRun=true in manager settings)" });
       const targetTitle = payload.taskTarget ? (normalizeProposals(loaded.artifact).find((proposal) => proposal.id === String(payload.taskTarget))?.title || loaded.artifact?.title || loaded.intent) : (loaded.artifact?.title || loaded.intent);
-      const entry = planningEntry(root, payload, { title: targetTitle }, "planning", providerId);
+      const entry = await planningEntry(root, payload, { title: targetTitle }, "planning", providerId);
       const updated = await refinePlanDraft(root, draftId, message, {
         confirm: payload.confirm === true,
         provider: entry.id,
@@ -927,7 +937,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
       const loaded = loadPlanDraft(root, draftId);
       const providerId = payload.provider || loaded.provider;
       if (!providerId) return json(res, 400, { ok: false, error: "this draft has no retained provider — select one before regenerating" });
-      const entry = planningEntry(root,payload,normalizeProposals(loaded.artifact).find(p=>p.id===proposalId)||{title:loaded.intent},'planning',providerId);
+      const entry = await planningEntry(root,payload,normalizeProposals(loaded.artifact).find(p=>p.id===proposalId)||{title:loaded.intent},'planning',providerId);
       if (!planningConcurrentAllowed(root) && planningRunActive(root)) return json(res, 409, { ok: false, error: "an overnight queue run is active — planning calls wait until the run gate is free (or set planning.concurrentWithQueueRun=true in manager settings)" });
       const updated = await regenerateProposal(root, draftId, proposalId, {
         confirm: payload.confirm === true,
@@ -963,7 +973,7 @@ async function handlePlanEndpoint(root, res, pathname, req, seam = {}) {
 // Spec 021 "My Tasks" endpoints. Reads serve the dashboard from the local
 // store; the manual check and the clock hook mirror /api/routines semantics.
 // The PAT never enters any response: it stays inside the engine's call scope.
-async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, reviews, triage, jira, seam, origin) {
+async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureConnectionState, reviews, triage, jira, seam, origin) {
   const path = url.pathname;
   const fail = (error) => {
     // Preparation errors carry an explicit statusCode (409 conflict, 404 gone)
@@ -1023,26 +1033,14 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
       return json(res, 200, { ok: true, ...status });
     }
     if (req.method === "GET" && path === "/api/my-tasks/projects") {
-      const tokenInfo = await azureToken();
-      const settings = myTasks.settings();
-      const cfg = readManagerConfig(root).intake?.azure || {};
-      if (!tokenInfo) return json(res, 200, { ok: true, connected: false, token_present: false, identity: null, projects: [] });
-      const listed = await myTasks.projects();
-      json(res, 200, { ok: true, connected: true, token_present: true, credential_source: Boolean(cfg.org_url && cfg.project) ? "saved-connection" : "saved-connection", org_url: cfg.org_url || "", project: cfg.project || "", identity: listed.identity, projects: listed.projects, settings });
-      return;
+      const connection = await azureConnectionState();
+      if (!connection.token) return json(res, 200, { ok: true, connected: false, token_present: false, identity: null, projects: [] });
+      const listed = await myTasks.projects(connection);
+      return json(res, 200, { ok: true, connected: true, token_present: true, credential_source: "saved-connection", org_url: connection.cfg.org_url || "", project: connection.cfg.project || "", identity: listed.identity, projects: listed.projects, settings: myTasks.settings() });
     }
     if (req.method === "GET" && path === "/api/my-tasks/settings") {
-      const tokenInfo = await azureToken();
-      const cfg = readManagerConfig(root).intake?.azure || {};
-      // Expose the saved connection's id so auth failures in the setup dialog
-      // can offer a direct Re-authenticate action for that connection.
-      const store = loadConnections(root, readManagerConfig(root).intake || {});
-      const azureConnection = store.connections.find(c => c.id === store.defaults.azure && c.provider === "azure")
-        || store.connections.find(c => c.provider === "azure" && c.enabled)
-        || store.connections.find(c => c.provider === "azure" && c.settings.org_url === cfg.org_url && c.settings.project === cfg.project)
-        || null;
-      json(res, 200, { ok: true, settings: myTasks.settings(), connection: { id: azureConnection?.id || null, name: azureConnection?.name || "", org_url: azureConnection?.settings.org_url || cfg.org_url || "", project: azureConnection?.settings.project || cfg.project || "", token_present: Boolean(tokenInfo), remember_supported: await dpapiSupported() } });
-      return;
+      const { record, cfg, token } = await azureConnectionState();
+      return json(res, 200, { ok: true, settings: myTasks.settings(), connection: { id: record?.id || null, name: record?.name || "", org_url: cfg.org_url || "", project: cfg.project || "", token_present: Boolean(token), remember_supported: await dpapiSupported() } });
     }
     if (req.method === "POST" && path === "/api/my-tasks/settings") {
       const payload = JSON.parse(await readBody(req) || "{}");
@@ -1155,7 +1153,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
         const profile = cfg.providers || {};
         let entry;
         try {
-          entry = planningEntry(root, { provider: payload.provider, model: payload.model }, { title: `Discovery #${myTasks.item(key).id}`, risk: "normal" }, "prep-discovery", profile.use || profile.default);
+          entry = await planningEntry(root, { provider: payload.provider, model: payload.model }, { title: `Discovery #${myTasks.item(key).id}`, risk: "normal" }, "prep-discovery", profile.use || profile.default);
         } catch (error) {
           return json(res, 400, { ok: false, error: `Discovery provider is not ready — no request was sent: ${error.message}` });
         }
@@ -1176,7 +1174,8 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureToken, r
         return json(res, 200, { ok: true, ...view() });
       }
       if (action === "handoff") {
-        const handoff = handoffPreparation(root, key, { azureCfg: readManagerConfig(root).intake?.azure || {}, repositoryIds: Array.isArray(payload.repository_ids) ? payload.repository_ids.map(String) : null });
+        const { cfg } = await azureConnectionState();
+        const handoff = handoffPreparation(root, key, { azureCfg: cfg, repositoryIds: Array.isArray(payload.repository_ids) ? payload.repository_ids.map(String) : null });
         return json(res, 200, { ok: true, handoff, ...view() });
       }
       json(res, 404, { ok: false, error: "not found" });
@@ -1214,6 +1213,20 @@ const stableSnapshotFingerprint = value => {
 };
 
 export function createControlPlaneServer(root, { host = "127.0.0.1", planningInvoke = null, planningRoot = null, usageFetch = globalThis.fetch, publishFetch = globalThis.fetch, assetRoot = path.dirname(CONTROL_PLANE_FILE), readOnlyPreview = false, intakeAdapters = {}, egmRunner = null, myTasksFetch = null, myTasksReviewInvoke = null, taskTriageInvoke = null, jiraTransportCall = null, azureFetch = globalThis.fetch } = {}) {
+  const runningBatches = new Set();
+  function runAuthorizedBatch(id) {
+    runningBatches.add(id);
+    void runBatch(root, id, { onProgress: () => {} }).catch(() => {}).finally(() => runningBatches.delete(id));
+  }
+  function dispatchDueBatch() {
+    if (readOnlyPreview || runningBatches.size || programRunnerActive(root) || planningRunActive(root) || run.status === "running") return false;
+    const due = listBatches(root).filter(batch => batch.scheduled_at && batch.valid && Date.parse(batch.scheduled_at) <= Date.now()
+      && (batch.status === "scheduled" || (batch.status === "running" && batch.items.every(item => item.status === "pending" && item.attempts === 0))))
+      .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))[0];
+    if (!due || !activateScheduledBatch(root, due.id)) return false;
+    runAuthorizedBatch(due.id);
+    return true;
+  }
   if (!new Set(["127.0.0.1", "::1", "localhost"]).has(host)) throw new Error("control plane only supports loopback hosts");
   // Project identity in every health answer lets clients verify they adopted
   // the right owner before treating it as the project's daemon (issue #34).
@@ -1291,12 +1304,27 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     }
     return azureUiToken || envToken || null;
   }
+  async function myTasksAzureConnection() {
+    const intake = readManagerConfig(root).intake || {};
+    const legacy = intake.azure || {};
+    const store = loadConnections(root, intake);
+    const enabled = store.connections.filter(record => record.provider === "azure" && record.enabled);
+    const record = enabled.find(record => record.id === store.defaults.azure) || enabled[0]
+      || store.connections.find(record => record.provider === "azure" && record.legacy && azureIdentity(record.settings) === azureIdentity(legacy))
+      || null;
+    if (!record) return { record, cfg: legacy, token: await currentAzureToken() };
+    const matchesLegacy = azureIdentity(record.settings) === azureIdentity(legacy);
+    const cfg = { ...(matchesLegacy ? legacy : {}), ...record.settings };
+    const token = await connectionAzureToken(record).catch(() => null)
+      || (matchesLegacy ? await currentAzureToken() : null);
+    return { record, cfg, token };
+  }
   seam.azureToken = currentAzureToken;
   // Spec 021 "My Tasks": the scheduler lives in this server process. It keeps
   // polling while the browser tab is closed and stops with the service.
   let reviews, triage;
   const jira = createJiraMcp(root, { transportCall: jiraTransportCall, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); } } });
-      const myTasks = createMyTasksEngine(root, { token: currentAzureToken, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); void reviews?.tick().catch((error) => process.stderr.write(`[ATL reviews tick] ${error?.message || error}\n`)); } }, ...(myTasksFetch ? { requestImpl: myTasksFetch } : {}) });
+      const myTasks = createMyTasksEngine(root, { connection: myTasksAzureConnection, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); void reviews?.tick().catch((error) => process.stderr.write(`[ATL reviews tick] ${error?.message || error}\n`)); } }, ...(myTasksFetch ? { requestImpl: myTasksFetch } : {}) });
   const azureItems = myTasks.items.bind(myTasks), azureItem = myTasks.item.bind(myTasks);
   myTasks.items = () => { const data = azureItems(); return { ...data, items: [...data.items, ...(jira.config().enabled ? jira.items() : [])], jira: jira.status() }; };
   myTasks.item = key => azureItem(key) || (jira.config().enabled ? jira.items().find(i => i.key === key) : null);
@@ -1318,7 +1346,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     invoke: myTasksReviewInvoke || (async packet => {
       const cfg = readManagerConfig(root), profile = cfg.providers || {};
       if (!profile.use && !profile.default) throw Object.assign(new Error('Review provider is not configured.'), { code: 'REVIEW_PROVIDER_UNAVAILABLE' });
-      const entry = planningEntry(root, {}, { title: packet.item.title, risk: 'normal', skill: 'atl-audit' }, 'sage', profile.use || profile.default);
+      const entry = await planningEntry(root, {}, { title: packet.item.title, risk: 'normal', skill: 'atl-audit' }, 'sage', profile.use || profile.default);
       assertModelAllowed(cfg, entry.id, entry.model);
       if (quotaStatus(root, entry.id, entry.model).status === 'exhausted') throw Object.assign(new Error('Review provider quota exhausted.'), { code: 'REVIEW_PROVIDER_UNAVAILABLE' });
       const request = { my_tasks_review: true, locale: packet.locale, validation_feedback: packet.validation_feedback, task: { id: packet.item.id, title: packet.item.title, state: packet.item.state, description: String(packet.item.description_text || '').slice(0, 16000), acceptance_criteria: String(packet.item.acceptance_criteria || '').slice(0, 8000) }, evidence: packet.evidence, repositories: packet.repositories, skills: packet.skills };
@@ -1332,7 +1360,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     canRun: () => backgroundCanRun() && (!triage?.settings().enabled || quotaStatus(root, triage.settings().provider, triage.settings().model).status !== 'exhausted'),
     invoke: taskTriageInvoke || (async packet => {
       const cfg = readManagerConfig(root), selected = packet.settings;
-      const entry = planningEntry(root, { provider: selected.provider, model: selected.model }, { title: 'Task urgency', risk: 'normal' }, 'task-triage', selected.provider);
+      const entry = await planningEntry(root, { provider: selected.provider, model: selected.model }, { title: 'Task urgency', risk: 'normal' }, 'task-triage', selected.provider);
       if (entry.id !== selected.provider || entry.model !== selected.model) throw Error('Configured GLM Flash model is unavailable; fallback is disabled.');
       assertModelAllowed(cfg, entry.id, entry.model);
       if (quotaStatus(root, entry.id, entry.model).status === 'exhausted') throw Error('Provider quota exhausted');
@@ -1344,10 +1372,11 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   triage.validateSettings = async selected => {
     if (!selected.enabled) return;
     if (taskTriageInvoke) return;
-    const listed = [...providerView(root).providers, ...providerView(root).builtin].find(p => p.id === selected.provider);
+    const view = await providerView(root);
+    const listed = [...view.providers, ...view.builtin].find(p => p.id === selected.provider);
     const models = [listed?.model, ...(listed?.models || []).map(m => typeof m === 'string' ? m : m.id)];
     if (!listed || !models.includes(selected.model) || !/glm.*flash/i.test(selected.model)) throw Error('Select a GLM Flash model listed by the configured provider.');
-    const entry = planningEntry(root, { provider: selected.provider, model: selected.model }, { title: 'Task urgency', risk: 'normal' }, 'task-triage', selected.provider);
+    const entry = await planningEntry(root, { provider: selected.provider, model: selected.model }, { title: 'Task urgency', risk: 'normal' }, 'task-triage', selected.provider);
     if (entry.id !== selected.provider || entry.model !== selected.model) throw Error('Select an available GLM Flash model; fallback is disabled.');
     assertModelAllowed(readManagerConfig(root), entry.id, entry.model);
   };
@@ -1404,6 +1433,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   streamTimer.unref?.();
   const maintenanceTimer = setInterval(() => { try { scheduledBackup(root, { intervalHours: 24, retention: 10 }); pruneBackups(root, 10); } catch { /* maintenance retries next pass */ } }, 60 * 60_000);
   maintenanceTimer.unref?.();
+  const batchTimer = readOnlyPreview ? null : setInterval(() => {
+    try { dispatchDueBatch(); } catch { /* Recheck durable authorization on the next tick. */ }
+  }, 5000);
+  batchTimer?.unref?.();
   try { scheduledBackup(root, { intervalHours: 24, retention: 10 }); pruneBackups(root, 10); } catch { /* maintenance retries next pass */ }
   const server = http.createServer(async (req, res) => {
     try {
@@ -1455,6 +1488,44 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       }
       if (req.method === "GET" && url.pathname === "/control-plane-changes.js") {
         sendJavascript(res, assetRoot, "control-plane-changes.js"); return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/verification-policy") {
+        if (!hasOwnerSession(req, root) || !isSameLoopbackOrigin(req, server))
+          return json(res, 403, { ok: false, error: "Owner session required" });
+        const { taskId, policy } = JSON.parse(await readBody(req));
+        try {
+          mutateState(root, (state) => {
+            const task = taskId && Object.hasOwn(state.tasks, taskId) ? state.tasks[taskId] : null;
+            if (taskId && !task) throw new Error("Unknown task");
+            setVerificationPolicy(state, task, policy);
+          });
+        } catch (error) {
+          return json(res, 400, { ok: false, error: error.message });
+        }
+        return json(res, 200, { ok: true });
+      }
+      if (req.method === "GET" && url.pathname === "/api/test-evidence") {
+        const taskId = url.searchParams.get("taskId");
+        if (taskId) {
+          if (!hasOwnerSession(req, root)) return json(res, 403, { ok: false, error: "Owner session required" });
+          const state = loadState(root);
+          const task = Object.hasOwn(state.tasks, taskId) ? state.tasks[taskId] : null;
+          if (!task) return json(res, 404, { ok: false, error: "Unknown task" });
+          let revision = task.verification_revision;
+          if (task.workspace && task.evidence?.length) {
+            try { revision = verificationSnapshot(root, task.workspace, { storeBlobs: false }).revision; }
+            catch { revision = "unavailable"; }
+          }
+          return json(res, 200, { ok: true, evidence: { ...testEvidence(task, revision, root),
+            effective_policy: verificationPolicy(state, task), override: task.verification_policy || null } });
+        }
+        if (!hasOwnerSession(req, root, { navigation: true })) return json(res, 403, { ok: false, error: "Owner session required" });
+        const name = url.searchParams.get("file") || "output.txt";
+        const artifact = verificationArtifact(root, url.searchParams.get("id") || "", name);
+        if (artifact === null) return json(res, 404, { ok: false, error: "Evidence artifact is unavailable" });
+        res.writeHead(200, { "content-type": name.endsWith(".png") ? "image/png" : "text/plain; charset=utf-8",
+          "cache-control": "no-store", "x-content-type-options": "nosniff" });
+        return res.end(artifact);
       }
       if (req.method === "GET" && url.pathname === "/api/snapshot") {
         const cursor = Number(url.searchParams.get("cursor") || 0);
@@ -1515,7 +1586,14 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           if (url.pathname === "/api/task-impact-children") {
             json(res, 200, readImpactChildren(root, task, { captureId: url.searchParams.get("changeSetId"), fileId: url.searchParams.get("fileId"), cursor: url.searchParams.get("cursor") || 0 })); return;
           }
-          const record = capture ? captureChangeReview(root, task) : readChangeReview(root, task, url.searchParams.get("changeSetId"));
+          let record;
+          try {
+            record = capture ? captureChangeReview(root, task) : readChangeReview(root, task, url.searchParams.get("changeSetId"));
+          } catch (error) {
+            if (url.pathname !== "/api/task-changes" || error.code !== "handoff_unavailable") throw error;
+            json(res, error.status, { error: error.message, availability: error.code, revisions: listChangeReviews(root, task) });
+            return;
+          }
           if (url.pathname === "/api/task-change-diff") {
             if (!url.searchParams.get("changeSetId") || !record) throw new ChangeReviewError("change_set_missing", "A pinned change set is required", 400);
             json(res, 200, { change_set_id: record.id, ...fileDiff(root, record, url.searchParams.get("fileId")) }); return;
@@ -1712,7 +1790,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           if (!id) { json(res, 200, { ok: true, batches: listBatches(root), running: [...runningBatches] }); return; }
           const batch = readBatch(root, id);
           if (!batch) { json(res, 404, { ok: false, error: `unknown batch ${id}` }); return; }
-          const summary = batchSummary(batch);
+          const summary = describeBatch(batch);
           let morning = null;
           try { morning = JSON.parse(fs.readFileSync(path.join(root, ".trust", "manager", "batches", `${id}-summary.json`), "utf8")); } catch { morning = null; }
           json(res, 200, { ok: true, summary, morning, running: runningBatches.has(id) }); return;
@@ -1721,6 +1799,15 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         const payload = JSON.parse(await readBody(req) || "{}");
         const id = String(payload.id || payload.batch_id || "");
         try {
+          if (payload.action === "authorize") {
+            if (payload.confirm !== true) { json(res, 400, { ok: false, error: "Batch execution requires explicit authorization." }); return; }
+            const batch = authorizeBatch(root, {
+              id, tasks: payload.tasks, startAt: payload.start_at ?? null, failurePolicy: payload.failure_policy,
+              limits: { max_minutes: payload.max_minutes, max_attempts: payload.max_attempts },
+            });
+            dispatchDueBatch();
+            json(res, 202, { ok: true, summary: describeBatch(readBatch(root, batch.id) || batch) }); return;
+          }
           if (payload.action === "start") {
             const batch = startBatch(root, {
               id,
@@ -1739,8 +1826,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             if (!check.ok) { json(res, 409, { ok: false, error: `batch checkpoint is invalid: ${check.reason}` }); return; }
             if (batch.status === "recovery_required") { json(res, 409, { ok: false, error: "batch needs reconciliation before it can run" }); return; }
             if (batch.status !== "running") { json(res, 409, { ok: false, error: `batch is ${batch.status}` }); return; }
-            runningBatches.add(id);
-            runBatch(root, id, { onProgress: () => {} }).catch(() => {}).finally(() => runningBatches.delete(id));
+            runAuthorizedBatch(id);
             json(res, 202, { ok: true, status: "running" }); return;
           }
           if (payload.action === "stop") { json(res, 200, { ok: true, summary: batchSummary(stopBatchRun(root, id, { reason: String(payload.reason || "stopped by owner") })) }); return; }
@@ -1889,9 +1975,13 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
               const managerFile = path.join(root, 'config', 'manager.json'), managerTemp = `${managerFile}.${crypto.randomUUID()}.tmp`;
               fs.writeFileSync(managerTemp, JSON.stringify(manager, null, 2) + '\n'); fs.renameSync(managerTemp, managerFile);
               azureTokenIdentity = azureLoadedIdentity = azureIdentity(record.settings);
-              myTasks.resume(); // a reconnect lifts the scheduler's auth pause
             }
             saveConnections(root, data, payload.revision);
+            if (healedToken && (await myTasksAzureConnection()).record?.id === id) {
+              myTasks.resume();
+              const settings = myTasks.settings();
+              if (settings.enabled && settings.schedule_on && settings.projects.length) void myTasks.check({ reason: 'reconnected' }).catch(() => {});
+            }
             json(res, 200, { ok: true, revision: data.revision, credential_source: record.credential_ref }); return;
           }
           if (req.method === 'PATCH' && id) {
@@ -2565,7 +2655,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         return;
       }
       if (req.method === "GET" && url.pathname === "/api/providers") {
-        json(res, 200, { ok: true, ...providerView(root) });
+        json(res, 200, { ok: true, ...await providerView(root) });
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/providers") {
@@ -2586,7 +2676,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         }catch(error){return json(res,400,{ok:false,error:error.message});}
       }
       if (url.pathname === "/api/my-tasks" || url.pathname.startsWith("/api/my-tasks/")) {
-         await handleMyTasksEndpoint(root, res, url, req, myTasks, currentAzureToken, reviews, triage, jira, seam, serverOrigin(server));
+         await handleMyTasksEndpoint(root, res, url, req, myTasks, myTasksAzureConnection, reviews, triage, jira, seam, serverOrigin(server));
         return;
       }
       if (req.method === "POST" && url.pathname.startsWith("/api/plan/")) {
@@ -2600,12 +2690,12 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
     }
   });
   server.rotateOwnerSession = () => { ownerSession = rotateOwnerSession(root); return ownerSession; };
-  server.once("close", () => { clearInterval(streamTimer); clearInterval(maintenanceTimer); myTasks.stop(); reviews.stop(); triage.stop(); void jira.stop(); clearOwnerSession(root, ownerSession.token); }); // schedulers and owner session die with the service
+  server.once("close", () => { clearInterval(streamTimer); clearInterval(maintenanceTimer); clearInterval(batchTimer); myTasks.stop(); reviews.stop(); triage.stop(); void jira.stop(); clearOwnerSession(root, ownerSession.token); }); // schedulers and owner session die with the service
   // Owner-lifecycle observability for the `ui` command's daemon loop
   // (heartbeat + idle exit). Reads live server state without HTTP.
   server.atlObservability = {
     lastRequestAt: () => lastRequestAt,
-    streamCount: () => programRunnerActive(root) ? 1 : 0,
+    streamCount: () => programRunnerActive(root) || runningBatches.size || listBatches(root).some(batch => batch.status === "scheduled" && batch.valid) ? 1 : 0,
   };
   return server;
 }

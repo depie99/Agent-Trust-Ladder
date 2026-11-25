@@ -4,7 +4,7 @@ ATL retains source-backed claims, context, and lessons locally. Learning means r
 
 ## Inspect and recall
 
-Open **Knowledge** and inspect a claim's source and revision before reuse.
+Open **Knowledge → Claims** to filter by review status, freshness, or attention needed. Expand **Record details** for the full revision and the matching archived source record. **Sources** lists the archived records, while **Skills & routines** shows promoted skills and registered routines.
 
 ```sh
 atl memory status
