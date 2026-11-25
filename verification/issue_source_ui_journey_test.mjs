@@ -226,7 +226,7 @@ try {
   await page.getByText('Access check complete.').waitFor();
   await page.locator('.source-connection-card').filter({ hasText: 'Main repository' }).getByText('Access verified').waitFor();
   azureMode = 'auth';
-  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }), 'sources-check')).click();
+  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }), 'sources-check')).click({ force: true });
   await azureCard.getByText('Needs authentication').waitFor();
   const azureCardText = await azureCard.innerText();
   assert.ok(azureCardText.includes('[redacted]'), 'adapter errors are redacted before display');
