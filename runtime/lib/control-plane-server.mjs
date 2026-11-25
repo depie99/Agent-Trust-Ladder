@@ -204,7 +204,9 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE), embed
   // surface needs the i18n dictionary and the two auxiliary bundles ahead of
   // it. (The stale inline demo controller this rewrite used to replace is
   // gone from the artifact itself — issue #60 removed it.)
-  let bodyText = replaceExactlyOnce(source, '<script src="./control-plane-client.js">', '<script src="./control-plane-i18n.js"></script><script src="./control-plane-changes.js"></script><script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">', 'live controller scripts');
+  let bodyText = source.includes('<script src="./control-plane-client.js">')
+    ? replaceExactlyOnce(source, '<script src="./control-plane-client.js">', '<script src="./control-plane-i18n.js"></script><script src="./control-plane-changes.js"></script><script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">', 'live controller scripts')
+    : source;
   // The checked-in standalone artifact predates the live client and places
   // the body inside the flex topbar. Close that shell boundary for the live
   // surface; otherwise the header's flex rules squeeze and center the page.
