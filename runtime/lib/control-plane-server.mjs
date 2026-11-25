@@ -38,6 +38,8 @@ import { latestFailureSignatures, preventionStatus, recoverMemory, selectContext
 import { clearOwnerSession, ensureOwnerSession, ownerSessionCookie, rotateOwnerSession, validateOwnerSession } from "./session-auth.mjs";
 import { approveDraftPr, createDeliveryPacket, listDeliveryPackets, taskDeliveryReceiptFromRecord } from "./delivery.mjs";
 import { inspectHandoffChain, snapshot as verificationSnapshot } from "./handoffs.mjs";
+import { taskBlockerDetail, taskLogTails } from "./task-diagnostics.mjs";
+import { applyBlockerFix } from "./blocker-fix.mjs";
 import { ChangeReviewError, describeChanges, fileDiff } from "./task-changes.mjs";
 import { captureChangeReview, listChangeReviews, readChangeReview, unavailableReview, readTaskReviewState, writeTaskReviewState } from "./change-review-store.mjs";
 import { buildExecutionProjection, readImpactChildren } from "./execution-projection.mjs";
@@ -1444,7 +1446,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       let consumedRunPreview = null;
       const boundHost = hostHeaderForServer(server);
       if (!boundHost || req.headers.host !== boundHost) { json(res, 403, { ok: false, error: "request Host must match the bound loopback address and port" }); return; }
-      if ((url.pathname === "/api/snapshot" || url.pathname === "/api/task-recovery" || url.pathname.startsWith("/api/backups")) && req.method === "GET" && !hasOwnerSession(req, root)) {
+      if ((url.pathname === "/api/snapshot" || url.pathname === "/api/task-recovery" || url.pathname === "/api/task-diagnosis" || url.pathname.startsWith("/api/backups")) && req.method === "GET" && !hasOwnerSession(req, root)) {
         json(res, 403, { ok: false, error: "An authenticated owner session is required for this read." }); return;
       }
       if (readOnlyPreview && !["GET", "HEAD", "OPTIONS"].includes(req.method || "GET")) { json(res, 403, { ok: false, error: "Synthetic UI preview is read-only; live task actions are unavailable." }); return; }
@@ -1624,6 +1626,24 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
         const state = loadState(root); const task = state.tasks[String(url.searchParams.get("taskId") || "")];
         if (!task) { json(res, 404, { error: "Task not found." }); return; }
         json(res, 200, { ok: true, proposal: inspectHandoffChain(root, task, state.tasks, { includeFiles: true }) }); return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/task-diagnosis") {
+        const state = loadState(root); const taskId = String(url.searchParams.get("taskId") || ""); const task = state.tasks[taskId];
+        if (!task) { json(res, 404, { error: "Task not found." }); return; }
+        const diagnosis = taskBlockerDetail(root, task);
+        json(res, 200, { ok: true, taskId, diagnosis, log_tails: taskLogTails(root, taskId).map(({ name, tail, truncated }) => ({ name, tail, truncated })) }); return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/task-recovery/fix") {
+        if (!hasOwnerSession(req, root)) { json(res, 403, { ok: false, error: "An authenticated owner session is required for this fix." }); return; }
+        try {
+          const payload = JSON.parse(await readBody(req) || "{}");
+          if (payload.confirm !== true) { json(res, 400, { ok: false, error: "Explicit confirmation is required before applying a fix." }); return; }
+          const result = applyBlockerFix(root, String(payload.taskId || ""), payload.fix || {}, {
+            installProvider: (provider) => startBuiltinOperation(provider, "install", providerConfig(root)),
+          });
+          json(res, 200, { ok: true, ...result });
+        } catch (error) { json(res, 400, { ok: false, error: error.message }); }
+        return;
       }
       if (url.pathname === "/api/browser-access" && ["GET", "POST"].includes(req.method)) {
         try {

@@ -24,6 +24,10 @@ try {
   const proposal = inspectHandoffChain(root, state.tasks["T-002"], state.tasks);
   assert.equal(proposal.ready, false); assert.equal(proposal.items[0].handoff, "legacy");
   assert.match(proposal.items[0].reason, /revalidation/);
+  assert.equal(proposal.actions[0].task, "T-001");
+  assert.match(proposal.actions[0].reason, /revalidation/);
+  assert.ok(proposal.actions[0].next_actions.some((action) => action.kind === "revalidate-handoff"));
+  assert.doesNotMatch(JSON.stringify(proposal.actions), /Review each unavailable handoff/);
   assert.equal(assistantContext(root, "T-002").dependencies[0].id, "T-001");
   assert.equal(assistantContext(root, "T-002").handoffs[0].handoff, "legacy");
   assert.throws(() => assistantContext(root, "../secret"), /Invalid/);

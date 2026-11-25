@@ -74,10 +74,14 @@ function truncated(list, cap) {
   return { items: list.slice(0, cap), truncated: true };
 }
 
-function sessionOutcome(session) {
+function sessionOutcome(session, ownEvidenceCount = 0) {
   if (session.timedOut) return "failed";
   if (session.exitCode === null || session.exitCode === undefined) return session.finishedAt ? "unknown" : "running";
-  return session.exitCode === 0 ? "complete" : "failed";
+  if (session.exitCode === 0) {
+    const unchanged = session.statusBefore && session.statusAfter && session.statusBefore === session.statusAfter;
+    return unchanged && ownEvidenceCount === 0 ? "no-state-change" : "complete";
+  }
+  return "failed";
 }
 
 // Failure records arrive in several shapes: {summary} from attempt failers,
@@ -179,7 +183,7 @@ export function buildExecutionProjection(root, taskId, options = {}) {
       status_after: session.statusAfter || null,
       packet_revision: session.packetRevision ?? null,
       checkpoint: session.checkpoint ? { note: session.checkpoint.note || null, summary: session.checkpoint.summary || session.checkpoint.note || null, at: session.checkpoint.at || session.finishedAt || null } : null,
-      outcome: sessionOutcome(session),
+      outcome: sessionOutcome(session, ownEvidence.length),
       summary: session.failure ? failureSummary(session.failure) : (session.checkpoint?.summary || session.checkpoint?.note || null),
       failure: session.failure ? { summary: failureSummary(session.failure), next_action: session.failure.next_action || null } : null,
       tokens: session.tokens && session.tokens.total != null ? { total: session.tokens.total, source: session.usage_source || session.tokens.source || "unknown" } : null,

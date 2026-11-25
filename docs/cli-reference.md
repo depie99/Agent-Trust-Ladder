@@ -61,8 +61,9 @@ Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   escalate <id> --reason "..." --actor <role>
 
 Owner gates (the human's levers, no incantations)
-  why [task-id]                 the full "why" behind every active task — complete
-                                blocker text, never truncated, plus the exact fix command
+  why [task-id]                 full blocker reason, what happened, every recorded
+                                next action, exact command/route, log and session ids,
+                                plus per-handoff reasons and fixes; never truncated
   approve <task-id> [--note "..."]
                                 the owner gate in one word: records your approval as
                                 durable evidence, clears an approval blocker, and
@@ -535,7 +536,7 @@ Enter these inside the Control Plane CLI console or the terminal command console
 | Console syntax | Effect class | Purpose |
 |---|---|---|
 | `help` | read | list commands |
-| `why [task-id]` | read | explain blockers and next actions |
+| `why [task-id]` | read | full blocker reason, diagnosis and next actions |
 | `show [task-id]` | read | inspect a task or active portfolio |
 | `review <task-id> [--mermaid / --json]` | read | inspect captured diffs and execution impact |
 | `brief` | read | render the manager brief |

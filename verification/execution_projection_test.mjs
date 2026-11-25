@@ -83,6 +83,20 @@ assert.equal(buildExecutionProjection(root, "T-NOPE").availability, "unknown_tas
   assert.ok(withEvidence.graph.edges.some((edge) => edge.provenance === "recorded" && edge.label === "session-linked evidence"), "check links only through its recorded session id");
 }
 
+// A zero exit code is not progress. When the worker starts and ends at the
+// same status without recording session-linked evidence, the attempt must be
+// labeled honestly instead of showing a green check.
+{
+  const records = [
+    { id: "S4", taskId: "T-100", role: "rowan", provider: "codex", model: "gpt-6.2-sol", startedAt: "2026-11-18T08:00:00Z", finishedAt: "2026-11-18T08:01:00Z", exitCode: 0, statusBefore: "assigned", statusAfter: "assigned" },
+  ];
+  const projected = buildExecutionProjection(root, "T-100", { state, records, events: [], revisions: [], files: [] });
+  const attempt = projected.stages.find((stage) => stage.key === "implementation")?.attempts[0];
+  assert.equal(attempt?.outcome, "no-state-change", "exit 0 without a transition is not Complete");
+  assert.equal(attempt?.status_before, "assigned");
+  assert.equal(attempt?.status_after, "assigned");
+}
+
 // Failure summaries must never string lapse into "[object Object]": provider
 // failures arrive as {kind, reason}, thrown errors as {message}, some records
 // carry {summary} or a bare string. (Issue #87.)

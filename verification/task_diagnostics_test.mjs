@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { emptyState, createTask, transition, saveState, loadState } from "../runtime/lib/state.mjs";
-import { taskRecoveryReport, taskLogTails, stalledTaskFailure } from "../runtime/lib/task-diagnostics.mjs";
+import { taskRecoveryReport, taskLogTails, stalledTaskFailure, workerStallFailure, taskBlockerDetail, packageFailureGuidance } from "../runtime/lib/task-diagnostics.mjs";
 import { renderTask } from "../runtime/lib/render.mjs";
 import { buildInvocation } from "../runtime/lib/worker.mjs";
 import { recoverPreparedTasks, stalledHandoffFailure, executeLaunchQueue } from "../runtime/lib/launch.mjs";
@@ -93,5 +93,39 @@ try {
   assert.equal(persisted.recovery.cause, "verification-required");
   assert.equal(persisted.recovery.attempts.length, 0);
   assert.match(persisted.blocker.reason, /rendered-evidence/);
-  console.log("PASS: recorded blocker diagnosis, no false repairs, scoped roles, latest evidence and bounded redacted logs");
+  // A worker that exits without advancing must not reduce its diagnosis to
+  // "inspect the log and feed": the session record already holds the cause.
+  const diagnosisRoot = fs.mkdtempSync(path.join(os.tmpdir(), "atl-stall-diagnosis-"));
+  try {
+    const sessionDir = path.join(diagnosisRoot, ".trust/manager/overnight/T-090");
+    fs.mkdirSync(sessionDir, { recursive: true });
+    fs.writeFileSync(path.join(sessionDir, "session-01-rowan-123.json"), JSON.stringify({
+      provider: "codex", model: "gpt-6.2-sol", statusBefore: "assigned", statusAfter: "assigned",
+      providerFailure: { kind: "provider-model-unavailable", scope: "model", reason: "The selected model is not available to this provider CLI or login. Re-run with a model the installed CLI supports (for a Codex ChatGPT sign-in: gpt-5.6-terra), or update the provider CLI." },
+    }));
+    fs.writeFileSync(path.join(sessionDir, "session-01-rowan-123.log"), "ERROR: model_not_found\napi_key=secret-should-not-persist\n");
+    const diagnosed = workerStallFailure(diagnosisRoot, "T-090", "", "assigned");
+    assert.equal(diagnosed.cause, "provider-model-unavailable");
+    assert.equal(diagnosed.recovery_owner, "owner");
+    assert.match(diagnosed.detail, /gpt-5\.6-terra/);
+    assert.equal(diagnosed.next_actions.find((action) => action.kind === "provider-model").model, "gpt-5.6-terra");
+    assert.equal(diagnosed.next_actions.find((action) => action.kind === "provider-install").command, "npm install --global @openai/codex@0.169.0");
+    assert.doesNotMatch(JSON.stringify(diagnosed), /secret-should-not-persist/);
+    const blockedTask = { id: "T-090", status: "blocked", cause: "execution", reason: "worker did not advance T-090 from assigned; inspect the log and feed", blocker: { cause: "execution", reason: "worker did not advance T-090 from assigned; inspect the log and feed" } };
+    assert.equal(taskBlockerDetail(diagnosisRoot, blockedTask).source, "session-log");
+    const record = recordBlocker(blockedTask, diagnosed);
+    assert.equal(blockedTask.blocker.detail, diagnosed.detail);
+    assert.equal(blockedTask.blocker.next_actions[0].kind, "provider-model");
+    assert.equal(taskBlockerDetail(diagnosisRoot, blockedTask).source, "blocker");
+    recordBlocker(blockedTask, { ...diagnosed, reason: "different wording, same cause" });
+    assert.equal(blockedTask.recovery_records.length, 1, "diagnosis detail does not change blocker identity");
+    fs.writeFileSync(path.join(sessionDir, "session-02-rowan-456.json"), JSON.stringify({ statusBefore: "assigned", statusAfter: "assigned", providerFailure: null }));
+    fs.writeFileSync(path.join(sessionDir, "session-02-rowan-456.log"), "every command execution is auto-denied (\"no approval surface\")\n");
+    const denied = workerStallFailure(diagnosisRoot, "T-090", "no approval surface", "assigned");
+    assert.equal(denied.cause, "runner-tool-policy");
+    assert.match(denied.detail, /stayed assigned/);
+    assert.ok(denied.next_actions.some((action) => action.kind === "inspect-log"));
+    assert.match(packageFailureGuidance("Locked dependencies are not prepared", diagnosisRoot).next_actions[0].command, /^npm ci --offline/);
+  } finally { fs.rmSync(diagnosisRoot, { recursive: true, force: true }); }
+  console.log("PASS: recorded blocker diagnosis, no false repairs, scoped roles, latest evidence, bounded logs and structured stall detail");
 } finally { fs.rmSync(root, { recursive: true, force: true }); }

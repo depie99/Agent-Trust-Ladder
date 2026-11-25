@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { prepareInputs, startBaseline } from "./handoffs.mjs";
+import { packageFailureGuidance, providerFailureGuidance } from "./task-diagnostics.mjs";
 import { checkProjectReadiness, validateProjectVerifier } from "../../skills/atl/scripts/project-verifier.mjs";
 
 function inside(workspace, relative) {
@@ -12,7 +13,10 @@ function inside(workspace, relative) {
 }
 export function dispatchPreflight(root, task, tasks, { providerReady = true, provisionLocal = false, execute = spawnSync, allowIntegration = false } = {}) {
   if (!programTaskReady(task)) return { ready: false, cause: "program-dependency", recovery_owner: "owner", reason: "program milestone prerequisites are not verified or authorization is paused" };
-  if (!providerReady) return { ready: false, cause: "provider-unavailable", recovery_owner: "owner", reason: "provider executable or credentials unavailable" };
+  if (!providerReady) {
+    const guidance = providerFailureGuidance({ kind: "provider-unavailable", reason: "Provider executable or credentials unavailable." }, { provider: task.provider_route?.provider || null });
+    return { ready: false, cause: "provider-unavailable", recovery_owner: "owner", reason: guidance.detail, ...guidance };
+  }
   if (!task.workspace || !fs.existsSync(task.workspace)) return { ready: false, cause: "workspace", reason: "isolated workspace unavailable" };
   const verifierPath = task.verifier_manifest || ".atl-verifier.json";
   const verifierFile = inside(task.workspace, verifierPath);
@@ -61,7 +65,7 @@ export function dispatchPreflight(root, task, tasks, { providerReady = true, pro
         { name: "bun", lock: bunLock, marker: ".bun", args: ["install", "--frozen-lockfile", "--offline", "--ignore-scripts"], label: "install --frozen-lockfile --offline --ignore-scripts" },
       ];
       const locked = providers.find((provider) => fs.existsSync(provider.lock));
-      if (!locked) return { ready: false, cause: "locked-dependencies", recovery_owner: "owner", reason: "package-lock.json, yarn.lock, pnpm-lock.yaml, or bun.lock required for reproducible dependency preparation" };
+      if (!locked) return { ready: false, cause: "locked-dependencies", recovery_owner: "owner", reason: "package-lock.json, yarn.lock, pnpm-lock.yaml, or bun.lock required for reproducible dependency preparation", next_actions: [{ kind: "inspect-workspace", label: "Add a lockfile", instruction: "Commit the project's lockfile into the task workspace, then rerun dispatch preflight. ATL does not generate or guess dependency versions.", workspace: task.workspace }] };
       const manager = locked.name;
       const lock = fs.readFileSync(locked.lock);
       const dependencyReceipt = JSON.stringify({ lock: lock.toString("base64"), manifest: pkg, manager });
@@ -76,10 +80,16 @@ export function dispatchPreflight(root, task, tasks, { providerReady = true, pro
         const result = process.platform === "win32"
           ? execute(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `${command} ${args.join(" ")}`], { cwd: task.workspace, encoding: "utf8", timeout: 600000, windowsHide: true, env })
           : execute(command, args, { cwd: task.workspace, encoding: "utf8", timeout: 600000, env });
-        if (result.status !== 0) return { ready: false, cause: "local-dependencies-unavailable", recovery_owner: "owner", reason: `locked packages unavailable (${manager}); ${manager === "npm" ? "network is not authorized" : "install failed"}: ${String(result.stderr || result.error || `${command} install failed`).slice(-2000)}` };
+        if (result.status !== 0) {
+          const guidance = packageFailureGuidance(`locked packages unavailable (${manager}); ${manager === "npm" ? "network is not authorized" : "install failed"}: ${String(result.stderr || result.error || `${command} install failed`).slice(-2000)}`, task.workspace);
+          return { ready: false, cause: "local-dependencies-unavailable", recovery_owner: "owner", reason: guidance.detail, ...guidance };
+        }
         fs.writeFileSync(receipt, dependencyReceipt); fresh = true;
       }
-      if (!fresh) return { ready: false, cause: "local-dependencies", reason: `Locked dependencies are not prepared in this task workspace (${manager} lockfile): the install marker or the matching .atl-dependencies.json receipt is missing or stale. Automatic preparation is disabled (workspaces.provisionLocal is not true). Enable workspaces.provisionLocal and run recovery; ATL will run ${manager} ${locked.label} without a model session.` };
+      if (!fresh) {
+        const guidance = packageFailureGuidance(`Locked dependencies are not prepared in this task workspace (${manager} lockfile): the install marker or the matching .atl-dependencies.json receipt is missing or stale. Automatic preparation is disabled (workspaces.provisionLocal is not true).`, task.workspace);
+        return { ready: false, cause: "local-dependencies", recovery_owner: "owner", reason: guidance.detail, ...guidance };
+      }
     }
   }
   for (const command of contract.commands || []) {

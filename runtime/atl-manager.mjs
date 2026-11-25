@@ -332,8 +332,9 @@ Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   escalate <id> --reason "..." --actor <role>
 
 Owner gates (the human's levers, no incantations)
-  why [task-id]                 the full "why" behind every active task — complete
-                                blocker text, never truncated, plus the exact fix command
+  why [task-id]                 full blocker reason, what happened, every recorded
+                                next action, exact command/route, log and session ids,
+                                plus per-handoff reasons and fixes; never truncated
   approve <task-id> [--note "..."]
                                 the owner gate in one word: records your approval as
                                 durable evidence, clears an approval blocker, and
@@ -1788,6 +1789,8 @@ async function dispatch() {
         console.log(`${t.id} [${t.status}] (${t.priority}${t.risk === "risky" ? "/risky" : ""}) ${t.title}`);
         console.log(`  why: ${r.why}`);
         if (r.since) console.log(`  blocked ${r.since}${r.actor ? ` by ${r.actor}` : ""}`);
+        for (const line of r.diagnosis_lines || []) console.log(`  ${line}`);
+        for (const line of r.handoff_lines || []) console.log(`  ${line}`);
         if (r.fix) console.log(`  fix: ${r.fix}`);
         console.log("");
       }

@@ -8,7 +8,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { reconcileLeases } from "./leases.mjs";
 import { recordBlocker } from "./queue-recovery.mjs";
-import { readHandoff } from "./handoffs.mjs";
+import { inspectHandoffChain, readHandoff } from "./handoffs.mjs";
+import { formatBlockerDiagnosis, formatHandoffActions, taskBlockerDetail, taskLogTails } from "./task-diagnostics.mjs";
 
 const WORKERS = new Set(["pip", "rowan", "sage", "beacon"]);
 const ACTIVE_STATUSES = new Set(["new", "triaged", "assigned", "in_progress", "in_review", "verifying", "blocked", "escalated"]);
@@ -170,12 +171,23 @@ export function explainTasks(root, taskId) {
     const blockerText = typeof t.blocker === "string" ? t.blocker : t.blocker?.reason || "";
     switch (t.status) {
       case "blocked": {
-        const approvalGate = APPROVAL_RE.test(blockerText);
-        const humanAction = requiresHumanAction(blockerText);
+        const diagnosis = taskBlockerDetail(root, t);
+        const handoffs = (t.plan_depends_on || []).length ? inspectHandoffChain(root, t, state.tasks) : null;
+        const text = `${blockerText}\n${diagnosis.detail || ""}`;
+        const approvalGate = APPROVAL_RE.test(text);
+        const humanAction = requiresHumanAction(text);
         return {
           ...base,
           kind: approvalGate ? "owner-approval" : humanAction ? "human-action" : "blocked",
           why: blockerText || "blocked without a recorded reason — ask the blocking role to re-state it",
+          detail: diagnosis.detail,
+          next_actions: diagnosis.next_actions,
+          handoffs: (handoffs?.actions || []).map((item) => ({ task: item.task, title: item.title, status: item.status, handoff: item.handoff, reason: item.reason, workspace: item.workspace, workspaceAvailable: item.workspaceAvailable !== false, next_actions: item.next_actions })),
+          diagnosis_lines: formatBlockerDiagnosis({ detail: diagnosis.detail, next_actions: diagnosis.next_actions, log_path: diagnosis.log_path, session_id: diagnosis.session_id }),
+          handoff_lines: formatHandoffActions(handoffs?.actions || []),
+          log_path: diagnosis.log_path || taskLogTails(root, t.id)[0]?.name || null,
+          session_id: diagnosis.session_id,
+          source: diagnosis.source,
           fix: approvalGate
             ? `atl approve ${t.id} --note "why you approve"`
             : humanAction
