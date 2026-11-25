@@ -2,24 +2,32 @@ import assert from "node:assert/strict";
 
 export async function checkPanelPlanningAndAssistant(frame, taskTitle) {
   const nav = (page) => frame.locator(`#mobile [data-page="${page}"]`);
-  await nav("studio").click();
-  const narrowPlanTab = frame.locator('[data-action="studio-pane:plan"]');
-  if (await narrowPlanTab.isVisible()) await narrowPlanTab.click();
-  else await frame.getByRole("button", { name: "Focus Plan", exact: true }).click();
+  const taskVisible = async () => frame.getByText(taskTitle, { exact: true }).first().waitFor();
 
+  // The shipped panel routes its assistant through the Ask ATL page (chat rail
+  // + composed message), not the retired task-scoped assistant surface.
   await nav("assistant").click();
-  const search = frame.locator("#askHistorySearch");
-  await frame.locator("#assistantMessage").waitFor();
-  await search.fill(taskTitle);
-  await frame.getByRole("button", { name: "Project conversation", exact: false }).waitFor({ state: "hidden" });
-  await frame.getByRole("button", { name: taskTitle, exact: false }).click();
-  const conversation = frame.locator("[data-ask-scope]:not([data-ask-scope=global])");
-  await conversation.locator("#assistantMessage").fill("Review this task's acceptance checks.");
-  await conversation.getByRole("button", { name: "Review & reuse" }).click();
-  await frame.locator("#assistantReviewText").fill("Keep the acceptance checks observable.");
-  await frame.getByRole("button", { name: "Use in Plan Studio" }).click();
-  await frame.locator("#goal").waitFor({ state: "visible" });
-  assert.match(await frame.locator("#goal").inputValue(), /Keep the acceptance checks observable/);
+  await frame.locator("#askInput").waitFor();
+  assert.equal(await frame.locator("#askSearch").count(), 1, "Ask ATL chat search ships in the panel");
+  const message = "Review this task's acceptance checks.";
+  await frame.locator("#askInput").fill(message);
+  await frame.locator('[data-action="ask-picker"]').first().click();
+  await frame.locator('[data-action="ask-picker-tab:project"]').click();
+  await frame.locator("#askPickerProject").check();
+  await frame.locator('[data-action="ask-picker-apply"]').click();
+  assert.ok(await frame.locator(".ask-composer-chips .ask-chip").count() >= 1, "applied context appears in the panel composer");
+
+  // The draft and its context survive a route change in the embedded panel.
+  await nav("tasks").click();
+  await taskVisible();
+  await nav("assistant").click();
+  assert.equal(await frame.locator("#askInput").inputValue(), message, "Ask ATL draft survives a panel repaint");
+
+  // Plan Studio still generates a deterministic local skeleton from a goal.
+  await nav("studio").click();
+  const conversationTab = frame.locator('[data-action="studio-pane:conversation"]');
+  if (await conversationTab.isVisible()) await conversationTab.click();
+  await frame.locator("#goal").fill("Keep the acceptance checks observable.");
   await frame.locator(".studio-settings > summary").click();
   await frame.getByRole("button", { name: "Local skeleton", exact: true }).click();
   await frame.getByRole("button", { name: "Generate local skeleton", exact: true }).click();
@@ -28,5 +36,5 @@ export async function checkPanelPlanningAndAssistant(frame, taskTitle) {
   if (await planTab.isVisible()) await planTab.click();
   await frame.getByText("Local skeleton · structure only", { exact: true }).waitFor();
   await nav("tasks").click();
-  await frame.getByText(taskTitle, { exact: true }).first().waitFor();
+  await taskVisible();
 }
