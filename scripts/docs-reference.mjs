@@ -1,4 +1,4 @@
-﻿// Regenerate source-derived references before building the public website.
+// Regenerate source-derived references before building the public website.
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';

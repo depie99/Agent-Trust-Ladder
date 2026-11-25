@@ -5,7 +5,7 @@ import path from "node:path";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import {
   DEFAULT_QUEUE_ID, loadQueue, loadQueueBook, migrateQueueStore, queueAdd,
-  queueArchive, queueCreate, queueList, queueSetActive, saveQueueBook,
+  queueArchive, queueCreate, queueList, queueSetActive,
 } from "../runtime/lib/queue.mjs";
 import { createControlPlaneSnapshot } from "../runtime/lib/control-plane.mjs";
 import { listNotifications, notificationUnreadCount, postNotification, updateNotification } from "../runtime/lib/notifications.mjs";

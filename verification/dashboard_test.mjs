@@ -3,7 +3,6 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import { emptyState, saveState } from '../runtime/lib/state.mjs';
-import { fileURLToPath } from "node:url";
 import { createDashboardSnapshot, renderDashboard, renderPortfolio, resolveTaskSource } from "../runtime/lib/dashboard.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-dashboard-fixture-'));

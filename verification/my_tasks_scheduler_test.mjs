@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { emptyMyTasksStore, myTasksSettingsFile, myTasksStoreFile, readMyTasksSettings, readMyTasksStore, writeMyTasksStore } from "../runtime/lib/my-tasks.mjs";
+import { emptyMyTasksStore, myTasksSettingsFile, readMyTasksSettings, readMyTasksStore, writeMyTasksStore } from "../runtime/lib/my-tasks.mjs";
 import { buildWindowsMyTasksStartupScript, startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
 
 // Spec 021 scheduler lifecycle, driven through the server API with explicit

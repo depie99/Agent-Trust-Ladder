@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { controlPlaneProject } from './fixtures/control-plane-project.mjs';
 
