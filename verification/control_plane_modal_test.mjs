@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import vm from "node:vm";
 import { chromium } from "playwright";
 import { emptyState, saveState } from "../runtime/lib/state.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
@@ -10,8 +11,18 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "atl-modals-"));
 fs.mkdirSync(path.join(root, "config"));
 fs.writeFileSync(path.join(root, "config", "manager.json"), JSON.stringify({ version: 1 }));
 const state = emptyState();
-state.tasks["T-022"] = { id: "T-022", title: "Handle mixed-direction dynamic content across task details and evidence", objective: "Make dynamic Control Plane content bidi-safe while preserving readable task evidence.", status: "blocked", priority: "normal", blocker: { reason: "Rendered inspection remains blocked because the task workspace lacks the required snapshot. Review the scoped diff and evidence before resuming." }, completion_checks: ["Rendered inspection shows correct task title", "Bidi paths remain isolated"], review_required: true, input_revisions: { "T-018": "a".repeat(40), "T-019": "b".repeat(40) }, execution_budget: { used: 1, max_sessions: 3 } };
+state.tasks["T-021"] = { id: "T-021", title: "Record the baseline", status: "done", completion_checks: [], evidence: [] };
+state.tasks["T-022"] = { id: "T-022", title: "Handle mixed-direction dynamic content across task details and evidence", objective: "Make dynamic Control Plane content bidi-safe while preserving readable task evidence.", status: "blocked", priority: "normal", blocker: { reason: "worker did not advance T-022 from assigned; inspect the log and feed", cause: "provider-model-unavailable", detail: "The selected model gpt-6.2-sol is not available to this provider CLI or login. Rerun with gpt-5.6-terra or update the provider CLI.", log_path: ".trust/manager/overnight/T-022/session-01-rowan-123.log", next_actions: [{ kind: "provider-model", label: "Use a supported model", instruction: "Rerun with gpt-5.6-terra or update the provider CLI.", provider: "codex", model: "gpt-5.6-terra" }] }, plan_depends_on: ["T-021"], completion_checks: ["Rendered inspection shows correct task title", "Bidi paths remain isolated"], review_required: true, input_revisions: { "T-018": "a".repeat(40), "T-019": "b".repeat(40) }, execution_budget: { used: 1, max_sessions: 3 } };
 saveState(root, state);
+// A session that changed nothing must never inherit the green "Complete" pill.
+const clientSource = fs.readFileSync(new URL("../runtime/control-plane-client.js", import.meta.url), "utf8");
+const pillStart = clientSource.indexOf("  const workspaceOutcomePill =");
+assert.ok(pillStart >= 0);
+const pillScope = vm.createContext({});
+vm.runInContext(`${clientSource.slice(pillStart, clientSource.indexOf("\n  };", pillStart) + 5)}\nglobalThis.workspaceOutcomePill = workspaceOutcomePill;`, pillScope);
+assert.match(pillScope.workspaceOutcomePill("no-state-change"), /No state change/);
+assert.doesNotMatch(pillScope.workspaceOutcomePill("no-state-change"), /Complete/);
+assert.match(pillScope.workspaceOutcomePill("complete"), /✓ Complete/);
 fs.mkdirSync(path.join(root, ".trust/manager/assistant"), { recursive: true });
 fs.writeFileSync(path.join(root, ".trust/manager/assistant/T-022.json"), JSON.stringify({ scope: "T-022", status: "failed", mode: "fix", provider: "gapgpt", messages: [], output: "browser_preview was denied.", diagnostic: "MCP tool call requires approval, but approval policy is never" }));
 let browser, server;
@@ -56,12 +67,35 @@ try {
     // body, so target the first instance.
     await workspace.locator('[data-action="unblock:T-022"]').first().waitFor();
     await workspace.locator('[data-action="task-recovery:T-022"]').first().waitFor();
-    // The recovery popup itself must offer the owner's unblock action (issue #88).
+    await workspace.locator(".blocker-detail").first().waitFor();
+    assert.match(await workspace.locator(".blocker-detail").first().textContent(), /What happened/);
+    assert.match(await workspace.locator(".blocker-detail").first().textContent(), /gpt-6\.2-sol/);
+    assert.match(await workspace.locator(".blocker-detail").first().textContent(), /gpt-5\.6-terra/);
+    // The recovery popup names the actual handoff and its next action instead
+    // of showing a generic "unavailable handoff" step.
     await workspace.locator('[data-action="task-recovery:T-022"]').first().click();
     await dialog.locator('[data-action="unblock:T-022"]').waitFor();
     assert.match(await dialog.locator("#modalTitle").textContent(), /Recovery proposal · T-022/, "the recovery proposal popup is open");
+    const proposalText = await dialog.locator(".dialogbody").textContent();
+    assert.match(proposalText, /T-021 · Record the baseline/);
+    assert.match(proposalText, /Next actions/);
+    assert.doesNotMatch(proposalText, /Review each unavailable handoff/);
     await page.keyboard.press("Escape");
     assert.equal(await dialog.count(), 0, "closing the recovery popup leaves the task untouched");
+    // A recorded fix is previewed with its exact solution, then confirmed.
+    let confirmedFix = null;
+    await page.route("**/api/task-recovery/fix", async (route) => {
+      confirmedFix = route.request().postDataJSON();
+      await route.fulfill({ json: { ok: true, detail: "Provider route set to codex/gpt-5.6-terra.", requiresUnblock: true } });
+    });
+    await workspace.locator('[data-action="blocker-fix:T-022:0"]').first().click();
+    assert.match(await dialog.locator(".dialogbody").textContent(), /codex\/gpt-5\.6-terra/);
+    await dialog.locator('[data-action="blocker-fix-confirm:T-022:0"]').click();
+    assert.equal(confirmedFix?.confirm, true);
+    assert.equal(confirmedFix?.fix?.model, "gpt-5.6-terra");
+    await dialog.getByText(/Provider route set to codex\/gpt-5\.6-terra/).waitFor();
+    await page.keyboard.press("Escape");
+    await page.unroute("**/api/task-recovery/fix");
     // Operator tools stay reachable; the route flow returns to the workspace.
     await workspace.locator('[data-action="task-actions:T-022"]').click();
     await dialog.locator('[data-action="task-route:T-022"]').click();

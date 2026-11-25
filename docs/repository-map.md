@@ -250,6 +250,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/azure-connection.mjs](../runtime/lib/azure-connection.mjs) | Windows DPAPI encrypts for the current OS user. No PAT is put in argv, |
 | [runtime/lib/backup.mjs](../runtime/lib/backup.mjs) | Recoverable project-local snapshots. Backups are explicit owner operations; |
 | [runtime/lib/batch-runner.mjs](../runtime/lib/batch-runner.mjs) | Manager-side adapter for one finite sequential batch. The checkpoint rules |
+| [runtime/lib/blocker-fix.mjs](../runtime/lib/blocker-fix.mjs) | Owner-gated, allowlisted repairs for recorded blocker next actions. No |
 | [runtime/lib/brain.mjs](../runtime/lib/brain.mjs) | Evidence-linked project memory. Human-readable knowledge may live in |
 | [runtime/lib/browser-access.mjs](../runtime/lib/browser-access.mjs) | browser access: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/change-review-store.mjs](../runtime/lib/change-review-store.mjs) | Review notes are separate from immutable capture manifests. Anchors always |
@@ -622,6 +623,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/azure_skills_delivery_test.mjs](../verification/azure_skills_delivery_test.mjs) | Executable regression check for azure skills delivery. |
 | [verification/backup_test.mjs](../verification/backup_test.mjs) | Executable regression check for backup. |
 | [verification/batch_api_ui_test.mjs](../verification/batch_api_ui_test.mjs) | Executable regression check for batch api ui. |
+| [verification/blocker_fix_test.mjs](../verification/blocker_fix_test.mjs) | Executable regression check for blocker fix. |
 | [verification/brain_recovery_test.mjs](../verification/brain_recovery_test.mjs) | Executable regression check for brain recovery. |
 | [verification/brain_test.mjs](../verification/brain_test.mjs) | Executable regression check for brain. |
 | [verification/browser_access_test.mjs](../verification/browser_access_test.mjs) | Executable regression check for browser access. |

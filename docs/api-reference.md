@@ -109,9 +109,11 @@ The bundled MCP host exposes atl_plan_*, atl_run_*, atl_program_*, and atl_proje
 | `/api/task-change-diff` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-changes` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-changes/capture` | `runtime/lib/control-plane-server.mjs` |
+| `/api/task-diagnosis` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-execution` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-impact-children` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-recovery` | `runtime/lib/control-plane-server.mjs` |
+| `/api/task-recovery/fix` | `runtime/lib/control-plane-server.mjs` |
 | `/api/task-review-state` | `runtime/lib/control-plane-server.mjs` |
 | `/api/tasks/provider-route` | `runtime/lib/control-plane-server.mjs` |
 | `/api/tasks/repository` | `runtime/lib/control-plane-server.mjs` |
