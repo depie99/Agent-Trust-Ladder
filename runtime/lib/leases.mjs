@@ -1,6 +1,5 @@
 // Durable session leases with fencing generations. A late worker can still
 // exit, but its result is rejected by the generation check before mutation.
-import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { withFileLock, readJson, atomicJson } from "./file-transaction.mjs";

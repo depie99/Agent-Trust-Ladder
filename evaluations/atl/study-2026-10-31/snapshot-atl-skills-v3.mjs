@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -31,4 +31,3 @@ for (const file of files) hash.update(file.path).update('\0').update(file.sha256
 const manifest = { source_root: 'skills/atl and skills/atl-* from Agent-Trust-Ladder working tree', snapshot_path: destination, sha256: hash.digest('hex'), files };
 fs.writeFileSync(path.join(destination, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 console.log(JSON.stringify({ snapshot_path: destination, files: files.length, sha256: manifest.sha256 }, null, 2));
-

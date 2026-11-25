@@ -13,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { paths, loadState, saveState, createTask, logEvent } from "./state.mjs";
+import { loadState, saveState, createTask, logEvent } from "./state.mjs";
 import { post as feedPost } from "./feed.mjs";
 import { addClaim, archiveSource } from "./brain.mjs";
 
