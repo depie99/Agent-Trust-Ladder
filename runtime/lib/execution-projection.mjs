@@ -85,9 +85,9 @@ function sessionOutcome(session) {
 // Prefer the human-readable field; never let a bare object reach the card as
 // "[object Object]".
 function failureSummary(failure) {
-  if (failure == null) return null;
+  if (!failure) return null;
   const direct = failure.summary ?? failure.message ?? failure.reason;
-  const text = direct != null ? direct : (typeof failure === "string" ? failure : JSON.stringify(failure));
+  const text = direct ?? (typeof failure === "string" ? failure : JSON.stringify(failure));
   return String(text).slice(0, 400);
 }
 
