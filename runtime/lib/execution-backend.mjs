@@ -1,4 +1,4 @@
-﻿import { ensureWorkspace } from './workspace.mjs';
+import { ensureWorkspace } from './workspace.mjs';
 import { executeLaunchQueue, readOvernightRun, reconcileOvernightRun, requestRunAbort } from './launch.mjs';
 import { loadState } from './state.mjs';
 import { ensureDaemon } from './daemon.mjs';

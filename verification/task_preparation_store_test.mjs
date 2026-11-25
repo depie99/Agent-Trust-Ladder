@@ -6,11 +6,11 @@ import path from "node:path";
 import {
   PrepConflictError, addManualInvestigation, addPreparationQuestion, answerPreparationQuestion,
   assertPreparationReady, beginDiscoveryRun, buildDiscoveryPrompt, candidateFromPreparation,
-  defaultNextAction, derivePreparationStatus, finishDiscoveryRun, handoffPreparation,
+  defaultNextAction, finishDiscoveryRun, handoffPreparation,
   parseDiscoveryJson, preparationInventory, preparationSeedContext, preparationView,
   readPreparation, savePreparationBrief, seedPreparation, validateDiscoveryOutput, writePreparation,
 } from "../runtime/lib/task-preparation.mjs";
-import { emptyMyTasksStore, readMyTasksStore, writeMyTasksStore, workItemKey } from "../runtime/lib/my-tasks.mjs";
+import { emptyMyTasksStore, writeMyTasksStore, workItemKey } from "../runtime/lib/my-tasks.mjs";
 import { emptyState, loadState, saveState } from "../runtime/lib/state.mjs";
 import { registerProject } from "../runtime/lib/supervisor.mjs";
 

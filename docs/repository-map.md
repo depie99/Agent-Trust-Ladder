@@ -387,7 +387,7 @@ Build, installation, validation, and maintenance programs.
 | [scripts/check-relative-imports.mjs](../scripts/check-relative-imports.mjs) | check relative imports: source/configuration for its containing feature. |
 | [scripts/check-tracked-paths.mjs](../scripts/check-tracked-paths.mjs) | check tracked paths: source/configuration for its containing feature. |
 | [scripts/docs-preview.mjs](../scripts/docs-preview.mjs) | Read-only synthetic UI for documentation captures. No real issue adapters. |
-| [scripts/docs-reference.mjs](../scripts/docs-reference.mjs) | docs reference: source/configuration for its containing feature. |
+| [scripts/docs-reference.mjs](../scripts/docs-reference.mjs) | Regenerate source-derived references before building the public website. |
 | [scripts/install-atl.cmd](../scripts/install-atl.cmd) | install atl: source/configuration for its containing feature. |
 | [scripts/install-atl.sh](../scripts/install-atl.sh) | ATL team installer — puts the `atl` CLI in ~/.atl. |
 | [scripts/install.mjs](../scripts/install.mjs) | ATL team installer — puts the atl CLI in ~/.atl for the current user. |
