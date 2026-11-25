@@ -10,7 +10,8 @@ import { programTaskReady, admitProgramSession, settleProgramSession } from './p
 
 import fs from "node:fs";
 import path from "node:path";
-import { paths, loadState, saveState, logEvent, transition } from "./state.mjs";
+import { runVerifier, testEvidence, verificationPolicy } from "./test-evidence.mjs";
+import { paths, loadState, saveState, mutateState, addEvidence, logEvent, transition } from "./state.mjs";
 import { ensureWorkspace } from "./workspace.mjs";
 import { buildInvocation, isTerminal, nextRole, queueSelect, runInvocation, workerEnvPolicy, abortActiveWorker } from "./worker.mjs";
 import { post as feedPost } from "./feed.mjs";
@@ -26,11 +27,11 @@ import { buildContextPack } from "./brain.mjs";
 import { needsUiReview, probeUiReviewRuntime, uiReviewPrompt } from "./ui-review-runtime.mjs";
 import { createWorkerCredential } from "./session-auth.mjs";
 import { acquireLease, heartbeatLease, releaseLease } from "./leases.mjs";
-import { recordHandoff, readHandoff, deliveryGate, startBaseline, createDeliveryBranch, inspectHandoffChain } from "./handoffs.mjs";
+import { recordHandoff, readHandoff, deliveryGate, startBaseline, snapshot as contentSnapshot, createDeliveryBranch, inspectHandoffChain } from "./handoffs.mjs";
 import { dispatchPreflight } from "./dispatch-preflight.mjs";
 import { recordBlocker, repairBlocker, validateContracts, selectedContracts } from "./queue-recovery.mjs";
 import { recordIntegratedDelivery } from "./delivery.mjs";
-import { stalledTaskFailure } from "./task-diagnostics.mjs";
+import { latestTaskEvidence, stalledTaskFailure } from "./task-diagnostics.mjs";
 import { createWorkerChannel } from "./worker-channel.mjs";
 import { resourcePolicy, budgetDecision, routeTask, readResourceConfig } from "./resource-policy.mjs";
 import {recordExecution,learnFromExecution} from './execution-report.mjs';
@@ -58,10 +59,22 @@ export function stalledHandoffFailure(log) {
 // status instead of being containment-blocked for a kill it did not cause.
 let runAbortRequested = false;
 let sessionInterruptRequested = false;
+const activeVerifiers = new Set();
 
 export function requestRunAbort() {
   runAbortRequested = true;
+  for (const controller of activeVerifiers) controller.abort();
   abortActiveWorker();
+}
+
+async function executeTaskVerifier(root, workspace, verifier, revision, deadline) {
+  const controller = new AbortController();
+  activeVerifiers.add(controller);
+  try {
+    return await runVerifier(root, workspace, verifier, revision, Math.max(1, deadline - Date.now()), controller.signal);
+  } finally {
+    activeVerifiers.delete(controller);
+  }
 }
 
 export function requestSessionInterrupt() {
@@ -288,12 +301,66 @@ export async function driveTaskUntilGate(root, taskId, budget, {
   const report = typeof onProgress === "function" ? onProgress : console.log;
   const runDir = path.join(root, ".trust", "manager", "overnight", taskId);
   const taskSessions = () => budget.taskSessions?.get(taskId) || 0;
-  while (taskSessions() < budget.maxSessions && Date.now() < budget.deadline) {
+  let verificationEscalation = false;
+  while (Date.now() < budget.deadline) {
     if (runAbortRequested) return { status: (loadState(root).tasks[taskId] || {}).status, reason: "run aborted by operator", aborted: true };
     const state = loadState(root);
     const task = state.tasks[taskId];
     if (!task) return { status: "unknown", reason: `unknown task ${taskId}` };
     if (isTerminal(task.status) && !contractRepair) return { status: task.status, reason: task.status === "blocked" ? task.blocker?.reason || "blocked" : `already ${task.status}` };
+    if (!dryRun && task.verification_run_id !== lease.run) {
+      task.verification_run_id = lease.run;
+      task.run_verification_policy = verificationPolicy(state, task);
+    }
+    if (!dryRun && !contractRepair && task.status === "verifying" && task.verifiers?.length && task.workspace) {
+      const workspace = path.resolve(root, task.workspace);
+      const revision = contentSnapshot(root, workspace).revision;
+      const entries = [];
+      for (const verifier of task.verifiers) {
+        if (runAbortRequested || Date.now() >= budget.deadline) break;
+        entries.push(await executeTaskVerifier(root, workspace, verifier, revision, budget.deadline));
+      }
+      const latestRevision = contentSnapshot(root, workspace).revision;
+      const { state: verifiedState, result: outcome } = mutateState(root, (latest) => {
+        const current = latest.tasks[taskId];
+        if (!current || current.status !== "verifying" || (current.packet_revision || 1) !== (task.packet_revision || 1)
+            || JSON.stringify(current.verifiers) !== JSON.stringify(task.verifiers)) return { changed: true };
+        current.verification_run_id = task.verification_run_id;
+        current.run_verification_policy = task.run_verification_policy;
+        current.verification_revision = latestRevision;
+        for (const entry of entries) addEvidence(latest, taskId, { ...entry, run_id: task.verification_run_id }, "beacon");
+        const evidence = testEvidence(current, latestRevision, root);
+        const review = latestTaskEvidence(current, "review");
+        const integratedReady = !current.integrated_delivery || (evidence.verified
+          && review?.result === "approve" && review.code_revision === latestRevision);
+        if (!runAbortRequested && integratedReady && (!current.handoff_baseline || evidence.verified)
+            && (evidence.verified || current.run_verification_policy === "allow")) {
+          transition(latest, taskId, "done", { actor: "beacon", note: "Deterministic verification completed" });
+          if (current.handoff_baseline) {
+            try { recordHandoff(root, current); }
+            catch (error) {
+              current.status = "blocked";
+              current.blocker = { reason: error.message, actor: "mira", since: new Date().toISOString() };
+              recordBlocker(current, { cause: "handoff-verification", reason: error.message });
+            }
+          }
+        }
+        return { status: current.status, evidence };
+      });
+      if (outcome.changed) return { status: "verifying", reason: "Verification contract changed during execution" };
+      if (runAbortRequested) return { ...outcome, aborted: true, reason: "run aborted by operator" };
+      if (outcome.status === "blocked") return { ...outcome, reason: "Handoff verification failed", blocker: "handoff-verification" };
+      if (outcome.status === "done") return { ...outcome, reason: "Deterministic verification completed" };
+      if (outcome.evidence.policy === "block" && outcome.evidence.checks.some((check) =>
+        check.status !== "passed" && task.verifiers.some((verifier) => verifier.expected === check.expected))) {
+        return { ...outcome, reason: "Required test evidence is incomplete", blocker: "verification-required", stalled: true };
+      }
+      // Independent review and integrated delivery follow the existing worker path.
+      Object.assign(state, verifiedState);
+      Object.assign(task, state.tasks[taskId]);
+      state.tasks[taskId] = task;
+    }
+    if (taskSessions() >= budget.maxSessions) break;
     const allocation = budgetDecision(readManagerConfig(root), task, {runLimit:budget.maxSessions});
     const previousLimit = task.execution_budget?.max_sessions;
     task.execution_budget = {...task.execution_budget, version:1, max_sessions:allocation.max_sessions, used:allocation.used, source:allocation.source, ceiling:allocation.ceiling};
@@ -305,7 +372,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
 
     const evidenceBefore = (task.evidence || []).length;
     const pick = resolveWorker
-      ? resolveWorker(role, task)
+      ? resolveWorker(role, verificationEscalation && role === "beacon" ? { ...task, verification_escalation: true } : task)
       : { worker, auth, envPolicy };
     task.resource_decision = {role,budget:allocation,routing:pick.decision||null,at:new Date().toISOString()};
     if (pick.decision?.blocked) {
@@ -407,6 +474,27 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       .map((peer) => ({ id: peer.id, objective: peer.objective, completion_checks: peer.completion_checks, depends_on: peer.plan_depends_on || [], status: peer.status })) : [];
     if (task.plan_draft_id && !planReviewSnapshotCurrent(root, task.plan_draft_id)) {
       return { status: task.status, reason: "approved Plan Studio plan or its referenced evidence changed; re-review and approve the current draft before execution", failed: true, blockedLaunch: true, blocker: "stale-plan-review" };
+    }
+    const packetRevision = task.packet_revision || 1;
+    if (!dryRun && role === "rowan" && task.status === "assigned" && workspace
+        && task.verification_baseline?.packet_revision !== packetRevision) {
+      const browserVerifiers = (task.verifiers || []).filter(({ type }) => type === "browser");
+      if (browserVerifiers.length) {
+        const revision = contentSnapshot(root, workspace, { storeBlobs: false }).revision;
+        const observations = [];
+        for (const verifier of browserVerifiers) {
+          if (runAbortRequested || Date.now() >= budget.deadline) break;
+          observations.push(await executeTaskVerifier(root, workspace, verifier, revision, budget.deadline));
+        }
+        task.verification_baseline = { packet_revision: packetRevision, revision, observations };
+        saveState(root, state);
+        if (runAbortRequested) return { status: task.status, reason: "run aborted by operator", aborted: true };
+        if (Date.now() >= budget.deadline) break;
+        if (contentSnapshot(root, workspace, { storeBlobs: false }).revision !== revision) {
+          return { status: task.status, reason: "The baseline verifier modified the task source",
+            blocker: "verification-required", stalled: true };
+        }
+      }
     }
     const invocation = buildInvocation(useWorker, { root, workspace, role, task: { ...task, plan_context }, auth: useAuth, provider: useProvider, feedback, navigationContext, uiReviewRuntime });
     invocation.command = disc.path;
@@ -548,6 +636,19 @@ export async function driveTaskUntilGate(root, taskId, budget, {
       try { failure = stalledHandoffFailure(fs.readFileSync(logPath, "utf8")); } catch { /* preserve generic stall when transcript is unavailable */ }
       if (failure) return { status: task.status, reason: failure.reason, stalled: true, blockedLaunch: true, blocker: failure.cause, preflight: failure };
       const recordedFailure = stalledTaskFailure(task, nextTask);
+      if (role === "beacon" && !recordedFailure && !verificationEscalation && pick.decision?.automatic
+          && !pick.decision.pinned && pick.decision.tier !== "advanced" && taskSessions() < budget.maxSessions) {
+        const stronger = resolveWorker(role, { ...nextTask, verification_escalation: true });
+        if (stronger.decision?.selected?.model && !stronger.decision.blocked
+            && (stronger.decision.selected.provider !== pick.decision.selected.provider
+              || stronger.decision.selected.model !== pick.decision.selected.model)) {
+          verificationEscalation = true;
+          logEvent(after, { task: taskId, actor: "runner", event: "verification_model_escalated",
+            detail: "Required evidence remained unresolved after the first verification session" });
+          saveState(root, after);
+          continue;
+        }
+      }
       if (recordedFailure) return { status: task.status, reason: recordedFailure.reason, stalled: true, blocker: recordedFailure.cause, preflight: recordedFailure };
       return { status: task.status, reason: `worker did not advance ${taskId} from ${task.status}; inspect the log and feed`, stalled: true };
     }
@@ -999,6 +1100,8 @@ export async function executeLaunchQueue(root, { maxMinutes = 120, maxSessions =
       }).catch((error) => ({ status: "unknown", reason: `worker could not restart: ${error.message}`, failed: true }));
     }
     const entry = { id: fresh.id, status: outcome.status || "unknown", reason: outcome.reason, resumable: Boolean(outcome.resumable), nextRole: outcome.nextRole || null, paused: Boolean(outcome.paused), aborted: Boolean(outcome.aborted), blocker: outcome.blocker || null };
+    const settledTask = loadState(root).tasks[fresh.id];
+    if (settledTask) entry.test_evidence = testEvidence(settledTask);
     results.push(entry);
     writeRunMeta(root, { heartbeatAt: new Date().toISOString(), cursor: results.length, currentTaskId: null, results });
     if (outcome.aborted) {

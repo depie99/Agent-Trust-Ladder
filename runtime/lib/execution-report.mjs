@@ -116,7 +116,7 @@ export function executionReports(root,state,queues=[]) {
     const report=summarizeExecutions(sessions,{expectedSessions:task.execution_budget?.used||sessions.length});
     const changes=(state.log||[]).filter(event=>event.task===id&&['resource_budget','session_budget_increased'].includes(event.event));
     const decisions=report.timeline.map((row,index,ordered)=>({...row,modelChanged:index>0&&(row.provider!==ordered[index-1].provider||row.model!==ordered[index-1].model)}));
-    return [id,{...report,timeline:decisions,budget_changes:changes,route_changes:(state.log||[]).filter(event=>event.task===id&&['provider_quota_exhausted','provider_quota_failover'].includes(event.event)),current_budget:task.execution_budget||null,status:task.status}];
+    return [id,{...report,timeline:decisions,budget_changes:changes,route_changes:(state.log||[]).filter(event=>event.task===id&&['provider_quota_exhausted','provider_quota_failover','verification_model_escalated'].includes(event.event)),current_budget:task.execution_budget||null,status:task.status}];
   }));
   const queueReports=Object.fromEntries(queues.map(queue=>{
     const ids=new Set((queue.items||[]).map(item=>item.id));

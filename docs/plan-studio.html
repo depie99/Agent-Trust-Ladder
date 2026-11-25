@@ -10,7 +10,9 @@
 <p>Open <strong>Plan Studio</strong> with a request or imported issue. State the outcome, constraints, project, and acceptance examples in the composer — Enter adds a line, Ctrl/Cmd+Enter sends. Distinguish observed evidence from assumptions. Attach reference files from <strong>⚙ Settings</strong>, and start with <a href="issue-sources.html">issue sources</a> for external work.</p>
 <h2 id="generate-and-review">Generate and review</h2>
 <ol>
-<li>Inspect planning provider readiness (compact provider selector beside the composer; model, thinking effort, attachments, and skeleton mode live in <strong>⚙ Settings</strong>).</li>
+<li>Inspect planning provider readiness (compact provider selector beside the composer; model, thinking effort, attachments, and skeleton mode live in <strong>⚙ Settings</strong>).
+For a Codex ChatGPT sign-in, the picker uses the installed Codex CLI's model list. If your configured default is unavailable, Plan Studio selects the CLI's listed default.
+For key-based providers, <strong>Load models</strong> refreshes suggestions from the configured endpoint. You can also enter an exact model ID directly.</li>
 <li><strong>Generate plan</strong> sends one bounded provider call (or a free deterministic local skeleton) and the plan appears beside the conversation.</li>
 <li>Open <strong>Questions</strong> in the conversation whenever convenient. Numbered cards offer suggested answers and free text, show progress, and retain unfinished responses across closing, reopening, and reloading. Planning stays available while questions are open.</li>
 <li>Refine conversationally: with a draft open, the composer submits <strong>Update plan</strong> — one bounded refinement call that proposes a full candidate plan. The proposal lands in the Tasks tab as <strong>Proposed changes · based on rev N</strong> with added, changed, and removed task cards. <strong>Apply changes</strong> writes it against its originating revision (a manual edit in between makes it stale and refused with a reload-and-retry message; applying clears review readiness). <strong>Discard</strong> drops it. Manual edits and failed calls never touch the saved plan.</li>
@@ -21,7 +23,7 @@
 </ol>
 <p>The persistent next-step control (header and plan-pane bar) offers questions, proposed changes, review, conversation, or queue approval. Accuracy concerns do not lock the conversation or editing. Approval and queueing still require a fresh passing review with consequential issues resolved. Reopening a saved draft restores its conversation and answer assessments; older drafts default to empty assessment and question-progress records.</p>
 <p><img src="assets/screenshots/studio.jpg" alt="Plan Studio in the synthetic documentation project"></p>
-<p>Expected result: an approved plan creates bounded task packets in a queue. Editing after review invalidates its binding. A stale source revision blocks approval. A description or local preview is insufficient evidence. Below 960 px the workspace switches to Conversation/Plan tabs; the split is drag-resizable on desktop.</p>
+<p>Expected result: an approved plan creates bounded task packets in a queue. Editing after review invalidates its binding. A stale source revision blocks approval. A description or local preview is insufficient evidence. On desktop, Plan gets slightly more space in the resizable split. Use <strong>Focus Plan</strong> for full-width task and review details or <strong>Focus conversation</strong> for a single-pane chat. Below 960 px, use the Conversation and Plan tabs.</p>
 <h2 id="publish-deliberately">Publish deliberately</h2>
 <p>Inspect <strong>Publish destination</strong>, preview its GitHub or Azure destination, then confirm the exact publication. Local queue creation and remote issue creation are separate operations. Inspect existing publication mapping before retrying to avoid duplicates.</p>
 <h2 id="choose-the-review-depth">Choose the review depth</h2>

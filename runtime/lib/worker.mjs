@@ -284,7 +284,7 @@ export function abortActiveWorker() {
 // Node ≥18.20 refuses to spawn .cmd/.bat shims directly (CVE-2024-27980,
 // spawn EINVAL). Route those through cmd.exe with verbatim, self-quoted
 // arguments. Real .exe binaries spawn directly.
-function spawnPlan(command, args) {
+export function spawnPlan(command, args) {
   if (process.platform !== "win32" || !/\.(cmd|bat)$/i.test(command)) {
     return { command, args, windowsVerbatimArguments: false };
   }

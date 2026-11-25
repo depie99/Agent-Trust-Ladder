@@ -7,6 +7,8 @@ import { emptyState, saveState, loadState } from '../runtime/lib/state.mjs';
 import { startControlPlaneServer } from '../runtime/lib/control-plane-server.mjs';
 import { loadQueueBook } from '../runtime/lib/queue.mjs';
 import { verifyImportedSource } from '../runtime/lib/plan-publish.mjs';
+import { dpapiSupported, saveAzureConnection } from '../runtime/lib/azure-connection.mjs';
+import { loadConnections, saveConnections } from '../runtime/lib/issue-connections.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'atl-azure-journey-'));
 const oldPat = process.env.ATL_MOCK_AZURE_PAT;
@@ -41,6 +43,7 @@ try {
   assert.equal(calls[0].headers.Authorization, `Basic ${Buffer.from(':synthetic-only').toString('base64')}`);
   assert.equal(calls[0].allowUntrusted, false);
   assert.deepEqual(calls[1].body.ids, [741, 742]);
+  assert.equal(new URL(calls[0].url).searchParams.get('$top'), '100', 'Azure bounds the WIQL result before returning IDs');
   assert.ok(calls[1].body.fields.includes('System.Rev'));
   await assert.rejects(() => intakeFromAzure({ ...cfg, org_url: 'http://unsafe.invalid' }, { requestImpl }), /HTTPS/);
   const empty = await intakeFromAzure(cfg, { requestImpl: async () => ({ workItems: [] }) });
@@ -114,6 +117,19 @@ try {
   assert.equal((await disconnected.json()).credential_source, 'environment');
   const noOrigin = await fetch(running.url + 'api/intake/credentials/azure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: 'should-not-connect' }) });
   assert.equal(noOrigin.status, 403, 'credential changes require an authenticated same-origin UI session');
+  if (await dpapiSupported()) {
+    const connections = loadConnections(root, { azure: cfg });
+    const record = connections.connections.find(entry => entry.id === connections.defaults.azure);
+    record.enabled = true;
+    record.credential_ref = 'os-protected';
+    await saveAzureConnection(record.settings, 'scoped-test-credential', { dir: path.join(root, '.trust', 'manager', 'credentials', record.id) });
+    saveConnections(root, connections, connections.revision);
+    delete process.env.ATL_MOCK_AZURE_PAT;
+    const settings = await (await fetch(running.url + 'api/my-tasks/settings')).json();
+    assert.equal(settings.connection.id, record.id);
+    assert.equal(settings.connection.token_present, true, 'My Tasks reuses the Windows-protected source credential without a legacy token');
+    assert.equal(JSON.stringify(settings).includes('scoped-test-credential'), false);
+  }
   console.log('PASS: Azure adapter auth/WIQL/revisions/TLS/encoding/isolation → source configuration → preview → validated import → deduplication → stale source rejection');
 } finally {
   if (server) await new Promise(resolve => server.close(resolve));

@@ -4,6 +4,7 @@
 // the bootstrap path (no live daemon) keeps working for tests and scripts.
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -13,8 +14,30 @@ import { loadState, saveState, hasWrittenState } from "../runtime/lib/state.mjs"
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manager = path.join(repo, "runtime", "atl-manager.mjs");
-const project = fs.mkdtempSync(path.join(os.tmpdir(), "atl-daemon-"));
-fs.mkdirSync(path.join(project, ".git"), { recursive: true });
+
+// The deterministic-port contract is only observable when nothing already
+// listens on the hashed port: a foreign listener (a runner service, a socket
+// lingering from a sibling suite) legitimately sends the daemon to an
+// ephemeral port. Pick a project whose hashed port is actually free so the
+// assertions below test the contract instead of the environment.
+function portOccupied(port) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host: "127.0.0.1" });
+    const done = (occupied) => { socket.destroy(); resolve(occupied); };
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+  });
+}
+
+const project = await (async function projectWithFreeDeterministicPort() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = fs.mkdtempSync(path.join(os.tmpdir(), "atl-daemon-"));
+    fs.mkdirSync(path.join(candidate, ".git"), { recursive: true });
+    if (!await portOccupied(deterministicPort(canonicalRoot(candidate)))) return candidate;
+    fs.rmSync(candidate, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+  throw new Error("no temp project with a free deterministic port after 8 attempts");
+})();
 
 function run(args, extraEnv = {}) {
   return new Promise((resolve) => {

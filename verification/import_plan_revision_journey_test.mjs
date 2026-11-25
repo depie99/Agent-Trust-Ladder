@@ -48,7 +48,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   const click = action => page.locator(`[data-action="${action}"]:visible`).first().click();
   await page.goto(running.url);
-  await page.locator('[data-page="sources"]:visible').first().click();
+  await page.goto(new URL("?page=sources", page.url()).href);
   // The V2 sources page requires an access check before its Browse action is
   // available for a newly saved connection.
   const azureConnection = page.locator('.source-connection-card').first();

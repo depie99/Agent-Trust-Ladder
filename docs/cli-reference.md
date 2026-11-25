@@ -43,6 +43,9 @@ Intake (pulls new work in)
 
 Role actions (every one takes --actor pip|rowan|sage|beacon|mira|manager)
   revision <id>                print the workspace content revision
+  verifier <id> "<check>" <type> verification/<script>.mjs
+  verification-policy <project|id> <block|allow|inherit>
+  test-evidence <id>           report verification attempts and revision freshness
   observe <id> <packet.json>    record complete revision-bound observation evidence
   contract-repair <id> <file>  apply one supervisor-requested Pip contract revision
   update <id> [--set k=v]... [--check "..."]... [--objective "..."]
@@ -408,6 +411,12 @@ async function runWorkerLoop(taskId, { overnight }) {
   const finalTask = finalState.tasks[taskId];
   console.log(`\nRun stopped after ${budget.sessions} session(s): ${taskId} is ${finalTask?.status || "unknown"}.`);
   console.log(`Reason: ${outcome.reason}.`);
+  if (!opts.dryRun && finalTask) {
+    const evidence = outcome.evidence?.checks ? outcome.evidence : testEvidence(finalTask);
+    console.log(`Test Evidence: ${evidence.verified ? "verified" : "unverified"}`);
+    for (const check of evidence.checks) console.log(`  ${check.status}: ${check.expected}`);
+    console.log(`Evidence details: atl test-evidence ${taskId}`);
+  }
   console.log("Next: atl wake && atl brief --save && atl show " + taskId);
 }
 
@@ -481,7 +490,13 @@ async function runQueueLoop({ overnight }) {
   saveBrief(ROOT, renderBrief(after));
   say("runner", "queue run finished — morning brief saved.");
   console.log(`\nQueue run finished after ${budget.sessions} session(s). Results:`);
-  for (const r of results) console.log(`  ${String(r.id).padEnd(6)} ${String(r.status).padEnd(12)} ${r.reason}`);
+  for (const result of results) {
+    console.log(`  ${String(result.id).padEnd(6)} ${String(result.status).padEnd(12)} ${result.reason}`);
+    const task = after.tasks[result.id];
+    if (!task) continue;
+    const evidence = testEvidence(task, task.verification_revision, ROOT);
+    console.log(`    Test Evidence: ${evidence.verified ? "verified" : "unverified"} (atl test-evidence ${task.id})`);
+  }
   console.log("\nMorning report: atl brief   ·   transcript: atl feed --roster   ·   per task: atl show <id>");
 }
 

@@ -14,7 +14,7 @@
   async function request(url, init = {}) {
     const response = await fetch(url, { ...init, cache: "no-store", headers: { "content-type": "application/json", "x-atl-csrf": document.querySelector('meta[name="atl-csrf"]')?.content || "", ...init.headers } });
     const value = await response.json();
-    if (!response.ok) throw Object.assign(new Error(value.error || "Inspection unavailable"), { availability: value.availability });
+    if (!response.ok) throw Object.assign(new Error(value.error || "Inspection unavailable"), { availability: value.availability, revisions: value.revisions });
     return value;
   }
   function fileTree(files, state, prefix = "") {
@@ -24,7 +24,7 @@
       if (slash < 0) leaves.push(file);
       else { const directory = prefix + rest.slice(0, slash + 1); if (!directories.has(directory)) directories.set(directory, []); directories.get(directory).push(file); }
     }
-    return [...directories].map(([directory, children]) => `<details data-review-directory="${esc(directory)}" ${state.expanded.has(directory) || state.query ? "open" : ""}><summary>${code(directory.slice(prefix.length))} <span class="muted">${children.length}</span></summary>${fileTree(children, state, directory)}</details>`).join("") + leaves.map((file) => `<button type="button" class="review-file ${state.fileId === file.id ? "selected" : ""}" data-review-action="file:${file.id}" aria-pressed="${state.fileId === file.id}"><span class="pill">${label(file.kind)}</span>${code(file.path.slice(prefix.length))}${(state.review?.reviewed_files || []).some((entry) => entry.key === `${state.data.id}:${file.id}`) ? `<span class="pill green" aria-label="${label("Reviewed")}">&#10003;</span>` : ""}${(state.review?.comments || []).filter((comment) => comment.change_set_id === state.data.id && comment.file_id === file.id).length ? `<span class="pill" aria-label="${label("Comments")}">${state.review.comments.filter((comment) => comment.change_set_id === state.data.id && comment.file_id === file.id).length}</span>` : ""}</button>`).join("");
+    return [...directories].map(([directory, children]) => `<details data-review-directory="${esc(directory)}" ${state.embedded || state.expanded.has(directory) || state.query ? "open" : ""}><summary>${code(directory.slice(prefix.length))}${state.embedded ? "" : ` <span class="muted">${children.length}</span>`}</summary>${fileTree(children, state, directory)}</details>`).join("") + leaves.map((file) => `<button type="button" class="review-file ${state.fileId === file.id ? "selected" : ""}" data-review-action="file:${file.id}" aria-pressed="${state.fileId === file.id}"><span class="pill review-file-kind kind-${esc(file.kind)}" title="${label(file.kind)}">${state.embedded ? ({ added: "A", modified: "M", deleted: "D", mode_changed: "M" }[file.kind] || "M") : label(file.kind)}</span>${code(file.path.slice(prefix.length))}${(state.review?.reviewed_files || []).some((entry) => entry.key === `${state.data.id}:${file.id}`) ? `<span class="pill green review-file-reviewed" aria-label="${label("Reviewed")}">&#10003;</span>` : ""}${(state.review?.comments || []).filter((comment) => comment.change_set_id === state.data.id && comment.file_id === file.id).length ? `<span class="review-file-comments" aria-label="${label("Comments")}">♧ ${state.review.comments.filter((comment) => comment.change_set_id === state.data.id && comment.file_id === file.id).length}</span>` : ""}</button>`).join("");
   }
   function highlightCode(text, filePath) {
     const source = String(text ?? "");
@@ -51,9 +51,9 @@
       return [];
     });
   }
-  function splitPatchMarkup(patch, filePath = "") {
+  function splitPatchMarkup(patch, file) {
     const blocks = [], rows = patchRows(patch);
-    const cell = (row, side, type) => `<div class="split-line ${type}" ${row ? `data-side="${side}" data-line="${row[side]}"` : ""}><span>${row?.[side] || ""}</span><code>${row ? highlightCode(row.text, filePath) : ""}</code>${row ? `<button type="button" data-review-action="comment-at:${side}:${row[side]}" aria-label="${label(`Comment on ${side} line ${row[side]}`)}">+</button>` : ""}</div>`;
+    const cell = (row, side, type) => `<div class="split-line ${type}" ${row ? `data-side="${side}" data-line="${row[side]}"` : ""}><span>${row?.[side] || ""}</span><code>${row ? highlightCode(row.text, file.path) : ""}</code>${row ? `<button type="button" data-review-action="comment-at:${side}:${row[side]}" aria-label="${label(`Comment on ${side} line ${row[side]}`)}">+</button>` : ""}</div>`;
     for (let index = 0; index < rows.length;) {
       const row = rows[index++];
       if (row.kind === "hunk") { blocks.push(`<div class="split-hunk" tabindex="-1">${esc(row.text)}</div>`); continue; }
@@ -65,27 +65,42 @@
       while (index < rows.length && ["add", "del"].includes(rows[index].kind)) take(rows[index++]);
       for (let offset = 0; offset < Math.max(deleted.length, added.length); offset++) blocks.push(cell(deleted[offset], "old", deleted[offset] ? "del" : "empty") + cell(added[offset], "new", added[offset] ? "add" : "empty"));
     }
-    return `<div class="diff-split" dir="ltr" data-no-translate><div class="split-head">${label("Before")}</div><div class="split-head">${label("After")}</div>${blocks.join("")}</div>`;
+    const heading = (text, absent) => `<div class="split-head">${label(text)}${absent ? ` <span class="split-absent">${label("File absent")}</span>` : ""}</div>`;
+    return `<div class="diff-split" dir="ltr" data-no-translate>${heading("Before", file.kind === "added")}${heading("After", file.kind === "deleted")}${blocks.join("")}</div>`;
+  }
+  function compactThread(comment) {
+    const timestamp = comment.created_at ? new Date(comment.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+    return `<article class="review-comment ${comment.resolved ? "is-resolved" : ""}"><div class="review-comment-heading"><b>${esc(comment.author || "You")}</b><span class="muted">${esc(timestamp)}</span><span class="pill ${comment.resolved ? "green" : "amber"}">${label(comment.resolved ? "Resolved" : "Open")}</span></div><p dir="auto">${esc(comment.text)}</p>${(comment.replies || []).map(reply => `<p class="review-reply" dir="auto">${esc(reply.text)}</p>`).join("")}<div class="bar">${button("Reply", `reply:${comment.id}`)}${button(comment.resolved ? "Reopen" : "Resolve", `${comment.resolved ? "reopen" : "resolve"}:${comment.id}`)}</div></article>`;
+  }
+  function compactDraft(state) {
+    if (!state.anchor) return "";
+    return `<div class="review-comment-draft"><label for="reviewDraft">${label(state.anchor.side === "reply" ? "Reply" : "Comment")}</label><textarea id="reviewDraft" class="input" rows="3" maxlength="4000">${esc(state.draft || "")}</textarea><div class="bar">${button("Save comment", "comment-save", state.saving || state.reviewReadError ? "disabled" : "")}${button("Cancel", "comment-cancel")}</div></div>`;
   }
   function diffMarkup(state) {
     const file = state.data.files.find((entry) => entry.id === state.fileId) || state.diffs.get(state.fileId)?.file;
     if (!file) return `<p class="muted">${label("Select a file to load its diff.")}</p>`;
     const diff = state.diffs.get(file.id);
     if (!diff) return `<p role="status"><span class="running-mark" aria-hidden="true"></span><span class="muted">${label("Loading diff…")}</span></p>`;
-    if (!diff.patch) return `<p role="status">${label(diff.availability || "unavailable")}${diff.message ? ` · ${esc(diff.message)}` : ""}</p>`;
+    if (!diff.patch && !state.embedded) return `<p role="status">${label(diff.availability || "unavailable")}${diff.message ? ` · ${esc(diff.message)}` : ""}</p>`;
     // Developer-grade rendering: hunk bars, old/new line gutters, tinted
     // add/del rows. Git's ---/+++ headers are dropped (path + stats live in
     // the file header above the body).
     let hunks = 0;
     const rows = patchRows(diff.patch).map((row) => {
-      if (row.kind === "hunk") return `<div class="diff-hunkbar" tabindex="-1"><span class="pill">${label("Hunk")} ${++hunks}</span><code>${esc(row.text)}</code></div>`;
+      if (row.kind === "hunk") return `<div class="diff-hunkbar" tabindex="-1">${state.embedded ? "" : `<span class="pill">${label("Hunk")} ${++hunks}</span>`}<code>${esc(row.text)}</code></div>`;
       if (row.kind === "note") return `<div class="diff-line note"><span></span><span></span><span></span><span class="diff-code">${esc(row.text)}</span></div>`;
       const side = row.kind === "del" ? "old" : "new", line = row[side];
-      return `<div class="diff-line ${row.kind}" data-side="${side}" data-line="${line}"><span class="diff-no">${row.old || ""}</span><span class="diff-no">${row.new || ""}</span><span class="diff-sign">${row.kind === "add" ? "+" : row.kind === "del" ? "-" : ""}</span><span class="diff-code">${highlightCode(row.text, file.path)}</span><button type="button" class="diff-comment-add" data-review-action="comment-at:${side}:${line}" aria-label="${label(`Comment on ${side} line ${line}`)}">+</button></div>`;
+      const threads = state.embedded ? (state.review?.comments || []).filter(comment => comment.change_set_id === state.data.id && comment.file_id === file.id && comment.side !== "file" && ((comment.side === "old" && comment.line === row.old) || (comment.side === "new" && comment.line === row.new))).map(compactThread).join("") : "";
+      return `<div class="diff-line ${row.kind}" data-side="${side}" data-line="${line}"><span class="diff-no">${row.old || ""}</span><span class="diff-no">${row.new || ""}</span><span class="diff-sign">${row.kind === "add" ? "+" : row.kind === "del" ? "-" : ""}</span><span class="diff-code">${highlightCode(row.text, file.path)}</span><button type="button" class="diff-comment-add" data-review-action="comment-at:${side}:${line}" aria-label="${label(`Comment on ${side} line ${line}`)}">+</button></div>${threads}`;
     });
     const stats = diff.additions != null ? `<span class="pill diff-stat add" title="${esc(String(diff.additions))} added">+${esc(String(diff.additions))}</span><span class="pill diff-stat del" title="${esc(String(diff.deletions))} deleted">−${esc(String(diff.deletions))}</span>` : "";
     const kindClass = { added: "kind-add", deleted: "kind-del", modified: "kind-mod", mode_changed: "kind-mod" }[file.kind] || "";
-    const body = rows.length ? (state.split ? splitPatchMarkup(diff.patch, file.path) : `<div class="diff-view" dir="ltr" data-no-translate data-review-scroll="code:${state.data.id}:${file.id}">${rows.join("")}</div>`) : `<p role="status">${label("Empty patch")}</p>`;
+    const body = rows.length ? (state.split ? splitPatchMarkup(diff.patch, file) : `<div class="diff-view" dir="ltr" data-no-translate data-review-scroll="code:${state.data.id}:${file.id}">${rows.join("")}</div>`) : `<p role="status">${label(diff.message || diff.availability || "Empty patch")}</p>`;
+    if (state.embedded) {
+      const reviewed = (state.review?.reviewed_files || []).some(entry => entry.key === `${state.data.id}:${file.id}`);
+      const comments = (state.review?.comments || []).filter(comment => comment.change_set_id === state.data.id && comment.file_id === file.id && (comment.side === "file" || state.split));
+      return `<div class="diff-head"><code class="diff-path" title="${esc(file.path)}">${esc(file.path)}</code><div class="diff-meta">${stats}${button("‹ Prev", "file-prev")}${button("Next ›", "file-next")}${button(reviewed ? "Reviewed" : "Mark reviewed", "file-reviewed", `class="btn sm primary" aria-pressed="${reviewed}" ${state.reviewReadError || state.saving ? "disabled" : ""}`)}</div></div>${body}${comments.map(compactThread).join("")}${compactDraft(state)}<p class="review-notice" role="status">${esc(state.notice || "")}</p>`;
+    }
     return `<div class="diff-head"><code class="diff-path" title="${esc(file.path)}">${esc(file.path)}</code><div class="diff-meta"><span class="pill diff-kind ${kindClass}">${label(file.kind)}</span><span class="pill">${esc(diff.availability)}</span>${stats}${button("Copy patch", "diff-copy", "ghost")}</div></div>${body}<p class="muted tiny">${label("Task-level evidence does not prove coverage of this file.")}</p>`;
   }
 
@@ -186,6 +201,7 @@
       : `<span class="muted tiny">${label("Line counts unavailable for this capture")}</span>`;
     return `<section class="review-chart" aria-label="${label("Change profile")}"><div class="row between"><h3>${label("Change profile")}</h3>${totals}</div>${d.repository || d.workspace ? `<p class="sub">${label("Repository")}: <b>${esc(d.repository || tr("This workspace"))}</b>${d.workspace ? ` · <code class="review-path" dir="ltr">${esc(d.workspace)}</code>` : ""}</p>` : ""}<div class="review-chart-meta"><span class="muted tiny">${d.total_files} ${label("files changed")}</span>${chips ? `<span class="review-chart-kinds">${chips}</span>` : ""}</div><div class="review-chart-legend tiny muted"><span><span class="review-chart-key add" aria-hidden="true"></span> ${label("added lines")}</span><span><span class="review-chart-key del" aria-hidden="true"></span> ${label("deleted lines")}</span></div><div class="review-chart-rows">${rows.map(row).join("")}</div>${hidden > 0 ? `<p class="muted tiny review-chart-more">${hidden} ${label("more files in the file list")} ${button("Open file list", "tab:files")}</p>` : ""}</section>`;
   }
+  const revisionSource = (revision) => label(revision.source_kind === "handoff" ? "Completed handoff" : "Workspace inspection");
   function stateFor(task, initialTab) {
     const saved = (() => { try { return JSON.parse(localStorage.getItem("atl-review-ui:" + task.id) || "{}"); } catch { return {}; } })();
     const state = views.get(task.id) || { tab: saved.tab || "files", query: saved.query || "", filter: saved.filter || "all", expanded: new Set(saved.expanded || []), diffs: new Map(), scrolls: new Map(Object.entries(saved.scrolls || {})), fileId: saved.fileId || null, nodeId: null, split: saved.split === true, leftWidth: Number.isFinite(saved.leftWidth) ? Math.max(180, Math.min(520, saved.leftWidth)) : 280, data: null };
@@ -194,7 +210,8 @@
     state.review ||= { revision: 0, comments: [], reviewed_files: [] };
     state.draft ??= saved.draft || "";
     state.anchor ??= saved.anchor || null;
-    state.changeSetId ??= saved.changeSetId || null;
+    state.changeSetId ??= (task.rawStatus === "done" || task.status === "done") && !saved.explicitRevision ? null : saved.changeSetId || null;
+    state.explicitRevision ??= saved.explicitRevision === true;
     state.drafts ??= saved.drafts && typeof saved.drafts === "object" ? saved.drafts : {};
     if (state.anchor && state.changeSetId && state.fileId) state.drafts[`${state.changeSetId}:${state.fileId}`] = { text: state.draft, anchor: state.anchor };
     views.set(task.id, state);
@@ -219,16 +236,27 @@
     const state = stateFor(task, initialTab);
     return attach(task, mount, null, { token, state, focusReturn: null });
   }
+  function embeddedReviewMarkup(state, error, busy) {
+    const d = state.data, revisions = d.revisions || [];
+    const reviewed = (state.review?.reviewed_files || []).filter(entry => entry.change_set_id === d.id).length;
+    const files = d.files.filter(file => file.path.toLowerCase().includes(state.query.toLowerCase()) && (state.filter === "all" || file.kind === state.filter));
+    const tools = `<details class="review-more-tools"><summary>${label("More review tools")}</summary><div class="bar">${button("Add file comment", "comment-file")}${button("Previous hunk", "hunk-prev")}${button("Next hunk", "hunk-next")}${button("Copy patch", "diff-copy")}${button("Refresh evidence", "refresh", busy ? "disabled" : "")}${button("Capture current changes", "capture", busy ? "disabled" : "")}</div><div class="bar">${reviewTabs.map(tab => button(tab[0].toUpperCase() + tab.slice(1), `tab:${tab}`)).join("")}</div><label for="reviewFilter">${label("Change type")}</label><select id="reviewFilter" class="input">${["all", "added", "modified", "deleted", "mode_changed"].map(kind => `<option value="${kind}" ${state.filter === kind ? "selected" : ""}>${label(kind)}</option>`).join("")}</select></details>`;
+    const toolbar = `<div class="review-reference-toolbar"><details class="review-revision-picker"><summary>${label("Revision")} ${Math.max(1,revisions.length - revisions.findIndex(revision => revision.id === d.id))}${d.id === revisions[0]?.id ? ` (${label("latest")})` : ""}<span aria-hidden="true">⌄</span></summary><div class="review-revision-menu"><label for="reviewRevision">${label("Captured revision")}</label><select id="reviewRevision">${revisions.map((revision, index) => `<option value="${esc(revision.id)}" ${revision.id === d.id ? "selected" : ""}>${label("Revision")} ${revisions.length - index} ? ${revisionSource(revision)}${index === 0 ? ` (${label("latest")})` : ""}</option>`).join("") || `<option value="${esc(d.id)}">${label("Current revision")}</option>`}</select>${tools}</div></details><span class="review-source-kind pill">${revisionSource(d)}</span><b class="review-total-add">+${d.additions ?? "?"}</b><b class="review-total-del">−${d.deletions ?? "?"}</b><span class="review-total-label">${label("across")} ${d.total_files} ${label("files")}</span><span class="task-files-count review-reviewed-count">${reviewed} ${label("of")} ${d.total_files} ${label("reviewed")}</span><div class="review-mode-toggle" role="group" aria-label="${label("Diff layout")}"><button type="button" data-review-action="split-unified" aria-pressed="${!state.split}">${label("Unified")}</button><button type="button" data-review-action="split-side" aria-pressed="${state.split}">${label("Split")}</button></div></div>`;
+    const filePanel = `<div class="review-files ${state.fileOpen ? "is-file-open" : ""}" style="grid-template-columns:minmax(180px,${state.leftWidth}px) 8px minmax(0,1fr)"><aside aria-label="${label("Changed files")}"><label class="sr-only" for="reviewSearch">${label("Filter files")}</label><input class="input" id="reviewSearch" placeholder="${label("Filter files...")}" value="${esc(state.query)}"><div class="review-tree" data-review-scroll="tree">${fileTree(files, state) || `<p>${label("No matching files.")}</p>`}</div>${d.next_cursor != null ? button("Load more files", "more", busy ? "disabled" : "") : ""}<p class="review-key-hint">${label("Keys:")} <b>J/K</b> ${label("file")} · <b>N/P</b> ${label("hunk")} · <b>C</b> ${label("comment")}</p></aside><div class="review-resize" role="separator" tabindex="0" aria-label="${label("Resize file list")}" aria-orientation="vertical" aria-valuemin="180" aria-valuemax="520" aria-valuenow="${state.leftWidth}"></div><section class="review-patch" aria-label="${label("File diff")}" data-review-scroll="patch:${d.id}:${state.fileId || "none"}"><div class="review-mobile-back">${button("Back to files", "back-files")}</div>${diffMarkup(state)}</section></div>`;
+    const panel = state.tab === "files" ? filePanel : `<div class="review-detail-section">${button("Back to files", "tab:files")}${state.tab === "evidence" ? evidenceMarkup(state) : state.tab === "relationships" ? relationshipMarkup(state) : deliveryMarkup(d)}</div>`;
+    return `${toolbar}${error ? `<p role="alert" class="red">${esc(error)}</p>` : ""}<div id="reviewPanel" class="review-panel ${state.split ? "is-split" : "is-unified"}">${panel}</div>`;
+  }
   function attach(task, mount, dialog, { token, state, focusReturn }) {
     if (!mount) return { selectFile() {}, showTab() {} };
+    state.embedded = !dialog;
     const active = () => generation === token && mount.isConnected;
-    let busy = false, error = "", focusFile = 0, searchTimer;
+    let busy = false, error = "", earlierRevisions = [], focusFile = 0, searchTimer;
     let resizing = false;
     const persistUi = () => {
       const key = `${state.changeSetId}:${state.fileId}`;
       if (state.anchor && state.changeSetId && state.fileId) state.drafts[key] = { text: state.draft, anchor: state.anchor };
       else delete state.drafts[key];
-      try { localStorage.setItem("atl-review-ui:" + task.id, JSON.stringify({ tab: state.tab, query: state.query, filter: state.filter, expanded: [...state.expanded], fileId: state.fileId, changeSetId: state.changeSetId, split: state.split, leftWidth: state.leftWidth, scrolls: Object.fromEntries(state.scrolls), draft: state.draft, anchor: state.anchor, drafts: state.drafts })); } catch { /* local storage is optional */ }
+      try { localStorage.setItem("atl-review-ui:" + task.id, JSON.stringify({ tab: state.tab, query: state.query, filter: state.filter, expanded: [...state.expanded], fileId: state.fileId, changeSetId: state.changeSetId, explicitRevision: state.explicitRevision, split: state.split, leftWidth: state.leftWidth, scrolls: Object.fromEntries(state.scrolls), draft: state.draft, anchor: state.anchor, drafts: state.drafts })); } catch { /* local storage is optional */ }
     };
     const restoreDraft = () => { const saved = state.drafts[`${state.changeSetId}:${state.fileId}`]; state.anchor = saved?.anchor || null; state.draft = saved?.text || ""; };
     function render() {
@@ -242,7 +270,7 @@
       const focusKey = focused?.getAttribute("data-review-action") || focused?.id;
       const selection = focused?.selectionStart;
       const d = state.data, ready = Boolean(d?.id);
-      let body = `<p role="status"><span class="running-mark" aria-hidden="true"></span><span class="muted">${label("Loading changes…")}</span></p>`;
+      let body = earlierRevisions.length ? `<div class="bar"><label for="reviewRevision">${label("Captured revision")}</label><select id="reviewRevision" class="input" ${busy ? "disabled" : ""}><option value="">${label("Select an earlier inspection")}</option>${earlierRevisions.map((revision) => `<option value="${esc(revision.id)}">${esc(new Date(revision.captured_at).toLocaleString())} · ${esc(revision.output_revision.slice(0, 12))}</option>`).join("")}</select></div>` : "";
       if (d && !ready) body = `<div class="notice"><b>${label(d.availability)}</b><p>${esc(d.message || "")}</p></div>${d.repository || d.workspace ? `<p class="sub">${label("Repository")}: <b>${esc(d.repository || tr("This workspace"))}</b>${d.workspace ? ` · <code class="review-path" dir="ltr">${esc(d.workspace)}</code>` : ""}</p>` : ""}`;
       if (ready) {
         const tabs = reviewTabs;
@@ -257,7 +285,7 @@
         if (state.tab === "files") panel += reviewControlsMarkup(state);
         body = header + (state.tab === "files" ? `<p class="review-summary" dir="auto"><bdi dir="ltr">+${d.additions ?? "?"} / &minus;${d.deletions ?? "?"}</bdi> &middot; ${label("counts for loaded files")} &middot; ${(state.review?.reviewed_files || []).filter((entry) => entry.change_set_id === d.id).length} / ${d.total_files} ${label("reviewed")}</p>` : "") + `<div id="reviewPanel" class="review-panel ${state.split ? "is-split" : "is-unified"}" role="tabpanel" aria-labelledby="reviewTab-${state.tab}" tabindex="0">${panel}</div>`;
       }
-      mount.innerHTML = `<div class="bar">${button("Refresh evidence", "refresh", busy ? "disabled" : "")}${button("Capture current changes", "capture", busy || d?.availability === "baseline_missing" ? "disabled" : "")}</div><p class="muted tiny">${label("Capture stores source for inspection. It does not start a worker or approve delivery.")}</p>${busy ? `<p role="status">${label("Loading changes…")}</p>` : ""}${error ? `<p class="red" role="alert">${esc(error)}</p>` : ""}${body}`;
+      mount.innerHTML = state.embedded && ready ? embeddedReviewMarkup(state, error, busy) : `<div class="bar">${button("Refresh evidence", "refresh", busy ? "disabled" : "")}${button("Capture current changes", "capture", busy || d?.availability === "baseline_missing" ? "disabled" : "")}</div><p class="muted tiny">${label("Capture stores source for inspection. It does not start a worker or approve delivery.")}</p>${busy ? `<p role="status">${label("Loading changes…")}</p>` : ""}${error ? `<p class="red" role="alert">${esc(error)}</p>` : ""}${body}`;
       for (const [key, [top, left]] of state.scrolls) { const node = mount.querySelector(`[data-review-scroll="${key}"]`); if (node) { node.scrollTop = top; node.scrollLeft = left; } }
       if (dialogBody && dialogScroll != null) dialogBody.scrollTop = dialogScroll;
       if (focusKey) {
@@ -266,7 +294,7 @@
         if (typeof selection === "number" && node?.setSelectionRange) node.setSelectionRange(selection, selection);
       }
     }
-    async function load({ capture = false, id = state.data?.id || state.changeSetId, more = false } = {}) {
+    async function load({ capture = false, id = state.data?.id || state.changeSetId, more = false, pin = false } = {}) {
       if (busy) return;
       busy = true; error = ""; render();
       try {
@@ -282,10 +310,12 @@
         else if (d.id && d.id === state.data?.id && (d.query || "") === (state.data.query || "") && (d.filter || "all") === (state.data.filter || "all") && (state.data.files || []).length > (d.files || []).length) { d.files = state.data.files; d.next_cursor = state.data.next_cursor; }
         if (d.id !== state.data?.id) { state.diffs.clear(); }
         state.data = d;
+        earlierRevisions = [];
         state.changeSetId = d.id || null;
+        if (d.id && (pin || capture)) state.explicitRevision = true;
         restoreDraft();
         persistUi();
-      } catch (failure) { if (active()) error = failure.message; }
+      } catch (failure) { if (active()) { error = failure.message; earlierRevisions = failure.revisions || earlierRevisions; } }
       finally { busy = false; render(); }
     }
     async function selectFile(id, changeSetId = null, hunkIndex = null) {
@@ -331,7 +361,7 @@
       else if (action.startsWith("file:")) void selectFile(action.slice(5));
       else if (action === "file-prev" || action === "file-next") void navigateFile(action === "file-next" ? 1 : -1);
       else if (action === "hunk-prev" || action === "hunk-next") navigateHunk(action === "hunk-next" ? 1 : -1);
-      else if (action === "split-toggle") { state.split = !state.split; persistUi(); render(); }
+      else if (["split-toggle", "split-unified", "split-side"].includes(action)) { state.split = action === "split-toggle" ? !state.split : action === "split-side"; persistUi(); render(); }
       else if (action === "comment-file") { state.anchor = { side: "file", line: null }; state.draft = ""; persistUi(); render(); mount.querySelector("#reviewDraft")?.focus(); }
       else if (action.startsWith("reply:")) { state.anchor = { side: "reply", comment_id: action.slice(6) }; state.draft = ""; persistUi(); render(); mount.querySelector("#reviewDraft")?.focus(); }
       else if (action.startsWith("comment-at:")) { const [, side, line] = action.split(":"); state.anchor = { side, line: Number(line) }; state.draft = ""; persistUi(); render(); mount.querySelector("#reviewDraft")?.focus(); }
@@ -385,7 +415,16 @@
       else if (["n", "p"].includes(event.key.toLowerCase())) { event.preventDefault(); navigateHunk(event.key.toLowerCase() === "n" ? 1 : -1); }
       else if (event.key.toLowerCase() === "c") { event.preventDefault(); state.anchor = { side: "file", line: null }; state.draft = ""; persistUi(); render(); mount.querySelector("#reviewDraft")?.focus(); }
     });
-    mount.addEventListener("change", (event) => { if (event.target.id === "reviewFilter") { state.filter = event.target.value; render(); search(); } if (event.target.id === "reviewRevision") { persistUi(); void load({ id: event.target.value }); } });
+    mount.addEventListener("change", async (event) => {
+      if (event.target.id === "reviewFilter") { state.filter = event.target.value; render(); search(); }
+      if (event.target.id !== "reviewRevision" || !event.target.value) return;
+      const id = event.target.value;
+      persistUi();
+      await load({ id, pin: true });
+      if (!active() || state.data?.id !== id) return;
+      const file = state.data.files.find((entry) => entry.id === state.fileId) || state.data.files[0];
+      if (file && state.embedded && state.tab === "files") await selectFile(file.id);
+    });
     mount.addEventListener("toggle", (event) => { const key = event.target.dataset.reviewDirectory; if (key) { if (event.target.open) state.expanded.add(key); else state.expanded.delete(key); persistUi(); } }, true);
     dialog?.addEventListener("keydown", (event) => {
       if (event.key === "Escape") { generation++; setTimeout(() => focusReturn?.isConnected && focusReturn.focus(), 0); }
@@ -400,7 +439,7 @@
       }
     });
     render();
-    const ready = load().then(async () => { if (active() && focusFile === 0 && state.data?.id && state.fileId) await selectFile(state.fileId); if (active()) mount.querySelector("button")?.focus(); });
+    const ready = load().then(async () => { if (active() && focusFile === 0 && state.data?.id) { const id = state.data.files?.find(file => file.id === state.fileId)?.id || (state.embedded ? state.data.files?.[0]?.id : null); if (id) await selectFile(id); } });
     return { selectFile, ready, showTab: (tab) => { if (reviewTabs.includes(tab)) { state.tab = tab; persistUi(); render(); } } };
   }
   window.ATL_CHANGE_REVIEW = Object.freeze({ open, embed });

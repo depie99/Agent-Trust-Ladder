@@ -24,6 +24,11 @@ assert.equal(assessTask(simple).complexity,'simple');
 assert.equal(budgetDecision(config,simple).max_sessions,3);
 assert.equal(budgetDecision(config,complex).max_sessions,12);
 assert.equal(routeTask(config,simple,'rowan',{discover}).model,'routine-model');
+assert.equal(routeTask(config,simple,'beacon',{discover}).model,'routine-model');
+assert.equal(routeTask(config,{...simple,verification_escalation:true},'beacon',{discover}).model,'general-model');
+assert.ok(routeTask({...config,resource_policy:{...policy,max_model_tier:'economy'}},
+  {...simple,verification_escalation:true},'beacon',{discover}).decision.blocked);
+
 assert.equal(routeTask(config,complex,'rowan',{discover}).model,'general-model');
 assert.equal(routeTask(config,{...complex,provider_route:{provider:'strong',model:'review-model'}},'sage',{discover}).model,'review-model','task route applies across roles');
 assert.equal(routeTask(config,{...complex,provider_route:{provider:'strong',model:'review-model'}},'rowan',{discover,overrides:{worker:'normal',model:'general-model'}}).model,'general-model','explicit run choice wins');

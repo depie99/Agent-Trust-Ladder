@@ -173,11 +173,48 @@ html:not(.light) .studio-nextstep{background:#101018;color:#e9e7f4}
 .studio-nextstep .btn.primary:hover{background:var(--accent-strong-hover)}
 .studio-nextstep .btn.disabled{opacity:.45}
 
-/* ---------- composer ---------- */
-.studio-composer{padding:12px 14px}
-.studio-composer-input{min-height:70px;border-radius:10px}
-.studio-composer-foot{margin-top:10px;align-items:flex-end}
-.studio-provider-select{max-width:250px}
+/* ---------- conversation and composer ---------- */
+.studio-layout-toggle{margin-inline-start:auto;flex:none}
+.studio-plan .studio-pane-head > span{min-width:0;overflow-wrap:anywhere}
+.studio-plan .planpane-tabs{flex-wrap:wrap}
+.studio-transcript{
+  min-height:0;
+  padding:24px max(18px, calc((100% - 820px) / 2));
+  gap:20px;
+}
+.studio-empty:only-child{margin:auto;text-align:center}
+.studio-empty h3{margin:0 0 8px;font-size:clamp(20px,3vw,30px);color:var(--text)}
+.studio-empty .sub{font-size:14px}
+.studio-transcript .studio-msg{font-size:15px;line-height:1.65}
+.studio-transcript .studio-msg-manager{max-width:84%}
+.studio-transcript .studio-msg-assistant{align-self:stretch;max-width:none;background:transparent;padding-inline:0}
+.studio-conversation .studio-composer{
+  flex:none;
+  width:min(820px,calc(100% - 32px));
+  margin:0 auto 16px;
+  padding:12px 14px;
+  border:1px solid var(--border);
+  border-radius:16px;
+}
+.studio-attachments:empty{display:none}
+.studio-composer-input{min-height:82px;border-radius:10px;font-size:15px}
+.studio-composer-foot{margin-top:10px;align-items:flex-end;flex-wrap:wrap}
+.studio-composer-foot > .bar:last-child{margin-inline-start:auto;justify-content:flex-end}
+.studio-provider-select{max-width:min(250px,100%)}
+.studio-plan-body{min-height:0}
+@media(min-width:960px){
+  .studio-workspace{height:max(460px,calc(100dvh - 235px));min-height:0}
+  .studio-conversation{width:min(calc(var(--studio-split,46)*1%),calc(100% - 380px))}
+  .studio-conversation-focused .studio-conversation{width:100%}
+  .studio-conversation-focused .studio-plan,
+  .studio-plan-focused .studio-conversation,
+  .studio-workspace:is(.studio-conversation-focused,.studio-plan-focused) .studio-splitter{display:none}
+}
+@media(max-width:959px){
+  .studio-layout-toggle{display:none}
+  .studio-transcript{min-height:32vh}
+  .studio-conversation .studio-composer{margin-bottom:8px}
+}
 
 /* ---------- settings redesign ---------- */
 .settings-banner{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--notice-edge);background:var(--notice-bg);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px}

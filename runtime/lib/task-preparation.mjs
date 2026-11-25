@@ -409,12 +409,20 @@ export function preparationSeedContext(root) {
   });
 }
 
-function linkedRequestFor(root, item, drafts) {
-  let task = null;
+function importedAzureRequests(root) {
+  const byId = new Map();
   try {
     const state = loadState(root);
-    task = Object.values(state.tasks || {}).find((entry) => entry.source?.type === "azure" && String(entry.source?.remote_id ?? "") === String(item.id)) || null;
+    for (const task of Object.values(state.tasks || {})) {
+      if (task.source?.type !== "azure") continue;
+      const id = String(task.source.remote_id ?? "");
+      if (!byId.has(id)) byId.set(id, task);
+    }
   } catch { /* unreadable state: no linkage shown, never a crash */ }
+  return byId;
+}
+
+function linkedRequestFor(task, drafts) {
   if (!task) return null;
   const plans = (drafts || []).filter((draft) => draft.source_task_id === task.id).map((draft) => ({ id: draft.id, title: draft.title, stage: draft.stage, review: draft.review, approved: Boolean(draft.approved), queue_id: draft.queue_id || null }));
   return {
@@ -447,7 +455,7 @@ export function preparationView(root, key, { drafts = null } = {}) {
     next_action: (record?.next_action || "").trim() || defaultNextAction(status),
     freshness: item && record ? { fresh: String(record.source_revision ?? "") === String(item.rev ?? ""), prepared: record.source_revision, current: String(item.rev ?? "") } : null,
     runs_current: (record?.investigation_runs || []).map((run) => ({ ...run, current: Number(run.brief_revision || 0) === Number(record.brief?.revision || 1) })),
-    linked_request: item ? linkedRequestFor(root, item, drafts) : null,
+    linked_request: item ? linkedRequestFor(importedAzureRequests(root).get(String(item.id)), drafts) : null,
   };
 }
 
@@ -457,6 +465,7 @@ export function preparationView(root, key, { drafts = null } = {}) {
 export function preparationInventory(root, { items = [], seed = false, seedContext = null } = {}) {
   let drafts = [];
   try { drafts = planDraftIndex(root); } catch { /* drafts are optional context */ }
+  const requests = importedAzureRequests(root);
   const rows = items.map((item) => {
     let record = readPreparation(root, item.key);
     const active = item.state_category !== "complete";
@@ -464,7 +473,7 @@ export function preparationInventory(root, { items = [], seed = false, seedConte
       record = seedPreparation(root, item.key, item, seedContext ? seedContext(item) : {});
     }
     const status = derivePreparationStatus(record, item);
-    const linked = linkedRequestFor(root, item, drafts);
+    const linked = linkedRequestFor(requests.get(String(item.id)), drafts);
     return {
       key: item.key, id: item.id, project: item.project, title: item.title, state: item.state,
       state_category: item.state_category, active, changed_at: item.changed_at || null,

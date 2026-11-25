@@ -34,7 +34,7 @@ try {
  });
  browser=await chromium.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1280,height:800}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(running.url);await page.locator('[data-page="sources"]:visible').first().click();
+ await page.goto(running.url);await page.goto(new URL("?page=sources", page.url()).href);
  await page.locator('.issue-title').filter({hasText:'GitHub issue'}).waitFor();
  assert.equal(await page.locator('#sourceConnectionSelect').inputValue(),'github','default source is automatically browsed');
  // A long idle period previously let the page mark its live service offline.

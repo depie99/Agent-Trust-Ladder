@@ -26,11 +26,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page.setDefaultTimeout(10000);
   await page.goto(running.url);
-  await page.locator('[data-page="sources"]:visible').first().click();
+  await page.goto(new URL("?page=sources", page.url()).href);
   assert.equal((await fetch(new URL('api/intake/connections', running.url))).status, 403, 'connection inventory requires owner CSRF');
   await page.locator('.source-empty-state').getByText('No sources yet').waitFor();
   assert.equal(await page.locator('.source-v2 .flow').count(), 0, 'v2 drops the flow strip');
-  assert.equal(await page.locator('.source-v2 .eyebrow').innerText(), 'WORKSPACE / ISSUE SOURCES');
+  assert.equal(await page.locator('.source-v2 .eyebrow').innerText(), 'INTAKE / INBOX');
   await page.locator('[data-action="sources-add"]').first().click();
   assert.equal(await page.locator('#modalTitle').innerText(), 'Add source');
   assert.equal(await page.locator('.provider-option.chosen').innerText(), 'GitHub');
@@ -180,7 +180,7 @@ try {
   await page.locator('[data-page="queues"]:visible').first().click();
   let releaseMap; const mapGate = new Promise((resolve) => { releaseMap = resolve; });
   await page.route('**/api/projects/map', async (route) => { await mapGate; await route.continue(); });
-  await page.locator('[data-page="sources"]:visible').first().click();
+  await page.goto(new URL("?page=sources", page.url()).href);
   const search = page.locator('#sourceSearch');
   await search.click();
   await page.keyboard.type('Issue');

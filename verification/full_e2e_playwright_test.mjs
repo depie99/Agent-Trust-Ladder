@@ -25,6 +25,8 @@ page.setDefaultTimeout(5000);
 const failures = [];
 page.on("console", (message) => { if (message.type() === "error") failures.push(message.text()); });
 await page.goto(url, { waitUntil: "domcontentloaded" });
+const evidenceDir = process.env.ATL_TEST_EVIDENCE_DIR;
+if (evidenceDir) await page.screenshot({ path: path.join(evidenceDir, "before.png") });
 await page.locator('[data-page="studio"]').first().click();
 await page.getByRole("button", { name: /Generate local/i }).click();
 await page.locator('[data-page="projects"]').first().click();
@@ -43,6 +45,7 @@ const snapshot = await page.evaluate(() => {
 assert.ok(snapshot.supervisor.projects.some((project) => project.root === root));
 assert.ok(snapshot.backups.length >= 1);
 assert.equal(failures.length, 0, `browser console failures: ${failures.join("; ")}`);
+if (evidenceDir) await page.screenshot({ path: path.join(evidenceDir, "after.png") });
 await browser.close(); server.close();
 delete process.env.ATL_HOME;
 fs.rmSync(home, { recursive: true, force: true });

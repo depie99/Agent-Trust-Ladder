@@ -254,10 +254,11 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/browser-access.mjs](../runtime/lib/browser-access.mjs) | browser access: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/change-review-store.mjs](../runtime/lib/change-review-store.mjs) | Review notes are separate from immutable capture manifests. Anchors always |
 | [runtime/lib/codex-bridge.mjs](../runtime/lib/codex-bridge.mjs) | Optional bridge from ATL's durable team state into a persistent Codex thread. |
+| [runtime/lib/codex-models.mjs](../runtime/lib/codex-models.mjs) | codex models: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/command-console.mjs](../runtime/lib/command-console.mjs) | command console: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/composer.mjs](../runtime/lib/composer.mjs) | The control room's composition path: free text or imported candidates in, |
 | [runtime/lib/control-assistant.mjs](../runtime/lib/control-assistant.mjs) | Ask ATL page conversations live in their own directory; the embedded |
-| [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | Batch ids with a runner active in this process. The checkpoint lease remains |
+| [runtime/lib/control-plane-server.mjs](../runtime/lib/control-plane-server.mjs) | The overnight-run gate serializes planning provider calls (generate, |
 | [runtime/lib/control-plane.mjs](../runtime/lib/control-plane.mjs) | Inventory only: installed skill metadata is not promotion evidence. |
 | [runtime/lib/daemon.mjs](../runtime/lib/daemon.mjs) | One state owner per project (issue #34). |
 | [runtime/lib/dashboard.mjs](../runtime/lib/dashboard.mjs) | Read-only terminal dashboard for the ATL manager. |
@@ -329,6 +330,7 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/lib/task-statechart.mjs](../runtime/lib/task-statechart.mjs) | Project recorded transitions only; never invent steps from the workflow contract. |
 | [runtime/lib/task-triage.mjs](../runtime/lib/task-triage.mjs) | task triage: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/task-workspace.mjs](../runtime/lib/task-workspace.mjs) | task workspace: runtime implementation; inspect exports and matching verification. |
+| [runtime/lib/test-evidence.mjs](../runtime/lib/test-evidence.mjs) | test evidence: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/tui-components.mjs](../runtime/lib/tui-components.mjs) | tui components: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/tui-layout.mjs](../runtime/lib/tui-layout.mjs) | tui layout: runtime implementation; inspect exports and matching verification. |
 | [runtime/lib/tui-theme.mjs](../runtime/lib/tui-theme.mjs) | tui theme: runtime implementation; inspect exports and matching verification. |
@@ -350,12 +352,15 @@ Executable runtime, browser client, provider adapters, and role prompts.
 | [runtime/README.md](../runtime/README.md) | ATL runtime. |
 | [runtime/scss/_app.scss](../runtime/scss/_app.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_ask-atl.scss](../runtime/scss/_ask-atl.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_batches-knowledge.scss](../runtime/scss/_batches-knowledge.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_intake.scss](../runtime/scss/_intake.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_my-tasks.scss](../runtime/scss/_my-tasks.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_plugin.scss](../runtime/scss/_plugin.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_source-design.scss](../runtime/scss/_source-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_source-fonts.scss](../runtime/scss/_source-fonts.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_sources.scss](../runtime/scss/_sources.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_studio-design.scss](../runtime/scss/_studio-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
+| [runtime/scss/_tasks-design.scss](../runtime/scss/_tasks-design.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_tokens.scss](../runtime/scss/_tokens.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/_workspace.scss](../runtime/scss/_workspace.scss) | Stylesheet source or theme token; rebuild through its package script. |
 | [runtime/scss/control-plane.scss](../runtime/scss/control-plane.scss) | Stylesheet source or theme token; rebuild through its package script. |
@@ -648,6 +653,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/dependencies_model.py](../verification/dependencies_model.py) | name -> (tasks [(id, priority)], edges {id: [dep ids]}) — "depends on". |
 | [verification/developer_delivery_contract_test.mjs](../verification/developer_delivery_contract_test.mjs) | Executable regression check for developer delivery contract. |
 | [verification/developer_delivery_receipt_test.mjs](../verification/developer_delivery_receipt_test.mjs) | Executable regression check for developer delivery receipt. |
+| [verification/dispatch_preflight_test.mjs](../verification/dispatch_preflight_test.mjs) | Executable regression check for dispatch preflight. |
 | [verification/dispatcher_test.mjs](../verification/dispatcher_test.mjs) | Executable regression check for dispatcher. |
 | [verification/docs_site_test.mjs](../verification/docs_site_test.mjs) | Executable regression check for docs site. |
 | [verification/e2e/dsh_zero_to_hero_journey.mjs](../verification/e2e/dsh_zero_to_hero_journey.mjs) | DSH zero-to-hero journey — live end-to-end proof of the ATL plugin inside a |
@@ -729,6 +735,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/owner_session_approval_test.mjs](../verification/owner_session_approval_test.mjs) | Executable regression check for owner session approval. |
 | [verification/owner_session_storage_test.mjs](../verification/owner_session_storage_test.mjs) | Executable regression check for owner session storage. |
 | [verification/package_smoke_test.mjs](../verification/package_smoke_test.mjs) | Executable regression check for package smoke. |
+| [verification/panel-workflows.mjs](../verification/panel-workflows.mjs) | panel workflows: source/configuration for its containing feature. |
 | [verification/plan_contract_fixture.json](../verification/plan_contract_fixture.json) | plan contract fixture: source/configuration for its containing feature. |
 | [verification/plan_contract_test.mjs](../verification/plan_contract_test.mjs) | Executable regression check for plan contract. |
 | [verification/plan_draft_archive_ui_test.mjs](../verification/plan_draft_archive_ui_test.mjs) | Executable regression check for plan draft archive ui. |
@@ -799,6 +806,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/task_preparation_api_test.mjs](../verification/task_preparation_api_test.mjs) | Executable regression check for task preparation api. |
 | [verification/task_preparation_store_test.mjs](../verification/task_preparation_store_test.mjs) | Executable regression check for task preparation store. |
 | [verification/task_preparation_ui_journey_test.mjs](../verification/task_preparation_ui_journey_test.mjs) | Executable regression check for task preparation ui journey. |
+| [verification/task_reference_ui_test.mjs](../verification/task_reference_ui_test.mjs) | Executable regression check for task reference ui. |
 | [verification/task_review_acceptance_test.mjs](../verification/task_review_acceptance_test.mjs) | Executable regression check for task review acceptance. |
 | [verification/task_statechart_test.mjs](../verification/task_statechart_test.mjs) | Executable regression check for task statechart. |
 | [verification/task_triage_test.mjs](../verification/task_triage_test.mjs) | Executable regression check for task triage. |
@@ -817,6 +825,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/worker_channel_test.mjs](../verification/worker_channel_test.mjs) | Executable regression check for worker channel. |
 | [verification/worker_test.mjs](../verification/worker_test.mjs) | Executable regression check for worker. |
 | [verification/worker_windows_timeout_test.mjs](../verification/worker_windows_timeout_test.mjs) | Executable regression check for worker windows timeout. |
+| [verification/workflow_verification_e2e_test.mjs](../verification/workflow_verification_e2e_test.mjs) | Executable regression check for workflow verification e2e. |
 | [verification/workspace_test.mjs](../verification/workspace_test.mjs) | Executable regression check for workspace. |
 
 ## research

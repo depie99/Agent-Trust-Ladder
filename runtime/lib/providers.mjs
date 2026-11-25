@@ -76,7 +76,7 @@ export function providerModels(name, { env = process.env } = {}) {
 
 export function planningModelChoices(provider) {
   const models = (provider?.models || []).map((model) => typeof model === "string" ? model : model?.id).filter(Boolean).map(String);
-  if (provider?.id === "codex" && provider?.method === "chatgpt") {
+  if (provider?.id === "codex" && provider?.method === "chatgpt" && !provider.cliCatalog) {
     return models.filter((model) => !CODEX_CHATGPT_UNSUPPORTED_MODELS.has(model));
   }
   return models;
@@ -88,10 +88,13 @@ export function planningModelChoices(provider) {
 export function resolvePlanningModel(provider, requestedModel = null) {
   const requested = String(requestedModel || "").trim();
   const available = planningModelChoices(provider);
-  const unsupported = provider?.id === "codex" && provider?.method === "chatgpt" && CODEX_CHATGPT_UNSUPPORTED_MODELS.has(requested);
+  const unsupported = provider?.id === "codex" && provider?.method === "chatgpt" && !provider.cliCatalog && CODEX_CHATGPT_UNSUPPORTED_MODELS.has(requested);
   if (unsupported) {
     const fallback = available[0] || "a model listed by the Codex CLI";
     throw new Error(`Model "${requested}" is unavailable for this Codex ChatGPT sign-in. Choose "${fallback}" or another listed model; no provider request was sent.`);
+  }
+  if (provider?.cliCatalog && !available.length) {
+    throw new Error("Could not load models from the signed-in Codex CLI. Refresh Providers and try again. No provider request was sent.");
   }
   if (requested && provider?.id === "codex" && provider?.method === "chatgpt" && available.length && !available.includes(requested)) {
     throw new Error(`Model "${requested}" is not in this Codex CLI's compatible ChatGPT model list. Choose "${available[0]}" or another listed model; no provider request was sent.`);

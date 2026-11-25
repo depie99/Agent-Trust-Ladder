@@ -83,6 +83,30 @@ assert.equal(buildExecutionProjection(root, "T-NOPE").availability, "unknown_tas
   assert.ok(withEvidence.graph.edges.some((edge) => edge.provenance === "recorded" && edge.label === "session-linked evidence"), "check links only through its recorded session id");
 }
 
+// Failure summaries must never string lapse into "[object Object]": provider
+// failures arrive as {kind, reason}, thrown errors as {message}, some records
+// carry {summary} or a bare string. (Issue #87.)
+{
+  const records = [
+    { id: "F1", taskId: "T-100", role: "rowan", startedAt: "2026-11-17T08:00:00Z", finishedAt: "2026-11-17T08:01:00Z", exitCode: 1, failure: { kind: "provider-quota", scope: "provider", retryAfterSeconds: 60, reason: "Provider reported a rate limit; ATL will try an eligible configured alternative." } },
+    { id: "F2", taskId: "T-100", role: "mira", startedAt: "2026-11-17T09:00:00Z", finishedAt: "2026-11-17T09:01:00Z", exitCode: 1, failure: { summary: "Sage reviewed a stale revision" } },
+    { id: "F3", taskId: "T-100", role: "sage", startedAt: "2026-11-17T10:00:00Z", finishedAt: "2026-11-17T10:01:00Z", failure: "Worker channel closed before handoff" },
+    { id: "F4", taskId: "T-100", role: "beacon", startedAt: "2026-11-17T11:00:00Z", finishedAt: "2026-11-17T11:01:00Z", exitCode: 1, failure: { kind: "provider-crash", detail: { code: -9 } } },
+  ];
+  const projected = buildExecutionProjection(root, "T-100", { state, records, events: [], revisions: [], files: [] });
+  const implementation = projected.stages.find((stage) => stage.key === "implementation");
+  const bySession = new Map(implementation.attempts.filter((attempt) => attempt.kind === "session").map((attempt) => [attempt.session_id, attempt]));
+  assert.equal(bySession.get("F1").failure.summary, "Provider reported a rate limit; ATL will try an eligible configured alternative.", "provider reason renders as the failure summary");
+  assert.equal(bySession.get("F2").failure.summary, "Sage reviewed a stale revision", "summary-shaped failures keep their summary");
+  assert.equal(bySession.get("F3").failure.summary, "Worker channel closed before handoff", "string failures pass through");
+  assert.doesNotMatch(bySession.get("F4").failure.summary, /\[object Object\]/, "unknown object shape JSON-serializes instead of [object Object]");
+  assert.match(bySession.get("F4").failure.summary, /provider-crash/);
+  assert.equal(bySession.get("F1").summary, bySession.get("F1").failure.summary, "attempt summary mirrors the failure summary");
+  for (const attempt of implementation.attempts) {
+    assert.doesNotMatch(JSON.stringify(attempt.failure), /\[object Object\]/, "no failure field renders as [object Object]");
+  }
+}
+
 // Repeated events collapse (first + last kept) to keep history scannable.
 {
   const events = [];

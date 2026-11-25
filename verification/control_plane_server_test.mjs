@@ -75,7 +75,8 @@ try {
   assert.match(client, /navigation-save/, "Settings has an explicit save action for navigation configuration");
   assert.match(client, /usage-refresh/, "Usage page can request a provider telemetry refresh");
   assert.match(client, /Provider telemetry verified/, "Usage page distinguishes provider-verified telemetry from local observations");
-  assert.match(client, /aria-label="Program \$\{escapeHtml\(program\.id\)\}"/, "overnight operations expose durable multi-project program milestones and budgets");
+  assert.match(client, /program\.milestones \|\| \[\]/, "overnight operations expose durable multi-project program milestones");
+  assert.match(client, /sessions used/, "overnight programs expose their session budget in the operations workspace");
   assert.match(client, /Save connection/, "sidebar provider modal exposes one save path for current connection settings");
   assert.match(client, /data-pm-current-thinking/, "sidebar provider modal exposes current-provider thinking/effort");
   assert.match(client, /data-pm-current-key/, "sidebar provider modal exposes safe API-key replacement");

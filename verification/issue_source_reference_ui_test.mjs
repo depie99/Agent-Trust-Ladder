@@ -22,7 +22,7 @@ try {
  {index:2,title:'Update installation documentation',labels:['docs'],source:{type:'github',remote_id:124,repo:'shahryarjb/temp_mishka_cms'},intake_key:'github:124'}]}});
  browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1512,height:1120}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>localStorage.setItem('atl-cp-theme','light'));
- await page.goto(running.url);await page.locator('[data-page="sources"]:visible').first().click();await page.locator('.connection').first().waitFor();
+ await page.goto(running.url);await page.goto(new URL("?page=sources", page.url()).href);await page.locator('.connection').first().waitFor();
  await page.locator('[data-action="sources-browse:gh"]').click();await page.locator('[data-action="sources-preview-selected"]').click();await page.locator('tbody tr').first().waitFor();await page.evaluate(()=>document.fonts.ready);
  await page.screenshot({path:path.join(evidence,'desktop.png'),fullPage:true});
  assert.equal(await page.locator('.connections').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),4);
