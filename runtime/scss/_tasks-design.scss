@@ -40,9 +40,11 @@ body.tasks-design {
   .task-queue-picker select { position:absolute; z-index:2; inset-inline-end:0; width:180px; }
   .task-card-list { display:grid; gap:10px; }
   .task-card { position:relative; border:1px solid var(--border); border-radius:12px; background:var(--pane); }
-  .task-card .task-main-copy { display:flex; flex-direction:column; gap:8px; padding:12px 14px; width:100%; overflow:visible; }
+  .task-card .task-main-copy { display:flex; flex-direction:column; align-items:flex-start; gap:7px; padding:14px 16px; width:100%; overflow:visible; text-align:start; }
   .task-card-top { display:flex; align-items:center; justify-content:space-between; width:100%; font-weight:700; color:var(--muted); font-size:13px; }
   .task-card .task-title-text { font-size:14px; font-weight:700; white-space:normal; overflow-wrap:anywhere; color:var(--text); }
+  .task-card-top > span:first-child { white-space:nowrap; }
+  .task-card-context { overflow-wrap:anywhere; color:var(--muted); font-size:12px; font-weight:400; }
   .task-list-empty { padding:16px; border:1px solid var(--border); border-radius:12px; background:var(--pane); color:var(--muted); }
   .task-list-empty p { margin:0 0 10px; }
   .tasks-shell .tasks-bulk-bar { margin-block-start:12px; border:1px solid var(--border); border-radius:10px; background:var(--pane); }
@@ -52,7 +54,7 @@ body.tasks-design {
   .task-card-progress { position:absolute; top:calc(100% + 6px); inset-inline:0; height:6px; border-radius:99px; background:var(--tasks-count-bg); overflow:hidden; }
   .task-card-progress span { height:100%; display:block; background:var(--accent); border-radius:99px; }
   .task-workspace { border-radius:16px; padding:24px; gap:16px; }
-  .task-workspace-titlebar { min-height:44px; gap:16px; }
+  .task-workspace-titlebar { align-items:center; min-height:44px; gap:16px; }
   .task-workspace-identity { gap:12px; }
   .task-workspace .task-detail-title { font:700 22px/28px "Segoe UI",Arial,sans-serif; letter-spacing:0; }
   .task-id-badge,.task-workspace-identity .task-id-badge { border:0; border-radius:999px; background:var(--tasks-count-bg); color:var(--tasks-count-ink); font-size:13px; line-height:18px; padding:3px 10px; font-weight:700; }

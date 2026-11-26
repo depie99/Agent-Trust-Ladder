@@ -12738,10 +12738,12 @@ body.tasks-design .task-card {
 body.tasks-design .task-card .task-main-copy {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 14px 16px;
   width: 100%;
   overflow: visible;
+  text-align: start;
 }
 body.tasks-design .task-card-top {
   display: flex;
@@ -12758,6 +12760,15 @@ body.tasks-design .task-card .task-title-text {
   white-space: normal;
   overflow-wrap: anywhere;
   color: var(--text);
+}
+body.tasks-design .task-card-top > span:first-child {
+  white-space: nowrap;
+}
+body.tasks-design .task-card-context {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 body.tasks-design .task-list-empty {
   padding: 16px;
@@ -12807,6 +12818,7 @@ body.tasks-design .task-workspace {
   gap: 16px;
 }
 body.tasks-design .task-workspace-titlebar {
+  align-items: center;
   min-height: 44px;
   gap: 16px;
 }
