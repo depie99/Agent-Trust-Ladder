@@ -16,6 +16,12 @@ for (let i = 1; i <= 400; i++) state.tasks[`D-${i}`] = { id: `D-${i}`, title: `D
 logEvent(state, { task: 'D-1', actor: 'owner', event: 'created', detail: 'fixture seed — gives reconnecting clients a positive cursor' });
 saveState(root, state);
 const running = await startControlPlaneServer(root, { host: '127.0.0.1', port: 0 });
+// /api/snapshot serves only the owner session (GET requires it like every
+// state-bearing route) — boot once and carry the cookie + CSRF on polls.
+const boot = await fetch(running.url);
+const ownerCookie = boot.headers.get('set-cookie')?.split(';')[0] || '';
+const csrf = (await boot.text()).match(/name="atl-csrf" content="([^"]+)"/)?.[1] || '';
+const snapshotPoll = (cursor) => fetch(`${running.url.replace(/\/+$/, '')}/api/snapshot${cursor ? `?cursor=${cursor}` : ''}`, { headers: { cookie: ownerCookie, 'x-atl-csrf': csrf } }).then(r => r.json());
 
 async function firstBlock(url) {
   const response = await fetch(url);
@@ -61,7 +67,7 @@ try {
   // on the tiny unchanged responses forever.
   saveState(root, state);
   await sleep(2600);
-  const rewritePoll = await fetch(`${base}/api/snapshot?cursor=${pushedCursor}`).then(r => r.json());
+  const rewritePoll = await snapshotPoll(pushedCursor);
   assert.equal(rewritePoll.unchanged, true, 'volatile-only rewrite must leave the frame unchanged');
 
   // An active run's lease acquisition AND its periodic heartbeat are live
@@ -69,12 +75,12 @@ try {
   // the clock, so heartbeats must push fresh frames to viewers.
   const lease = acquireLease(root, { project: 'delta', task: 'D-400', role: 'worker', run: 'delta-run', ttlMs: 30000 });
   await sleep(2600);
-  const leasePoll = await fetch(`${base}/api/snapshot?cursor=${pushedCursor}`).then(r => r.json());
+  const leasePoll = await snapshotPoll(pushedCursor);
   assert.equal(leasePoll.unchanged, undefined, 'lease acquisition must push a full frame');
   assert.ok(JSON.stringify(leasePoll).includes(lease.id), 'pushed frame carries the new lease');
   heartbeatLease(root, lease);
   await sleep(2600);
-  const heartbeatPoll = await fetch(`${base}/api/snapshot?cursor=${pushedCursor}`).then(r => r.json());
+  const heartbeatPoll = await snapshotPoll(pushedCursor);
   assert.equal(heartbeatPoll.unchanged, undefined, 'lease heartbeat must push a fresh frame');
   assert.ok(heartbeatPoll.leases.sessions.some(s => s.id === lease.id && s.expires_at > leasePoll.leases.sessions.find(s => s.id === lease.id)?.expires_at), 'heartbeat moved the lease deadline');
 

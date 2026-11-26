@@ -20,7 +20,7 @@ import { buildLaunchPlan, executeLaunchQueue, globalMaxConcurrent, mergeQueues, 
 import { addProposal, addProposalFeedback, editProposal, generateLocalPlan, savePlanDraft, normalizeProposals, loadPlanDraft, listPlanDrafts, archivePlanDraft, repairPlanDraft, planDraftLabel, regenerateProposal, removeProposal, reorderProposals, runPlanProvider, reviewPlanArtifact, answerPlanQuestion, answerCandidateQuestion, applyPlanCandidate, discardPlanCandidate, refinePlanDraft, planningEvidence, approvePlanDraft, validatePlanArtifact, validatePlanGrounding, resolvePlanRepository, repositoryStamp, planDraftIndex, requestRepositoryIds } from "./plan-studio.mjs";
 import { invokePlanningProvider } from "./plan-model.mjs";
 import { withCodexModelCatalog } from "./codex-models.mjs";
-import { builtinProviderStatus, discoverProvider, providerProfile, providerNames, resolvePlanningModel } from "./providers.mjs";
+import { builtinProviderStatus, discoverProvider, logoutBuiltin, providerProfile, providerNames, resolvePlanningModel } from "./providers.mjs";
 import { getProvider, loadUserProviders, normalizeThinkingLevel, PROVIDER_TEMPLATES, providerChoices, removeProvider, requireReadyProvider, saveUserProviders, templateById, upsertProvider, wireMismatches } from "./userProviders.mjs";
 import { paths, loadState, saveState, mutateState, logEvent, createTask } from "./state.mjs";
 import { providerUsageAdapter, recordRemoteUsage } from "./usage.mjs";
@@ -56,7 +56,7 @@ import { testEvidence, verificationArtifact, verificationPolicy, setVerification
 import {recordExecution,publishPlanningExecution} from './execution-report.mjs';
 import {recordQuotaFailure, quotaStatus} from './provider-quota.mjs';
 import { resolveTaskRef, qualifyTaskId } from './task-refs.mjs';
-import { runIntake, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub, intakeFromJira, requestJson } from './intake.mjs';
+import { runIntake, ghCliAuthenticated, normalizeGitHubRepo, intakeFromAzure, intakeFromGitHub, intakeFromJira, requestJson } from './intake.mjs';
 import { loadConnections, saveConnections, validateConnection, sameConnection, connectionIdentity } from './issue-connections.mjs';
 import { importCandidates } from './composer.mjs';
 import { queueCreate, queueAdd, loadQueueBook } from './queue.mjs';
@@ -202,31 +202,24 @@ function sendHtml(res, root, assetRoot = path.dirname(CONTROL_PLANE_FILE), embed
   // document listeners active makes route clicks race and can make Tasks
   // appear to open another page. Keep the artifact's DOM/CSS intact while
   // removing only that stale inline controller at the HTTP boundary.
-  const legacyController = /<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/;
-  let bodyText = replaceRegexExactlyOnce(source, legacyController, '<script src="./control-plane-i18n.js"></script><script src="./control-plane-client.js"></script>', 'legacy controller');
-  bodyText = replaceExactlyOnce(bodyText, '<script src="./control-plane-client.js">', '<script src="./control-plane-changes.js"></script><script src="./control-plane-client.js">', 'client script');
-  bodyText = replaceExactlyOnce(bodyText, '<script src="./control-plane-client.js">', '<script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">', 'client script');
+  // The artifact ships exactly one live-controller script tag; the served
+  // surface needs the i18n dictionary and the two auxiliary bundles ahead of
+  // it. (The stale inline demo controller this rewrite used to replace is
+  // gone from the artifact itself — issue #60 removed it.)
+  let bodyText = source.includes('<script src="./control-plane-client.js">')
+    ? replaceExactlyOnce(source, '<script src="./control-plane-client.js">', '<script src="./control-plane-i18n.js"></script><script src="./control-plane-changes.js"></script><script src="./control-plane-my-tasks.js"></script><script src="./control-plane-client.js">', 'live controller scripts')
+    : source;
   // The checked-in standalone artifact predates the live client and places
   // the body inside the flex topbar. Close that shell boundary for the live
   // surface; otherwise the header's flex rules squeeze and center the page.
-  bodyText = replaceExactlyOnce(bodyText, '<div id="mobile" class="mobile">', '</header><div id="mobile" class="mobile">', 'mobile shell');
+  if (bodyText.includes('<div id="mobile" class="mobile">')) bodyText = replaceExactlyOnce(bodyText, '<div id="mobile" class="mobile">', '</header><div id="mobile" class="mobile">', 'mobile shell');
   bodyText = replaceExactlyOnce(bodyText, '<title>ATL — Developer Control Plane Prototype</title>', '<title>ATL — Developer Control Plane</title>', 'prototype title');
-  for (const [pattern, label] of [
-    [/<span>[^<]*Interactive mock[^<]*<\/span>/g, 'demo footer'],
-    [/<span class="pill hotkey">INTERACTIVE DEMO<\/span>/g, 'demo pill'],
-    [/<div class="workspace"><div class="row between"><strong>agent-trust-ladder<\/strong><span class="green">[^<]*<\/span><\/div><div class="muted tiny">main[^<]*<\/div><\/div>/g, 'demo workspace'],
-    [/<button id="noticesBtn" class="btn ghost">[^<]*<span class="amber">3<\/span><\/button>/g, 'demo unread badge'],
-  ]) {
-    const count = [...source.matchAll(pattern)].length;
-    if (count !== 1) throw new Error(`Control Plane artifact contract changed; expected one ${label} marker, found ${count}`);
-  }
-  // The artifact's footer and topbar pill honestly describe its offline demo
-  // mode. The served surface reads and drives the real workspace, so relabel
-  // them here; the standalone file keeps its mock banner.
-  bodyText = replaceRegexExactlyOnce(bodyText, /<span>[^<]*Interactive mock[^<]*<\/span>/, `<span>Live - connected to ${escapeText(path.basename(root))}</span>`, 'demo footer');
-  bodyText = replaceRegexExactlyOnce(bodyText, /<span class="pill hotkey">INTERACTIVE DEMO<\/span>/, '<span class="pill hotkey">LIVE</span>', 'demo pill');
-  bodyText = replaceRegexExactlyOnce(bodyText, /<div class="workspace"><div class="row between"><strong>agent-trust-ladder<\/strong><span class="green">[^<]*<\/span><\/div><div class="muted tiny">main[^<]*<\/div><\/div>/, `<div class="workspace"><div class="row between"><strong>${escapeText(path.basename(root))}</strong><span class="green">●</span></div><div class="muted tiny">${escapeText(root)}</div></div>`, 'demo workspace');
-  bodyText = replaceRegexExactlyOnce(bodyText, /<button id="noticesBtn" class="btn ghost">[^<]*<span class="amber">3<\/span><\/button>/, '<button id="noticesBtn" class="btn ghost" aria-label="Notifications">Notifications</button>', 'static unread badge');
+  // The artifact ships neutral slots (no demo residue); the served surface
+  // fills them with the live project identity.
+  bodyText = replaceExactlyOnce(bodyText, '<strong data-ws-name>agent-trust-ladder</strong>', `<strong data-ws-name>${escapeText(path.basename(root))}</strong>`, 'workspace name');
+  bodyText = replaceExactlyOnce(bodyText, '<div class="muted tiny" data-ws-root>local project</div>', `<div class="muted tiny" data-ws-root>${escapeText(root)}</div>`, 'workspace root');
+  bodyText = replaceExactlyOnce(bodyText, '<span data-live-label>Starting the local Control Plane…</span>', `<span data-live-label>Live - connected to ${escapeText(path.basename(root))}</span>`, 'live label');
+  bodyText = replaceExactlyOnce(bodyText, '<span class="pill hotkey" data-mode-pill>LOCAL</span>', '<span class="pill hotkey" data-mode-pill>LIVE</span>', 'mode pill');
   if (embedded) bodyText = replaceRegexExactlyOnce(bodyText, /<div class="cliDock">[\s\S]*?<\/div>/, '', 'duplicate plugin console');
   const projectKey = crypto.createHash("sha256").update(canonicalRoot(root)).digest("hex").slice(0, 16);
   bodyText = replaceExactlyOnce(bodyText, '<html lang="en"', `<html lang="en" data-atl-project-key="${projectKey}"${embedded ? ' data-atl-context="plugin"' : ''}`, 'HTML root');
@@ -513,6 +506,12 @@ async function handleProvidersEndpoint(root, res, req) {
       const id = String(payload.id || "").trim().toLowerCase();
       startBuiltinOperation(id, action === "builtin-login" ? "login" : "install", providerConfig(root));
       return json(res, 200, { ok: true, ...await providerView(root) });
+    }
+    if (action === "builtin-logout") {
+      const id = String(payload.id || "").trim().toLowerCase();
+      if (!["codex", "claude", "gapgpt"].includes(id)) return json(res, 400, { ok: false, error: "Unknown built-in provider" });
+      const result = logoutBuiltin(id);
+      return json(res, 200, { ok: true, detail: result.detail, ...providerView(root) });
     }
     if (action === "add") {
       const id = String(payload.id || "").trim();
@@ -993,7 +992,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureConnecti
       const payload = JSON.parse(await readBody(req) || '{}');
       if (path.endsWith('/settings')) { await triage.validateSettings(payload); triage.saveSettings(payload); }
       else triage.ensure(payload.key);
-      void triage.tick().catch(() => {}); return json(res, 200, { ok: true, ...triage.status() });
+      void triage.tick().catch((error) => process.stderr.write(`[ATL triage tick] ${error?.message || error}\n`)); return json(res, 200, { ok: true, ...triage.status() });
     }
     if (path.startsWith('/api/my-tasks/jira/')) {
       const action = path.split('/').pop();
@@ -1020,7 +1019,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureConnecti
     }
     if (req.method === 'POST' && path === '/api/my-tasks/repository-bindings') {
       const bindings = reviews.saveBindings(JSON.parse(await readBody(req) || '{}'));
-      void reviews.tick().catch(() => {});
+      void reviews.tick().catch((error) => process.stderr.write(`[ATL reviews tick] ${error?.message || error}\n`));
       return json(res, 200, { ok: true, bindings });
     }
     if (req.method === 'GET' && path === '/api/my-tasks/review') {
@@ -1034,7 +1033,7 @@ async function handleMyTasksEndpoint(root, res, url, req, myTasks, azureConnecti
       if (payload.locale && !['fa-IR', 'en-US'].includes(payload.locale)) throw new Error('Unsupported review language.');
       if (path.endsWith('/retry') && !myTasks.item(payload.key)) throw new Error('Task is no longer assigned.');
       const status = reviews.ensure(payload.locale, { retryKey: path.endsWith('/retry') ? payload.key : null, resume: payload.resume === true });
-      void reviews.tick().catch(() => {});
+      void reviews.tick().catch((error) => process.stderr.write(`[ATL reviews tick] ${error?.message || error}\n`));
       return json(res, 200, { ok: true, ...status });
     }
     if (req.method === "GET" && path === "/api/my-tasks/projects") {
@@ -1205,7 +1204,8 @@ export function buildWindowsMyTasksStartupScript({ nodePath, runtimeEntry, proje
 // must not make an unchanged dashboard look changed to delta clients.
 // observed_at is derived (newest evidence stamp, falling back to the volatile
 // state.updated_at), so scheduler rewrites would otherwise dirty every tick.
-const VOLATILE_SNAPSHOT_KEYS = ['captured_at', 'checked_at', 'created_at', 'updated_at', 'observed_at'];
+// state.revision is a save stamp (every saveState bumps it), not content.
+const VOLATILE_SNAPSHOT_KEYS = ['captured_at', 'checked_at', 'created_at', 'updated_at', 'observed_at', 'revision'];
 const stableSnapshotFingerprint = value => {
   if (Array.isArray(value)) return value.map(stableSnapshotFingerprint);
   if (value && typeof value === 'object') {
@@ -1283,7 +1283,12 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   let azureUiToken = null;
   let azureTokenIdentity = null, azureLoadedIdentity = null, azureRemembered = false;
   let azureVaultReprobeAt = 0;
-  let githubUiToken = null; // session-scoped token from the UI; GITHUB_TOKEN stays untouched
+  let githubUiToken = null;
+  const githubAccess = async () => {
+    const gh = await ghCliAuthenticated();
+    const source = gh ? "gh-cli" : githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none";
+    return { token_present: source !== "none", credential_source: source, session_token_present: Boolean(githubUiToken), auth_probe: "gh auth status --hostname github.com" };
+  }; // session-scoped token from the UI; GITHUB_TOKEN stays untouched
   const jiraConnectionTokens = new Map(); // session credentials are scoped to saved connections
   async function currentAzureToken() {
     const cfg = readManagerConfig(root).intake?.azure || {}, identity = azureIdentity(cfg);
@@ -1323,7 +1328,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
   // polling while the browser tab is closed and stops with the service.
   let reviews, triage;
   const jira = createJiraMcp(root, { transportCall: jiraTransportCall, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); } } });
-      const myTasks = createMyTasksEngine(root, { connection: myTasksAzureConnection, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); void reviews?.tick().catch(() => {}); } }, ...(myTasksFetch ? { requestImpl: myTasksFetch } : {}) });
+      const myTasks = createMyTasksEngine(root, { connection: myTasksAzureConnection, onSynced: () => { if (!readOnlyPreview) { reviews?.ensure(); triage?.ensure(); void reviews?.tick().catch((error) => process.stderr.write(`[ATL reviews tick] ${error?.message || error}\n`)); } }, ...(myTasksFetch ? { requestImpl: myTasksFetch } : {}) });
   const azureItems = myTasks.items.bind(myTasks), azureItem = myTasks.item.bind(myTasks);
   myTasks.items = () => { const data = azureItems(); return { ...data, items: [...data.items, ...(jira.config().enabled ? jira.items() : [])], jira: jira.status() }; };
   myTasks.item = key => azureItem(key) || (jira.config().enabled ? jira.items().find(i => i.key === key) : null);
@@ -1699,6 +1704,10 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
       if (req.method === "GET" && url.pathname === "/api/events") {
         res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache", connection: "keep-alive" });
         const cursor = Number(url.searchParams.get("cursor") || 0);
+        // With no live streams the 2 s build tick is paused, so the cached
+        // frame may predate recent mutations — rebuild before the cursor
+        // comparison or a changed state would be answered "unchanged".
+        if (!streams.size) refreshCachedFrame({ broadcast: false });
         // A reconnecting client that already holds the current frame gets a tiny
         // liveness block; anything else (fresh client, drifted cursor, content
         // that changed after its last poll) receives the full snapshot.
@@ -1923,7 +1932,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           const id = parts[4];
           const index = id ? data.connections.findIndex(c => c.id === id) : -1;
           if (id && index < 0) { json(res, 404, { ok: false, error: 'Connection not found.' }); return; }
-          if (req.method === 'GET') { json(res, 200, { ok: true, ...data, connections: data.connections.map(c => ({ ...c, token_present: c.provider === 'github' ? Boolean(githubUiToken || process.env.GITHUB_TOKEN) : c.provider === 'jira' ? Boolean(jiraConnectionTokens.has(c.id) || process.env[c.settings.token_env]) : Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
+          if (req.method === 'GET') { const github = data.connections.some(c => c.provider === 'github') ? await githubAccess() : null; json(res, 200, { ok: true, ...data, connections: data.connections.map(c => (c.provider === 'github' ? { ...c, ...github } : { ...c, token_present: c.provider === 'jira' ? Boolean(jiraConnectionTokens.has(c.id) || process.env[c.settings.token_env]) : Boolean(process.env[c.settings.token_env]) || c.provider === 'azure' && (c.credential_ref === 'os-protected' || azureConnectionTokens.has(c.id) || c.id === data.defaults.azure && Boolean(azureUiToken)) })) }); return; }
           if (run.status === 'running' || planningRunActive(root)) { json(res, 409, { ok: false, error: 'Wait for the active run before changing issue sources.' }); return; }
           payload = JSON.parse(await readBody(req) || '{}');
           if (payload.revision !== data.revision) { json(res, 409, { ok: false, error: 'Connections changed. Refresh and try again.' }); return; }
@@ -2085,7 +2094,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
           }
           const intake = readManagerConfig(root).intake || {};
           await currentAzureToken();
-          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [], token_present: Boolean(githubUiToken || process.env.GITHUB_TOKEN), credential_source: githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none" }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(azureUiToken || process.env[intake.azure?.token_env || "AZDO_PAT"]), remember_supported: await dpapiSupported(), credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : process.env[intake.azure?.token_env || "AZDO_PAT"] ? "environment" : "none" } } });
+          json(res, 200, { ok: true, sources: { github: { enabled: Boolean(intake.github?.enabled), repos: intake.github?.repos || [], ...await githubAccess() }, jira: { enabled: Boolean(intake.jira?.enabled), base_url: intake.jira?.base_url || "", projects: intake.jira?.projects || [], token_env: intake.jira?.token_env || "JIRA_TOKEN", token_present: Boolean(process.env[intake.jira?.token_env || "JIRA_TOKEN"]) }, azure: { enabled: Boolean(intake.azure?.enabled), org_url: intake.azure?.org_url || "", project: intake.azure?.project || "", iteration_path: intake.azure?.iteration_path || "", token_env: intake.azure?.token_env || "AZDO_PAT", token_present: Boolean(azureUiToken || process.env[intake.azure?.token_env || "AZDO_PAT"]), remember_supported: await dpapiSupported(), credential_source: azureUiToken ? (azureRemembered ? "os-protected" : "ui-memory") : process.env[intake.azure?.token_env || "AZDO_PAT"] ? "environment" : "none" } } });
         } catch (error) { json(res, 400, { ok: false, error: error.message }); }
         return;
       }
@@ -2132,7 +2141,7 @@ export function createControlPlaneServer(root, { host = "127.0.0.1", planningInv
             if (!token || token.length > 255 || /[\r\n]/.test(token)) throw new Error("Enter a valid GitHub token.");
             githubUiToken = token;
           }
-          json(res, 200, { ok: true, token_present: Boolean(githubUiToken || process.env.GITHUB_TOKEN), credential_source: githubUiToken ? "ui-memory" : process.env.GITHUB_TOKEN ? "environment" : "none" });
+          json(res, 200, { ok: true, ...await githubAccess() });
         } catch (error) { json(res, 400, { ok: false, error: error.message }); }
         return;
       }

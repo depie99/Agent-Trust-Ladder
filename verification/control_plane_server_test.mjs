@@ -32,25 +32,29 @@ try {
   assert.doesNotMatch(html, /INTERACTIVE DEMO/, "served topbar does not advertise demo mode");
   assert.doesNotMatch(html, /Developer Control Plane Prototype/, "served title is production-ready");
   assert.doesNotMatch(html, /<span class="amber">3<\/span>/, "static demo unread count is removed");
-  assert.match(fs.readFileSync(new URL("../runtime/control-plane.html", import.meta.url), "utf8"), /Interactive mock/, "the standalone artifact keeps its honest mock banner");
+  // The artifact itself ships without demo residue (#60): the served rewrites
+  // fill neutral slots instead of stripping demo markers.
+  const artifact = fs.readFileSync(new URL("../runtime/control-plane.html", import.meta.url), "utf8");
+  for (const marker of [/Interactive mock/, /INTERACTIVE DEMO/, /ATL CLI demo ready/, /control-plane \/ demo/]) {
+    assert.doesNotMatch(artifact, marker, `the shipped artifact carries no demo residue: ${marker}`);
+  }
+  assert.match(artifact, /data-ws-name/, "the artifact keeps the workspace-name slot for the served rewrite");
 
   // The live HTML rewrite must fail closed if an artifact carries more than
-  // one copy of the legacy-controller region.
-  const artifact = fs.readFileSync(new URL("../runtime/control-plane.html", import.meta.url), "utf8");
-  const legacyPattern = /<script(?: type="application\/x-atl-legacy-disabled")?>\s*\(\(\)=>[\s\S]*?<\/script><script src="\.\/control-plane-client\.js"><\/script>/;
-  const legacy = artifact.match(legacyPattern)?.[0];
-  assert.ok(legacy, "fixture finds the legacy controller marker");
+  // one copy of a slot the server fills.
   const driftDir = fs.mkdtempSync(path.join(os.tmpdir(), "atl-html-contract-"));
   const driftRoot = fs.mkdtempSync(path.join(os.tmpdir(), "atl-html-project-"));
   fs.mkdirSync(path.join(driftRoot, "config"), { recursive: true });
   fs.writeFileSync(path.join(driftRoot, "config", "manager.json"), JSON.stringify({ version: 1 }));
   saveState(driftRoot, emptyState());
-  fs.writeFileSync(path.join(driftDir, "control-plane.html"), artifact.replace(legacy, `${legacy}${legacy}`));
+  const liveLabel = artifact.match(/<span data-live-label>[\s\S]*?<\/span>/)?.[0];
+  assert.ok(liveLabel, "fixture finds the live-label slot");
+  fs.writeFileSync(path.join(driftDir, "control-plane.html"), artifact.replace(liveLabel, `${liveLabel}${liveLabel}`));
   const drift = await startControlPlaneServer(driftRoot, { assetRoot: driftDir });
   try {
     const response = await fetch(drift.url);
-    assert.equal(response.status, 500, "duplicate legacy controller marker is rejected at render time");
-    assert.match(await response.text(), /expected one legacy controller marker, found 2/);
+    assert.equal(response.status, 500, "duplicate live-label slot is rejected at render time");
+    assert.match(await response.text(), /expected one live label marker/);
   } finally {
     await new Promise((resolve) => drift.server.close(resolve));
     fs.rmSync(driftDir, { recursive: true, force: true });

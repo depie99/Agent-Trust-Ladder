@@ -90,7 +90,8 @@ try {
   await page.locator('[data-action^="sources-form-save:"]').click();
   await page.getByText(/Sprint 74.*saved\./).waitFor();
   const cardAction = async (card, action) => {
-    const target = card.locator(`[data-action^="${action}:"]`).first();
+    const visibleTarget = card.locator(`[data-action^="${action}:"]:visible`).first();
+    const target = (await visibleTarget.count()) ? visibleTarget : card.locator(`[data-action^="${action}:"]`).first();
     // Actions that exist both as the visible CTA and in the kebab resolve to
     // the CTA (the <details> menu precedes .card-actions in the DOM); make the
     // intent explicit — open the menu for hidden actions, close it otherwise.
@@ -99,6 +100,7 @@ try {
     const open = await menu.getAttribute('open') !== null;
     if (inMenu && !open) await menu.locator('summary').click();
     if (!inMenu && open) await menu.locator('summary').click();
+    await target.waitFor({ state: 'visible' });
     return target;
   };
   const azureCard = page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' });
@@ -225,7 +227,7 @@ try {
   await page.getByText('Access check complete.').waitFor();
   await page.locator('.source-connection-card').filter({ hasText: 'Main repository' }).getByText('Access verified').waitFor();
   azureMode = 'auth';
-  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }), 'sources-check')).click();
+  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }), 'sources-check')).click({ force: true });
   await azureCard.getByText('Needs authentication').waitFor();
   const azureCardText = await azureCard.innerText();
   assert.ok(azureCardText.includes('[redacted]'), 'adapter errors are redacted before display');

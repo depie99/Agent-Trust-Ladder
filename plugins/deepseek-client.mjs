@@ -84,6 +84,9 @@ export function AtlPanel() {
 
 function AtlConfig(ctx) {
   const [report, setReport] = useState(null);
+  const [binding, setBinding] = useState(null);
+  const [chosen, setChosen] = useState('');
+  const [bindingNote, setBindingNote] = useState('');
   useEffect(() => {
     const controller = new AbortController();
     fetch(new URL('api/atl/integrations', document.baseURI), { signal: controller.signal })
@@ -91,17 +94,50 @@ function AtlConfig(ctx) {
       .then(setReport).catch(error => { if (error.name !== 'AbortError') setReport({ error: error.message }); });
     return () => controller.abort();
   }, []);
+  const panelRequest = async (path, init = {}) => {
+    const opened = await fetch(new URL('api/atl/open', document.baseURI), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ project: '' }) });
+    const openedBody = await opened.json();
+    if (!opened.ok) throw new Error(openedBody.error || `ATL connection failed (${opened.status})`);
+    const response = await fetch(new URL('api/atl/request', document.baseURI), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: openedBody.id, path, ...init }) });
+    const envelope = await response.json();
+    if (!response.ok) throw new Error(envelope.error || `ATL request failed (${response.status})`);
+    return { status: envelope.status, body: JSON.parse(atob(envelope.body || 'e30=')), headers: envelope.headers || {} };
+  };
+  const loadBinding = () => {
+    panelRequest('/api/providers').then(({ body }) => { setBinding(body); setChosen(body.defaultProvider || ''); }).catch(error => setBindingNote(error.message));
+  };
+  useEffect(loadBinding, []);
+  const saveBinding = () => {
+    setBindingNote('');
+    panelRequest('/', { method: 'GET' }).then(({ body: html }) => {
+      const csrf = String(html).match(/name=["']atl-csrf["']\s+content=["']([^"']+)["']/)?.[1] || '';
+      if (!csrf) throw new Error('The panel session has no CSRF token yet; reopen this page.');
+      return panelRequest('/api/providers', { method: 'POST', headers: { 'content-type': 'application/json', 'x-atl-csrf': csrf }, body: JSON.stringify({ action: 'use', id: chosen }) });
+    }).then(() => { setBindingNote(`Provider binding saved: ${chosen}`); loadBinding(); }).catch(error => setBindingNote(error.message));
+  };
   const items = report ? [
     ['Commands', Array.isArray(report.commands) ? report.commands.join(', ') || 'Unavailable' : 'Unavailable'],
     ['Directory picker', report.directoryPicker ? 'Available' : 'Unavailable'],
     ['Jobs', report.jobs ? 'Available' : 'Unavailable'],
     ['Action cards', report.actionCards ? 'Available' : 'Unavailable'],
     ['Approval service', report.approval ? 'Available' : 'Unavailable'],
+    ...(typeof report.hostProvider === 'string' ? [['Host provider', report.hostProvider]] : []),
   ] : [];
+  const options = binding
+    ? [...(binding.builtin || []).filter(worker => worker.installed).map(worker => ({ id: worker.id, label: `${worker.label} (built-in)` })), ...(binding.providers || []).map(provider => ({ id: provider.id, label: `${provider.label || provider.id}${provider.ready === false ? ' (not ready)' : ''}` }))]
+    : [];
   return h('section', { style: { padding: 20, color: 'inherit' } },
     h('h2', null, 'ATL Control Plane'),
     h('p', null, 'Open the embedded workspace to manage your work.'),
     h('button', { type: 'button', onClick: () => ctx.layout.selectPanel(PANEL) }, 'Open Control Plane'),
+    h('h3', null, 'Provider binding'),
+    h('p', null, 'Which provider ATL uses for planning and task runs in this project.'),
+    h('div', null,
+      h('select', { 'aria-label': 'Provider binding', value: chosen, onChange: event => setChosen(event.target.value), disabled: !options.length, style: { minWidth: 260, padding: 8 } },
+        ...(options.length ? options.map(option => h('option', { key: option.id, value: option.id }, option.label)) : [h('option', { value: '' }, binding ? 'No provider registered yet' : 'Loading providers…')])),
+      ' ',
+      h('button', { type: 'button', onClick: saveBinding, disabled: !chosen || chosen === binding?.defaultProvider, style: { padding: '8px 14px' } }, 'Save binding'),
+      bindingNote ? h('p', { role: 'status' }, bindingNote) : null),
     h('h3', null, 'Host integrations'),
     report?.error ? h('p', { role: 'alert' }, report.error) : null,
     !report ? h('p', { role: 'status' }, 'Checking host capabilities…') : null,

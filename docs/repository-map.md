@@ -630,6 +630,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/build_mode_skills_test.py](../verification/build_mode_skills_test.py) | build mode skills test: source/configuration for its containing feature. |
 | [verification/builtin_provider_status_test.mjs](../verification/builtin_provider_status_test.mjs) | Executable regression check for builtin provider status. |
 | [verification/change_review_store_test.mjs](../verification/change_review_store_test.mjs) | Executable regression check for change review store. |
+| [verification/cli_options_test.mjs](../verification/cli_options_test.mjs) | Executable regression check for cli options. |
 | [verification/codex_bridge_test.mjs](../verification/codex_bridge_test.mjs) | Executable regression check for codex bridge. |
 | [verification/concurrent_worker_test.mjs](../verification/concurrent_worker_test.mjs) | Executable regression check for concurrent worker. |
 | [verification/control_assistant_test.mjs](../verification/control_assistant_test.mjs) | Executable regression check for control assistant. |
@@ -647,6 +648,7 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/control_plane_task_run_test.mjs](../verification/control_plane_task_run_test.mjs) | Executable regression check for control plane task run. |
 | [verification/control_room_test.mjs](../verification/control_room_test.mjs) | Executable regression check for control room. |
 | [verification/control_room_ui_test.mjs](../verification/control_room_ui_test.mjs) | Executable regression check for control room ui. |
+| [verification/daemon_race_test.mjs](../verification/daemon_race_test.mjs) | Executable regression check for daemon race. |
 | [verification/daemon_test.mjs](../verification/daemon_test.mjs) | Executable regression check for daemon. |
 | [verification/dashboard_test.mjs](../verification/dashboard_test.mjs) | Executable regression check for dashboard. |
 | [verification/deepseek_host_ui_test.mjs](../verification/deepseek_host_ui_test.mjs) | Executable regression check for deepseek host ui. |
@@ -768,6 +770,8 @@ Behavior checks, formal models, and synthetic fixtures.
 | [verification/planning_model_selection_test.mjs](../verification/planning_model_selection_test.mjs) | Executable regression check for planning model selection. |
 | [verification/plugin_bundle_test.mjs](../verification/plugin_bundle_test.mjs) | Executable regression check for plugin bundle. |
 | [verification/plugin_connect_test.mjs](../verification/plugin_connect_test.mjs) | Executable regression check for plugin connect. |
+| [verification/plugin_host_approvals_test.mjs](../verification/plugin_host_approvals_test.mjs) | Executable regression check for plugin host approvals. |
+| [verification/plugin_host_provider_test.mjs](../verification/plugin_host_provider_test.mjs) | Executable regression check for plugin host provider. |
 | [verification/plugin_native_panel_test.mjs](../verification/plugin_native_panel_test.mjs) | Executable regression check for plugin native panel. |
 | [verification/portable_overnight_batch_test.mjs](../verification/portable_overnight_batch_test.mjs) | Executable regression check for portable overnight batch. |
 | [verification/program_orchestration_test.mjs](../verification/program_orchestration_test.mjs) | Executable regression check for program orchestration. |

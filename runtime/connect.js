@@ -61,7 +61,11 @@ $('download').onclick = () => {
   announce('Downloaded a connection snippet. Merge it into your settings.', 'فایل اتصال دریافت شد. آن را با تنظیمات قبلی ادغام کنید.');
 };
 $('project-form').onsubmit = async event => {
-  event.preventDefault(); $('start').disabled = true; $('project-link').hidden = true;
+  event.preventDefault();
+  // The token arrives with /api/connect; an early submit must not send
+  // "undefined" as the capability and blame the folder path for the 401.
+  if (!token) { $('project-status').classList.add('error'); $('project-status').textContent = text('Still connecting to ATL Connect — try again in a moment.', 'اتصال به ATL هنوز برقرار نشده — لحظه‌ای دیگر دوباره تلاش کنید.'); return; }
+  $('start').disabled = true; $('project-link').hidden = true;
   $('project-status').classList.remove('error'); $('project-status').textContent = text('Preparing your workspace…', 'در حال آماده‌سازی محیط کار…');
   try {
     const response = await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ATL-Token': token }, body: JSON.stringify({ project: $('project').value.trim() }) });

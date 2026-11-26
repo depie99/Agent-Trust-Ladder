@@ -235,7 +235,7 @@ export async function ghCliAuthenticated() {
   try {
     const { execFile } = await import("node:child_process");
     const { promisify } = await import("node:util");
-    await promisify(execFile)("gh", ["auth", "status"]);
+    await promisify(execFile)("gh", ["auth", "status", "--hostname", "github.com"], { timeout: 3000, windowsHide: true });
     return true;
   } catch {
     return false;
