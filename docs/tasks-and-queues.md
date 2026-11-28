@@ -4,6 +4,8 @@ A task defines a bounded outcome and acceptance evidence. A queue chooses the wo
 
 The **Tasks** board shows active work. Open completed work from **Shipped** to browse its Activity, Changes, and Process, then use **Back to Shipped** to return to the archive. Filters and live status updates clear board selections that are no longer visible.
 
+The Tasks board counts live execution under **Running**. An interrupted or idle task can show **Stopped** and offer **Resume**. When recovery needs attention, the task shows **Needs you** and offers a recovery action. In **Activity**, each worker attempt has its own outcome. An incomplete historical record with no confirmed worker shows **Unknown result**.
+
 ## Create a task contract
 
 1. Open **Tasks** and create or import work.

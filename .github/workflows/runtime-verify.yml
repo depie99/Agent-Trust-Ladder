@@ -41,6 +41,8 @@ jobs:
       - run: node verification/task_diagnostics_test.mjs
       - run: node verification/resource_policy_test.mjs
       - run: node verification/execution_report_test.mjs
+      - run: node verification/execution_projection_test.mjs
+      - run: node verification/task_ui_workspace_test.mjs
       - run: node verification/provider_quota_failover_test.mjs
       - run: node verification/execution_report_ui_test.mjs
       - run: node verification/resource_policy_launch_test.mjs

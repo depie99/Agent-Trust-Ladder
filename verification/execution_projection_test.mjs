@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { buildExecutionProjection } from "../runtime/lib/execution-projection.mjs";
 import { emptyState, saveState, loadState, logEvent, addEvidence } from "../runtime/lib/state.mjs";
+import { acquireLease, releaseLease } from "../runtime/lib/leases.mjs";
 import { recordExecution } from "../runtime/lib/execution-report.mjs";
 import { fixture } from "./fixtures/task-changes/project.mjs";
 import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs";
@@ -22,6 +23,23 @@ saveState(root, state);
 
 // Unknown task stays honest.
 assert.equal(buildExecutionProjection(root, "T-NOPE").availability, "unknown_task");
+
+// A session appears once, and only its matching active lease can mark it running.
+{
+  const lease = acquireLease(root, { project: root, task: "T-100", role: "rowan", run: "test" });
+  const start = { id: "active", taskId: "T-100", role: "rowan", leaseId: lease.id, startedAt: "2026-11-16T08:00:00Z", logPath: "active.log" };
+  const legacy = { ...start, id: "legacy", leaseId: null, logPath: "legacy.log" };
+  const exit = { task: "T-100", event: "worker_exit", at: "2026-11-16T08:01:00Z", detail: "codex/rowan; code=1; timed_out=false; log=active.log" };
+  const attempts = (records, events = []) => buildExecutionProjection(root, "T-100", { state, records, events, revisions: [], files: [] }).stages[0].attempts;
+  assert.deepEqual(attempts([start, legacy]).map((a) => a.outcome), ["running", "unknown"]);
+  const fromExit = attempts([legacy, start], [exit]);
+  assert.deepEqual(fromExit.map((a) => a.outcome), ["unknown", "failed"]);
+  assert.equal(fromExit[0].events.length, 0, "historical open records cannot claim another session's exit");
+  assert.equal(fromExit[1].events[0].event, "worker_exit");
+  assert.equal(attempts([start, { ...start, finishedAt: exit.at, exitCode: 1 }]).length, 1);
+  releaseLease(root, lease);
+  assert.equal(attempts([start])[0].outcome, "unknown");
+}
 
 // A planned task (no sessions, intake state) is labeled planned.
 {

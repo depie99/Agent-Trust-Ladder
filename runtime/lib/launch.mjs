@@ -516,7 +516,7 @@ export async function driveTaskUntilGate(root, taskId, budget, {
     }
     const workerCredential = createWorkerCredential({ project: path.resolve(root), task: taskId, role, run: lease.run, generation: lease.generation, leaseId: lease.id, leaseKey: lease.key, expiresInSeconds: Math.ceil(timeoutMs / 1000) + 120 });
     const executionId=path.relative(root,logPath);
-    const executionStart={id:executionId,taskId,role,provider:pick.userProvider?.id||useWorker,model:useProvider.model||null,startedAt:new Date().toISOString(),logPath,statusBefore:task.status,budget:{...task.execution_budget},complexity:allocation.assessment.complexity,tier:pick.decision?.tier||allocation.assessment.tier,packetRevision:task.packet_revision||1};
+    const executionStart={id:executionId,leaseId:lease.id,taskId,role,provider:pick.userProvider?.id||useWorker,model:useProvider.model||null,startedAt:new Date().toISOString(),logPath,statusBefore:task.status,budget:{...task.execution_budget},complexity:allocation.assessment.complexity,tier:pick.decision?.tier||allocation.assessment.tier,packetRevision:task.packet_revision||1};
     const channel = createWorkerChannel(root, { workspace, task: taskId, role, credential: workerCredential });
     let result;
     try {
