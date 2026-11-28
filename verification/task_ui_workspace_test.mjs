@@ -11,6 +11,7 @@ import { startControlPlaneServer } from "../runtime/lib/control-plane-server.mjs
 const f = fixture(); f.edit();
 {
   const state = loadState(f.root);
+  Object.assign(state.tasks["T-001"], { status: "verifying", recovery: { status: "exhausted" } });
   state.tasks["T-002"] = { id: "T-002", title: "Planned follow-up", objective: "Not started yet.", status: "triaged", completion_checks: [] };
   state.tasks["T-003"] = { id: "T-003", title: "Imported request", status: "triaged", intake_only: true, plan_review_required: true, completion_checks: [] };
   logEvent(state, { task: "T-001", actor: "manager", event: "task_created", detail: "fixture intake" });
@@ -22,6 +23,7 @@ const f = fixture(); f.edit();
     addEvidence(state, "T-001", { kind: "check", check, result: "pass", actor: "rowan" });
   }
   saveState(f.root, state);
+  recordExecution(f.root, { id: "SESS-1", taskId: "T-001", role: "rowan", provider: "codex", startedAt: "2026-11-16T08:00:00Z" });
   recordExecution(f.root, { id: "SESS-1", taskId: "T-001", role: "rowan", provider: "codex", model: "test-model", startedAt: "2026-11-16T08:00:00Z", finishedAt: "2026-11-16T08:05:00Z", exitCode: 0, timedOut: false, statusBefore: "assigned", statusAfter: "in_progress", packetRevision: 1 });
   recordExecution(f.root, { id: "SESS-2", taskId: "T-001", role: "planning", provider: "gapgpt", model: "glm", startedAt: "2026-11-16T07:00:00Z", finishedAt: "2026-11-16T07:04:00Z", exitCode: 1, timedOut: true, statusBefore: "triaged", statusAfter: "triaged", packetRevision: 1 });
   captureChangeReview(f.root, state.tasks["T-001"]);
@@ -65,6 +67,12 @@ try {
   assert.equal(await workspace.getAttribute("data-task-view"), "activity");
   const implementation = workspace.locator('[data-stage="implementation"]');
   await implementation.waitFor();
+  assert.equal(await segments.nth(1).locator(".tasks-seg-count").textContent(), "0");
+  assert.match(await layout.locator('[data-task="T-001"] .pill').first().textContent(), /Needs you/);
+  assert.match(await workspace.locator(".task-run-indicator").textContent(), /Needs you/);
+  assert.equal(await workspace.locator('.task-workspace-primary-actions [data-action="task-recovery:T-001"]').count(), 1);
+  assert.equal(await workspace.locator('.task-workspace-primary-actions [data-action="run-task:T-001"]').count(), 0);
+  assert.equal(await implementation.locator(".activity-attempt summary").getByText("Running", { exact: true }).count(), 0);
   assert.match(await implementation.textContent(), /rowan/, "session attempt shows its actor");
   assert.match(await implementation.textContent(), /codex\/test-model/, "attempt shows provider and model");
   // The failed planning attempt is expanded automatically; completed details stay collapsed.

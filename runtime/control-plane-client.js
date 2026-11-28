@@ -1276,11 +1276,15 @@ ${feedbackLine}
   const eventRow = (event) => `<div class="event"><span class="muted tiny" style="white-space:nowrap">${escapeHtml(event[0])}</span><div>${badge(event[1])} <span class="muted">${escapeHtml(event[2])}</span><div style="margin-top:5px">${escapeHtml(event[3])}</div></div></div>`;
   const stat = (name, value, detail) => `<div class="panel stat"><small>${name}</small><strong>${value}</strong><div class="muted tiny">${detail}</div></div>`;
 
+  function workspaceNeedsRecovery(task) {
+    return Boolean(task.block) || ["blocked", "escalated"].includes(task.rawStatus) || task.recovery?.status === "exhausted";
+  }
   function workspaceTaskState(task) {
-    if (["in_review", "review"].includes(task.rawStatus)) return { label: "✓ Ready for review", tone: "green" };
     if (task.rawStatus === "done") return { label: "Done", tone: "green" };
-    if (task.block || ["blocked", "escalated"].includes(task.rawStatus)) return { label: "! Needs you", tone: "amber" };
-    if (liveRunState(task) === "running" || ["in_progress", "verifying"].includes(task.rawStatus)) return { label: "● Running", tone: "blue" };
+    if (workspaceNeedsRecovery(task)) return { label: "! Needs you", tone: "amber" };
+    if (liveRunState(task) === "running") return { label: "● Running", tone: "blue" };
+    if (["in_review", "review"].includes(task.rawStatus)) return { label: "✓ Ready for review", tone: "green" };
+    if (["in_progress", "verifying"].includes(task.rawStatus)) return { label: "Stopped", tone: "" };
     return { label: "New", tone: "" };
   }
   function workspaceTaskCard(task, selectedId) {
@@ -2459,8 +2463,8 @@ ${feedbackLine}
       // lifecycle states: running work, work that needs a decision, finished work.
       const matchesWorkspaceFilter = (task, status = filter) => {
         if (status === "All") return true;
-        if (status === "Running") return liveRunState(task) === "running" || task.rawStatus === "in_progress";
-        if (status === "Needs attention" || status === "Blocked") return task.rawStatus === "blocked" || task.rawStatus === "escalated" || Boolean(task.block) || Boolean(task.plan_review_required) || Boolean(task.review_required) || task.recovery?.status === "exhausted";
+        if (status === "Running") return workspaceTaskState(task).tone === "blue";
+        if (status === "Needs attention" || status === "Blocked") return task.rawStatus !== "done" && (workspaceNeedsRecovery(task) || Boolean(task.plan_review_required) || Boolean(task.review_required));
         if (status === "Completed") return task.rawStatus === "done";
         return task.status === status;
       };
@@ -3667,11 +3671,18 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
     const progress = task.progressDetails || taskProgress(task);
     const checksMarkup = `<div class="progress-evidence">${progress.checks.map((item) => `<div class="row between"><span>${escapeHtml(item.check)}</span>${badge(item.result)}</div>`).join("")}${progress.reviewRequired ? `<div class="row between"><span>Required review</span>${badge(progress.reviewPassed ? "Approved" : "Pending")}</div>` : ""}<div class="row between"><span>Final completion</span>${badge(progress.finished ? "Done" : "Pending")}</div></div>`;
     const statusNote = task.rawStatus === "done" ? `<div class="notice"><b class="green">✓ Accomplished</b><p>${escapeHtml(outcome.summary)}</p></div>` : `<div class="notice"><b>${liveRunState(task) === "running" ? '<span class="running-mark"></span>Running now' : escapeHtml(task.status)}</b><p class="sub">${escapeHtml(task.stage)}</p></div>`;
-    const isRunning = liveRunState(task) === "running" || task.rawStatus === "in_progress";
+    const isRunning = liveRunState(task) === "running";
+    const needsRecovery = workspaceNeedsRecovery(task);
     const isBlocked = task.rawStatus === "blocked" || task.rawStatus === "escalated";
     const isDone = task.rawStatus === "done";
     const displayState = workspaceTaskState(task);
     const readyForReview = ["in_review", "review"].includes(task.rawStatus);
+    let primaryAction = "";
+    if (isBlocked) primaryAction = btn("Unblock", `unblock:${task.id}`, "primary");
+    else if (!isDone && needsRecovery) primaryAction = btn("Review recovery", `task-recovery:${task.id}`, "primary");
+    else if (!isDone && isRunning) primaryAction = btn("Stop", "run-stop", "danger");
+    else if (!isDone && readyForReview) primaryAction = btn("Approve", `workspace-approve:${task.id}`, "primary");
+    else if (!isDone) primaryAction = btn(["in_progress", "verifying"].includes(task.rawStatus) ? "Resume" : "▶ Run", `run-task:${task.id}`, "primary");
     const runIndicator = `<span class="pill ${displayState.tone} task-run-indicator">${escapeHtml(displayState.label)}</span>`;
     const shortDesc = (task.desc || "").length > 110 ? `${task.desc.slice(0, 110)}…` : (task.desc || "");
     const cached = workspaceProjection.get(task.id);
@@ -3722,7 +3733,7 @@ ${provider.ready ? "" : `<div class="muted tiny" style="margin-top:4px">${escape
             <span class="task-id-badge">${escapeHtml(task.id)}</span>
             <h2 class="task-detail-title" data-no-translate dir="auto">${escapeHtml(task.title)}</h2>
           </div>
-          <div class="task-workspace-primary-actions">${runIndicator}${readyForReview ? btn("Approve", `workspace-approve:${task.id}`, "primary") : !isDone && !isBlocked ? btn(isRunning ? "Resume" : "▶ Run", `run-task:${task.id}`, "primary") : ""}${isBlocked ? btn("Unblock", `unblock:${task.id}`, "primary") : ""}${PLUGIN && page === "tasks" ? btn("Ask ATL", `assistant-open:${task.id}`, "sm") : ""}<button type="button" class="btn task-workspace-more" data-action="task-actions:${escapeHtml(task.id)}" aria-label="More task actions">···</button></div>
+          <div class="task-workspace-primary-actions">${runIndicator}${primaryAction}${PLUGIN && page === "tasks" ? btn("Ask ATL", `assistant-open:${task.id}`, "sm") : ""}<button type="button" class="btn task-workspace-more" data-action="task-actions:${escapeHtml(task.id)}" aria-label="More task actions">···</button></div>
         </div>
         <div class="task-workspace-meta"><span>${escapeHtml(task.queue === "Default" ? "Default queue" : task.queue)}</span><span>Priority: ${escapeHtml(task.priority || "Normal")}</span><span>${escapeHtml(task.agent || "Unassigned")}</span><span>${escapeHtml(task.repository_name || "This workspace")}</span></div>
         ${workspaceView === "activity" ? `<div class="task-objective-row"><details class="task-objective"${disclose("objective")}${openAttr("objective")}><summary><b>Objective</b><span class="muted task-objective-hint" dir="auto">${escapeHtml(shortDesc || 'None yet. Add one so ATL knows what “done” means.')}</span></summary><p class="task-detail-description" dir="auto">${escapeHtml(task.desc || "No objective recorded.")}</p></details>${btn(task.desc ? "Edit objective" : "Add objective", `edit:${task.id}`, "sm")}</div>` : ""}

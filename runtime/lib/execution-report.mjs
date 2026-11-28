@@ -60,6 +60,7 @@ export function recordExecution(root,record) {
   const cleanTokens={input:integer(tokens.input),output:integer(tokens.output),cached_input:integer(tokens.cached_input),total:integer(tokens.total),source};
   if(source==='unknown'||cleanTokens.total===null)Object.assign(cleanTokens,{input:null,output:null,cached_input:null,total:null,source:'unknown'});
   const safe={id:record.id||hash(`${record.logPath}:${record.startedAt}`),taskId:record.taskId||null,draftId:record.draftId||null,role:record.role||'unknown',provider:record.provider||record.worker||'unknown',model:record.model||null,startedAt:record.startedAt||null,finishedAt:record.finishedAt||null,statusBefore:record.statusBefore||null,statusAfter:record.statusAfter||null,exitCode:record.exitCode??null,timedOut:Boolean(record.timedOut),tokens:cleanTokens,usage_source:source==='unknown'?'unknown':source,budget:record.budget?{...record.budget}:null,complexity:record.complexity||null,tier:record.tier||null,packetRevision:record.packetRevision||null,logPath:record.logPath||null};
+  if(record.leaseId)safe.leaseId=record.leaseId;
   if(record.providerFailure||record.failure)safe.failure=record.providerFailure||record.failure;
   const prior=executionRecords(root).filter(r=>r.id===safe.id).at(-1);
   if(prior&&JSON.stringify(prior)===JSON.stringify(safe))return prior;

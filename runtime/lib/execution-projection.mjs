@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { loadState } from "./state.mjs";
+import { activeLeaseId } from "./leases.mjs";
 import { executionRecords } from "./execution-report.mjs";
 import { listChangeReviews, readChangeReview } from "./change-review-store.mjs";
 import { ChangeReviewError, compareSnapshots, fileDiff } from "./task-changes.mjs";
@@ -74,9 +75,14 @@ function truncated(list, cap) {
   return { items: list.slice(0, cap), truncated: true };
 }
 
-function sessionOutcome(session, ownEvidenceCount = 0) {
+function workerEventMatches(entry, session) {
+  const log = String(entry.detail || "").match(/; log=(.+)$/)?.[1];
+  return Boolean(log && path.normalize(log) === path.normalize(session.logPath));
+}
+
+function sessionOutcome(session, ownEvidenceCount, liveLeaseId) {
   if (session.timedOut) return "failed";
-  if (session.exitCode === null || session.exitCode === undefined) return session.finishedAt ? "unknown" : "running";
+  if (session.exitCode === null || session.exitCode === undefined) return !session.finishedAt && liveLeaseId && session.leaseId === liveLeaseId ? "running" : "unknown";
   if (session.exitCode === 0) {
     const unchanged = session.statusBefore && session.statusAfter && session.statusBefore === session.statusAfter;
     return unchanged && ownEvidenceCount === 0 ? "no-state-change" : "complete";
@@ -110,9 +116,14 @@ export function buildExecutionProjection(root, taskId, options = {}) {
   if (!task) return { version: 1, capability: "task-execution-projection-v1", availability: "unknown_task", task_id: taskId, message: "No recorded task with this identifier." };
 
   const records = options.records !== undefined ? options.records : safeRecords(root);
-  const sessions = records
-    .filter((row) => row && (row.taskId === taskId || row.task_id === taskId))
-    .slice()
+  const liveLeaseId = activeLeaseId(root, taskId);
+  const latestById = new Map();
+  for (const row of records) {
+    if (!row || (row.taskId !== taskId && row.task_id !== taskId)) continue;
+    // The ledger appends the final record under the same ID as the start.
+    latestById.set(row.id || Symbol(), row);
+  }
+  const sessions = [...latestById.values()]
     .sort((a, b) => String(a.startedAt || "").localeCompare(String(b.startedAt || "")));
   const sessionIds = new Set(sessions.map((session) => session.id).filter(Boolean));
 
@@ -151,15 +162,25 @@ export function buildExecutionProjection(root, taskId, options = {}) {
   // 1. Session attempts: one ledger/overnight record each, joined with
   //    explicitly linked evidence (evidence.session_id) and log-tail events
   //    of the same stage fired inside the session's recorded window.
-  for (const session of sessions) {
+  for (let session of sessions) {
     const stageKey = stageForRole(String(session.role || ""));
     const stage = stages.get(stageKey);
     if (!stage) continue;
     const ownEvidence = taskEvidence.filter((entry) => entry.session_id && sessionIds.has(entry.session_id) && entry.session_id === session.id);
+    const matchingExit = session.logPath && events.findLast((entry) =>
+      entry.event === "worker_exit" && workerEventMatches(entry, session));
+    if (matchingExit && !session.finishedAt && session.exitCode == null) {
+      const exit = matchingExit.detail.match(/; code=(-?\d+); timed_out=(true|false); log=/);
+      session = { ...session, finishedAt: matchingExit.at, exitCode: exit ? Number(exit[1]) : null, timedOut: exit?.[2] === "true" };
+    }
     const started = session.startedAt ? Date.parse(session.startedAt) : null;
     const finished = session.finishedAt ? Date.parse(session.finishedAt) : null;
     const inWindow = (entry) => {
-      if (stageForEvent(String(entry.event || "")) !== stageKey) return false;
+      const event = String(entry.event || "");
+      if ((event === "worker_start" || event === "worker_exit") && session.logPath) {
+        if (typeof entry.detail === "string" && entry.detail.includes("; log=")) return workerEventMatches(entry, session);
+      }
+      if (stageForEvent(event) !== stageKey) return false;
       const at = entry.at ? Date.parse(entry.at) : null;
       if (at == null || Number.isNaN(at) || started == null || Number.isNaN(started)) return false;
       return at >= started - 1500 && (finished == null || Number.isNaN(finished) || at <= finished + 1500);
@@ -183,7 +204,7 @@ export function buildExecutionProjection(root, taskId, options = {}) {
       status_after: session.statusAfter || null,
       packet_revision: session.packetRevision ?? null,
       checkpoint: session.checkpoint ? { note: session.checkpoint.note || null, summary: session.checkpoint.summary || session.checkpoint.note || null, at: session.checkpoint.at || session.finishedAt || null } : null,
-      outcome: sessionOutcome(session, ownEvidence.length),
+      outcome: sessionOutcome(session, ownEvidence.length, liveLeaseId),
       summary: session.failure ? failureSummary(session.failure) : (session.checkpoint?.summary || session.checkpoint?.note || null),
       failure: session.failure ? { summary: failureSummary(session.failure), next_action: session.failure.next_action || null } : null,
       tokens: session.tokens && session.tokens.total != null ? { total: session.tokens.total, source: session.usage_source || session.tokens.source || "unknown" } : null,
