@@ -227,7 +227,7 @@ try {
   await page.getByText('Access check complete.').waitFor();
   await page.locator('.source-connection-card').filter({ hasText: 'Main repository' }).getByText('Access verified').waitFor();
   azureMode = 'auth';
-  await (await cardAction(page.locator('.source-connection-card').filter({ hasText: 'Sprint 74' }), 'sources-check')).click({ force: true });
+  await (await cardAction(azureCard, 'sources-check')).click();
   await azureCard.getByText('Needs authentication').waitFor();
   const azureCardText = await azureCard.innerText();
   assert.ok(azureCardText.includes('[redacted]'), 'adapter errors are redacted before display');
@@ -292,15 +292,19 @@ try {
   assert.ok(!JSON.parse(fs.readFileSync(path.join(root, '.trust', 'manager', 'issue-connections.json'), 'utf8')).connections.some(c => c.name === 'Race Repo'), 'remove deletes the saved connection record');
   // Theme tokens: cards follow dark and light instead of a fixed light palette.
   // The first card is selected (accent border) after reload, so sample another.
-  const themeProbe = () => page.locator('.source-connection-card').filter({ hasText: 'Second repository' }).evaluate(node => { const s = getComputedStyle(node); return { bg: s.backgroundColor, border: s.borderColor }; });
+  const waitForCardTheme = (bg, border) => page.waitForFunction(({ bg, border }) => {
+    const card = [...document.querySelectorAll('.source-connection-card')]
+      .find((node) => node.querySelector('h3')?.textContent === 'Second repository');
+    if (!card) return false;
+    const style = getComputedStyle(card);
+    return style.backgroundColor === bg && style.borderColor === border;
+  }, { bg, border });
   await page.evaluate(() => localStorage.setItem('atl-cp-theme', 'dark'));
   await page.reload();
-  await page.locator('.source-connection-card').first().waitFor();
-  assert.deepEqual(await themeProbe(), { bg: 'rgb(29, 30, 42)', border: 'rgb(48, 50, 67)' }, 'cards render with dark theme tokens');
+  await waitForCardTheme('rgb(29, 30, 42)', 'rgb(48, 50, 67)');
   await page.evaluate(() => localStorage.setItem('atl-cp-theme', 'light'));
   await page.reload();
-  await page.locator('.source-connection-card').first().waitFor();
-  assert.deepEqual(await themeProbe(), { bg: 'rgb(255, 255, 255)', border: 'rgb(227, 229, 238)' }, 'cards render with light theme tokens');
+  await waitForCardTheme('rgb(255, 255, 255)', 'rgb(227, 229, 238)');
   // RTL: the Persian locale flips direction and the layout still fits.
   await page.locator('#localeBtn').click();
   await page.waitForFunction(() => document.documentElement.dir === 'rtl');
