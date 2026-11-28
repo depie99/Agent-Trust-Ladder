@@ -227,7 +227,7 @@ try {
   await page.getByText('Access check complete.').waitFor();
   await page.locator('.source-connection-card').filter({ hasText: 'Main repository' }).getByText('Access verified').waitFor();
   azureMode = 'auth';
-  await (await cardAction(azureCard, 'sources-check')).click();
+  await page.getByRole('button', { name: 'Check all access', exact: true }).click();
   await azureCard.getByText('Needs authentication').waitFor();
   const azureCardText = await azureCard.innerText();
   assert.ok(azureCardText.includes('[redacted]'), 'adapter errors are redacted before display');
